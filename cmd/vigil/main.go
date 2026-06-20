@@ -18,6 +18,7 @@ import (
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/server"
 	"github.com/kevin/vigil/internal/store"
+	"github.com/kevin/vigil/internal/triage"
 
 	"go.uber.org/zap"
 )
@@ -68,10 +69,15 @@ func run() error {
 	// 5.1 初始化接入（能力域 1-2）：适配器注册表 + webhook handler + 归一化 worker
 	adapterRegistry := ingestion.NewAdapterRegistry()
 	ingestHandler := ingestion.NewHandler(st.DB, q)
-	normalizeWorker := ingestion.NewNormalizeWorker(st.DB, adapterRegistry)
-	// 归一化任务注册到 queue
+	// 归一化 worker 持有 queue，归一化成功后入队分诊任务（流水线串接）
+	normalizeWorker := ingestion.NewNormalizeWorker(st.DB, adapterRegistry, q)
 	q.Register(ingestion.TaskNormalize, normalizeWorker.Handle)
-	log.Info("ingestion ready (webhook + normalize worker)")
+
+	// 5.2 初始化分诊（能力域 3-4）：分诊引擎 + worker
+	triageEngine := triage.NewEngine(st.DB, st.Redis)
+	triageWorker := triage.NewWorker(triageEngine)
+	q.Register(triage.TaskTriage, triageWorker.Handle)
+	log.Info("ingestion+triage ready (webhook → normalize → triage)")
 
 	// 6. 启动 HTTP 服务
 	srv := server.New(cfg, st)

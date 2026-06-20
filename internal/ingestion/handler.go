@@ -21,6 +21,7 @@ import (
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/rawevent"
 	"github.com/kevin/vigil/internal/queue"
+	"github.com/kevin/vigil/internal/triage"
 
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
@@ -121,11 +122,12 @@ func errMsg(msg string) map[string]any {
 type NormalizeWorker struct {
 	db       *ent.Client
 	registry *AdapterRegistry
+	queue    *queue.Queue // 用于归一化成功后入队分诊任务
 }
 
-// NewNormalizeWorker 创建归一化 worker。
-func NewNormalizeWorker(db *ent.Client, r *AdapterRegistry) *NormalizeWorker {
-	return &NormalizeWorker{db: db, registry: r}
+// NewNormalizeWorker 创建归一化 worker。q 可为 nil（测试时跳过分诊入队）。
+func NewNormalizeWorker(db *ent.Client, r *AdapterRegistry, q *queue.Queue) *NormalizeWorker {
+	return &NormalizeWorker{db: db, registry: r, queue: q}
 }
 
 // Handle 处理归一化任务（注册到 queue）。
@@ -173,8 +175,9 @@ func (w *NormalizeWorker) Handle(ctx context.Context, t *asynq.Task) error {
 		SetLabels(evt.Labels).
 		SetDedupKey(evt.DedupKey).
 		SetIntegration(integ)
-	if _, err := eventCreate.Save(ctx); err != nil {
-		// 幂等冲突（重复推送）视为成功
+	created, err := eventCreate.Save(ctx)
+	if err != nil {
+		// 幂等冲突（重复推送）视为成功，不再触发分诊
 		if ent.IsConstraintError(err) {
 			return w.markRawNormalized(ctx, raw.ID, 0)
 		}
@@ -182,8 +185,22 @@ func (w *NormalizeWorker) Handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// 5. RawEvent 标记 normalized
-	return w.markRawNormalized(ctx, raw.ID, 0)
-	// TODO: 后续把 Event 交给能力域 3（分诊）
+	if err := w.markRawNormalized(ctx, raw.ID, created.ID); err != nil {
+		return err
+	}
+
+	// 6. 入队分诊任务（能力域 3），流水线串接
+	if w.queue != nil {
+		task, err := triage.EnqueueTask(created.ID)
+		if err != nil {
+			return fmt.Errorf("build triage task: %w", err)
+		}
+		if _, err := w.queue.Client.Enqueue(task, asynq.Queue("default")); err != nil {
+			// 入队失败不阻塞归一化（Event 已落库，可由巡检任务回灌分诊）
+			return fmt.Errorf("enqueue triage: %w", err)
+		}
+	}
+	return nil
 }
 
 // failRaw 标记 RawEvent 为 parse_failed 并记录错误。
