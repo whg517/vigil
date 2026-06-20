@@ -26,6 +26,9 @@ type Config struct {
 
 	// Asynq 异步任务配置（基于 Redis）
 	Asynq Asynq `envconfig:"asynq"`
+
+	// LLM 配置（智谱 GLM 等，能力域 11 AI Copilot）
+	LLM LLM `envconfig:"llm"`
 }
 
 // App 应用级配置。
@@ -70,6 +73,14 @@ type Redis struct {
 // Asynq 异步任务配置。
 type Asynq struct {
 	Concurrency int `envconfig:"concurrency" default:"10"` // worker 并发数
+}
+
+// LLM 配置（智谱 GLM）。APIKey 为空时 AI 功能自动降级（设计基线第 7 条）。
+// ⚠️ Key 仅从环境变量读取，绝不硬编码/提交 git。
+type LLM struct {
+	APIKey  string `envconfig:"api_key"`                // 智谱 API Key（VIGIL_LLM_API_KEY）
+	Model   string `envconfig:"model" default:"glm-4-flash"` // 模型，glm-4-flash 轻量低成本
+	BaseURL string `envconfig:"base_url" default:"https://open.bigmodel.cn/api/paas/v4"` // 智谱 OpenAPI 根
 }
 
 // Load 从环境变量加载配置（前缀 VIGIL）。

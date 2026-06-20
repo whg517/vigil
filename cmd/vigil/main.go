@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/internal/ai"
 	"github.com/kevin/vigil/internal/analytics"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/config"
@@ -168,8 +169,17 @@ func run() error {
 	runbook.NewHandler(st.DB, runbookEngine).Register(v1)
 	// 时间线（能力域 10）：查询 + 手动追加 API
 	timeline.NewHandler(timelineRecorder).Register(v1)
-	// 复盘（能力域 12）：草稿生成 + 状态机 + 改进项（LLM 待接入，当前降级）
-	postmortemEngine := postmortem.NewEngine(st.DB, nil)
+	// 复盘（能力域 12）：草稿生成 + 状态机 + 改进项
+	// AI 起草：配置了 GLM key 则用 AI，否则降级（设计基线第 7 条）
+	var pmLLM postmortem.LLMProvider
+	glmProvider := ai.NewGLMProvider(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.BaseURL)
+	if glmProvider.Available() {
+		pmLLM = ai.NewPostmortemDraftAdapter(glmProvider)
+		log.Info("ai llm ready (glm)")
+	} else {
+		log.Info("ai llm disabled (no api key), postmortem uses fallback drafts")
+	}
+	postmortemEngine := postmortem.NewEngine(st.DB, pmLLM)
 	postmortem.NewHandler(st.DB, postmortemEngine).Register(v1)
 	// 报表（能力域 15）：告警/事件/团队负载/复盘/趋势 度量
 	analytics.NewHandler(analytics.NewEngine(st.DB)).Register(v1)
