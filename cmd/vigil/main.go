@@ -12,7 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/internal/config"
+	"github.com/kevin/vigil/internal/escalation"
 	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/logger"
 	"github.com/kevin/vigil/internal/queue"
@@ -21,6 +23,7 @@ import (
 	"github.com/kevin/vigil/internal/store"
 	"github.com/kevin/vigil/internal/triage"
 
+	"github.com/hibiken/asynq"
 	"go.uber.org/zap"
 )
 
@@ -74,19 +77,36 @@ func run() error {
 	normalizeWorker := ingestion.NewNormalizeWorker(st.DB, adapterRegistry, q)
 	q.Register(ingestion.TaskNormalize, normalizeWorker.Handle)
 
-	// 5.2 初始化分诊（能力域 3-4）：分诊引擎 + worker
+	// 5.2 排班引擎（能力域 5）—— escalation 依赖它
+	schedEngine := schedule.NewEngine(st.DB, st.Redis)
+
+	// 5.3 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链
+	escRedisOpt := &asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB}
+	escEngine := escalation.NewEngine(st.DB, q, schedEngine, nil, escRedisOpt) // notifier 待能力域7接入
+	q.Register(escalation.TaskEscalation, escEngine.HandleTask)
+
+	// 5.4 分诊（能力域 3-4）：创建 Incident 后注入"启动升级"回调
 	triageEngine := triage.NewEngine(st.DB, st.Redis)
+	triageEngine.OnIncidentCreated = func(ctx context.Context, inc *ent.Incident, svc *ent.Service) {
+		// 查 Service 绑定的 EscalationPolicy，启动升级链
+		policy, err := svc.QueryEscalationPolicy().Only(ctx)
+		if err != nil || len(policy.Levels) == 0 {
+			return // 无升级策略，跳过
+		}
+		// 绑定 policy 到 Incident（便于升级任务取 levels）
+		_ = st.DB.Incident.UpdateOneID(inc.ID).SetEscalationPolicyID(policy.ID).Exec(ctx)
+		if err := escEngine.StartEscalation(ctx, inc.ID, policy.Levels); err != nil {
+			log.Warn("start escalation failed", zap.Int("incident", inc.ID), zap.Error(err))
+		}
+	}
 	triageWorker := triage.NewWorker(triageEngine)
 	q.Register(triage.TaskTriage, triageWorker.Handle)
-	log.Info("ingestion+triage ready (webhook → normalize → triage)")
+	log.Info("pipeline ready (ingestion → triage → escalation)")
 
 	// 6. 启动 HTTP 服务
 	srv := server.New(cfg, st)
-	// 挂载业务路由
 	v1 := srv.APIGroup()
 	ingestHandler.Register(v1)
-	// 排班（能力域 5）：oncall 查询 + 预览
-	schedEngine := schedule.NewEngine(st.DB, st.Redis)
 	schedule.NewHandler(schedEngine).Register(v1)
 
 	errCh := make(chan error, 1)

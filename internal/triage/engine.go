@@ -30,6 +30,10 @@ type Engine struct {
 	dedupWindow time.Duration
 	// aggregateWindow 聚合窗口（同 service+severity 在窗口内并入同一 Incident）
 	aggregateWindow time.Duration
+
+	// OnIncidentCreated Incident 创建后的回调（由 main 注入，用于启动升级/通知）。
+	// 为 nil 时不触发。避免 triage 反向依赖 escalation。
+	OnIncidentCreated func(ctx context.Context, inc *ent.Incident, svc *ent.Service)
 }
 
 // NewEngine 创建分诊引擎。window 参数为 0 时用默认值。
@@ -183,6 +187,10 @@ func (e *Engine) aggregate(ctx context.Context, evt *ent.Event, svc *ent.Service
 	inc, err := e.createIncident(ctx, evt, svc)
 	if err != nil {
 		return nil, err
+	}
+	// 触发 Incident 创建回调（启动升级链/通知等，由 main 注入）
+	if e.OnIncidentCreated != nil {
+		e.OnIncidentCreated(ctx, inc, svc)
 	}
 	res.Action = ActionIncidentCreated
 	res.IncidentID = inc.ID
