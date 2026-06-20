@@ -24,6 +24,7 @@ type Server struct {
 	echo  *echo.Echo
 	cfg   *config.Config
 	store *store.Store
+	v1    *echo.Group // /api/v1 业务路由组
 }
 
 // New 创建 Server 并注册基础路由（health 等）。
@@ -37,11 +38,15 @@ func New(cfg *config.Config, st *store.Store) *Server {
 	// 基础路由（无需鉴权）
 	s.registerBase()
 
-	// API v1 group（业务路由后续挂载于此，鉴权中间件后续添加）
-	v1 := e.Group("/api/v1")
-	_ = v1 // TODO: 各能力域 handler 挂载点
+	// API v1 group（业务路由挂载于此，鉴权中间件后续添加）
+	s.v1 = e.Group("/api/v1")
 
 	return s
+}
+
+// APIGroup 返回 /api/v1 路由组，供各能力域 handler 挂载业务路由。
+func (s *Server) APIGroup() *echo.Group {
+	return s.v1
 }
 
 // registerBase 注册基础路由（健康检查、指标）。
