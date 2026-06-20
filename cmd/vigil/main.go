@@ -17,6 +17,7 @@ import (
 	"github.com/kevin/vigil/internal/escalation"
 	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/logger"
+	"github.com/kevin/vigil/internal/notification"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/schedule"
 	"github.com/kevin/vigil/internal/server"
@@ -80,9 +81,18 @@ func run() error {
 	// 5.2 排班引擎（能力域 5）—— escalation 依赖它
 	schedEngine := schedule.NewEngine(st.DB, st.Redis)
 
-	// 5.3 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链
+	// 5.3 通知（能力域 7）：通道注册表 + Webhook/邮件通道 + 分发器
+	notifReg := notification.NewRegistry()
+	notifReg.Register(notification.NewWebhookChannel(func(inc *ent.Incident) []string {
+		// TODO: 从团队/事件配置解析 webhook URL；暂返回空（无 URL 时不发送）
+		return nil
+	}))
+	notifReg.Register(&notification.EmailChannel{})
+	notifier := notification.NewNotifier(notifReg, []string{"webhook", "email"})
+
+	// 5.4 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链，注入通知分发器
 	escRedisOpt := &asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB}
-	escEngine := escalation.NewEngine(st.DB, q, schedEngine, nil, escRedisOpt) // notifier 待能力域7接入
+	escEngine := escalation.NewEngine(st.DB, q, schedEngine, notifier, escRedisOpt)
 	q.Register(escalation.TaskEscalation, escEngine.HandleTask)
 
 	// 5.4 分诊（能力域 3-4）：创建 Incident 后注入"启动升级"回调
@@ -101,7 +111,7 @@ func run() error {
 	}
 	triageWorker := triage.NewWorker(triageEngine)
 	q.Register(triage.TaskTriage, triageWorker.Handle)
-	log.Info("pipeline ready (ingestion → triage → escalation)")
+	log.Info("pipeline ready (ingestion → triage → escalation → notification)")
 
 	// 6. 启动 HTTP 服务
 	srv := server.New(cfg, st)
