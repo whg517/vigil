@@ -28,7 +28,7 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/postmortems", h.list)
 	g.GET("/postmortems/:id", h.get)
 	g.POST("/incidents/:id/postmortem/draft", h.generateDraft) // 为事件生成草稿
-	g.PATCH("/postmortems/:id/transition", h.transition)        // 状态流转
+	g.PATCH("/postmortems/:id/transition", h.transition)       // 状态流转
 	// ActionItem
 	g.POST("/postmortems/:id/action-items", h.addActionItem)
 	g.PATCH("/action-items/:id", h.updateActionItem)
@@ -122,9 +122,9 @@ func (h *Handler) addActionItem(c echo.Context) error {
 
 // updateActionItemReq 更新改进项（状态/负责人/工单）。
 type updateActionItemReq struct {
-	Status      *string `json:"status"`       // open | in_progress | done
-	OwnerID     *string `json:"owner_id"`
-	TrackerURL  *string `json:"tracker_url"`
+	Status     *string `json:"status"` // open | in_progress | done
+	OwnerID    *string `json:"owner_id"`
+	TrackerURL *string `json:"tracker_url"`
 }
 
 func (h *Handler) updateActionItem(c echo.Context) error {

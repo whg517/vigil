@@ -40,13 +40,13 @@ func (w *WebhookChannel) Send(ctx context.Context, msg *Message) ([]SendResult, 
 		return nil, nil
 	}
 	payload, _ := json.Marshal(map[string]any{
-		"event":     "incident.escalated",
-		"incident":  msg.Incident.Number,
-		"title":     msg.Title,
-		"summary":   msg.Summary,
-		"level":     msg.Level,
+		"event":      "incident.escalated",
+		"incident":   msg.Incident.Number,
+		"title":      msg.Title,
+		"summary":    msg.Summary,
+		"level":      msg.Level,
 		"action_url": msg.ActionURL,
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
 	})
 
 	var results []SendResult
@@ -62,7 +62,7 @@ func (w *WebhookChannel) Send(ctx context.Context, msg *Message) ([]SendResult, 
 			results = append(results, SendResult{Channel: "webhook", Target: u, Error: err.Error()})
 			continue
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		ok := resp.StatusCode >= 200 && resp.StatusCode < 300
 		r := SendResult{Channel: "webhook", Target: u, Success: ok}
 		if !ok {

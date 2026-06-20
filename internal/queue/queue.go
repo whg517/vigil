@@ -40,9 +40,9 @@ func New(cfg *config.Config) *Queue {
 	srv := asynq.NewServer(redisOpt, asynq.Config{
 		Concurrency: cfg.Asynq.Concurrency,
 		Queues: map[string]int{
-			"critical":  6, // 升级/核心告警（绝不能延迟）
-			"default":   3, // 接入流水线/通知
-			"low":       1, // 报表聚合/AI 等可延迟任务
+			"critical": 6, // 升级/核心告警（绝不能延迟）
+			"default":  3, // 接入流水线/通知
+			"low":      1, // 报表聚合/AI 等可延迟任务
 		},
 	})
 

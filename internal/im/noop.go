@@ -16,8 +16,8 @@ func NewNoopBot(platform string) *NoopBot {
 	return &NoopBot{platform: platform}
 }
 
-func (b *NoopBot) Platform() string  { return b.platform }
-func (b *NoopBot) Available() bool   { return false }
+func (b *NoopBot) Platform() string { return b.platform }
+func (b *NoopBot) Available() bool  { return false }
 func (b *NoopBot) SendCard(_ context.Context, _ string, _ *Card) (string, error) {
 	return "", ErrUnsupported
 }

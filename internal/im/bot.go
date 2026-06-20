@@ -60,15 +60,15 @@ type IMEvent struct {
 	UnionID   string // 操作者的 IM 平台唯一标识，用于映射 User
 	ChannelID string // 事件来源频道/群/会话 ID
 	// CardAction 专用：用户点击的按钮 action（如 ack/escalate/resolve）+ 关联 incident
-	Action    string
+	Action     string
 	IncidentID string
 	// Command 专用：斜杠命令解析后的命令名 + 原始参数
 	Command    string
 	CommandArg string
 	// Mention/Message 专用：消息正文
-	Text       string
+	Text string
 	// MentionAt 被 @ 的 IM 用户 unionID 列表（拉人协同场景）
-	MentionAt  []string
+	MentionAt []string
 }
 
 // ErrNotBound IM 账号未绑定到任何 Vigil User。

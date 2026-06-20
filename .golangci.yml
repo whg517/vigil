@@ -1,0 +1,85 @@
+# golangci-lint v2 配置。
+# 对应 development.md §3.4：提交前必须 lint 通过，尽可能不忽略问题。
+version: "2"
+
+linters:
+  # 默认集（errcheck/govet/ineffassign/staticcheck/unused）
+  default: standard
+  enable:
+    - misspell      # 拼写错误
+    - revive        # 代码风格（golint 继任）
+    - gosec         # 安全检查（密钥泄露/SQL注入等）
+    - bodyclose     # HTTP response body 必须关闭
+    - errorlint     # 错误处理最佳实践
+
+  settings:
+    errcheck:
+      exclude-functions: []
+    # revive 只启用有实际价值的规则（不强制 exported/package-comment，
+    # 那些对 internal 包噪声大；保留能发现真实问题的规则）
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+          arguments:
+            - "disableStutteringCheck"
+          # exported 只对 cmd/ 和根包要求，internal 通过 exclusions 放宽
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: unnecessary-stmt
+        - name: unreachable-code
+        - name: useless-break
+        # 注：unused-parameter 不启用——接口实现时参数未用是常见且合理的，
+        # 强改 _ 反而降低可读性（Go 社区共识）。
+
+  exclusions:
+    generated: strict              # ent 生成代码自动排除
+    paths:
+      - "ent/runtime"
+      - "ent/migrate"
+      - "ent/hook"
+      - "ent/predicate"
+      - "ent/enttest"
+    rules:
+      # 测试文件放宽 errcheck（测试中常需忽略错误，但尽量修）
+      - path: "_test\\.go"
+        linters: [errcheck]
+      # internal 包放宽 exported 注释要求（内部包噪声大，价值低）
+      - path: "internal/"
+        linters: [revive]
+        text: "exported"
+      # ent schema 是定义文件，放宽 exported
+      - path: "ent/schema/"
+        linters: [revive]
+        text: "exported"
+      # im/handler.go：context-as-argument 与 echo.Context 固有冲突
+      #（echo.Context 是 HTTP handler 首参，context.Context 次之，符合 echo 惯例）
+      - path: "internal/im/handler\\.go"
+        linters: [revive]
+        text: "context-as-argument"
+
+# formatter 单独配置（v2 中 gofmt/goimports 是 formatter 不是 linter）
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: strict
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+run:
+  timeout: 5m

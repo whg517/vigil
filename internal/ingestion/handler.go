@@ -100,7 +100,7 @@ func (h *Handler) receiveWebhook(c echo.Context) error {
 
 	// 5. 秒级返回 202 Accepted
 	return c.JSON(http.StatusAccepted, map[string]any{
-		"status":      "accepted",
+		"status":       "accepted",
 		"raw_event_id": raw.ID,
 	})
 }
@@ -108,8 +108,8 @@ func (h *Handler) receiveWebhook(c echo.Context) error {
 // extractHeaders 提取关键请求头（用于审计与排查）。
 func extractHeaders(r *http.Request) map[string]string {
 	return map[string]string{
-		"User-Agent":    r.Header.Get("User-Agent"),
-		"Content-Type":  r.Header.Get("Content-Type"),
+		"User-Agent":      r.Header.Get("User-Agent"),
+		"Content-Type":    r.Header.Get("Content-Type"),
 		"X-Forwarded-For": r.RemoteAddr,
 	}
 }

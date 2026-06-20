@@ -1,15 +1,16 @@
 // handler.go IM Webhook 回调接收与操作执行（能力域 8 §6 鉴权链路 + §8 状态同步）。
 //
 // 回调处理流程（capabilities §6）：
-//   IM Webhook 回调（im_platform + im_unionid + action）
-//     → bot.VerifyCallback（签名/解密）
-//     → bot.ParseCallback（标准化为 IMEvent）
-//     → mapper.ResolveUser（im_unionid → User，未绑定拒绝）
-//     → action → 权限点（ack → incident.ack ...）
-//     → authz.Check（带 incident.team scope）
-//     → incident.Service.Ack/Resolve/... （核心服务执行）
-//     → bot.UpdateCard（刷新已发卡片）
-//     → 时间线 source=im（已在 incident.Service 记录）
+//
+//	IM Webhook 回调（im_platform + im_unionid + action）
+//	  → bot.VerifyCallback（签名/解密）
+//	  → bot.ParseCallback（标准化为 IMEvent）
+//	  → mapper.ResolveUser（im_unionid → User，未绑定拒绝）
+//	  → action → 权限点（ack → incident.ack ...）
+//	  → authz.Check（带 incident.team scope）
+//	  → incident.Service.Ack/Resolve/... （核心服务执行）
+//	  → bot.UpdateCard（刷新已发卡片）
+//	  → 时间线 source=im（已在 incident.Service 记录）
 package im
 
 import (
@@ -95,7 +96,9 @@ func NewHandler(
 }
 
 // Register 挂载 IM 回调路由。
-//   POST /api/v1/im/:platform/callback
+//
+//	POST /api/v1/im/:platform/callback
+//
 // 各平台回调入口，platform 为 feishu/dingtalk/wecom。
 func (h *Handler) Register(g *echo.Group) {
 	g.POST("/im/:platform/callback", h.callback)

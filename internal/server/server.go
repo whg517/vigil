@@ -45,8 +45,8 @@ func New(cfg *config.Config, st *store.Store) *Server {
 	s.registerBase()
 
 	// API v1 路由组
-	s.v1 = e.Group("/api/v1")      // 业务路由（鉴权中间件由 main 挂载）
-	s.public = e.Group("/api/v1")  // 公开路由（webhook 接入/IM 回调，用各自 token/签名鉴权）
+	s.v1 = e.Group("/api/v1")     // 业务路由（鉴权中间件由 main 挂载）
+	s.public = e.Group("/api/v1") // 公开路由（webhook 接入/IM 回调，用各自 token/签名鉴权）
 
 	return s
 }

@@ -1,7 +1,9 @@
 // Command vigil 是 Vigil 告警处置平台的入口。
 //
 // 启动流程：load config → init logger → open store (pg+redis) →
-//           init queue → start http server → start queue worker。
+//
+//	init queue → start http server → start queue worker。
+//
 // 优雅退出：捕获 SIGINT/SIGTERM，按序关闭 queue → server → store。
 package main
 
@@ -23,8 +25,8 @@ import (
 	"github.com/kevin/vigil/internal/escalation"
 	"github.com/kevin/vigil/internal/im"
 	"github.com/kevin/vigil/internal/im/feishu"
-	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/incident"
+	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/logger"
 	"github.com/kevin/vigil/internal/notification"
 	"github.com/kevin/vigil/internal/postmortem"
@@ -67,7 +69,7 @@ func runMigrate() error {
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := db.Schema.Create(ctx); err != nil {
@@ -88,7 +90,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer log.Sync()
+	defer func() { _ = log.Sync() }()
 
 	log.Info("vigil starting",
 		zap.String("env", cfg.App.Env),
@@ -105,7 +107,7 @@ func run() error {
 		log.Error("open store failed", zap.Error(err))
 		return err
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 	log.Info("store ready (postgres + redis)")
 
 	// 4.1 种子内置角色（鉴权生效的前提，幂等）
@@ -117,7 +119,7 @@ func run() error {
 
 	// 5. 初始化异步任务队列
 	q := queue.New(cfg)
-	defer q.Close()
+	defer func() { _ = q.Close() }()
 	log.Info("queue ready (asynq)")
 
 	// 5.1 初始化接入（能力域 1-2）：适配器注册表 + webhook handler + 归一化 worker
@@ -254,8 +256,8 @@ func run() error {
 
 	// 公开路由组（自带鉴权，不走 RBAC）：webhook 接入、IM 回调
 	public := srv.PublicGroup()
-	ingestHandler.Register(public)   // 告警 webhook（token 鉴权）
-	imHandler.Register(public)       // IM 平台回调（平台签名校验）
+	ingestHandler.Register(public) // 告警 webhook（token 鉴权）
+	imHandler.Register(public)     // IM 平台回调（平台签名校验）
 
 	// 业务路由组（受鉴权开关控制）：身份解析中间件
 	v1 := srv.APIGroup()

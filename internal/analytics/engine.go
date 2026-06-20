@@ -38,10 +38,10 @@ type Range struct {
 
 // AlertMetrics 告警度量（能力域 15 §B1）。
 type AlertMetrics struct {
-	Total      int     // 接入总量
-	Notified   int     // 触发通知的（非噪音）
-	NoiseRate  float64 // 降噪率 = 1 - Notified/Total（0~1）
-	Unrouted   int     // 未命中路由
+	Total     int     // 接入总量
+	Notified  int     // 触发通知的（非噪音）
+	NoiseRate float64 // 降噪率 = 1 - Notified/Total（0~1）
+	Unrouted  int     // 未命中路由
 }
 
 // AlertMetrics 计算告警度量。
@@ -73,12 +73,12 @@ func (e *Engine) AlertMetrics(ctx context.Context, r Range) (*AlertMetrics, erro
 
 // IncidentMetrics 事件度量（能力域 15 §B2）。
 type IncidentMetrics struct {
-	Total           int
-	BySeverity      map[string]int // critical/warning/info 各数量
-	ByStatus        map[string]int
-	MTTARatio       float64 // 平均确认时长（秒），无数据为 0
-	MTTRatio        float64 // 平均解决时长（秒）
-	ResolvedCount   int     // 已解决数（用于 MTTR 计算）
+	Total         int
+	BySeverity    map[string]int // critical/warning/info 各数量
+	ByStatus      map[string]int
+	MTTARatio     float64 // 平均确认时长（秒），无数据为 0
+	MTTRatio      float64 // 平均解决时长（秒）
+	ResolvedCount int     // 已解决数（用于 MTTR 计算）
 }
 
 // IncidentMetrics 计算事件度量。MTTA/MTTR 需时间线数据，当前用 Incident 元数据近似。
@@ -117,9 +117,9 @@ func (e *Engine) IncidentMetrics(ctx context.Context, r Range) (*IncidentMetrics
 
 // TeamLoad 团队负载（能力域 15 §B3）。
 type TeamLoad struct {
-	TeamID     int
-	TeamName   string
-	Incidents  int // 该团队事件数
+	TeamID    int
+	TeamName  string
+	Incidents int // 该团队事件数
 }
 
 // TeamLoad 计算各团队事件负载。
@@ -180,7 +180,7 @@ func (e *Engine) PostmortemMetrics(ctx context.Context, r Range) (*PostmortemMet
 
 // TrendPoint 趋势数据点。
 type TrendPoint struct {
-	Date     string // YYYY-MM-DD
+	Date      string // YYYY-MM-DD
 	Incidents int
 	Events    int
 }
@@ -231,9 +231,9 @@ func (e *Engine) Trend(ctx context.Context, days int, r Range) ([]TrendPoint, er
 
 // Dashboard 仪表盘汇总（一次返回各维度概览，减少前端请求）。
 type Dashboard struct {
-	Alert     *AlertMetrics
-	Incident  *IncidentMetrics
-	Load      []TeamLoad
+	Alert      *AlertMetrics
+	Incident   *IncidentMetrics
+	Load       []TeamLoad
 	Postmortem *PostmortemMetrics
 }
 

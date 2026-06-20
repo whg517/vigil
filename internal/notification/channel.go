@@ -17,13 +17,13 @@ import (
 
 // Message 待发送的通知消息。
 type Message struct {
-	Incident   *ent.Incident // 事件上下文
-	Targets    []Target      // 通知目标（已解析的人/team）
-	Level      int           // 升级层级（0=首轮）
-	Title      string        // 通知标题
-	Summary    string        // 通知正文摘要
-	ActionURL  string        // ack/查看链接
-	Channels   []string      // 启用的通道：im|phone|sms|email|webhook
+	Incident  *ent.Incident // 事件上下文
+	Targets   []Target      // 通知目标（已解析的人/team）
+	Level     int           // 升级层级（0=首轮）
+	Title     string        // 通知标题
+	Summary   string        // 通知正文摘要
+	ActionURL string        // ack/查看链接
+	Channels  []string      // 启用的通道：im|phone|sms|email|webhook
 }
 
 // Target 通知目标（与 escalation.NotifyTarget 对齐，解耦两包）。

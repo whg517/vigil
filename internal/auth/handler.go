@@ -109,11 +109,11 @@ func (h *Handler) deleteRole(c echo.Context) error {
 // ---- RoleBinding ----
 
 type createBindingReq struct {
-	UserID    int    `json:"user_id"`
-	RoleID    int    `json:"role_id"`
-	ScopeLevel string `json:"scope_level"` // org | team
-	TeamID    string `json:"team_id"`       // team scope 时必填
-	ExpiresIn *int   `json:"expires_in_hours"` // 可选，临时授权小时数
+	UserID     int    `json:"user_id"`
+	RoleID     int    `json:"role_id"`
+	ScopeLevel string `json:"scope_level"`      // org | team
+	TeamID     string `json:"team_id"`          // team scope 时必填
+	ExpiresIn  *int   `json:"expires_in_hours"` // 可选，临时授权小时数
 }
 
 func (h *Handler) listBindings(c echo.Context) error {

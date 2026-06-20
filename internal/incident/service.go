@@ -3,7 +3,7 @@
 // 它是 IM 操作（能力域 8）与 Web 操作共用的「事件动作入口」，
 // 把原先散落在 triage 引擎里内联的 SetStatus 抽象成带状态机守卫的统一动作：
 //
-//   Ack / Resolve / Escalate / AddResponder
+//	Ack / Resolve / Escalate / AddResponder
 //
 // 每个动作统一做四件事：
 //  1. 状态机守卫（非法状态转移直接报错，不写库）
@@ -65,10 +65,10 @@ type Service struct {
 type Action string
 
 const (
-	ActionAck           Action = "ack"
-	ActionResolve       Action = "resolve"
-	ActionEscalate      Action = "escalate"
-	ActionAddResponder  Action = "add_responder"
+	ActionAck          Action = "ack"
+	ActionResolve      Action = "resolve"
+	ActionEscalate     Action = "escalate"
+	ActionAddResponder Action = "add_responder"
 )
 
 // NewService 创建事件动作服务。

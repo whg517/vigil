@@ -107,8 +107,8 @@ func TestGenerateDraft_WithLLM(t *testing.T) {
 	c := newTestClient(t)
 	inc := seedIncidentWithTimeline(t, c)
 	llm := &mockLLM{drafts: map[string]string{
-		"summary":     "DB连接池耗尽导致5xx，持续30分钟",
-		"root_cause":  "连接池配置过小，新版引入连接泄漏",
+		"summary":    "DB连接池耗尽导致5xx，持续30分钟",
+		"root_cause": "连接池配置过小，新版引入连接泄漏",
 	}}
 	eng := NewEngine(c, llm)
 

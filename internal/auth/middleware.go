@@ -22,12 +22,7 @@ type ctxKey int
 const (
 	// ctxUser 已鉴权的用户 ID
 	ctxUser ctxKey = iota
-	// ctxPerms 当前用户在该请求 scope 下的权限集（供 handler 按权限渲染）
-	ctxPerms
 )
-
-// contextKey 公开类型，供其他包取 context 值。
-type contextKey = ctxKey
 
 // Middleware 生成一个鉴权中间件，要求请求具有 perm 权限。
 // perm 为空时仅做身份解析（不校验权限，用于公开但需登录的接口）。

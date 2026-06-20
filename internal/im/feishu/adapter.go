@@ -102,9 +102,9 @@ func (a *Adapter) ParseCallback(payload []byte) (*im.IMEvent, error) {
 
 	// 校验 VerificationToken
 	var header struct {
-		Token    string `json:"token"`
+		Token     string `json:"token"`
 		EventType string `json:"event_type"`
-		AppID    string `json:"app_id"`
+		AppID     string `json:"app_id"`
 	}
 	_ = json.Unmarshal(env.Header, &header)
 	if a.client.VerificationToken() != "" && header.Token != a.client.VerificationToken() {
@@ -122,7 +122,7 @@ func (a *Adapter) ParseCallback(payload []byte) (*im.IMEvent, error) {
 			Action struct {
 				Value map[string]string `json:"value"`
 			} `json:"action"`
-			Token string `json:"token"`
+			Token              string `json:"token"`
 			OpenConversationID string `json:"open_conversation_id"`
 		}
 		if err := json.Unmarshal(env.Event, &cardEvt); err != nil {
@@ -142,11 +142,11 @@ func (a *Adapter) ParseCallback(payload []byte) (*im.IMEvent, error) {
 				} `json:"sender_id"`
 			} `json:"sender"`
 			Message struct {
-				ChatID  string `json:"chat_id"`
-				Content string `json:"content"`
+				ChatID   string `json:"chat_id"`
+				Content  string `json:"content"`
 				Mentions []struct {
-					Key  string `json:"key"`
-					ID   struct {
+					Key string `json:"key"`
+					ID  struct {
 						OpenID string `json:"open_id"`
 					} `json:"id"`
 					Name string `json:"name"`
@@ -261,39 +261,39 @@ type feishuCard struct {
 }
 
 type feishuText struct {
-	Tag     string `json:"tag"`     // plain_text | lark_md
+	Tag     string `json:"tag"` // plain_text | lark_md
 	Content string `json:"content"`
 }
 
 type feishuElement struct {
-	Tag    string          `json:"tag"`
-	Fields []feishuField   `json:"fields,omitempty"` // column_set 用
-	Text   *feishuText     `json:"text,omitempty"`
+	Tag     string         `json:"tag"`
+	Fields  []feishuField  `json:"fields,omitempty"` // column_set 用
+	Text    *feishuText    `json:"text,omitempty"`
 	Content *feishuText    `json:"content,omitempty"`
 	Actions []feishuButton `json:"actions,omitempty"` // action 用
 	// column_set
-	Columns []feishuColumn `json:"columns,omitempty"`
-	FlexMode string        `json:"flex_mode,omitempty"`
+	Columns  []feishuColumn `json:"columns,omitempty"`
+	FlexMode string         `json:"flex_mode,omitempty"`
 	// div
 	LarkMd string `json:"lark_md,omitempty"`
 }
 
 type feishuField struct {
-	IsShort bool        `json:"is_short"`
-	Text    feishuText  `json:"text"`
+	IsShort bool       `json:"is_short"`
+	Text    feishuText `json:"text"`
 }
 
 type feishuColumn struct {
-	Tag       string       `json:"tag"`
-	Width     string       `json:"weight,omitempty"`
-	Elements  []feishuText `json:"elements,omitempty"`
+	Tag      string       `json:"tag"`
+	Width    string       `json:"weight,omitempty"`
+	Elements []feishuText `json:"elements,omitempty"`
 }
 
 type feishuButton struct {
-	Tag     string            `json:"tag"`     // button
-	Text    feishuText        `json:"text"`
-	Type    string            `json:"type"`    // primary | default
-	Value   map[string]string `json:"value"`   // 回调携带的数据
+	Tag   string            `json:"tag"` // button
+	Text  feishuText        `json:"text"`
+	Type  string            `json:"type"`  // primary | default
+	Value map[string]string `json:"value"` // 回调携带的数据
 }
 
 // CardToFeishu 把平台无关 Card 转成飞书卡片 JSON。

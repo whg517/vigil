@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SeverityBadge, StatusBadge, formatTime } from "@/lib/format";
+import { SeverityBadge, StatusBadge } from "@/lib/badges";
+import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { TimelineType } from "@/lib/types";
 

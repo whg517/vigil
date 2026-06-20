@@ -4,7 +4,8 @@ import { Bell } from "lucide-react";
 import { useIncidents } from "@/hooks/incidents";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SeverityBadge, StatusBadge, formatTime } from "@/lib/format";
+import { SeverityBadge, StatusBadge } from "@/lib/badges";
+import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { IncidentStatus, Severity } from "@/lib/types";
 

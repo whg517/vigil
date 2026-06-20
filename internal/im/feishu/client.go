@@ -35,12 +35,12 @@ type Config struct {
 
 // Client 飞书 OpenAPI 客户端：封装 token 获取/缓存 + 通用请求。
 type Client struct {
-	cfg    Config
-	http   *http.Client
+	cfg  Config
+	http *http.Client
 
-	mu        sync.Mutex
-	token     string
-	tokenExp  time.Time
+	mu       sync.Mutex
+	token    string
+	tokenExp time.Time
 }
 
 // NewClient 创建飞书客户端。BaseURL 为空时用默认开放平台地址。
@@ -89,7 +89,7 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("feishu token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var tr tokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
 		return "", fmt.Errorf("feishu token decode: %w", err)
@@ -133,7 +133,7 @@ func (c *Client) do(ctx context.Context, method, path string, payload any, out a
 	if err != nil {
 		return fmt.Errorf("feishu api %s: %w", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var ar apiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&ar); err != nil {
 		return fmt.Errorf("feishu api %s decode: %w", path, err)
@@ -196,10 +196,10 @@ func (c *Client) CreateChat(ctx context.Context, name string, ownerID string, me
 		members = append(members, map[string]string{"id": id, "type": "open_id"})
 	}
 	payload := map[string]any{
-		"name":    name,
+		"name":      name,
 		"chat_mode": "group",
 		"chat_type": "private", // 外部不可搜索加入
-		"members": members,
+		"members":   members,
 	}
 	if ownerID != "" {
 		payload["owner_id"] = ownerID

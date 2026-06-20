@@ -48,13 +48,13 @@ func buildDraftPrompt(section string, ctxMap map[string]any) string {
 
 	sb.WriteString("事件信息：\n")
 	if t, ok := ctxMap["title"].(string); ok && t != "" {
-		sb.WriteString(fmt.Sprintf("- 标题：%s\n", t))
+		fmt.Fprintf(&sb, "- 标题：%s\n", t)
 	}
 	if s, ok := ctxMap["severity"].(string); ok && s != "" {
-		sb.WriteString(fmt.Sprintf("- 严重度：%s\n", s))
+		fmt.Fprintf(&sb, "- 严重度：%s\n", s)
 	}
 	if s, ok := ctxMap["summary"].(string); ok && s != "" {
-		sb.WriteString(fmt.Sprintf("- 概要：%s\n", s))
+		fmt.Fprintf(&sb, "- 概要：%s\n", s)
 	}
 
 	// 时间线（如有）
@@ -76,11 +76,11 @@ func buildDraftPrompt(section string, ctxMap map[string]any) string {
 // sectionName 中文章节名。
 func sectionName(s string) string {
 	names := map[string]string{
-		"summary":           "摘要",
-		"impact":            "影响",
-		"root_cause":        "根因分析",
-		"what_went_well":    "做得好的",
-		"what_went_wrong":   "做得差的",
+		"summary":         "摘要",
+		"impact":          "影响",
+		"root_cause":      "根因分析",
+		"what_went_well":  "做得好的",
+		"what_went_wrong": "做得差的",
 	}
 	if n, ok := names[s]; ok {
 		return n
@@ -98,7 +98,7 @@ func formatTimeline(tl any) string {
 	}
 	var sb strings.Builder
 	for _, it := range items {
-		sb.WriteString(fmt.Sprintf("- %v\n", it))
+		fmt.Fprintf(&sb, "- %v\n", it)
 	}
 	return sb.String()
 }

@@ -50,7 +50,7 @@ func TestNormalizePath(t *testing.T) {
 		"/api/v1/incidents":     "/api/v1/incidents",
 		"/api/v1/incidents/42":  "/api/v1/incidents/:id",
 		"/incidents/1/timeline": "/incidents/:id/timeline",
-		"/":                      "/",
+		"/":                     "/",
 	}
 	for in, want := range cases {
 		if got := normalizePath(in); got != want {

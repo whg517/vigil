@@ -3,7 +3,9 @@
 // 核心安全控制（对应 capabilities §5 + 设计基线第 8 条）：
 // · readonly=true 的诊断动作直接执行（内置安全）
 // · readonly=false 的处置动作必须 RequireApproval=true 且调用方提供 approved=true 才执行；
-//   否则跳过（Skipped=true），不执行写操作
+//
+//	否则跳过（Skipped=true），不执行写操作
+//
 // · 失败按 OnFailure 处理：continue(继续下步) | abort(中止) | escalate(中止并升级)
 package runbook
 
@@ -18,9 +20,9 @@ import (
 
 // Engine Runbook 执行引擎。
 type Engine struct {
-	db        *ent.Client
-	registry  *Registry
-	timeline  TimelineRecorder // 时间线记录接口，由 main 注入；nil 则不记录
+	db       *ent.Client
+	registry *Registry
+	timeline TimelineRecorder // 时间线记录接口，由 main 注入；nil 则不记录
 }
 
 // TimelineRecorder 时间线记录接口（解耦 runbook 与 incident 包）。
@@ -40,11 +42,11 @@ func (e *Engine) SetTimelineRecorder(r TimelineRecorder) {
 
 // ExecuteResult 整个 Runbook 的执行结果。
 type ExecuteResult struct {
-	RunbookID int
+	RunbookID  int
 	IncidentID int
-	Steps     []StepResult
-	Aborted   bool   // 是否中止（on_failure=abort/escalate）
-	Reason    string // 中止原因
+	Steps      []StepResult
+	Aborted    bool   // 是否中止（on_failure=abort/escalate）
+	Reason     string // 中止原因
 }
 
 // Execute 执行一个 Runbook 的全部步骤。

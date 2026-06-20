@@ -1,12 +1,13 @@
 // authz.go 实现 RBAC 鉴权器（能力域 13 核心）。
 //
 // 对应 docs/data-model.md §5.5 鉴权流程：
-//   操作请求 (user, action, resource)
-//     → 解析 action 得 permission_code
-//     → 解析 resource 得 scope（如 incident.team_id）
-//     → 查 user 在 org + team scope 的所有 RoleBinding
-//     → 合并这些 RoleBinding 的权限点
-//     → 判定 permission_code ∈ 权限集
+//
+//	操作请求 (user, action, resource)
+//	  → 解析 action 得 permission_code
+//	  → 解析 resource 得 scope（如 incident.team_id）
+//	  → 查 user 在 org + team scope 的所有 RoleBinding
+//	  → 合并这些 RoleBinding 的权限点
+//	  → 判定 permission_code ∈ 权限集
 //
 // 权限合并规则：org 级和 team 级取并集（任一授予即生效）。
 package auth
@@ -33,9 +34,9 @@ func NewAuthorizer(db *ent.Client) *Authorizer {
 
 // AuthzRequest 鉴权请求。
 type AuthzRequest struct {
-	UserID       int
-	Permission   Permission // 要检查的权限点
-	TeamScope    *int       // 资源所属团队（nil=仅查 org 级）
+	UserID     int
+	Permission Permission // 要检查的权限点
+	TeamScope  *int       // 资源所属团队（nil=仅查 org 级）
 }
 
 // Check 检查用户是否拥有某权限。

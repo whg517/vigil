@@ -75,7 +75,7 @@ func (h *HTTPExecutor) Execute(ctx context.Context, target schema.StepTarget, pa
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	buf := new(bytes.Buffer)
 	_, _ = buf.ReadFrom(resp.Body)
 	if resp.StatusCode >= 400 {

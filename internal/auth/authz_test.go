@@ -189,10 +189,10 @@ func TestCheck_UnionMerge(t *testing.T) {
 // TestPermission_IsValid 验证权限点合法性校验。
 func TestPermission_IsValid(t *testing.T) {
 	cases := map[Permission]bool{
-		PermIncidentAck:      true,
-		PermAdminSettings:    true,
-		Permission("bogus"):  false,
-		Permission(""):       false,
+		PermIncidentAck:     true,
+		PermAdminSettings:   true,
+		Permission("bogus"): false,
+		Permission(""):      false,
 	}
 	for p, want := range cases {
 		if got := p.IsValid(); got != want {

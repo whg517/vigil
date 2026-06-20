@@ -15,7 +15,7 @@ import (
 // 注：notification 单向依赖 escalation（escalation 不反向依赖），无循环。
 type Notifier struct {
 	registry     *Registry
-	defaultChans []string                   // 默认启用通道（当 msg.Channels 为空时）
+	defaultChans []string                      // 默认启用通道（当 msg.Channels 为空时）
 	recordResult func(incID int, r SendResult) // 送达记录回调（持久化），可选
 }
 

@@ -102,11 +102,11 @@ func TestOncall_BeforeStartDate(t *testing.T) {
 // TestParseShiftLength 验证班次时长解析。
 func TestParseShiftLength(t *testing.T) {
 	cases := map[string]time.Duration{
-		"24h":    24 * time.Hour,
-		"168h":   7 * 24 * time.Hour,
-		"1week":  7 * 24 * time.Hour,
-		"":       24 * time.Hour, // 默认
-		"bogus":  24 * time.Hour, // 兜底
+		"24h":   24 * time.Hour,
+		"168h":  7 * 24 * time.Hour,
+		"1week": 7 * 24 * time.Hour,
+		"":      24 * time.Hour, // 默认
+		"bogus": 24 * time.Hour, // 兜底
 	}
 	for in, want := range cases {
 		if got := parseShiftLength(in); got != want {

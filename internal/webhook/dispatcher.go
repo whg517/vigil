@@ -25,7 +25,7 @@ import (
 
 // Dispatcher Webhook 出口分发器。
 type Dispatcher struct {
-	urls   []string       // 订阅 URL 列表（配置式）
+	urls   []string // 订阅 URL 列表（配置式）
 	client *http.Client
 }
 
@@ -48,14 +48,14 @@ func (d *Dispatcher) OnIncidentChanged(ctx context.Context, inc *ent.Incident, a
 	}
 	// 构造事件 payload
 	payload := map[string]any{
-		"event":         fmt.Sprintf("incident.%s", action),
-		"incident_id":   inc.ID,
-		"incident":      inc.Number,
-		"status":        string(inc.Status),
-		"severity":      string(inc.Severity),
-		"title":         inc.Title,
-		"summary":       inc.Summary,
-		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+		"event":       fmt.Sprintf("incident.%s", action),
+		"incident_id": inc.ID,
+		"incident":    inc.Number,
+		"status":      string(inc.Status),
+		"severity":    string(inc.Severity),
+		"title":       inc.Title,
+		"summary":     inc.Summary,
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
 	}
 	body, _ := json.Marshal(payload)
 
@@ -90,7 +90,7 @@ func (d *Dispatcher) push(ctx context.Context, url string, body []byte) {
 			time.Sleep(time.Duration(attempt+1) * time.Second) // 退避
 			continue
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			metrics.NotificationsSent.WithLabelValues("webhook_out", "success").Inc()
 			return

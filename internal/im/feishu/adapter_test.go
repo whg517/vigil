@@ -104,18 +104,18 @@ func TestSeverityTemplate(t *testing.T) {
 // TestParseSlashCommand 斜杠命令解析。
 func TestParseSlashCommand(t *testing.T) {
 	cases := []struct {
-		text     string
-		wantCmd  string
-		wantArg  string
-		wantOK   bool
+		text    string
+		wantCmd string
+		wantArg string
+		wantOK  bool
 	}{
 		{"/vigil ack INC-0042", "ack", "INC-0042", true},
 		{"/vigil escalate 1", "escalate", "1", true},
 		{"/vigil status INC-0042", "status", "INC-0042", true},
 		{"/vigil ack", "ack", "", true},
-		{"hello world", "", "", false},      // 非 vigil 命令
-		{"ack INC-1", "", "", false},        // 缺 / 前缀
-		{"/vigil  ", "", "", false},         // 无命令名
+		{"hello world", "", "", false}, // 非 vigil 命令
+		{"ack INC-1", "", "", false},   // 缺 / 前缀
+		{"/vigil  ", "", "", false},    // 无命令名
 	}
 	for _, c := range cases {
 		cmd, arg, ok := parseSlashCommand(c.text)
@@ -129,9 +129,9 @@ func TestParseSlashCommand(t *testing.T) {
 // TestParseChannel channel 格式解析。
 func TestParseChannel(t *testing.T) {
 	cases := []struct {
-		channel string
+		channel          string
 		wantType, wantID string
-		wantOK bool
+		wantOK           bool
 	}{
 		{"open_id:ou_xxx", "open_id", "ou_xxx", true},
 		{"chat_id:oc_yyy", "chat_id", "oc_yyy", true},

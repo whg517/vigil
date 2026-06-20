@@ -37,8 +37,8 @@ type EscalationLevel struct {
 
 // Target 升级通知目标。
 type Target struct {
-	Type       string `json:"type"`        // schedule | user | team
-	TargetID   string `json:"target_id"`   // schedule_id / user_id / team_id
+	Type     string `json:"type"`      // schedule | user | team
+	TargetID string `json:"target_id"` // schedule_id / user_id / team_id
 }
 
 func (EscalationPolicy) Edges() []ent.Edge {

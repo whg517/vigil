@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ func seedData(t *testing.T, c *ent.Client) {
 	// events: 2 非噪音 + 1 噪音
 	for i, noise := range []bool{false, false, true} {
 		_, err := c.Event.Create().
-			SetSourceEventID("e"+itoa(i)).
+			SetSourceEventID("e" + itoa(i)).
 			SetSource("prometheus").
 			SetSeverity(event.SeverityCritical).
 			SetStatus(event.StatusFiring).
@@ -78,7 +79,7 @@ func seedData(t *testing.T, c *ent.Client) {
 }
 
 func itoa(i int) string {
-	return string(rune('0' + i))
+	return strconv.Itoa(i)
 }
 
 func TestAlertMetrics(t *testing.T) {

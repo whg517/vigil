@@ -10,28 +10,28 @@ type Permission string
 
 const (
 	// —— incident 事件全生命周期 ——
-	PermIncidentView          Permission = "incident.view"
-	PermIncidentCreate        Permission = "incident.create"
-	PermIncidentAck           Permission = "incident.ack"
-	PermIncidentEscalate      Permission = "incident.escalate"
-	PermIncidentResolve       Permission = "incident.resolve"
-	PermIncidentReopen        Permission = "incident.reopen"
-	PermIncidentReassign      Permission = "incident.reassign"
-	PermIncidentSnooze        Permission = "incident.snooze"
-	PermIncidentAddResponder  Permission = "incident.add_responder"
-	PermIncidentRunbookExec   Permission = "incident.runbook.execute"
-	PermIncidentDelete        Permission = "incident.delete"
+	PermIncidentView         Permission = "incident.view"
+	PermIncidentCreate       Permission = "incident.create"
+	PermIncidentAck          Permission = "incident.ack"
+	PermIncidentEscalate     Permission = "incident.escalate"
+	PermIncidentResolve      Permission = "incident.resolve"
+	PermIncidentReopen       Permission = "incident.reopen"
+	PermIncidentReassign     Permission = "incident.reassign"
+	PermIncidentSnooze       Permission = "incident.snooze"
+	PermIncidentAddResponder Permission = "incident.add_responder"
+	PermIncidentRunbookExec  Permission = "incident.runbook.execute"
+	PermIncidentDelete       Permission = "incident.delete"
 
 	// —— event 告警查看 ——
-	PermEventView          Permission = "event.view"
-	PermEventViewUnrouted  Permission = "event.view_unrouted"
+	PermEventView         Permission = "event.view"
+	PermEventViewUnrouted Permission = "event.view_unrouted"
 
 	// —— service 服务管理 ——
-	PermServiceView           Permission = "service.view"
-	PermServiceCreate         Permission = "service.create"
-	PermServiceUpdate         Permission = "service.update"
-	PermServiceDelete         Permission = "service.delete"
-	PermServiceRouteOverride  Permission = "service.route_override"
+	PermServiceView          Permission = "service.view"
+	PermServiceCreate        Permission = "service.create"
+	PermServiceUpdate        Permission = "service.update"
+	PermServiceDelete        Permission = "service.delete"
+	PermServiceRouteOverride Permission = "service.route_override"
 
 	// —— schedule 排班 ——
 	PermScheduleView     Permission = "schedule.view"
@@ -60,17 +60,17 @@ const (
 	PermIntegrationDelete Permission = "integration.delete"
 
 	// —— postmortem 复盘 ——
-	PermPostmortemView            Permission = "postmortem.view"
-	PermPostmortemCreate          Permission = "postmortem.create"
-	PermPostmortemUpdate          Permission = "postmortem.update"
-	PermPostmortemPublish         Permission = "postmortem.publish"
+	PermPostmortemView             Permission = "postmortem.view"
+	PermPostmortemCreate           Permission = "postmortem.create"
+	PermPostmortemUpdate           Permission = "postmortem.update"
+	PermPostmortemPublish          Permission = "postmortem.publish"
 	PermPostmortemActionItemManage Permission = "postmortem.actionitem.manage"
 
 	// —— team 团队 ——
-	PermTeamView        Permission = "team.view"
-	PermTeamCreate      Permission = "team.create"
-	PermTeamUpdate      Permission = "team.update"
-	PermTeamDelete      Permission = "team.delete"
+	PermTeamView         Permission = "team.view"
+	PermTeamCreate       Permission = "team.create"
+	PermTeamUpdate       Permission = "team.update"
+	PermTeamDelete       Permission = "team.delete"
 	PermTeamMemberManage Permission = "team.member.manage"
 
 	// —— user 用户 ——
@@ -81,11 +81,11 @@ const (
 	PermUserIMBind  Permission = "user.im.bind"
 
 	// —— role 角色（管理角色定义本身）——
-	PermRoleView    Permission = "role.view"
-	PermRoleCreate  Permission = "role.create"
-	PermRoleUpdate  Permission = "role.update"
-	PermRoleDelete  Permission = "role.delete"
-	PermRoleAssign  Permission = "role.assign"
+	PermRoleView   Permission = "role.view"
+	PermRoleCreate Permission = "role.create"
+	PermRoleUpdate Permission = "role.update"
+	PermRoleDelete Permission = "role.delete"
+	PermRoleAssign Permission = "role.assign"
 
 	// —— notification 通知规则 ——
 	PermNotificationRuleView   Permission = "notification.rule.view"

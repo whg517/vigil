@@ -17,7 +17,7 @@ import (
 
 // Handler Incident API。
 type Handler struct {
-	db *ent.Client
+	db  *ent.Client
 	svc *Service
 }
 

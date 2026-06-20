@@ -20,9 +20,9 @@ var _ notification.Channel = (*IMChannel)(nil)
 // IMChannel 把 IM Registry 适配成 notification.Channel。
 // 升级通知触发时，把 Incident 渲染成卡片，通过可用 IM bot 发送。
 type IMChannel struct {
-	registry    *Registry       // IM bot 注册表
-	cardStore   *CardStore      // 记录已发卡片（供后续状态更新）
-	getChannel  func(inc *ent.Incident, targets []notification.Target) string // 解析目标 IM channel（群ID/私聊）
+	registry   *Registry                                                     // IM bot 注册表
+	cardStore  *CardStore                                                    // 记录已发卡片（供后续状态更新）
+	getChannel func(inc *ent.Incident, targets []notification.Target) string // 解析目标 IM channel（群ID/私聊）
 }
 
 // NewIMChannel 创建 IM 通知通道。

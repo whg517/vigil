@@ -141,7 +141,7 @@ func (e *Engine) Preview(ctx context.Context, schedID int, days int) ([]DayOncal
 		dayAt := startOfDay.AddDate(0, 0, d).Add(12 * time.Hour) // 取当天中午作为代表时刻
 		day := DayOncall{Date: startOfDay.AddDate(0, 0, d)}
 		for _, rot := range rotations {
-			layer, _ := layerMap[fmt.Sprint(rot.ID)]
+			layer := layerMap[fmt.Sprint(rot.ID)]
 			if layer.Name == "" {
 				layer = schema.ScheduleLayer{Name: rot.Name, Priority: 100}
 			}
@@ -225,7 +225,7 @@ func parseShiftLength(s string) time.Duration {
 // parseHandoff 解析交接时刻（"09:00"）为 at 当天的具体时间。
 func parseHandoff(hhmm string, at time.Time) time.Time {
 	var h, m int
-	fmt.Sscanf(hhmm, "%d:%d", &h, &m)
+	_, _ = fmt.Sscanf(hhmm, "%d:%d", &h, &m) // 解析失败时 h/m 保持 0（零点），可接受
 	return time.Date(at.Year(), at.Month(), at.Day(), h, m, 0, 0, at.Location())
 }
 

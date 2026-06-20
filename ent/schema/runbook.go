@@ -36,23 +36,23 @@ func (Runbook) Fields() []ent.Field {
 // 诊断类 readonly=true 由 Vigil 内置执行；
 // 处置类 require_approval=true 强制人确认或对接外部平台。
 type RunbookStep struct {
-	ID              string      `json:"id"`
-	Name            string      `json:"name"`
-	Action          StepAction  `json:"action"`
-	OnFailure       string      `json:"on_failure"`        // continue | abort | escalate
-	RequireApproval bool        `json:"require_approval"`  // 写操作必须人确认（human-in-the-loop）
+	ID              string     `json:"id"`
+	Name            string     `json:"name"`
+	Action          StepAction `json:"action"`
+	OnFailure       string     `json:"on_failure"`       // continue | abort | escalate
+	RequireApproval bool       `json:"require_approval"` // 写操作必须人确认（human-in-the-loop）
 }
 
 // StepAction 步骤动作。
 type StepAction struct {
-	Type   string         `json:"type"`   // diagnose | execute | notify | wait | approve
+	Type   string         `json:"type"` // diagnose | execute | notify | wait | approve
 	Target StepTarget     `json:"target"`
 	Params map[string]any `json:"params,omitempty"`
 }
 
 // StepTarget 动作目标（execute 时指向外部执行器）。
 type StepTarget struct {
-	Kind     string `json:"kind"`     // http | ansible | jenkins | internal
+	Kind     string `json:"kind"` // http | ansible | jenkins | internal
 	Endpoint string `json:"endpoint"`
 	Readonly bool   `json:"readonly"` // diagnose 类强制只读
 }

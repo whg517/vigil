@@ -148,8 +148,8 @@ func TestParseDiagnoseOutput_ConfidenceCapped(t *testing.T) {
 // TestExtractKeyword 验证关键词提取。
 func TestExtractKeyword(t *testing.T) {
 	cases := map[string]string{
-		"支付5xx错误":      "支付", // 中文取前 2 字
-		"DB connection": "DB",  // 英文取首词保留大小写
+		"支付5xx错误":       "支付", // 中文取前 2 字
+		"DB connection": "DB", // 英文取首词保留大小写
 		"[critical] 支付": "支付", // 去 severity 前缀后取前 2 字
 	}
 	for in, want := range cases {

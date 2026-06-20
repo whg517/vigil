@@ -64,11 +64,11 @@ func (e *Engine) GenerateDraft(ctx context.Context, incID int) (*ent.Postmortem,
 
 	// 其他章节：优先 AI 起草，降级为规则/占位
 	ctxMap := map[string]any{
-		"incident":    inc,
-		"timeline":    items,
-		"severity":    string(inc.Severity),
-		"summary":     inc.Summary,
-		"title":       inc.Title,
+		"incident": inc,
+		"timeline": items,
+		"severity": string(inc.Severity),
+		"summary":  inc.Summary,
+		"title":    inc.Title,
 	}
 
 	sections["summary"] = e.draftOrFallback(ctx, "summary", ctxMap, fallbackSummary(inc))

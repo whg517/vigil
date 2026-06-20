@@ -133,11 +133,11 @@ func TestBuildDraftPrompt(t *testing.T) {
 // TestSectionName 验证中文章节名映射。
 func TestSectionName(t *testing.T) {
 	cases := map[string]string{
-		"summary":          "摘要",
-		"impact":           "影响",
-		"root_cause":       "根因分析",
-		"what_went_well":   "做得好的",
-		"unknown_section":  "unknown_section", // 未知章节原样返回
+		"summary":         "摘要",
+		"impact":          "影响",
+		"root_cause":      "根因分析",
+		"what_went_well":  "做得好的",
+		"unknown_section": "unknown_section", // 未知章节原样返回
 	}
 	for in, want := range cases {
 		if got := sectionName(in); got != want {

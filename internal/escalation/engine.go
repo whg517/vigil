@@ -34,9 +34,9 @@ type Engine struct {
 	db       *ent.Client
 	queue    *queue.Queue
 	sched    *schedule.Engine
-	notifier Notifier            // 通知接口（能力域 7 接入）；nil 则只记时间线
+	notifier Notifier              // 通知接口（能力域 7 接入）；nil 则只记时间线
 	redisOpt *asynq.RedisClientOpt // 用于创建 Inspector 删除待触发任务
-	recorder *timeline.Recorder   // 时间线记录器（统一 Recorder）；nil 则不记
+	recorder *timeline.Recorder    // 时间线记录器（统一 Recorder）；nil 则不记
 }
 
 // SetRecorder 注入时间线记录器。
@@ -130,11 +130,9 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("resolve targets: %w", err)
 	}
 
-	// 4. 通知（若 Notifier 已接入）
+	// 4. 通知（若 Notifier 已接入）。失败不阻塞升级链。
 	if e.notifier != nil {
-		if err := e.notifier.NotifyEscalation(ctx, inc, p.LevelIdx, targets); err != nil {
-			// 通知失败不阻塞升级链（记日志，继续）
-		}
+		_ = e.notifier.NotifyEscalation(ctx, inc, p.LevelIdx, targets)
 	}
 
 	// 5. 记时间线 + 更新 Incident 升级状态
@@ -216,14 +214,13 @@ func (e *Engine) CancelOnAck(ctx context.Context, incID int, levels []schema.Esc
 	if inspector == nil {
 		return nil // 无 Redis 连接信息，跳过（依赖状态守卫兜底）
 	}
-	defer inspector.Close()
+	defer func() { _ = inspector.Close() }()
 	// 删除所有可能的待触发任务（level × repeat 组合）
 	for levelIdx := 0; levelIdx < len(levels); levelIdx++ {
 		for repeatSeq := 0; repeatSeq <= repeatTimes; repeatSeq++ {
 			taskID := escalationTaskID(incID, levelIdx, repeatSeq)
-			if err := inspector.DeleteTask("critical", taskID); err != nil {
-				// 任务可能已触发/不存在，忽略（状态守卫兜底）
-			}
+			// 任务可能已触发/不存在，忽略错误（状态守卫兜底）
+			_ = inspector.DeleteTask("critical", taskID)
 		}
 	}
 	return nil

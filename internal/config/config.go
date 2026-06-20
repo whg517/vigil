@@ -42,8 +42,8 @@ type Config struct {
 
 // App 应用级配置。
 type App struct {
-	Env     string `envconfig:"env"     default:"development"` // development | production
-	LogLevel string `envconfig:"log_level" default:"info"` // debug | info | warn | error
+	Env      string `envconfig:"env"     default:"development"` // development | production
+	LogLevel string `envconfig:"log_level" default:"info"`      // debug | info | warn | error
 }
 
 // IsProduction 是否生产环境。
@@ -103,8 +103,8 @@ type Webhook struct {
 // LLM 配置（智谱 GLM）。APIKey 为空时 AI 功能自动降级（设计基线第 7 条）。
 // ⚠️ Key 仅从环境变量读取，绝不硬编码/提交 git。
 type LLM struct {
-	APIKey  string `envconfig:"api_key"`                // 智谱 API Key（VIGIL_LLM_API_KEY）
-	Model   string `envconfig:"model" default:"glm-4-flash"` // 模型，glm-4-flash 轻量低成本
+	APIKey  string `envconfig:"api_key"`                                                 // 智谱 API Key（VIGIL_LLM_API_KEY）
+	Model   string `envconfig:"model" default:"glm-4-flash"`                             // 模型，glm-4-flash 轻量低成本
 	BaseURL string `envconfig:"base_url" default:"https://open.bigmodel.cn/api/paas/v4"` // 智谱 OpenAPI 根
 }
 
@@ -120,10 +120,10 @@ type IM struct {
 // Feishu 飞书应用凭证（能力域 8 唯一真实接入平台）。
 // 四要素均配置后适配器才 Available()，否则降级为不发送（设计基线第 7 条）。
 type Feishu struct {
-	AppID             string `envconfig:"app_id"`              // 应用 App ID（VIGIL_IM_FEISHU_APP_ID）
-	AppSecret         string `envconfig:"app_secret"`          // 应用 App Secret
-	VerificationToken string `envconfig:"verification_token"`  // 事件订阅校验 token
-	EncryptKey        string `envconfig:"encrypt_key"`         // 事件订阅加密密钥（AES-256-CBC），空=不加密
+	AppID             string `envconfig:"app_id"`                                              // 应用 App ID（VIGIL_IM_FEISHU_APP_ID）
+	AppSecret         string `envconfig:"app_secret"`                                          // 应用 App Secret
+	VerificationToken string `envconfig:"verification_token"`                                  // 事件订阅校验 token
+	EncryptKey        string `envconfig:"encrypt_key"`                                         // 事件订阅加密密钥（AES-256-CBC），空=不加密
 	BaseURL           string `envconfig:"base_url" default:"https://open.feishu.cn/open-apis"` // OpenAPI 根（可换国际版域名）
 }
 

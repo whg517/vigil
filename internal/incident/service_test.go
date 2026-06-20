@@ -2,6 +2,7 @@ package incident
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/kevin/vigil/ent"
@@ -158,7 +159,7 @@ func TestAck_NotFound(t *testing.T) {
 	c := newClient(t)
 	svc := NewService(c, timeline.NewRecorder(c), nil)
 	_, err := svc.Ack(context.Background(), 9999, 1, SourceWeb)
-	if err != ErrNotFound {
+	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }

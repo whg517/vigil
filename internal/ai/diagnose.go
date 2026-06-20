@@ -33,10 +33,10 @@ func NewDiagnoseEngine(db *ent.Client, p Provider) *DiagnoseEngine {
 
 // DiagnoseResult 诊断结果。
 type DiagnoseResult struct {
-	InsightID int      // AIInsight ID
-	RootCause string   // 根因线索文本
-	Confidence float32 // 置信度
-	Evidence  []map[string]any // 依据
+	InsightID  int              // AIInsight ID
+	RootCause  string           // 根因线索文本
+	Confidence float32          // 置信度
+	Evidence   []map[string]any // 依据
 }
 
 // Diagnose 对某事件做根因诊断，落 AIInsight（status=suggested）。
@@ -148,13 +148,13 @@ func buildDiagnosePrompt(inc *ent.Incident, items []*ent.TimelineItem) string {
 	sb.WriteString("1. 用不确定性措辞（\"可能\"\"疑似\"\"初步判断\"），绝不武断下结论\n")
 	sb.WriteString("2. 输出必须是 JSON 格式：{\"root_cause\":\"...\",\"confidence\":0.0-1.0}\n\n")
 	sb.WriteString("事件信息：\n")
-	sb.WriteString(fmt.Sprintf("- 标题：%s\n", inc.Title))
-	sb.WriteString(fmt.Sprintf("- 严重度：%s\n", string(inc.Severity)))
-	sb.WriteString(fmt.Sprintf("- 概要：%s\n\n", inc.Summary))
+	fmt.Fprintf(&sb, "- 标题：%s\n", inc.Title)
+	fmt.Fprintf(&sb, "- 严重度：%s\n", string(inc.Severity))
+	fmt.Fprintf(&sb, "- 概要：%s\n\n", inc.Summary)
 	sb.WriteString("时间线：\n")
 	for _, it := range items {
-		sb.WriteString(fmt.Sprintf("- [%s] %s: %s\n",
-			it.Timestamp.Format("15:04"), string(it.Type), it.Content))
+		fmt.Fprintf(&sb, "- [%s] %s: %s\n",
+			it.Timestamp.Format("15:04"), string(it.Type), it.Content)
 	}
 	return sb.String()
 }

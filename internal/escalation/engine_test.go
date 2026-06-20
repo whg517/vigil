@@ -1,6 +1,7 @@
 package escalation
 
 import (
+	"context"
 	"testing"
 
 	"github.com/kevin/vigil/ent/enttest"
@@ -58,7 +59,7 @@ func TestCancelOnAck_NoRedis(t *testing.T) {
 
 	e := NewEngine(c, nil, nil, nil, nil)
 	// 无 Redis（inspector=nil），应安全返回 nil
-	if err := e.CancelOnAck(nil, 1, nil, 0); err != nil {
+	if err := e.CancelOnAck(context.TODO(), 1, nil, 0); err != nil {
 		t.Errorf("CancelOnAck with no redis: %v", err)
 	}
 }

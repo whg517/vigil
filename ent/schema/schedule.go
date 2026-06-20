@@ -30,10 +30,10 @@ func (Schedule) Fields() []ent.Field {
 // ScheduleLayer 排班分层（Schedule.layers 元素）。
 // primary 没接到 → secondary；override 层覆盖临时换班。
 type ScheduleLayer struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`       // 如 "一线"
-	Priority   int      `json:"priority"`   // 数字越小优先级越高
-	RotationID string   `json:"rotation_id"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`     // 如 "一线"
+	Priority   int    `json:"priority"` // 数字越小优先级越高
+	RotationID string `json:"rotation_id"`
 }
 
 func (Schedule) Edges() []ent.Edge {

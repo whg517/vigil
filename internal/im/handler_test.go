@@ -26,11 +26,11 @@ import (
 
 // stubBot 测试用 IMBot，记录调用，不做真实 IO。
 type stubBot struct {
-	platform   string
-	available  bool
-	updated    []*Card         // 记录 UpdateCard 的入参
-	cardIDs    map[string]string // channel → 生成的 cardID
-	sendCount  int
+	platform    string
+	available   bool
+	updated     []*Card           // 记录 UpdateCard 的入参
+	cardIDs     map[string]string // channel → 生成的 cardID
+	sendCount   int
 	updateCount int
 }
 
@@ -38,8 +38,8 @@ func newStubBot(platform string, available bool) *stubBot {
 	return &stubBot{platform: platform, available: available, cardIDs: map[string]string{}}
 }
 
-func (b *stubBot) Platform() string                                            { return b.platform }
-func (b *stubBot) Available() bool                                             { return b.available }
+func (b *stubBot) Platform() string { return b.platform }
+func (b *stubBot) Available() bool  { return b.available }
 func (b *stubBot) SendCard(_ context.Context, ch string, c *Card) (string, error) {
 	b.sendCount++
 	id := "card_" + strconv.Itoa(b.sendCount)

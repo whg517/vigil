@@ -41,11 +41,11 @@ func (h *Handler) list(c echo.Context) error {
 }
 
 type createReq struct {
-	Name            string                 `json:"name"`
-	Type            string                 `json:"type"` // document | executable
-	ContentMarkdown string                 `json:"content_markdown"`
-	Trigger         map[string]any         `json:"trigger"`
-	Steps           []schema.RunbookStep   `json:"steps"`
+	Name            string               `json:"name"`
+	Type            string               `json:"type"` // document | executable
+	ContentMarkdown string               `json:"content_markdown"`
+	Trigger         map[string]any       `json:"trigger"`
+	Steps           []schema.RunbookStep `json:"steps"`
 }
 
 func (h *Handler) create(c echo.Context) error {

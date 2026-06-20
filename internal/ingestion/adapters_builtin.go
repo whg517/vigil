@@ -13,12 +13,13 @@ import (
 // PrometheusAdapter 适配 Prometheus/Alertmanager webhook。
 //
 // Alertmanager payload 结构（关键字段）：
-//   {
-//     "alerts": [
-//       { "status":"firing", "labels":{...}, "annotations":{...},
-//         "startsAt":..., "fingerprint":"abc123", ... }
-//     ]
-//   }
+//
+//	{
+//	  "alerts": [
+//	    { "status":"firing", "labels":{...}, "annotations":{...},
+//	      "startsAt":..., "fingerprint":"abc123", ... }
+//	  ]
+//	}
 //
 // 注意：一次 webhook 可能含多条 alert。本适配器处理"取首条"的最简实现，
 // 多条 alert 的拆分在接入层（多任务入队）后续优化。

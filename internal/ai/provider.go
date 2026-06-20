@@ -58,8 +58,8 @@ func (g *GLMProvider) Available() bool { return g.apiKey != "" }
 
 // glmRequest 智谱 chat/completions 请求体（与 OpenAI 兼容）。
 type glmRequest struct {
-	Model    string         `json:"model"`
-	Messages []glmMessage   `json:"messages"`
+	Model    string       `json:"model"`
+	Messages []glmMessage `json:"messages"`
 }
 
 type glmMessage struct {
@@ -101,7 +101,7 @@ func (g *GLMProvider) Complete(ctx context.Context, prompt string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("call glm: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
 		return "", fmt.Errorf("glm http %d: %s", resp.StatusCode, string(body))
