@@ -1,0 +1,92 @@
+package schema
+
+import (
+	"time"
+
+	"entgo.io/ent"
+	"entgo.io/ent/schema/edge"
+	"entgo.io/ent/schema/field"
+	"entgo.io/ent/schema/index"
+)
+
+// Service 服务 —— 路由的锚点，软隔离的核心载体。
+// 对应 data-model.md §3.2 Service。
+// 告警的 label 匹配 Service 的 label → 命中路由。
+type Service struct {
+	ent.Schema
+}
+
+func (Service) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("name").NotEmpty(),
+		field.String("slug").Unique(),
+		field.Text("description").Optional(),
+		// labels 用 JSON 存路由匹配标签（env/tier/service 等）
+		field.JSON("labels", map[string]string{}).Optional().Comment("路由匹配标签"),
+		field.Bool("auto_create_incident").Default(true).Comment("告警进来是否自动成 Incident"),
+		field.Enum("status").Values("active", "disabled").Default("active"),
+		field.Time("created_at").Default(time.Now).Immutable(),
+		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
+	}
+}
+
+func (Service) Edges() []ent.Edge {
+	return []ent.Edge{
+		// Service <- Team（归属团队）
+		edge.From("team", Team.Type).Ref("services").Unique(),
+		// Service -> Integration（多个接入点汇入）
+		edge.To("integrations", Integration.Type),
+		// Service -> EscalationPolicy（绑定的升级策略）
+		edge.To("escalation_policy", EscalationPolicy.Type).Unique(),
+		// Service -> Schedule（可换班/复用排班）
+		edge.To("schedules", Schedule.Type),
+		// Service -> Runbook（关联处置手册）
+		edge.To("runbooks", Runbook.Type),
+		// Service -> Event（路由命中的事件）
+		edge.To("events", Event.Type),
+		// Service -> Incident（归属事件）
+		edge.To("incidents", Incident.Type),
+	}
+}
+
+func (Service) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("status"),
+	}
+}
+
+// Integration 接入点 —— 告警的入口。
+// 对应 data-model.md §3.2 Integration。
+type Integration struct {
+	ent.Schema
+}
+
+func (Integration) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("name").NotEmpty(),
+		// type 决定用哪个适配器做归一化
+		field.Enum("type").Values(
+			"webhook", "email", "prometheus", "zabbix", "grafana", "cloud", "api",
+		),
+		// config 存类型相关配置（URL/过滤/鉴权方式/限流等）
+		field.JSON("config", map[string]any{}).Optional().Comment("类型相关配置"),
+		// token 加密存储，webhook 鉴权用
+		field.String("token").Sensitive().Comment("webhook 鉴权 token，加密存储"),
+		field.Bool("enabled").Default(true),
+		field.Time("created_at").Default(time.Now).Immutable(),
+		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
+	}
+}
+
+func (Integration) Edges() []ent.Edge {
+	return []ent.Edge{
+		// Integration <- Team（归属团队）
+		edge.From("team", Team.Type).Ref("integrations").Unique(),
+		// Integration <- Service（默认归属服务）
+		edge.From("service", Service.Type).Ref("integrations").Unique(),
+		// Integration -> RawEvent（接收的原始告警）
+		edge.To("raw_events", RawEvent.Type),
+		// Integration -> Event（归一化产出）
+		edge.To("events", Event.Type),
+	}
+}

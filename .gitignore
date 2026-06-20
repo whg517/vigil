@@ -1,0 +1,43 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Go
+# 二进制产物
+/bin/
+*.exe
+vigil
+cmd/vigil/vigil
+# 测试覆盖率
+*.out
+coverage.txt
+# 依赖（Go Modules 走版本控制，不忽略 vendor 时单独处理）
+
+# 本地环境 / 密钥
+.env
+.env.local
+*.secret
+
+# 数据库本地文件（开发用 sqlite 等）
+*.db
+*.sqlite
+*.sqlite3
+
+# 前端
+node_modules/
+dist/
+build/
+web/node_modules/
+web/dist/
+# pnpm
+.pnpm-store/
+
+# 日志
+*.log
