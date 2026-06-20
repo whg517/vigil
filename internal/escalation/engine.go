@@ -21,6 +21,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/timelineitem"
+	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/schedule"
 	"github.com/kevin/vigil/internal/timeline"
@@ -144,6 +145,8 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 		Exec(ctx); err != nil {
 		return fmt.Errorf("update incident: %w", err)
 	}
+	// 埋点：升级触发次数
+	metrics.EscalationsTriggered.Inc()
 	// 通过统一 Recorder 记时间线（消除直接 ent 调用），失败不阻塞主流程
 	if e.recorder != nil {
 		_ = e.recorder.Record(ctx, inc.ID, timelineitem.TypeEscalated,

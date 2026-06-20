@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/internal/config"
+	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/store"
 
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Server HTTP 服务器，聚合接入层依赖。
@@ -35,6 +37,9 @@ func New(cfg *config.Config, st *store.Store) *Server {
 	e.HidePort = true
 
 	s := &Server{echo: e, cfg: cfg, store: st}
+
+	// 中间件：HTTP 指标采集（所有路由）
+	e.Use(metrics.EchoMiddleware())
 
 	// 基础路由（无需鉴权）
 	s.registerBase()
@@ -59,7 +64,7 @@ func (s *Server) PublicGroup() *echo.Group {
 // registerBase 注册基础路由（健康检查、指标）。
 func (s *Server) registerBase() {
 	s.echo.GET("/health", s.health)
-	s.echo.GET("/metrics", s.metrics) // 占位，后续接入 prometheus
+	s.echo.GET("/metrics", s.metrics) // Prometheus 指标端点
 }
 
 // health 健康检查：检查 PostgreSQL + Redis 连通性。
@@ -92,8 +97,10 @@ func (s *Server) health(c echo.Context) error {
 }
 
 // metrics Prometheus 指标占位（后续接入 prometheus client）。
+// metrics Prometheus 指标端点（Go runtime + 业务 + HTTP 指标）。
 func (s *Server) metrics(c echo.Context) error {
-	return c.String(http.StatusOK, "# Vigil metrics endpoint (todo: prometheus)\n")
+	promhttp.Handler().ServeHTTP(c.Response().Writer, c.Request())
+	return nil
 }
 
 // Start 启动 HTTP 服务（阻塞）。

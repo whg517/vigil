@@ -20,6 +20,7 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/rawevent"
+	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/triage"
 
@@ -183,6 +184,8 @@ func (w *NormalizeWorker) Handle(ctx context.Context, t *asynq.Task) error {
 		}
 		return fmt.Errorf("save event: %w", err)
 	}
+	// 埋点：告警接入量（按 source/severity）
+	metrics.AlertsReceived.WithLabelValues(evt.Source, evt.Severity).Inc()
 
 	// 5. RawEvent 标记 normalized
 	if err := w.markRawNormalized(ctx, raw.ID, created.ID); err != nil {

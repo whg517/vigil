@@ -7,6 +7,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/internal/escalation"
+	"github.com/kevin/vigil/internal/metrics"
 )
 
 // Notifier 通知分发器，实现 escalation.Notifier 接口。
@@ -59,9 +60,14 @@ func (n *Notifier) NotifyEscalation(ctx context.Context, inc *ent.Incident, leve
 		if err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("channel %s: %w", chanName, err)
 		}
-		// 记录送达结果
-		if n.recordResult != nil {
-			for _, r := range results {
+		// 记录送达结果 + 埋点
+		for _, r := range results {
+			resultLabel := "success"
+			if !r.Success {
+				resultLabel = "failed"
+			}
+			metrics.NotificationsSent.WithLabelValues(r.Channel, resultLabel).Inc()
+			if n.recordResult != nil {
 				n.recordResult(inc.ID, r)
 			}
 		}

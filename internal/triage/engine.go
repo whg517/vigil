@@ -17,6 +17,7 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/internal/metrics"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -225,6 +226,8 @@ func (e *Engine) createIncident(ctx context.Context, evt *ent.Event, svc *ent.Se
 	if err != nil {
 		return nil, fmt.Errorf("create incident: %w", err)
 	}
+	// 埋点：事件创建数（按 severity）
+	metrics.IncidentsCreated.WithLabelValues(string(inc.Severity)).Inc()
 	// 关联 Event 到 Incident
 	if err := e.db.Event.UpdateOneID(evt.ID).SetIncidentID(inc.ID).Exec(ctx); err != nil {
 		return nil, fmt.Errorf("attach event: %w", err)
