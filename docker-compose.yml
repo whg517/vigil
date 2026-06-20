@@ -1,6 +1,12 @@
-# Vigil 开发/集成验证用 Docker Compose。
-# 仅起依赖（PostgreSQL + Redis），vigil 本体本地 go run 运行便于调试。
-# 对应 tech-stack.md §五：最小部署 3 容器（vigil + postgres + redis）。
+# Vigil Docker Compose —— 完整 3 容器部署（vigil + postgres + redis）。
+# 对应 tech-stack.md §五：最小部署 3 容器。
+#
+# 用法：
+#   docker compose up -d              # 起全部服务
+#   docker compose exec vigil vigil migrate  # 首次启动后建表
+#
+# 开发模式（vigil 本地 go run 调试）：注释掉 vigil 服务，仅起 postgres + redis。
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,6 +16,8 @@ services:
       POSTGRES_DB: vigil
     ports:
       - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vigil"]
       interval: 3s
@@ -25,3 +33,25 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+
+  vigil:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      VIGIL_DB_HOST: postgres
+      VIGIL_DB_USER: vigil
+      VIGIL_DB_PASSWORD: vigil
+      VIGIL_DB_NAME: vigil
+      VIGIL_REDIS_ADDR: redis:6379
+      VIGIL_APP_ENV: production
+    ports:
+      - "8080:8080"
+    # 首次启动需先 migrate（取消下行注释执行一次后重启）：
+    # command: ["migrate"]
+
+volumes:
+  pgdata:
