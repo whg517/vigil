@@ -25,6 +25,7 @@ import (
 	"github.com/kevin/vigil/internal/schedule"
 	"github.com/kevin/vigil/internal/server"
 	"github.com/kevin/vigil/internal/store"
+	"github.com/kevin/vigil/internal/timeline"
 	"github.com/kevin/vigil/internal/triage"
 
 	"github.com/hibiken/asynq"
@@ -93,10 +94,14 @@ func run() error {
 	notifReg.Register(&notification.EmailChannel{})
 	notifier := notification.NewNotifier(notifReg, []string{"webhook", "email"})
 
-	// 5.4 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链，注入通知分发器
+	// 5.4 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链，注入通知分发器 + 时间线记录器
 	escRedisOpt := &asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB}
 	escEngine := escalation.NewEngine(st.DB, q, schedEngine, notifier, escRedisOpt)
 	q.Register(escalation.TaskEscalation, escEngine.HandleTask)
+
+	// 5.5 时间线（能力域 10）：统一 Recorder，供 escalation/runbook 写入
+	timelineRecorder := timeline.NewRecorder(st.DB)
+	escEngine.SetRecorder(timelineRecorder)
 
 	// 5.4 分诊（能力域 3-4）：创建 Incident 后注入"启动升级"回调
 	triageEngine := triage.NewEngine(st.DB, st.Redis)
@@ -125,9 +130,12 @@ func run() error {
 	authz := auth.NewAuthorizer(st.DB)
 	auth.NewHandler(st.DB).Register(v1)
 	_ = authz // TODO: 给业务路由挂鉴权中间件 Middleware(authz, PermXxx)
-	// Runbook（能力域 9）：处置手册 + 受控执行
+	// Runbook（能力域 9）：处置手册 + 受控执行，注入时间线记录器
 	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
+	runbookEngine.SetTimelineRecorder(timelineRecorder)
 	runbook.NewHandler(st.DB, runbookEngine).Register(v1)
+	// 时间线（能力域 10）：查询 + 手动追加 API
+	timeline.NewHandler(timelineRecorder).Register(v1)
 	// 复盘（能力域 12）：草稿生成 + 状态机 + 改进项（LLM 待接入，当前降级）
 	postmortemEngine := postmortem.NewEngine(st.DB, nil)
 	postmortem.NewHandler(st.DB, postmortemEngine).Register(v1)

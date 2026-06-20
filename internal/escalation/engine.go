@@ -20,8 +20,10 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/schema"
+	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/schedule"
+	"github.com/kevin/vigil/internal/timeline"
 
 	"github.com/hibiken/asynq"
 )
@@ -33,6 +35,12 @@ type Engine struct {
 	sched    *schedule.Engine
 	notifier Notifier            // 通知接口（能力域 7 接入）；nil 则只记时间线
 	redisOpt *asynq.RedisClientOpt // 用于创建 Inspector 删除待触发任务
+	recorder *timeline.Recorder   // 时间线记录器（统一 Recorder）；nil 则不记
+}
+
+// SetRecorder 注入时间线记录器。
+func (e *Engine) SetRecorder(r *timeline.Recorder) {
+	e.recorder = r
 }
 
 // Notifier 通知接口，由能力域 7 实现。升级触发时调用以送达 targets。
@@ -129,7 +137,6 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// 5. 记时间线 + 更新 Incident 升级状态
-	now := time.Now()
 	if err := e.db.Incident.UpdateOneID(inc.ID).
 		SetStatus(incident.StatusEscalated).
 		SetCurrentLevel(p.LevelIdx + 1).
@@ -137,15 +144,12 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 		Exec(ctx); err != nil {
 		return fmt.Errorf("update incident: %w", err)
 	}
-	if err := e.db.TimelineItem.Create().
-		SetIncidentID(inc.ID).
-		SetType("escalated").
-		SetActor(map[string]string{"kind": "system"}).
-		SetContent(fmt.Sprintf("升级到 level %d，通知 %d 人", p.LevelIdx+1, len(targets))).
-		SetSource("system").
-		SetTimestamp(now).
-		Exec(ctx); err != nil {
-		// 时间线失败不阻塞主流程
+	// 通过统一 Recorder 记时间线（消除直接 ent 调用），失败不阻塞主流程
+	if e.recorder != nil {
+		_ = e.recorder.Record(ctx, inc.ID, timelineitem.TypeEscalated,
+			fmt.Sprintf("升级到 level %d，通知 %d 人", p.LevelIdx+1, len(targets)),
+			timeline.Actor{Kind: "system"}, timelineitem.SourceSystem,
+			map[string]any{"level": p.LevelIdx + 1, "notified": len(targets)})
 	}
 
 	// 6. 安排下一步：repeat 或下一 level
