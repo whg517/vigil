@@ -35,6 +35,9 @@ type Config struct {
 
 	// Auth 鉴权配置（能力域 13）
 	Auth Auth `envconfig:"auth"`
+
+	// Webhook 出口配置（能力域 14，向外部推送 incident 生命周期事件）
+	Webhook Webhook `envconfig:"webhook"`
 }
 
 // App 应用级配置。
@@ -87,6 +90,14 @@ type Asynq struct {
 // webhook 接入/IM 回调不受此开关影响（它们用各自的 token/签名鉴权）。
 type Auth struct {
 	Enabled bool `envconfig:"enabled" default:"false"` // 是否强制业务 API 鉴权
+}
+
+// Webhook 出口配置（能力域 14）。
+// OutURLs 为 incident 生命周期事件的订阅 URL 列表（逗号分隔）。
+// 配置后，ack/resolve/escalate 等动作会推送给这些 URL。
+// 为空则不推送。
+type Webhook struct {
+	OutURLs string `envconfig:"out_urls"` // 订阅 URL，逗号分隔
 }
 
 // LLM 配置（智谱 GLM）。APIKey 为空时 AI 功能自动降级（设计基线第 7 条）。

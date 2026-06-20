@@ -1,0 +1,120 @@
+package webhook
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/internal/incident"
+)
+
+// newTestIncident 构造测试用 incident（不入库）。
+func newTestIncident() *ent.Incident {
+	return &ent.Incident{
+		ID:       42,
+		Number:   "INC-0042",
+		Title:    "支付5xx",
+		Severity: "critical",
+		Status:   "acked",
+		Summary:  "支付服务5xx",
+	}
+}
+
+// TestDispatcher_NoSubscriptions 验证无订阅时不推送。
+func TestDispatcher_NoSubscriptions(t *testing.T) {
+	called := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer srv.Close()
+
+	d := NewDispatcher(nil) // 无订阅
+	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("ack"))
+	if called {
+		t.Error("无订阅时不应推送")
+	}
+}
+
+// TestDispatcher_PushSuccess 验证推送成功。
+func TestDispatcher_PushSuccess(t *testing.T) {
+	var received map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &received)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	d := NewDispatcher([]string{srv.URL})
+	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("ack"))
+
+	if received == nil {
+		t.Fatal("未收到推送")
+	}
+	if received["event"] != "incident.ack" {
+		t.Errorf("event: got %v", received["event"])
+	}
+	if received["incident"] != "INC-0042" {
+		t.Errorf("incident: got %v", received["incident"])
+	}
+	if received["status"] != "acked" {
+		t.Errorf("status: got %v", received["status"])
+	}
+}
+
+// TestDispatcher_RetryOnFailure 验证失败重试（最终成功）。
+func TestDispatcher_RetryOnFailure(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount < 3 {
+			w.WriteHeader(http.StatusInternalServerError) // 前两次失败
+			return
+		}
+		w.WriteHeader(http.StatusOK) // 第三次成功
+	}))
+	defer srv.Close()
+
+	d := NewDispatcher([]string{srv.URL})
+	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("resolve"))
+
+	if callCount != 3 {
+		t.Errorf("应重试到第 3 次成功，实际调用 %d 次", callCount)
+	}
+}
+
+// TestDispatcher_MultipleURLs 验证推送给多个订阅者。
+func TestDispatcher_MultipleURLs(t *testing.T) {
+	count1, count2 := 0, 0
+	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count1++
+		w.WriteHeader(http.StatusOK)
+	}))
+	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count2++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv1.Close()
+	defer srv2.Close()
+
+	d := NewDispatcher([]string{srv1.URL, srv2.URL})
+	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("ack"))
+
+	if count1 != 1 || count2 != 1 {
+		t.Errorf("每个订阅者应各收 1 次: count1=%d count2=%d", count1, count2)
+	}
+}
+
+// TestDispatcher_HasSubscriptions 验证订阅判断。
+func TestDispatcher_HasSubscriptions(t *testing.T) {
+	if NewDispatcher(nil).HasSubscriptions() {
+		t.Error("无 URL 时 HasSubscriptions 应为 false")
+	}
+	if !NewDispatcher([]string{"http://x"}).HasSubscriptions() {
+		t.Error("有 URL 时 HasSubscriptions 应为 true")
+	}
+}

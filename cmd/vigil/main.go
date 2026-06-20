@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/kevin/vigil/internal/store"
 	"github.com/kevin/vigil/internal/timeline"
 	"github.com/kevin/vigil/internal/triage"
+	"github.com/kevin/vigil/internal/webhook"
 
 	"github.com/hibiken/asynq"
 	_ "github.com/lib/pq" // 注册 postgres 驱动（ent dialect "postgres" 用）
@@ -154,6 +156,21 @@ func run() error {
 	// 注入 recorder + escEngine；OnIncidentChanged 回调后续接 IM 卡片刷新（见 5.8）。
 	incService := incident.NewService(st.DB, timelineRecorder, escEngine)
 
+	// 5.7.1 Webhook 出口（能力域 14）：incident 生命周期事件推给外部订阅者。
+	// 配置 VIGIL_WEBHOOK_OUT_URLS（逗号分隔）后启用。
+	var webhookURLs []string
+	if cfg.Webhook.OutURLs != "" {
+		for _, u := range strings.Split(cfg.Webhook.OutURLs, ",") {
+			if u = strings.TrimSpace(u); u != "" {
+				webhookURLs = append(webhookURLs, u)
+			}
+		}
+	}
+	webhookDisp := webhook.NewDispatcher(webhookURLs)
+	if webhookDisp.HasSubscriptions() {
+		log.Info("webhook out enabled", zap.Int("subscriptions", len(webhookURLs)))
+	}
+
 	// 5.8 IM 协同（能力域 8 ★）：平台适配器注册表 + 账号映射 + 卡片渲染 + 回调 handler。
 	// 飞书为唯一真实接入平台；钉钉/企微留 NoopBot 待 PoC。凭证未配置时 Available()==false（降级）。
 	imRegistry := im.NewRegistry()
@@ -190,13 +207,15 @@ func run() error {
 
 	// 状态变更回调：incident 状态一变即刷新已发卡片（§8 双向同步之 Web→IM / IM 内自更新）
 	incService.SetOnIncidentChanged(func(ctx context.Context, inc *ent.Incident, action incident.Action) {
+		// IM 卡片刷新（Web→IM 双向同步）
 		for _, bot := range imRegistry.Available() {
-			// 回调中无 actor 信息，刷新卡片仅更新状态展示（按钮区折叠）
 			if cardID, ok := imCards.Get(inc.ID, bot.Platform()); ok {
 				card := im.BuildCard(inc, "")
 				_ = bot.UpdateCard(ctx, cardID, card)
 			}
 		}
+		// Webhook 出口推送（incident 生命周期事件给外部订阅者）
+		webhookDisp.OnIncidentChanged(ctx, inc, action)
 	})
 	if feishuBot.Available() {
 		log.Info("im ready (feishu bot online)")
@@ -242,6 +261,8 @@ func run() error {
 	v1 := srv.APIGroup()
 	v1.Use(auth.RequireUser(cfg.Auth.Enabled))
 	schedule.NewHandler(schedEngine).Register(v1)
+	// Incident API（能力域 14 集成入口 + 8 IM/Web 操作）：list/get/ack/resolve/escalate
+	incident.NewHandler(st.DB, incService).Register(v1)
 	// RBAC（能力域 13）：角色/绑定管理
 	auth.NewHandler(st.DB).Register(v1)
 	// Runbook（能力域 9）：处置手册 + 受控执行，注入时间线记录器
