@@ -130,6 +130,7 @@ go build ./... && pnpm --dir web build
 | 产品做什么 | [`docs/PRD.md`](./docs/PRD.md) |
 | 实体/字段/关系 | [`docs/data-model.md`](./docs/data-model.md) + `ent/schema/` |
 | 架构与引擎 | [`docs/architecture.md`](./docs/architecture.md) |
+| UI/UX 设计 | [`docs/ui-ux.md`](./docs/ui-ux.md) |
 | 某能力域怎么做 | [`docs/capabilities/`](./docs/capabilities/) |
 | 怎么开发/提交 | [`docs/development.md`](./docs/development.md) |
 | 权限点清单 | `internal/auth/permission.go` |
