@@ -1,0 +1,160 @@
+# 能力域 10-11：事件时间线与 AI 智能
+
+| 字段 | 内容 |
+|------|------|
+| **覆盖 PRD** | 能力域 10（时间线）M10.1~M10.6、能力域 11（AI）M11.1~M11.10 |
+| **文档版本** | v0.1 |
+| **创建日期** | 2026-06-20 |
+| **关联** | [`data-model.md`](../data-model.md) §3.3 TimelineItem/AIInsight；[`architecture.md`](../architecture.md) §ai 模块 |
+
+---
+
+## 1. 目标
+
+两个全程贯穿的能力：
+
+- **时间线（能力域 10）**：自动捕获事件全程，为协同和复盘打基础——"全程留痕"。
+- **AI 智能（能力域 11）**：作为横向 Copilot 贯穿分诊/诊断/复盘，让人更聪明——"AI 是底层能力，不是加钱 SKU"。
+
+---
+
+## Part A：事件时间线
+
+### A1. 设计原则
+
+- **自动捕获为主**：系统/人工动作自动记录，无需人手动维护。
+- **时间线是事实记录**：只追加，不修改（除人工备注）。
+- **服务两个下游**：实时协同（看事件进展）+ 事后复盘（复盘的事实依据）。
+
+### A2. 自动捕获（M10.1/M10.2）
+
+| 动作 | 来源 | 记录内容 |
+|------|------|---------|
+| Incident 创建 | system | 时间、触发源、首条 event |
+| Event 聚合进来 | system | event 摘要 |
+| 状态变更 | system/user | 触发态→升级/ack/resolve |
+| 升级 | system | 升到哪级、通知谁 |
+| 拉人 | user | 谁拉了谁 |
+| runbook 执行 | system/user | 执行了哪步、结果 |
+| AI 洞察 | ai | AI 给了什么建议 |
+| 备注 | user | 人工笔记 |
+| IM 消息（可选） | im | 作战室关键消息 |
+
+### A3. TimelineItem 结构（data-model §3.3）
+
+```go
+type TimelineItem struct {
+    ID          string
+    IncidentID  string
+    Timestamp   time.Time
+    Type        TimelineType    // incident_created/event_attached/status_changed/...
+    Actor       Actor           // system | user | integration | ai
+    Content     string          // 人类可读描述
+    Detail      map[string]any  // 结构化详情
+    Source      string          // web | im | api | system | ai
+}
+```
+
+### A4. 可视化与交互（M10.3~M10.5）
+
+- **Web 时间线视图**：按时间倒序展示，支持筛选（类型/来源）。
+- **IM 内摘要**：作战室定时/命令查看进展摘要。
+- **手动追加**（M10.4）：响应者可添加备注条目（如"已联系 DBA"）。
+- **IM 消息可选捕获**（M10.5）：作战室含关键词/@机器人的消息回写时间线。
+
+---
+
+## Part B：AI 智能（横向 Copilot）
+
+### B1. 设计原则（呼应设计基线第 7 条）
+
+- **横向贯穿**：AI 渗透分诊/诊断/复盘各环节，不是独立模块。
+- **human-in-the-loop**：所有 AI 产出是"建议"，须人 accept/reject 才生效。
+- **可溯源**：每条 AI 建议必须带 evidence（引用依据）。
+- **可降级**：LLM 不可用时，AI 功能降级，不影响告警主流程。
+- **可插拔**：支持云端 LLM 与本地模型。
+
+### B2. AI 介入场景（M11.1~M11.7）
+
+| 阶段 | 能力 | AIInsight.type | 说明 |
+|------|------|----------------|------|
+| **分诊** | 智能分诊 | `dedup_suggestion` | 建议合并相似 Event/Incident |
+| **分诊** | 严重度建议 | `severity_adjustment` | 基于历史建议调高/调低 |
+| **分诊** | 智能降噪 | （配合噪音判定） | 学习模式识别噪音 |
+| **诊断** | 根因诊断 | `root_cause_hint` | 给根因线索，引用日志/指标/变更 |
+| **诊断** | 相似事件 | `similar_incident` | 检索历史相似 Incident 及其复盘 |
+| **处置** | Copilot | （建议 runbook） | "这类故障通常用 runbook X" |
+| **复盘** | 摘要起草 | `draft_summary` | 为 Incident 起草 summary |
+| **复盘** | 复盘起草 | `postmortem_draft` | 起草结构化复盘内容 |
+
+### B3. AIInsight 承载与 human-in-the-loop（M11.8/M11.9）
+
+```go
+type AIInsight struct {
+    ID          string
+    IncidentID  string
+    Stage       string          // triage | diagnose | postmortem | copilot
+    Type        string          // dedup_suggestion | root_cause_hint | ...
+    Content     any             // AI 产出
+    Confidence  float32         // 0.0~1.0
+    Evidence    []EvidenceRef   // ★ 依据（引用的 Event/日志/时间线）
+    Status      AIStatus        // suggested | accepted | rejected | applied
+    CreatedAt   time.Time
+}
+```
+
+```
+AI 产出 AIInsight（status=suggested）
+   │
+   ▼
+展示给响应者（IM 卡片 / Web）
+   │
+   ├── accept ──► status=accepted ──► 应用（如合并 Incident / 填充复盘）
+   └── reject ──► status=rejected ──► 不应用，留痕
+```
+
+- **evidence 强制**：无依据的 AI 建议不展示（保证可信度）。
+- **接受/拒绝都记审计**：用于后续改进 AI。
+
+### B4. 相似事件检索（M11.4）
+
+- 基于 Incident 的 summary/labels/timeline 向量化。
+- 初期：PostgreSQL `pgvector` + 文本特征。
+- 检索历史相似 Incident，**连同其复盘一起呈现**——"上次类似故障是怎么处理的"。
+
+### B5. LLM Provider 抽象（M11.10）
+
+```go
+type LLMProvider interface {
+    Name() string
+    Complete(ctx, prompt string, opts ...) (string, error)
+    Embed(ctx, text string) ([]float32, error)   // 向量化（相似检索用）
+}
+```
+
+| 类型 | Provider | 场景 |
+|------|----------|------|
+| 云端 | OpenAI / 智谱 / 通义 | 效果好，需联网 |
+| 本地 | Ollama | 数据不出境，隐私场景 |
+
+- 配置驱动选择，业务层不感知。
+- **成本控制**：缓存 + 限流 + 配额（详见开放问题）。
+
+### B6. 可靠性与降级
+
+| 场景 | 处理 |
+|------|------|
+| LLM 调用失败 | AI 功能降级（不展示建议），不影响告警主流程 |
+| LLM 响应慢 | 异步任务承载，不阻塞分诊/响应 |
+| LLM 误判 | human-in-the-loop 兜底；拒绝率高的建议类型可调优 prompt |
+
+---
+
+## 开放问题
+
+| # | 问题 | 倾向 |
+|---|------|------|
+| Q1 | LLM 成本控制（限流/缓存/配额） | 按团队配额 + 相似请求缓存 |
+| Q2 | AI 建议的置信度阈值（低于多少不展示） | 默认 0.6，可配 |
+| Q3 | 本地模型（Ollama）的效果兜底 | 效果差时降级为规则式，不硬依赖 LLM |
+| Q4 | 时间线 IM 消息捕获的噪音过滤 | 仅含关键词/命令/标记消息 |

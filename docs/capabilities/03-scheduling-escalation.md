@@ -1,0 +1,221 @@
+# 能力域 5-6：排班与升级
+
+| 字段 | 内容 |
+|------|------|
+| **覆盖 PRD** | 能力域 5（排班）M5.1~M5.8、能力域 6（升级）M6.1~M6.6 |
+| **文档版本** | v0.1 |
+| **创建日期** | 2026-06-20 |
+| **关联** | [`data-model.md`](../data-model.md) §3.2 Schedule/Rotation/EscalationPolicy；[`architecture.md`](../architecture.md) §3.3/§3.4 |
+
+---
+
+## 1. 目标
+
+回答两个 oncall 的根本问题：
+
+1. **排班（能力域 5）**：实时回答"此刻谁在班"——把"蓝图"（Schedule 配置）实时计算成"实例"（此刻值班人）。
+2. **升级（能力域 6）**：响应不及时时"找下一个"——oncall 产品的灵魂，保证告警绝不无人响应。
+
+---
+
+## 2. 排班引擎
+
+### 2.1 设计原则
+
+- **Schedule 是纯蓝图**，不存"当前值班人"。每次需要时实时计算（data-model §3.2）。
+- **实时计算**：排班变更立即生效，无快照一致性问题。
+- **分层 + Override**：primary / secondary 多层，临时换班用 override 覆盖。
+
+### 2.2 计算流程（呼应 architecture §3.3）
+
+```
+输入：Schedule + 查询时间 T + Override 层
+   │
+   ▼
+1. 取 Schedule.timezone，把 T 转成当地时间
+2. 遍历 layers（按 priority 升序）：
+     对每层，根据 Rotation 规则算出 T 时刻的参与者
+3. 应用 Override 层（临时换班覆盖，最高优先级）
+4. 输出有序 oncall_users（primary → secondary → override）
+```
+
+### 2.3 Rotation 规则
+
+```yaml
+rotation:
+  participants: [user_a, user_b, user_c]   # 轮班人员
+  shift_length: "24h"                       # 每班时长
+  handoff_time: "09:00"                     # 交接时刻
+  rotation_type: daily | weekly | custom    # 轮换周期
+  start_date: "2026-06-01"
+  end_date: null                            # null = 无限期
+```
+
+- **算当前班次**：`班次序号 = floor((T - start_date) / shift_length)`，`当前值班 = participants[班次序号 mod 人数]`。
+- **handoff_time**：交接时刻（如每天 09:00 换班），保证换班发生在工作时间。
+- **跨时区**：每个 Schedule 独立 timezone，团队跨时区各自正确计算。
+
+### 2.4 Override（临时换班，M5.3）
+
+```yaml
+override:
+  user_id: "user_d"          # 顶替的人
+  start: "2026-06-20 18:00"
+  end:   "2026-06-21 09:00"
+  reason: "user_a 请假"
+  created_by: "user_a"       # 需 schedule.override 权限（限自己或 admin）
+```
+
+- Override 是最高优先级层，时段内完全覆盖 Rotation 结果。
+- 支持自我换班（值班人临时换）和 admin 指派换班。
+
+### 2.5 缺席处理（M5.5）
+
+- 值班人请假/离职 → 创建 Override 覆盖，或从 Rotation.participants 移除。
+- **空班检测**：若计算结果为空（所有人缺席），触发告警通知 team_admin，避免出现"无人值班"。
+
+### 2.6 缓存与预计算（M5.6/M5.8）
+
+- **实时结果缓存**：按分钟级缓存到 Redis（排班不会秒级变化），降低重复计算压力。缓存 key = `schedule_id + 分钟级时间`。
+- **预计算展示**：未来 N 天的排班可预计算，用于排班日历 UI 展示。
+- **生效判断永远实时算**：预计算只用于展示，不用于"此刻谁在班"的决策。
+
+### 2.7 排班 API（M5.7）
+
+```http
+GET /api/v1/schedules/{id}/oncall?time=<iso8601>
+→ { primary: [...], secondary: [...], overrides: [...] }
+
+GET /api/v1/schedules/{id}/preview?days=14
+→ [ { date, primary, secondary }, ... ]   # 排班日历预览
+```
+
+供值班大屏、外部系统查询。
+
+---
+
+## 3. 升级引擎 ★
+
+### 3.1 升级策略定义（data-model §3.2）
+
+```yaml
+escalation_policy:
+  name: "支付服务升级策略"
+  repeat_times: 2              # 当前 level 未 ack 时重复通知次数
+  levels:
+    - level: 1
+      delay_minutes: 1         # 进入此 level 后多久通知
+      targets:
+        - type: schedule       # schedule | user | team
+          schedule_id: "..."
+      notify_channels: [im]
+    - level: 2
+      delay_minutes: 10
+      targets:
+        - type: schedule       # 同 schedule 二次，或不同
+          schedule_id: "..."
+      notify_channels: [im, phone]
+    - level: 3
+      delay_minutes: 20
+      targets:
+        - type: team           # 通知全团队
+          team_id: "..."
+      notify_channels: [im, phone, sms]
+```
+
+### 3.2 升级时序（呼应 architecture §3.4）
+
+```
+Incident 创建（triggered）
+   │
+   ▼
+Enqueue level[0] 延迟任务（asynq.ProcessIn(delay_minutes[0])）
+   │
+   ├── 若在 delay 内 ack ──► 取消所有待触发任务（asynq.DeleteTask）→ acked 态
+   │
+   └── 超时未 ack（任务到期触发）
+         │
+         ▼
+       执行 level[0]：
+         · 排班引擎算 targets 的实际人员
+         · 通知引擎分发（按 notify_channels）
+         · 记 TimelineItem + IncidentAction
+         │
+         ├── repeat_times > 0 ──► 再 Enqueue 一次 level[0]（循环通知）
+         │
+         └── Enqueue level[1] 延迟任务 ──► ... → 末级后停止
+```
+
+### 3.3 目标解析
+
+升级触发时，targets 解析成实际通知对象：
+
+| target.type | 解析方式 |
+|-------------|---------|
+| `schedule` | 调排班引擎算"此刻在班人" |
+| `user` | 直接是某 User |
+| `team` | 该团队所有成员（通常用于末级兜底） |
+
+多个 target 取并集去重。
+
+### 3.4 关键正确性
+
+- **ack 即取消**：任何 ack（Web/IM）通过事件总线删除该 Incident 的所有待触发 Asynq 任务（`asynq.DeleteTask`）。
+- **状态守卫**（最终一致）：handler 执行前检查 `incident.status`，已 ack/resolved 的即使任务误触发也不动作（防止取消与触发竞态）。
+- **幂等**：任务幂等键 = `incident_id + level + repeat序号`，重复触发不重复通知。
+- **手动升级**（M6.5）：响应者主动 escalate → 立即跳到下一 level，取消当前 level 待触发任务。
+
+### 3.5 循环通知（repeat）
+
+- `repeat_times` 控制当前 level 未 ack 时的重复通知次数。
+- 每次重复间隔可配（默认同 `delay_minutes`）。
+- 防轰炸：总通知次数有上限。
+
+### 3.6 升级事件记录（M6.6）
+
+每次升级触发都产生：
+- **TimelineItem**（type=`escalated`）：谁、何时、升到哪级。
+- **IncidentAction**（type=`escalate`）：审计记录。
+- 更新 `Incident.current_level` / `escalated_count`。
+
+---
+
+## 4. 升级与排班的协作
+
+```
+Incident 触发升级
+   │
+   ▼
+升级引擎读 EscalationPolicy.levels[current]
+   │
+   ▼
+对每个 target.type=schedule，调排班引擎：
+   GET schedule.oncall(now) → [user, ...]
+   │
+   ▼
+通知引擎对实际人员分发（能力域 7）
+```
+
+- 排班变更**立即影响下一次升级**：因为每次升级都实时算在班人，换班后下一级升级自动找到新人。
+- 这是排班"实时计算"设计的直接受益点。
+
+---
+
+## 5. 可靠性
+
+| 要求 | 实现 |
+|------|------|
+| **升级任务绝不丢** | Asynq 高优先级队列 + 高 MaxRetry + Redis 持久化；任务持久化在 Redis，worker 重启不丢 |
+| **ack 取消可靠** | 状态守卫兜底（即使 DeleteTask 失败，handler 也会因 incident 已 ack 而不动作） |
+| **不漏真故障** | 末级升级到全团队 + 多通道，保证最终有人响应 |
+| **可观测** | 升级触发次数、各级 ack 率、平均升级层级暴露 metrics |
+
+---
+
+## 6. 开放问题
+
+| # | 问题 | 倾向 |
+|---|------|------|
+| Q1 | follow_the_sun（跟随太阳）排班类型的具体实现 | 多时区 schedule 链式接力，初期可仅支持 calendar/rotation |
+| Q2 | 升级策略的继承（子服务继承父服务策略） | 不继承，每个 Service 显式绑定（避免隐式行为） |
+| Q3 | repeat 通知的退避策略 | 固定间隔为主，避免复杂退避逻辑 |
