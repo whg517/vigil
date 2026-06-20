@@ -10,10 +10,10 @@ Thumbs.db
 *~
 
 # Go
-# 二进制产物
+# 二进制产物（/vigil 仅匹配根目录编译产物，勿用 vigil 通配以免误伤 cmd/vigil 目录）
 /bin/
 *.exe
-vigil
+/vigil
 cmd/vigil/vigil
 # 测试覆盖率
 *.out
