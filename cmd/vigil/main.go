@@ -135,7 +135,8 @@ func run() error {
 		return nil
 	}))
 	notifReg.Register(&notification.EmailChannel{})
-	notifier := notification.NewNotifier(notifReg, []string{"webhook", "email"})
+	// 默认通道含 im（IMChannel 在 5.6.1 注册，notifier 实时查 registry，晚注册也能生效）
+	notifier := notification.NewNotifier(notifReg, []string{"im", "webhook", "email"})
 
 	// 5.4 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链，注入通知分发器 + 时间线记录器
 	escRedisOpt := &asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB}
@@ -202,6 +203,14 @@ func run() error {
 	} else {
 		log.Info("im disabled (feishu credentials not configured)")
 	}
+
+	// 5.6.1 集成缺口补全：把 IM 适配成 notification 通道，
+	// 让升级通知通过 IM 卡片送达（IM-first 闭环）。
+	// getChannel：当前简化为返回配置的值班群（VIGIL_IM_ONCALL_CHANNEL），
+	// 完整实现按 target user.im_accounts 解析私聊。
+	notifReg.Register(im.NewIMChannel(imRegistry, imCards, func(inc *ent.Incident, targets []notification.Target) string {
+		return cfg.IM.OncallChannel // 值班群 channel（空则不发送）
+	}))
 
 	// 5.4 分诊（能力域 3-4）：创建 Incident 后注入"启动升级"回调
 	triageEngine := triage.NewEngine(st.DB, st.Redis)

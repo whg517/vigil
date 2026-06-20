@@ -101,6 +101,9 @@ type LLM struct {
 // ⚠️ AppSecret 等仅从环境变量读取，绝不硬编码/提交 git。
 type IM struct {
 	Feishu Feishu `envconfig:"feishu"`
+	// OncallChannel 值班群 channel 标识（飞书 chat_id / 钉钉 conversationId）。
+	// 告警卡片发送到此群。为空则 IM 通知不发送（待私聊解析完整实现）。
+	OncallChannel string `envconfig:"oncall_channel"`
 }
 
 // Feishu 飞书应用凭证（能力域 8 唯一真实接入平台）。
