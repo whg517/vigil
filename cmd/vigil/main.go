@@ -19,6 +19,7 @@ import (
 	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/logger"
 	"github.com/kevin/vigil/internal/notification"
+	"github.com/kevin/vigil/internal/postmortem"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/runbook"
 	"github.com/kevin/vigil/internal/schedule"
@@ -127,6 +128,9 @@ func run() error {
 	// Runbook（能力域 9）：处置手册 + 受控执行
 	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
 	runbook.NewHandler(st.DB, runbookEngine).Register(v1)
+	// 复盘（能力域 12）：草稿生成 + 状态机 + 改进项（LLM 待接入，当前降级）
+	postmortemEngine := postmortem.NewEngine(st.DB, nil)
+	postmortem.NewHandler(st.DB, postmortemEngine).Register(v1)
 
 	errCh := make(chan error, 1)
 	go func() {
