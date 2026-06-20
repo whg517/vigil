@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/internal/config"
+	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/logger"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/server"
@@ -64,8 +65,18 @@ func run() error {
 	defer q.Close()
 	log.Info("queue ready (asynq)")
 
+	// 5.1 初始化接入（能力域 1-2）：适配器注册表 + webhook handler + 归一化 worker
+	adapterRegistry := ingestion.NewAdapterRegistry()
+	ingestHandler := ingestion.NewHandler(st.DB, q)
+	normalizeWorker := ingestion.NewNormalizeWorker(st.DB, adapterRegistry)
+	// 归一化任务注册到 queue
+	q.Register(ingestion.TaskNormalize, normalizeWorker.Handle)
+	log.Info("ingestion ready (webhook + normalize worker)")
+
 	// 6. 启动 HTTP 服务
 	srv := server.New(cfg, st)
+	// 挂载 webhook 接入路由（/api/v1/webhook/:token）
+	ingestHandler.Register(srv.APIGroup())
 
 	errCh := make(chan error, 1)
 	go func() {
