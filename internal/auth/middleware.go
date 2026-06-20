@@ -83,7 +83,41 @@ func parseTeamScope(c echo.Context) *int {
 	return &id
 }
 
-// UserIDFromContext 从 context 取已鉴权的用户 ID。
+// RequireUser 仅做身份解析（不校验权限），用于"需登录但任何角色可访问"的接口。
+// 从 X-Vigil-User-ID 解析用户，注入 context。无 header 时按 enforce 决定：
+// enforce=true 返回 401；enforce=false 放行（匿名，用于渐进启用鉴权）。
+func RequireUser(enforce bool) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			uidStr := c.Request().Header.Get("X-Vigil-User-ID")
+			if uidStr == "" {
+				if enforce {
+					return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing user"})
+				}
+				return next(c) // 匿名放行（渐进启用阶段）
+			}
+			uid, err := strconv.Atoi(uidStr)
+			if err != nil {
+				if enforce {
+					return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid user id"})
+				}
+				return next(c)
+			}
+			c.SetRequest(c.Request().WithContext(context.WithValue(c.Request().Context(), ctxUser, uid)))
+			return next(c)
+		}
+	}
+}
+
+// RequirePermPerRoute 按路由声明权限的中间件工厂。
+// 用法：g.GET("/incidents", h.List, auth.RequirePermPerRoute(authz, auth.PermIncidentView))
+// 与 Middleware 的区别：perm 通过参数传入，便于 main 按路由精细挂载。
+func RequirePermPerRoute(authz *Authorizer, perm Permission) echo.MiddlewareFunc {
+	return Middleware(authz, perm)
+}
+
+// UserIDFromContext 从 context 取已鉴权的用户 ID（RequireUser/Middleware 注入）。
+// 供 handler 取当前用户；未鉴权时返回 (0, false)。
 func UserIDFromContext(ctx context.Context) (int, bool) {
 	uid, ok := ctx.Value(ctxUser).(int)
 	return uid, ok

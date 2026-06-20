@@ -32,6 +32,9 @@ type Config struct {
 
 	// IM 配置（能力域 8 IM 协同，各平台适配器凭证）
 	IM IM `envconfig:"im"`
+
+	// Auth 鉴权配置（能力域 13）
+	Auth Auth `envconfig:"auth"`
 }
 
 // App 应用级配置。
@@ -76,6 +79,14 @@ type Redis struct {
 // Asynq 异步任务配置。
 type Asynq struct {
 	Concurrency int `envconfig:"concurrency" default:"10"` // worker 并发数
+}
+
+// Auth 鉴权配置（能力域 13）。
+// Enabled 为 false 时业务 API 不强制身份解析（匿名放行，渐进启用阶段默认 false）；
+// 为 true 时所有业务 API 需 X-Vigil-User-ID 身份头。
+// webhook 接入/IM 回调不受此开关影响（它们用各自的 token/签名鉴权）。
+type Auth struct {
+	Enabled bool `envconfig:"enabled" default:"false"` // 是否强制业务 API 鉴权
 }
 
 // LLM 配置（智谱 GLM）。APIKey 为空时 AI 功能自动降级（设计基线第 7 条）。

@@ -21,10 +21,11 @@ import (
 
 // Server HTTP 服务器，聚合接入层依赖。
 type Server struct {
-	echo  *echo.Echo
-	cfg   *config.Config
-	store *store.Store
-	v1    *echo.Group // /api/v1 业务路由组
+	echo   *echo.Echo
+	cfg    *config.Config
+	store  *store.Store
+	v1     *echo.Group // /api/v1 业务路由组（需鉴权）
+	public *echo.Group // /api/v1 公开路由组（webhook 接入/IM 回调，自带鉴权，不走 RBAC）
 }
 
 // New 创建 Server 并注册基础路由（health 等）。
@@ -38,15 +39,21 @@ func New(cfg *config.Config, st *store.Store) *Server {
 	// 基础路由（无需鉴权）
 	s.registerBase()
 
-	// API v1 group（业务路由挂载于此，鉴权中间件后续添加）
-	s.v1 = e.Group("/api/v1")
+	// API v1 路由组
+	s.v1 = e.Group("/api/v1")      // 业务路由（鉴权中间件由 main 挂载）
+	s.public = e.Group("/api/v1")  // 公开路由（webhook 接入/IM 回调，用各自 token/签名鉴权）
 
 	return s
 }
 
-// APIGroup 返回 /api/v1 路由组，供各能力域 handler 挂载业务路由。
+// APIGroup 返回 /api/v1 业务路由组（需鉴权），供各能力域挂载业务路由。
 func (s *Server) APIGroup() *echo.Group {
 	return s.v1
+}
+
+// PublicGroup 返回 /api/v1 公开路由组（不走 RBAC，用于 webhook 接入、IM 回调等自带鉴权的入口）。
+func (s *Server) PublicGroup() *echo.Group {
+	return s.public
 }
 
 // registerBase 注册基础路由（健康检查、指标）。

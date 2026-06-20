@@ -106,6 +106,13 @@ func run() error {
 	defer st.Close()
 	log.Info("store ready (postgres + redis)")
 
+	// 4.1 种子内置角色（鉴权生效的前提，幂等）
+	if err := auth.SeedBuiltinRoles(ctx, st.DB); err != nil {
+		log.Warn("seed builtin roles failed", zap.Error(err))
+	} else {
+		log.Info("builtin roles seeded")
+	}
+
 	// 5. 初始化异步任务队列
 	q := queue.New(cfg)
 	defer q.Close()
@@ -216,13 +223,18 @@ func run() error {
 
 	// 6. 启动 HTTP 服务
 	srv := server.New(cfg, st)
+
+	// 公开路由组（自带鉴权，不走 RBAC）：webhook 接入、IM 回调
+	public := srv.PublicGroup()
+	ingestHandler.Register(public)   // 告警 webhook（token 鉴权）
+	imHandler.Register(public)       // IM 平台回调（平台签名校验）
+
+	// 业务路由组（受鉴权开关控制）：身份解析中间件
 	v1 := srv.APIGroup()
-	ingestHandler.Register(v1)
+	v1.Use(auth.RequireUser(cfg.Auth.Enabled))
 	schedule.NewHandler(schedEngine).Register(v1)
-	// RBAC（能力域 13）：角色/绑定管理（鉴权器 authz 已在 5.6 创建并复用）
+	// RBAC（能力域 13）：角色/绑定管理
 	auth.NewHandler(st.DB).Register(v1)
-	// IM 协同（能力域 8）：IM Webhook 回调路由
-	imHandler.Register(v1)
 	// Runbook（能力域 9）：处置手册 + 受控执行，注入时间线记录器
 	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
 	runbookEngine.SetTimelineRecorder(timelineRecorder)
