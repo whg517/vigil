@@ -20,6 +20,7 @@ import (
 	"github.com/kevin/vigil/internal/logger"
 	"github.com/kevin/vigil/internal/notification"
 	"github.com/kevin/vigil/internal/queue"
+	"github.com/kevin/vigil/internal/runbook"
 	"github.com/kevin/vigil/internal/schedule"
 	"github.com/kevin/vigil/internal/server"
 	"github.com/kevin/vigil/internal/store"
@@ -123,6 +124,9 @@ func run() error {
 	authz := auth.NewAuthorizer(st.DB)
 	auth.NewHandler(st.DB).Register(v1)
 	_ = authz // TODO: 给业务路由挂鉴权中间件 Middleware(authz, PermXxx)
+	// Runbook（能力域 9）：处置手册 + 受控执行
+	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
+	runbook.NewHandler(st.DB, runbookEngine).Register(v1)
 
 	errCh := make(chan error, 1)
 	go func() {
