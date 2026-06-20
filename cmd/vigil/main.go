@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/internal/analytics"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/config"
 	"github.com/kevin/vigil/internal/escalation"
@@ -170,6 +171,8 @@ func run() error {
 	// 复盘（能力域 12）：草稿生成 + 状态机 + 改进项（LLM 待接入，当前降级）
 	postmortemEngine := postmortem.NewEngine(st.DB, nil)
 	postmortem.NewHandler(st.DB, postmortemEngine).Register(v1)
+	// 报表（能力域 15）：告警/事件/团队负载/复盘/趋势 度量
+	analytics.NewHandler(analytics.NewEngine(st.DB)).Register(v1)
 
 	errCh := make(chan error, 1)
 	go func() {
