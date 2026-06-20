@@ -6,7 +6,6 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -38,33 +37,26 @@ func New(ctx context.Context, cfg *config.Config) (*Store, error) {
 
 // openDB 打开 ent client（底层 PostgreSQL），并 ping 验证连通。
 // 不在此自动迁移，迁移由 migrate 子命令/部署流程负责。
+// 驱动：lib/pq（与 main.go 的 blank import 一致，ent dialect "postgres" 也用此）。
 func openDB(ctx context.Context, cfg *config.Config) (*ent.Client, error) {
-	// 先用 database/sql ping 验证连通性（轻量，不依赖 ent 内部接口）
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	sqlDB, err := sql.Open("pgx", pgxDSN(cfg))
-	if err != nil {
-		return nil, fmt.Errorf("open postgres (ping): %w", err)
-	}
-	defer sqlDB.Close()
-	if err := sqlDB.PingContext(pingCtx); err != nil {
-		return nil, fmt.Errorf("ping postgres: %w", err)
-	}
-
-	// 再用 ent 打开业务用 client
 	db, err := ent.Open("postgres", cfg.DB.DSN())
 	if err != nil {
-		return nil, fmt.Errorf("open postgres (ent): %w", err)
+		return nil, fmt.Errorf("open postgres: %w", err)
+	}
+	// ping 验证连通性：通过查实体计数验证（兼容 ent 接口，不依赖底层 driver）
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := pingViaEnt(pingCtx, db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 	return db, nil
 }
 
-// pgxDSN 返回 pgx 驱动的连接串（database/sql 用）。
-func pgxDSN(cfg *config.Config) string {
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.Name, cfg.DB.SSLMode,
-	)
+// pingViaEnt 通过查一个实体计数验证连通（兼容 ent 接口，不依赖底层 driver）。
+func pingViaEnt(ctx context.Context, db *ent.Client) error {
+	_, err := db.User.Query().Limit(1).Count(ctx)
+	return err
 }
 
 // openRedis 打开 Redis client。

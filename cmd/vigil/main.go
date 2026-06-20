@@ -8,6 +8,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -29,13 +31,42 @@ import (
 	"github.com/kevin/vigil/internal/triage"
 
 	"github.com/hibiken/asynq"
+	_ "github.com/lib/pq" // 注册 postgres 驱动（ent dialect "postgres" 用）
 	"go.uber.org/zap"
 )
 
 func main() {
+	// 子命令分发：migrate 把 ent schema 应用到 PG（生产可换 atlas 版本化迁移）
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		if err := runMigrate(); err != nil {
+			fmt.Fprintln(os.Stderr, "migrate failed:", err)
+			os.Exit(1)
+		}
+		fmt.Println("migrate: schema applied")
+		return
+	}
 	if err := run(); err != nil {
 		panic(err)
 	}
+}
+
+// runMigrate 应用 ent schema 到 PostgreSQL（auto-migration）。
+func runMigrate() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	db, err := ent.Open("postgres", cfg.DB.DSN())
+	if err != nil {
+		return fmt.Errorf("open db: %w", err)
+	}
+	defer db.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := db.Schema.Create(ctx); err != nil {
+		return fmt.Errorf("apply schema: %w", err)
+	}
+	return nil
 }
 
 func run() error {
