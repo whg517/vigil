@@ -39,5 +39,8 @@ web/dist/
 # pnpm
 .pnpm-store/
 
+# Git worktree（开发用，特性分支隔离的工作目录，详见 docs/development.md）
+.worktree/
+
 # 日志
 *.log
