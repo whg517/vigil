@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/config"
 	"github.com/kevin/vigil/internal/escalation"
 	"github.com/kevin/vigil/internal/ingestion"
@@ -118,6 +119,10 @@ func run() error {
 	v1 := srv.APIGroup()
 	ingestHandler.Register(v1)
 	schedule.NewHandler(schedEngine).Register(v1)
+	// RBAC（能力域 13）：角色/绑定管理 + 鉴权器
+	authz := auth.NewAuthorizer(st.DB)
+	auth.NewHandler(st.DB).Register(v1)
+	_ = authz // TODO: 给业务路由挂鉴权中间件 Middleware(authz, PermXxx)
 
 	errCh := make(chan error, 1)
 	go func() {
