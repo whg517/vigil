@@ -26,6 +26,26 @@
     --input: 240 5.9% 90%;
     --ring: 240 10% 3.9%;
     --radius: 0.5rem;
+
+    /* 严重度色板（告警 severity: critical/warning/info）。HSL 便于透明度叠加。 */
+    --severity-critical: 0 72% 51%;
+    --severity-critical-foreground: 0 0% 98%;
+    --severity-warning: 38 92% 50%;
+    --severity-warning-foreground: 38 50% 12%;
+    --severity-info: 221 83% 53%;
+    --severity-info-foreground: 0 0% 98%;
+
+    /* 事件状态色（status: triggered/escalated/acked/resolved/closed） */
+    --status-triggered: 0 72% 51%;
+    --status-triggered-foreground: 0 0% 98%;
+    --status-escalated: 25 95% 53%;
+    --status-escalated-foreground: 25 50% 12%;
+    --status-acked: 221 83% 53%;
+    --status-acked-foreground: 0 0% 98%;
+    --status-resolved: 142 71% 45%;
+    --status-resolved-foreground: 0 0% 98%;
+    --status-closed: 240 3.8% 46.1%;
+    --status-closed-foreground: 0 0% 98%;
   }
 
   .dark {
@@ -48,6 +68,16 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
+
+    /* 暗色下严重度/状态色略调亮度，保证对比度 */
+    --severity-critical: 0 72% 60%;
+    --severity-warning: 38 92% 58%;
+    --severity-info: 217 91% 60%;
+    --status-triggered: 0 72% 60%;
+    --status-escalated: 25 95% 60%;
+    --status-acked: 217 91% 60%;
+    --status-resolved: 142 71% 50%;
+    --status-closed: 240 5% 64.9%;
   }
 }
 
@@ -74,6 +104,24 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  /* severity / status 工具类：bg-severity-critical / text-status-resolved 等 */
+  --color-severity-critical: hsl(var(--severity-critical));
+  --color-severity-critical-foreground: hsl(var(--severity-critical-foreground));
+  --color-severity-warning: hsl(var(--severity-warning));
+  --color-severity-warning-foreground: hsl(var(--severity-warning-foreground));
+  --color-severity-info: hsl(var(--severity-info));
+  --color-severity-info-foreground: hsl(var(--severity-info-foreground));
+  --color-status-triggered: hsl(var(--status-triggered));
+  --color-status-triggered-foreground: hsl(var(--status-triggered-foreground));
+  --color-status-escalated: hsl(var(--status-escalated));
+  --color-status-escalated-foreground: hsl(var(--status-escalated-foreground));
+  --color-status-acked: hsl(var(--status-acked));
+  --color-status-acked-foreground: hsl(var(--status-acked-foreground));
+  --color-status-resolved: hsl(var(--status-resolved));
+  --color-status-resolved-foreground: hsl(var(--status-resolved-foreground));
+  --color-status-closed: hsl(var(--status-closed));
+  --color-status-closed-foreground: hsl(var(--status-closed-foreground));
 }
 
 @layer base {

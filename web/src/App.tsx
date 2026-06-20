@@ -1,31 +1,25 @@
 import { Routes, Route } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
 import { Dashboard } from "@/pages/dashboard";
+import { Incidents } from "@/pages/incidents";
+import { IncidentDetail } from "@/pages/incident-detail";
 
 /**
  * App —— 应用根：路由表。
- * 路由树对应 Vigil 主要功能区（见能力域设计）。当前仅 Dashboard 落地，
- * 其余页面（事件/值班/服务/Runbook/复盘/设置）为占位，待按能力域实现。
+ * 已落地：仪表盘、事件列表、事件详情。
+ * 其余页面（值班/服务/Runbook/复盘/设置）为占位，待按能力域实现。
  */
 function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
-        <Route
-          path="incidents"
-          element={<Placeholder title="事件" />}
-        />
-        <Route
-          path="oncall"
-          element={<Placeholder title="值班排班" />}
-        />
+        <Route path="incidents" element={<Incidents />} />
+        <Route path="incidents/:id" element={<IncidentDetail />} />
+        <Route path="oncall" element={<Placeholder title="值班排班" />} />
         <Route path="services" element={<Placeholder title="服务" />} />
         <Route path="runbooks" element={<Placeholder title="Runbook" />} />
-        <Route
-          path="postmortems"
-          element={<Placeholder title="复盘" />}
-        />
+        <Route path="postmortems" element={<Placeholder title="复盘" />} />
         <Route path="settings" element={<Placeholder title="设置" />} />
       </Route>
     </Routes>
