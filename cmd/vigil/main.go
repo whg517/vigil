@@ -262,6 +262,9 @@ func run() error {
 	}
 	postmortemEngine := postmortem.NewEngine(st.DB, pmLLM)
 	postmortem.NewHandler(st.DB, postmortemEngine).Register(v1)
+	// AI 诊断（能力域 11）：根因线索 + 相似事件 + human-in-the-loop
+	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)
+	ai.NewHandler(aiDiagEngine).Register(v1)
 	// 报表（能力域 15）：告警/事件/团队负载/复盘/趋势 度量
 	analytics.NewHandler(analytics.NewEngine(st.DB)).Register(v1)
 

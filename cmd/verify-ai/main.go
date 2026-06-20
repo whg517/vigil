@@ -56,4 +56,21 @@ func main() {
 		}
 		fmt.Printf("  %s\n\n", draft)
 	}
+
+	// 诊断验证：根因线索（带不确定性措辞 + JSON 输出）
+	fmt.Println("========================================")
+	fmt.Println("【根因诊断验证】")
+	fmt.Println("========================================")
+	diagPrompt := "你是运维根因分析助手。根据以下事件信息，推测可能的根因。\n" +
+		"要求：\n1. 用不确定性措辞（\"可能\"\"疑似\"\"初步判断\"），绝不武断下结论\n" +
+		"2. 输出必须是 JSON 格式：{\"root_cause\":\"...\",\"confidence\":0.0-1.0}\n\n" +
+		"事件信息：\n- 标题：支付服务5xx错误率超阈值\n- 严重度：critical\n- 概要：DB连接池耗尽\n\n" +
+		"时间线：\n- [10:28] incident_created: 事件创建\n- [10:29] escalated: 升级 level 1\n" +
+		"- [10:35] ack: DBA 张三接手\n- [10:50] action: 扩容 DB 连接池 100→500\n- [10:58] resolved: 5xx 恢复正常\n"
+	diagOut, err := provider.Complete(ctx, diagPrompt)
+	if err != nil {
+		fmt.Printf("  ❌ 失败: %v\n", err)
+	} else {
+		fmt.Printf("  %s\n", diagOut)
+	}
 }
