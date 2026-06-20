@@ -29,6 +29,9 @@ type Config struct {
 
 	// LLM 配置（智谱 GLM 等，能力域 11 AI Copilot）
 	LLM LLM `envconfig:"llm"`
+
+	// IM 配置（能力域 8 IM 协同，各平台适配器凭证）
+	IM IM `envconfig:"im"`
 }
 
 // App 应用级配置。
@@ -81,6 +84,22 @@ type LLM struct {
 	APIKey  string `envconfig:"api_key"`                // 智谱 API Key（VIGIL_LLM_API_KEY）
 	Model   string `envconfig:"model" default:"glm-4-flash"` // 模型，glm-4-flash 轻量低成本
 	BaseURL string `envconfig:"base_url" default:"https://open.bigmodel.cn/api/paas/v4"` // 智谱 OpenAPI 根
+}
+
+// IM 能力域 8 IM 协同配置。按平台分组，凭证缺失时对应适配器 Available()==false（降级）。
+// ⚠️ AppSecret 等仅从环境变量读取，绝不硬编码/提交 git。
+type IM struct {
+	Feishu Feishu `envconfig:"feishu"`
+}
+
+// Feishu 飞书应用凭证（能力域 8 唯一真实接入平台）。
+// 四要素均配置后适配器才 Available()，否则降级为不发送（设计基线第 7 条）。
+type Feishu struct {
+	AppID             string `envconfig:"app_id"`              // 应用 App ID（VIGIL_IM_FEISHU_APP_ID）
+	AppSecret         string `envconfig:"app_secret"`          // 应用 App Secret
+	VerificationToken string `envconfig:"verification_token"`  // 事件订阅校验 token
+	EncryptKey        string `envconfig:"encrypt_key"`         // 事件订阅加密密钥（AES-256-CBC），空=不加密
+	BaseURL           string `envconfig:"base_url" default:"https://open.feishu.cn/open-apis"` // OpenAPI 根（可换国际版域名）
 }
 
 // Load 从环境变量加载配置（前缀 VIGIL）。

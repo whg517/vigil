@@ -206,17 +206,18 @@ type IMBot interface {
 
 ## 10. 平台能力降级矩阵
 
-不同 IM 平台能力不齐，需降级方案（PoC 后填实）：
+不同 IM 平台能力不齐，需降级方案：
 
 | 能力 | 钉钉 | 飞书 | 企微 | 降级方案 |
 |------|:--:|:--:|:--:|---------|
-| 交互卡片 | ✅ | ✅ | ⚠️ | 降级为纯文本+链接 |
-| 卡片更新 | ⚠️ | ✅ | ❌ | 降级为发新消息标注最新状态 |
-| 建临时群 | ✅ | ✅ | ✅ | — |
-| @人 API | ✅ | ✅ | ⚠️ | 降级为手动@ |
-| 命令机器人 | ✅ | ✅ | ✅ | — |
+| 交互卡片 | ⏳ | ✅ 已接入 | ⏳ | 降级为纯文本+链接 |
+| 卡片更新 | ⏳ | ✅ 已接入 | ⏳ | 降级为发新消息标注最新状态 |
+| 建临时群 | ⏳ | ✅ 已接入 | ⏳ | — |
+| @人 API | ⏳ | ✅ 已接入 | ⏳ | 降级为手动@ |
+| 命令机器人 | ⏳ | ✅ 已接入 | ⏳ | — |
 
-> 这是 IM-first 最大的不确定性，PoC 结果直接决定能力域 8 的可行边界。
+> **实现现状**：飞书为本期唯一真实接入平台（`internal/im/feishu`），卡片下发/更新/建群/回调签名校验均已实现，凭证缺失时 `Available()==false` 自动降级。钉钉/企微为 `NoopBot` 占位，待 PoC 后补真实适配器。
+> ✅ =已接入　⏳ =占位待 PoC　⚠️ =平台部分支持　❌ =平台不支持
 
 ---
 
@@ -233,8 +234,22 @@ type IMBot interface {
 
 ## 12. 开放问题
 
-| # | 问题 | 倾向 |
-|---|------|------|
-| Q1 | 卡片更新能力缺失平台的降级体验 | 发新消息 + 折叠旧消息，标注"最新状态见新消息" |
-| Q2 | 作战室消息回写时间线的筛选（避免噪音） | 仅捕获含关键词/@机器人/带标记的消息 |
-| Q3 | 多 IM 平台同时绑定的主从关系 | 用户操作以触发的平台为准，不区分主从 |
+| # | 问题 | 倾向 | 状态 |
+|---|------|------|------|
+| Q1 | 卡片更新能力缺失平台的降级体验 | 发新消息 + 折叠旧消息，标注"最新状态见新消息" | 飞书已支持卡片更新；钉钉/企微待 PoC 后按此降级 |
+| Q2 | 作战室消息回写时间线的筛选（避免噪音） | 仅捕获含关键词/@机器人/带标记的消息 | 本期未实现回写，handler 对普通消息返回 ignored |
+| Q3 | 多 IM 平台同时绑定的主从关系 | 用户操作以触发的平台为准，不区分主从 | 已实现：`mapper.ResolveUser` 按触发的 platform 匹配，无主从 |
+
+---
+
+## 13. 实现映射（v0.1）
+
+| 文档章节 | 代码位置 |
+|---------|---------|
+| §3 交互卡片 / §3.1 按权限渲染 | `internal/im/card.go`（`BuildCard` + `Renderer.WithPermittedButtons`） |
+| §3.2 卡片实时更新 | `internal/im/handler.go`（`refreshCard`）+ `internal/incident/service.go`（`OnIncidentChanged` 回调） |
+| §5 拉人协同 | `internal/im/handler.go`（`handleMention` → `incident.Service.AddResponder`） |
+| §6 斜杠命令 | `internal/im/handler.go`（`handleCommand`）+ `feishu.parseSlashCommand` |
+| §6 IM 账号映射与鉴权 | `internal/im/mapper.go`（`ResolveUser`）+ `handler.go`（`resolveAndCheck` → `authz.Check`） |
+| §9 IMBot 接口 | `internal/im/bot.go`（`IMBot`）+ `feishu.Adapter`（真实）+ `im.NoopBot`（占位） |
+| 复用层（IM/Web 共用动作） | `internal/incident/service.go`（`Ack`/`Resolve`/`Escalate`/`AddResponder`） |

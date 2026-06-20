@@ -20,7 +20,10 @@ import (
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/config"
 	"github.com/kevin/vigil/internal/escalation"
+	"github.com/kevin/vigil/internal/im"
+	"github.com/kevin/vigil/internal/im/feishu"
 	"github.com/kevin/vigil/internal/ingestion"
+	"github.com/kevin/vigil/internal/incident"
 	"github.com/kevin/vigil/internal/logger"
 	"github.com/kevin/vigil/internal/notification"
 	"github.com/kevin/vigil/internal/postmortem"
@@ -136,6 +139,63 @@ func run() error {
 	timelineRecorder := timeline.NewRecorder(st.DB)
 	escEngine.SetRecorder(timelineRecorder)
 
+	// 5.6 RBAC 鉴权器（能力域 13）——提前创建，供 incident.Service 与 IM 层共用（同一鉴权链路）
+	authz := auth.NewAuthorizer(st.DB)
+
+	// 5.7 事件动作服务（能力域 8 复用层）：IM 与 Web 共用的 ack/resolve/escalate/add_responder 入口。
+	// 注入 recorder + escEngine；OnIncidentChanged 回调后续接 IM 卡片刷新（见 5.8）。
+	incService := incident.NewService(st.DB, timelineRecorder, escEngine)
+
+	// 5.8 IM 协同（能力域 8 ★）：平台适配器注册表 + 账号映射 + 卡片渲染 + 回调 handler。
+	// 飞书为唯一真实接入平台；钉钉/企微留 NoopBot 待 PoC。凭证未配置时 Available()==false（降级）。
+	imRegistry := im.NewRegistry()
+	feishuBot := feishu.New(feishu.Config{
+		AppID:             cfg.IM.Feishu.AppID,
+		AppSecret:         cfg.IM.Feishu.AppSecret,
+		VerificationToken: cfg.IM.Feishu.VerificationToken,
+		EncryptKey:        cfg.IM.Feishu.EncryptKey,
+		BaseURL:           cfg.IM.Feishu.BaseURL,
+	})
+	imRegistry.Register(feishuBot)
+	imRegistry.Register(im.NewNoopBot("dingtalk"))
+	imRegistry.Register(im.NewNoopBot("wecom"))
+
+	imMapper := im.NewMapper(st.DB)
+	imCards := im.NewCardStore()
+	// 卡片渲染器：注入 authz.CheckAny 做按权限渲染按钮（无权按钮不显示，IM 不成权限后门）
+	imRenderer := im.NewRenderer(func(userID int, teamScope *int, perms []string) (map[string]bool, error) {
+		pp := make([]auth.Permission, 0, len(perms))
+		for _, p := range perms {
+			pp = append(pp, auth.Permission(p))
+		}
+		granted, err := authz.CheckAny(context.Background(), userID, teamScope, pp)
+		if err != nil {
+			return nil, err
+		}
+		out := make(map[string]bool, len(granted))
+		for p, ok := range granted {
+			out[string(p)] = ok
+		}
+		return out, nil
+	})
+	imHandler := im.NewHandler(st.DB, imRegistry, imMapper, authz, incService, imRenderer, imCards)
+
+	// 状态变更回调：incident 状态一变即刷新已发卡片（§8 双向同步之 Web→IM / IM 内自更新）
+	incService.SetOnIncidentChanged(func(ctx context.Context, inc *ent.Incident, action incident.Action) {
+		for _, bot := range imRegistry.Available() {
+			// 回调中无 actor 信息，刷新卡片仅更新状态展示（按钮区折叠）
+			if cardID, ok := imCards.Get(inc.ID, bot.Platform()); ok {
+				card := im.BuildCard(inc, "")
+				_ = bot.UpdateCard(ctx, cardID, card)
+			}
+		}
+	})
+	if feishuBot.Available() {
+		log.Info("im ready (feishu bot online)")
+	} else {
+		log.Info("im disabled (feishu credentials not configured)")
+	}
+
 	// 5.4 分诊（能力域 3-4）：创建 Incident 后注入"启动升级"回调
 	triageEngine := triage.NewEngine(st.DB, st.Redis)
 	triageEngine.OnIncidentCreated = func(ctx context.Context, inc *ent.Incident, svc *ent.Service) {
@@ -159,10 +219,10 @@ func run() error {
 	v1 := srv.APIGroup()
 	ingestHandler.Register(v1)
 	schedule.NewHandler(schedEngine).Register(v1)
-	// RBAC（能力域 13）：角色/绑定管理 + 鉴权器
-	authz := auth.NewAuthorizer(st.DB)
+	// RBAC（能力域 13）：角色/绑定管理（鉴权器 authz 已在 5.6 创建并复用）
 	auth.NewHandler(st.DB).Register(v1)
-	_ = authz // TODO: 给业务路由挂鉴权中间件 Middleware(authz, PermXxx)
+	// IM 协同（能力域 8）：IM Webhook 回调路由
+	imHandler.Register(v1)
 	// Runbook（能力域 9）：处置手册 + 受控执行，注入时间线记录器
 	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
 	runbookEngine.SetTimelineRecorder(timelineRecorder)
