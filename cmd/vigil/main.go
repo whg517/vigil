@@ -16,6 +16,7 @@ import (
 	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/logger"
 	"github.com/kevin/vigil/internal/queue"
+	"github.com/kevin/vigil/internal/schedule"
 	"github.com/kevin/vigil/internal/server"
 	"github.com/kevin/vigil/internal/store"
 	"github.com/kevin/vigil/internal/triage"
@@ -81,8 +82,12 @@ func run() error {
 
 	// 6. 启动 HTTP 服务
 	srv := server.New(cfg, st)
-	// 挂载 webhook 接入路由（/api/v1/webhook/:token）
-	ingestHandler.Register(srv.APIGroup())
+	// 挂载业务路由
+	v1 := srv.APIGroup()
+	ingestHandler.Register(v1)
+	// 排班（能力域 5）：oncall 查询 + 预览
+	schedEngine := schedule.NewEngine(st.DB, st.Redis)
+	schedule.NewHandler(schedEngine).Register(v1)
 
 	errCh := make(chan error, 1)
 	go func() {
