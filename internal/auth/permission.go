@@ -88,10 +88,10 @@ const (
 	PermRoleAssign Permission = "role.assign"
 
 	// —— notification 通知规则 / 模板 ——
-	PermNotificationRuleView   Permission = "notification.rule.view"
-	PermNotificationRuleCreate Permission = "notification.rule.create"
-	PermNotificationRuleUpdate Permission = "notification.rule.update"
-	PermNotificationRuleDelete Permission = "notification.rule.delete"
+	PermNotificationRuleView       Permission = "notification.rule.view"
+	PermNotificationRuleCreate     Permission = "notification.rule.create"
+	PermNotificationRuleUpdate     Permission = "notification.rule.update"
+	PermNotificationRuleDelete     Permission = "notification.rule.delete"
 	PermNotificationTemplateView   Permission = "notification.template.view"
 	PermNotificationTemplateCreate Permission = "notification.template.create"
 	PermNotificationTemplateUpdate Permission = "notification.template.update"

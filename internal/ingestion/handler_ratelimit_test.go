@@ -98,7 +98,9 @@ func TestReceiveWebhook_BackpressureReturns503(t *testing.T) {
 	t.Cleanup(func() { _ = rc.Close() })
 	ctx := context.Background()
 	for i := 0; i < 15; i++ {
-		rc.LPush(ctx, "asynq:critical", "pending-task").Err()
+		if err := rc.LPush(ctx, "asynq:critical", "pending-task").Err(); err != nil {
+			t.Fatalf("lpush: %v", err)
+		}
 	}
 	h.SetBackpressureChecker(middleware.NewBackpressureChecker(rc, 10))
 

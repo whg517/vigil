@@ -49,7 +49,7 @@ func TestAggregator_DefaultWindow(t *testing.T) {
 	if a.Window() != 30*time.Second {
 		t.Errorf("默认窗口应为 30s，got %v", a.Window())
 	}
-	a2 := NewAggregator(nil, -5 * time.Second)
+	a2 := NewAggregator(nil, -5*time.Second)
 	if a2.Window() != 30*time.Second {
 		t.Errorf("负窗口应回退 30s，got %v", a2.Window())
 	}

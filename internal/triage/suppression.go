@@ -30,9 +30,9 @@ const (
 
 // SuppressionOutcome 抑制评估结果。
 type SuppressionOutcome struct {
-	Matched  bool             // 是否命中某条规则
-	RuleID   int              // 命中的规则 ID（未命中为 0）
-	RuleName string           // 规则名
+	Matched  bool              // 是否命中某条规则
+	RuleID   int               // 命中的规则 ID（未命中为 0）
+	RuleName string            // 规则名
 	Action   SuppressionAction // 命中动作
 	// ReduceTo 仅当 Action=reduce_severity 时有值，表示降级后的目标严重度。
 	ReduceTo string

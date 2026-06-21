@@ -42,9 +42,10 @@ func TestGenerateAPIKey_Unique(t *testing.T) {
 }
 
 func TestHashToken_Deterministic(t *testing.T) {
-	// 相同明文哈希一致
+	// 相同明文哈希一致（两次调用结果应相同）
 	p := "vgl_abc123"
-	if HashToken(p) != HashToken(p) {
+	h1, h2 := HashToken(p), HashToken(p)
+	if h1 != h2 {
 		t.Error("HashToken not deterministic for same input")
 	}
 	// 不同明文哈希不同

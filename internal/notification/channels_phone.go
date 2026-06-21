@@ -21,7 +21,7 @@ import (
 // PRD M7.2：电话是强打扰，仅用于升级兜底。
 type PhoneChannel struct {
 	Client    *http.Client
-	Config    VoiceProviderConfig            // 云语音配置（webhook 占位）
+	Config    VoiceProviderConfig             // 云语音配置（webhook 占位）
 	GetPhones func(targets []Target) []string // 从 targets 解析电话号码列表
 }
 
@@ -51,8 +51,8 @@ func (p *PhoneChannel) Send(ctx context.Context, msg *Message) ([]SendResult, er
 	return sendVoice(ctx, "phone", p.Config, p.Client, p.GetPhones, msg)
 }
 
-func (s *SMSChannel) Send(ctx context.Context, msg *Message) ([]SendResult, error) {
-	return sendVoice(ctx, "sms", s.Config, s.Client, s.GetPhones, msg)
+func (p *SMSChannel) Send(ctx context.Context, msg *Message) ([]SendResult, error) {
+	return sendVoice(ctx, "sms", p.Config, p.Client, p.GetPhones, msg)
 }
 
 // sendVoice 电话/SMS 占位发送：POST 到 webhook URL，payload 含事件信息 + 号码列表。
@@ -69,13 +69,13 @@ func sendVoice(ctx context.Context, channel string, cfg VoiceProviderConfig, cli
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
 	payload, _ := json.Marshal(map[string]any{
-		"channel":   channel,
-		"incident":  msg.Incident.Number,
-		"title":     msg.Title,
-		"summary":   msg.Summary,
-		"level":     msg.Level,
+		"channel":    channel,
+		"incident":   msg.Incident.Number,
+		"title":      msg.Title,
+		"summary":    msg.Summary,
+		"level":      msg.Level,
 		"recipients": phones,
-		"from":      cfg.From,
+		"from":       cfg.From,
 	})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.WebhookURL, bytes.NewReader(payload))

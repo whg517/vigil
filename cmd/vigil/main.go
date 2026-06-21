@@ -32,15 +32,15 @@ import (
 	"github.com/kevin/vigil/internal/incident"
 	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/logger"
+	"github.com/kevin/vigil/internal/middleware"
 	"github.com/kevin/vigil/internal/migrate"
 	"github.com/kevin/vigil/internal/notification"
 	"github.com/kevin/vigil/internal/postmortem"
-	"github.com/kevin/vigil/internal/middleware"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/runbook"
 	"github.com/kevin/vigil/internal/schedule"
-	"github.com/kevin/vigil/internal/service"
 	"github.com/kevin/vigil/internal/server"
+	"github.com/kevin/vigil/internal/service"
 	"github.com/kevin/vigil/internal/store"
 	"github.com/kevin/vigil/internal/timeline"
 	"github.com/kevin/vigil/internal/triage"
@@ -202,11 +202,11 @@ func run() error {
 	}
 	// 电话/SMS 通道（能力域 7 M7.2，占位）：转发 webhook 供用户对接云语音 API。
 	phoneChan := &notification.PhoneChannel{
-		Config: notification.VoiceProviderConfig{WebhookURL: cfg.Notification.Phone.WebhookURL, From: cfg.Notification.Phone.From},
+		Config:    notification.VoiceProviderConfig{WebhookURL: cfg.Notification.Phone.WebhookURL, From: cfg.Notification.Phone.From},
 		GetPhones: func(targets []notification.Target) []string { return resolvePhones(ctx, st.DB, targets) },
 	}
 	smsChan := &notification.SMSChannel{
-		Config: notification.VoiceProviderConfig{WebhookURL: cfg.Notification.SMS.WebhookURL, From: cfg.Notification.SMS.From},
+		Config:    notification.VoiceProviderConfig{WebhookURL: cfg.Notification.SMS.WebhookURL, From: cfg.Notification.SMS.From},
 		GetPhones: func(targets []notification.Target) []string { return resolvePhones(ctx, st.DB, targets) },
 	}
 	notifReg.Register(phoneChan)
@@ -443,10 +443,10 @@ func run() error {
 	// LLM 成本控制（能力域 11，缓存/限流/配额）：包装 GLM，所有 Complete/Embed 走成本闸。
 	// 无 Redis 时降级为透传（缓存/限流/配额全跳过，仅保证调用可达）。
 	glmProvider = ai.NewCostController(glmProvider, st.Redis, "org:default", ai.CostConfig{
-		CacheTTL:       time.Duration(cfg.LLM.Cost.CacheTTLSeconds) * time.Second,
-		DisableCache:   cfg.LLM.Cost.DisableCache,
+		CacheTTL:        time.Duration(cfg.LLM.Cost.CacheTTLSeconds) * time.Second,
+		DisableCache:    cfg.LLM.Cost.DisableCache,
 		RateLimitPerMin: cfg.LLM.Cost.RateLimitPerMin,
-		TokenQuota:     cfg.LLM.Cost.TokenQuota,
+		TokenQuota:      cfg.LLM.Cost.TokenQuota,
 	})
 	if glmProvider.Available() {
 		pmLLM = ai.NewPostmortemDraftAdapter(glmProvider)

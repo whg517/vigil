@@ -36,7 +36,7 @@ type Handler struct {
 	queue            *queue.Queue
 	limiter          *middleware.Limiter             // 按 Integration 限流（nil 不限流）
 	backpressure     *middleware.BackpressureChecker // 队列积压背压（nil 不检查）
-	defaultRateLimit int                            // 接入点默认限流（0=用代码默认 600）
+	defaultRateLimit int                             // 接入点默认限流（0=用代码默认 600）
 }
 
 // NewHandler 创建接入 handler。

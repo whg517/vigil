@@ -34,11 +34,11 @@ type Provider interface {
 // GLMProvider 智谱 GLM 实现。
 // API 对齐智谱 OpenAPI（chat/completions，与 OpenAI 格式兼容）。
 type GLMProvider struct {
-	apiKey      string
-	model       string
-	embedModel  string // embedding 模型，默认 embedding-3
-	baseURL     string
-	client      *http.Client
+	apiKey     string
+	model      string
+	embedModel string // embedding 模型，默认 embedding-3
+	baseURL    string
+	client     *http.Client
 }
 
 // NewGLMProvider 创建智谱 GLM Provider。apiKey 为空时 Available() 返回 false（降级）。

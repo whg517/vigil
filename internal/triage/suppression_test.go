@@ -246,7 +246,7 @@ func TestNormalizeSeverity(t *testing.T) {
 		current  event.Severity
 		want     string
 	}{
-		{"info", event.SeverityWarning, "info"},      // 指定 info → info
+		{"info", event.SeverityWarning, "info"},        // 指定 info → info
 		{"warning", event.SeverityCritical, "warning"}, // critical→warning
 		{"critical", event.SeverityWarning, "warning"}, // 指定 critical 但当前 warning → 不升，保持
 		{"", event.SeverityCritical, "warning"},        // 无目标 → critical→warning

@@ -13,6 +13,7 @@ import (
 // 满足条件（label 匹配 + 时间窗 + 严重度过滤）时主动抑制：
 //   - action=suppress：Event 标记 is_noise=true，不创建/并入 Incident，仅留痕（可申诉）
 //   - action=reduce_severity：降低 Event 严重度（critical 不降，preserve_critical 守卫）
+//
 // preserve_critical 默认 true：critical 告警不被抑制，避免误杀真故障。
 type SuppressionRule struct {
 	ent.Schema

@@ -180,10 +180,10 @@ type LLM struct {
 
 // LLMCost LLM 成本控制配置（capabilities/07 §B5 Q1）。
 type LLMCost struct {
-	CacheTTLSeconds  int  `envconfig:"cache_ttl_seconds" default:"3600"` // Complete 缓存 TTL（秒），0=1h 默认
-	DisableCache     bool `envconfig:"disable_cache"`                    // 关闭缓存（调试）
-	RateLimitPerMin  int  `envconfig:"rate_limit_per_min"`               // 每分钟最大请求数，0=不限流
-	TokenQuota       int  `envconfig:"token_quota"`                      // token 配额（累计），0=不限额
+	CacheTTLSeconds int  `envconfig:"cache_ttl_seconds" default:"3600"` // Complete 缓存 TTL（秒），0=1h 默认
+	DisableCache    bool `envconfig:"disable_cache"`                    // 关闭缓存（调试）
+	RateLimitPerMin int  `envconfig:"rate_limit_per_min"`               // 每分钟最大请求数，0=不限流
+	TokenQuota      int  `envconfig:"token_quota"`                      // token 配额（累计），0=不限额
 }
 
 // IM 能力域 8 IM 协同配置。按平台分组，凭证缺失时对应适配器 Available()==false（降级）。

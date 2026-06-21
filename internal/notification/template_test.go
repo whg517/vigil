@@ -24,8 +24,8 @@ func newTemplateTestClient(t *testing.T) *ent.Client {
 // makeTestIncident 建一个 incident 用于渲染。
 func makeTestIncident(t *testing.T, c *ent.Client) *ent.Incident {
 	t.Helper()
-	team, _ := c.Team.Create().SetName("t").SetSlug("t"+t.Name()).Save(context.Background())
-	svc, _ := c.Service.Create().SetName("payment-api").SetSlug("payment"+t.Name()).SetTeamID(team.ID).Save(context.Background())
+	team, _ := c.Team.Create().SetName("t").SetSlug("t" + t.Name()).Save(context.Background())
+	svc, _ := c.Service.Create().SetName("payment-api").SetSlug("payment" + t.Name()).SetTeamID(team.ID).Save(context.Background())
 	inc, err := c.Incident.Create().
 		SetNumber("INC-0001").
 		SetTitle("db down").

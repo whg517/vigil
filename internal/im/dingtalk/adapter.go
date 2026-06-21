@@ -46,8 +46,9 @@ func (a *Adapter) Available() bool { return a.client.Available() }
 // --- 卡片下发 / 更新 ---
 
 // channel 约定（与飞书 parseChannel 同构，前缀区分目标类型）：
-//   "userId:xxx"            → 单聊（staffId/userId）
-//   "openConversationId:xxx"→ 群聊
+//
+//	"userId:xxx"            → 单聊（staffId/userId）
+//	"openConversationId:xxx"→ 群聊
 func (a *Adapter) SendCard(ctx context.Context, channel string, card *im.Card) (string, error) {
 	idType, id, ok := parseChannel(channel)
 	if !ok {
@@ -142,20 +143,20 @@ func (a *Adapter) VerifyCallback(headers map[string]string, rawBody []byte) ([]b
 func (a *Adapter) ParseCallback(payload []byte) (*im.IMEvent, error) {
 	// 钉钉事件 envelope：不同事件类型字段不同，统一先解一层
 	var env struct {
-		MsgID         string          `json:"msgId"`
-		SenderNick    string          `json:"senderNick"`
-		SenderID      string          `json:"senderId"`        // 发送者 staffId
-		SenderStaffID string          `json:"senderStaffId"`   // 新版字段
-		ConversationID string         `json:"conversationId"`  // 群 openConversationId（群消息）
-		ChatbotUserID  string         `json:"chatbotUserId"`
+		MsgID          string          `json:"msgId"`
+		SenderNick     string          `json:"senderNick"`
+		SenderID       string          `json:"senderId"`       // 发送者 staffId
+		SenderStaffID  string          `json:"senderStaffId"`  // 新版字段
+		ConversationID string          `json:"conversationId"` // 群 openConversationId（群消息）
+		ChatbotUserID  string          `json:"chatbotUserId"`
 		MsgType        string          `json:"msgType"`
-		Content        json.RawMessage `json:"content"`        // 消息内容（文本是 JSON 字符串）
+		Content        json.RawMessage `json:"content"` // 消息内容（文本是 JSON 字符串）
 		Text           struct {
 			Content string `json:"content"`
 		} `json:"text"`
-		SessionWebhook string          `json:"sessionWebhook"`
+		SessionWebhook string `json:"sessionWebhook"`
 		// 卡片回调（richText / 互动卡片）专用字段
-		EventOrgType   string          `json:"eventOrgType"`
+		EventOrgType string `json:"eventOrgType"`
 	}
 	if err := json.Unmarshal(payload, &env); err != nil {
 		return nil, fmt.Errorf("dingtalk parse envelope: %w", err)
@@ -349,4 +350,3 @@ func decryptAES(encryptB64, aesKeyB64 string) ([]byte, error) {
 	}
 	return plain[20 : 20+msgLen], nil
 }
-

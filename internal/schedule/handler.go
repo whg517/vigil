@@ -51,11 +51,11 @@ func (h *Handler) list(c echo.Context) error {
 }
 
 type createScheduleReq struct {
-	Name     string              `json:"name"`
-	Type     string              `json:"type"`     // calendar | rotation | follow_the_sun
-	Timezone string              `json:"timezone"` // 默认 Asia/Shanghai
+	Name     string                 `json:"name"`
+	Type     string                 `json:"type"`     // calendar | rotation | follow_the_sun
+	Timezone string                 `json:"timezone"` // 默认 Asia/Shanghai
 	Layers   []schema.ScheduleLayer `json:"layers"`
-	TeamID   int                 `json:"team_id"`
+	TeamID   int                    `json:"team_id"`
 }
 
 func (h *Handler) create(c echo.Context) error {
@@ -107,9 +107,9 @@ func (h *Handler) get(c echo.Context) error {
 }
 
 type updateScheduleReq struct {
-	Name     *string                `json:"name"`
-	Type     *string                `json:"type"`
-	Timezone *string                `json:"timezone"`
+	Name     *string                 `json:"name"`
+	Type     *string                 `json:"type"`
+	Timezone *string                 `json:"timezone"`
 	Layers   *[]schema.ScheduleLayer `json:"layers"`
 }
 

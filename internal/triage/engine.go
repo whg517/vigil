@@ -77,13 +77,13 @@ type Result struct {
 type ResultAction string
 
 const (
-	ActionIncidentCreated  ResultAction = "incident_created" // 创建了新 Incident
-	ActionAggregated       ResultAction = "aggregated"       // 并入既有 Incident
-	ActionUnrouted         ResultAction = "unrouted"         // 路由未命中，入 unrouted 池
-	ActionDedupSkipped     ResultAction = "dedup_skipped"    // 去重丢弃
-	ActionResolved         ResultAction = "resolved"         // resolved 事件触发 Incident 解决
-	ActionSuppressed       ResultAction = "suppressed"       // 命中抑制规则，标记噪音（§2.3）
-	ActionSeverityReduced  ResultAction = "severity_reduced" // 命中降级规则，降低严重度
+	ActionIncidentCreated ResultAction = "incident_created" // 创建了新 Incident
+	ActionAggregated      ResultAction = "aggregated"       // 并入既有 Incident
+	ActionUnrouted        ResultAction = "unrouted"         // 路由未命中，入 unrouted 池
+	ActionDedupSkipped    ResultAction = "dedup_skipped"    // 去重丢弃
+	ActionResolved        ResultAction = "resolved"         // resolved 事件触发 Incident 解决
+	ActionSuppressed      ResultAction = "suppressed"       // 命中抑制规则，标记噪音（§2.3）
+	ActionSeverityReduced ResultAction = "severity_reduced" // 命中降级规则，降低严重度
 )
 
 // Process 处理一个 Event，执行 去重 → 路由 → 聚合 全流程。

@@ -25,11 +25,11 @@ import (
 // TemplateData 模板渲染变量（注入到 Go template 上下文）。
 type TemplateData struct {
 	Incident  *ent.Incident
-	Service   *ent.Service   // 可空（unrouted 事件）
-	Targets   []Target       // 通知目标
-	Level     int            // 升级层级
-	ActionURL string         // ack/查看链接
-	Now       time.Time      // 渲染时刻
+	Service   *ent.Service // 可空（unrouted 事件）
+	Targets   []Target     // 通知目标
+	Level     int          // 升级层级
+	ActionURL string       // ack/查看链接
+	Now       time.Time    // 渲染时刻
 }
 
 // RenderedMessage 模板渲染结果。
@@ -70,16 +70,17 @@ const (
 
 // builtinTemplates 内置默认模板定义（seed 时 upsert 到 DB）。
 // 变量：{{.Incident.Number}} {{.Incident.Severity}} {{.Incident.Title}}
-//       {{.Incident.Summary}} {{.Service.Name}} {{.Level}} {{.Now.Format ...}}。
+//
+//	{{.Incident.Summary}} {{.Service.Name}} {{.Level}} {{.Now.Format ...}}。
 var builtinTemplates = []ent.NotificationTemplate{
 	{
-		Name:           DefaultIMTemplateName,
-		Channel:        notificationtemplate.ChannelIm,
-		Format:         notificationtemplate.FormatInteractiveCard,
-		TitleTemplate:  `[{{upper .Incident.Severity}}] {{.Incident.Number}} {{.Incident.Title}}`,
-		BodyTemplate:   `状态：{{.Incident.Status}}{{if .Service}}\n服务：{{.Service.Name}}{{end}}\n严重度：{{.Incident.Severity}}\n层级：Level {{.Level}}\n{{.Incident.Summary}}`,
-		Actions:        nil, // IM 按钮由 im.BuildCard 注入，模板不重复定义
-		Builtin:        true,
+		Name:          DefaultIMTemplateName,
+		Channel:       notificationtemplate.ChannelIm,
+		Format:        notificationtemplate.FormatInteractiveCard,
+		TitleTemplate: `[{{upper .Incident.Severity}}] {{.Incident.Number}} {{.Incident.Title}}`,
+		BodyTemplate:  `状态：{{.Incident.Status}}{{if .Service}}\n服务：{{.Service.Name}}{{end}}\n严重度：{{.Incident.Severity}}\n层级：Level {{.Level}}\n{{.Incident.Summary}}`,
+		Actions:       nil, // IM 按钮由 im.BuildCard 注入，模板不重复定义
+		Builtin:       true,
 	},
 	{
 		Name:          DefaultEmailTemplateName,
@@ -196,7 +197,7 @@ func (e *TemplateEngine) fallback(data TemplateData) *RenderedMessage {
 // compiledTemplates 已编译的 title/body 模板对 + actions。
 type compiledTemplates struct {
 	title   *template.Template
-	bodySrc string              // body 源码（延迟编译，便于缓存键分离）
+	bodySrc string // body 源码（延迟编译，便于缓存键分离）
 	actions []schema.TemplateAction
 }
 

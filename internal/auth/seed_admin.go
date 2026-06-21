@@ -1,7 +1,7 @@
 // seed_admin.go 默认管理员种子（能力域 13），避免装完无法登录。
 //
 // 幂等策略：依赖 User.username 唯一约束，直接 Create 遇 ConstraintError 视为已存在跳过
-//（与 SeedBuiltinRoles 一致，避免 Count→Create 两步竞态）。
+// （与 SeedBuiltinRoles 一致，避免 Count→Create 两步竞态）。
 //
 // ⚠️ changeme 仅应急：生产部署后应立即改密（本期未做"强制改密"标记，
 // 后续可加 user.must_change_password 字段。见 TODO.md）。

@@ -76,9 +76,9 @@ func (h *AuditHandler) list(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]any{
-		"items": logs,
-		"total": total,
-		"limit": limit,
+		"items":  logs,
+		"total":  total,
+		"limit":  limit,
 		"offset": offset,
 	})
 }

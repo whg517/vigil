@@ -40,10 +40,10 @@ type CostConfig struct {
 
 // CostController LLM 成本控制包装器，实现 Provider。
 type CostController struct {
-	inner   Provider           // 底层真实 provider
-	redis   *redis.Client      // 可为 nil（降级）
-	cfg     CostConfig
-	dimension string           // 配额/限流维度标识（如 "org:1"），key 前缀
+	inner     Provider      // 底层真实 provider
+	redis     *redis.Client // 可为 nil（降级）
+	cfg       CostConfig
+	dimension string // 配额/限流维度标识（如 "org:1"），key 前缀
 }
 
 // NewCostController 创建成本控制器，包装底层 provider。

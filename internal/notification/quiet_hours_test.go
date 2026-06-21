@@ -71,9 +71,9 @@ func TestQuietHours_InvalidTimezone(t *testing.T) {
 func TestInTimeWindow_SameDay(t *testing.T) {
 	at := func(s string) time.Time { return nightTime(t, s) }
 	cases := []struct {
-		t            time.Time
-		start, end   string
-		want         bool
+		t          time.Time
+		start, end string
+		want       bool
 	}{
 		{at("2026-06-20T10:00:00+08:00"), "09:00", "17:00", true},  // 窗内
 		{at("2026-06-20T09:00:00+08:00"), "09:00", "17:00", true},  // 起点闭区间
@@ -104,14 +104,14 @@ func TestInTimeWindow_CrossMidnight(t *testing.T) {
 // TestParseClock 时钟解析。
 func TestParseClock(t *testing.T) {
 	cases := []struct {
-		in        string
-		h, m      int
-		ok        bool
+		in   string
+		h, m int
+		ok   bool
 	}{
 		{"22:00", 22, 0, true},
 		{"07:30", 7, 30, true},
-		{"25:00", 0, 0, false},  // 小时越界
-		{"10:60", 0, 0, false},  // 分越界
+		{"25:00", 0, 0, false}, // 小时越界
+		{"10:60", 0, 0, false}, // 分越界
 		{"abc", 0, 0, false},
 		{"", 0, 0, false},
 	}

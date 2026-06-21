@@ -37,7 +37,7 @@ func TestPhoneChannel_SendToWebhook(t *testing.T) {
 	defer srv.Close()
 
 	ch := &PhoneChannel{
-		Config: VoiceProviderConfig{WebhookURL: srv.URL, From: "vigil"},
+		Config:    VoiceProviderConfig{WebhookURL: srv.URL, From: "vigil"},
 		GetPhones: func(targets []Target) []string { return []string{"13800000000", "13900000000"} },
 	}
 	results, err := ch.Send(context.Background(), &Message{

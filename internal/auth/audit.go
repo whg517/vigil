@@ -10,7 +10,8 @@
 //   - 登录成功/失败（安全审计）
 //
 // 与 IncidentAction（域 13 §6.2 记事件操作）的区别：
-//   AuditLog 记管理操作（谁能干什么的变更），IncidentAction 记事件操作（ack/resolve 等）。
+//
+//	AuditLog 记管理操作（谁能干什么的变更），IncidentAction 记事件操作（ack/resolve 等）。
 package auth
 
 import (
@@ -32,16 +33,16 @@ const (
 
 // AuditEntry 审计日志条目（调用方构造，Recorder 持久化）。
 type AuditEntry struct {
-	ActorUserID   int            // 操作者 user_id，0=系统/匿名
-	ActorName     string         // 操作者名快照
-	Action        string         // 操作类型，如 "role.create"
-	ResourceType  string         // 对象类型，如 "role"
-	ResourceID    int            // 对象 ID，0=非实体操作
-	ResourceName  string         // 对象名快照
-	Result        AuditResult    // 结果
-	Detail        map[string]any // 结构化上下文
-	IP            string         // 来源 IP
-	UserAgent     string         // 来源 UA
+	ActorUserID  int            // 操作者 user_id，0=系统/匿名
+	ActorName    string         // 操作者名快照
+	Action       string         // 操作类型，如 "role.create"
+	ResourceType string         // 对象类型，如 "role"
+	ResourceID   int            // 对象 ID，0=非实体操作
+	ResourceName string         // 对象名快照
+	Result       AuditResult    // 结果
+	Detail       map[string]any // 结构化上下文
+	IP           string         // 来源 IP
+	UserAgent    string         // 来源 UA
 }
 
 // AuditRecorder 审计日志记录器。

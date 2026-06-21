@@ -28,8 +28,8 @@ import (
 
 // actionCardParam 钉钉 sampleActionCard 消息体（msgParam 的 JSON 结构）。
 type actionCardParam struct {
-	Title string         `json:"title"`
-	Text  string         `json:"text"`
+	Title string          `json:"title"`
+	Text  string          `json:"text"`
 	Btns  []actionCardBtn `json:"btns,omitempty"`
 }
 

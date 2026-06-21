@@ -78,9 +78,9 @@ func (w *WebhookChannel) Send(ctx context.Context, msg *Message) ([]SendResult, 
 // 用 net/smtp 发送（标准库，无额外依赖）。
 // SMTPConfig 未配置（Host 空）时降级为不发送（设计基线第 7 条，可用性优先）。
 type EmailChannel struct {
-	Config    SMTPConfig                       // SMTP 服务器配置
-	GetEmails func(targets []Target) []string  // 从 targets 解析 email 列表
-	From      string                           // 发件人地址
+	Config    SMTPConfig                      // SMTP 服务器配置
+	GetEmails func(targets []Target) []string // 从 targets 解析 email 列表
+	From      string                          // 发件人地址
 }
 
 // SMTPConfig SMTP 服务器配置。

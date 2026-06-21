@@ -29,10 +29,6 @@ import (
 	"time"
 )
 
-// tokenTTL 钉钉 access_token 有效期（7200 秒 = 2 小时），提前 5 分钟刷新。
-// 与飞书一致，避免边界过期。
-const tokenTTL = 2 * time.Hour
-
 const (
 	// oapiBase 钉钉旧版域名（gettoken 等走这里）。
 	oapiBase = "https://oapi.dingtalk.com"
@@ -238,10 +234,10 @@ func (c *Client) SendOTOMessages(ctx context.Context, userIds []string, msgKey, 
 // 返回 messageId，作卡片 ID 供后续 UpdateCard。
 func (c *Client) SendGroupMessage(ctx context.Context, openConversationID, msgKey, msgParam string) (string, error) {
 	payload := map[string]any{
-		"robotCode":         c.cfg.RobotCode,
+		"robotCode":          c.cfg.RobotCode,
 		"openConversationId": openConversationID,
-		"msgKey":            msgKey,
-		"msgParam":          msgParam,
+		"msgKey":             msgKey,
+		"msgParam":           msgParam,
 	}
 	raw, err := c.doV1(ctx, http.MethodPost, "/v1.0/robot/groupMessages/send", payload)
 	if err != nil {
@@ -270,11 +266,11 @@ type createChatResponse struct {
 // 失败返回错误；chatId/openConversationID 至少返回其一。
 func (c *Client) CreateChat(ctx context.Context, name string, memberUserIds []string) (string, error) {
 	payload := map[string]any{
-		"title":      name,
-		"subType":    0, // 0=普通群
-		"ownerUser":  memberUserIds[0],
+		"title":       name,
+		"subType":     0, // 0=普通群
+		"ownerUser":   memberUserIds[0],
 		"memberUsers": memberUserIds,
-		"iconUrl":    "",
+		"iconUrl":     "",
 	}
 	raw, err := c.doV1(ctx, http.MethodPost, "/v1.0/im/orgGroups/create", payload)
 	if err != nil {

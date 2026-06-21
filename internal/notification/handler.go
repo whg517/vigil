@@ -77,13 +77,13 @@ func (h *Handler) listRules(c echo.Context) error {
 }
 
 type createRuleReq struct {
-	Name        string         `json:"name"`
-	Condition   map[string]any `json:"condition"`
-	Channels    []string       `json:"channels"`
-	TemplateID  string         `json:"template_id"`
-	QuietHours  map[string]any `json:"quiet_hours"`
-	TeamID      int            `json:"team_id"`
-	Enabled     *bool          `json:"enabled"`
+	Name       string         `json:"name"`
+	Condition  map[string]any `json:"condition"`
+	Channels   []string       `json:"channels"`
+	TemplateID string         `json:"template_id"`
+	QuietHours map[string]any `json:"quiet_hours"`
+	TeamID     int            `json:"team_id"`
+	Enabled    *bool          `json:"enabled"`
 }
 
 func (h *Handler) createRule(c echo.Context) error {

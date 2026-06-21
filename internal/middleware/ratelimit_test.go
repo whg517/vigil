@@ -17,6 +17,16 @@ func newRedisTestClient(t *testing.T) *redis.Client {
 	return rc
 }
 
+// mustLPush 往队列塞任务，失败即 fatal（测试前置数据，失败应中断）。
+//
+//nolint:revive // 测试 helper 惯例：*testing.T 必须为首参，与 context-first 规则冲突
+func mustLPush(t *testing.T, ctx context.Context, rc *redis.Client, key, val string) {
+	t.Helper()
+	if err := rc.LPush(ctx, key, val).Err(); err != nil {
+		t.Fatalf("lpush %s: %v", key, err)
+	}
+}
+
 // === 降级路径（无 redis）===
 
 func TestLimiter_NilRedisAllowsAll(t *testing.T) {
@@ -81,7 +91,7 @@ func TestLimiter_DifferentKeysIndependent(t *testing.T) {
 	ctx := context.Background()
 	// key A 用尽配额
 	for i := 0; i < 2; i++ {
-		l.Allow(ctx, "a", 2)
+		_, _ = l.Allow(ctx, "a", 2)
 	}
 	// key B 仍可用
 	allowed, _ := l.Allow(ctx, "b", 2)
@@ -127,7 +137,7 @@ func TestBackpressure_NotOverloadedUnderThreshold(t *testing.T) {
 	ctx := context.Background()
 	// 往 default 队列塞 5 个任务，阈值 10 → 未过载
 	for i := 0; i < 5; i++ {
-		rc.LPush(ctx, "asynq:default", "task").Err()
+		mustLPush(t, ctx, rc, "asynq:default", "task")
 	}
 	b := NewBackpressureChecker(rc, 10)
 	if b.IsOverloaded(ctx) {
@@ -140,7 +150,7 @@ func TestBackpressure_OverloadedOverThreshold(t *testing.T) {
 	ctx := context.Background()
 	// 塞 15 个任务，阈值 10 → 过载
 	for i := 0; i < 15; i++ {
-		rc.LPush(ctx, "asynq:critical", "task").Err()
+		mustLPush(t, ctx, rc, "asynq:critical", "task")
 	}
 	b := NewBackpressureChecker(rc, 10)
 	if !b.IsOverloaded(ctx) {
@@ -153,9 +163,9 @@ func TestBackpressure_SumsAcrossQueues(t *testing.T) {
 	rc := newRedisTestClient(t)
 	ctx := context.Background()
 	for i := 0; i < 4; i++ {
-		rc.LPush(ctx, "asynq:critical", "t").Err()
-		rc.LPush(ctx, "asynq:default", "t").Err()
-		rc.LPush(ctx, "asynq:low", "t").Err()
+		mustLPush(t, ctx, rc, "asynq:critical", "t")
+		mustLPush(t, ctx, rc, "asynq:default", "t")
+		mustLPush(t, ctx, rc, "asynq:low", "t")
 	}
 	b := NewBackpressureChecker(rc, 10)
 	if !b.IsOverloaded(ctx) {
