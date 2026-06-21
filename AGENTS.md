@@ -103,9 +103,9 @@ go build ./... && pnpm --dir web build
 1. **从最新 main 拉分支**（`git worktree add ... -b <type>-<name>`）。**严禁在特性分支上叠特性分支**——有依赖时先把被依赖特性合并进 main，再从更新后的 main 拉下一个（见 §3.2.1）。
 2. **worktree 内开发 + 提交**。
 3. **worktree 内三道门禁全绿**（lint→test→build，见 docs/development.md §3.4）：`go vet && go test ./... && go build ./...` + `pnpm --dir web lint && pnpm --dir web build`。改了 schema 必须 `go generate ./ent/...` 且生成代码一起提交。
-4. **回主仓库 squash 合并**：`git merge --squash <type>-<name>` → `git commit`。
+4. **回主仓库 squash 合并**：先 `git branch --show-current` 确认在 **main**（不是则 `git checkout main`），再 `git merge --squash <type>-<name>` → `git commit` → `git log --oneline -1` 确认新提交落在 main。**合并防呆见 docs/development.md §3.3。**
 5. **删 worktree + 分支**：`git worktree remove` + `git branch -D`。
-6. **main 复验**：`go build ./... && go test ./... && pnpm --dir web build`。
+6. **main 复验**：`go vet ./... && go test ./... && go build ./... && pnpm --dir web build`。
 
 中间状态（特性分支游离 main 之外、worktree 未清理）**不算交付**。
 

@@ -206,14 +206,25 @@ git commit -m "feat(scope): ..."
 squash 合并的标准操作（详见 §5 速查）：
 
 ```bash
-cd /path/to/vigil                       # 回主仓库 main
+cd /path/to/vigil                       # 回主仓库
+git branch --show-current               # ★ 强制校验：必须输出 main，否则 stop（见下"合并防呆"）
 git merge --squash <type>-<name>        # 把特性改动压到暂存区（不自动提交）
 git commit -m "<规范的 commit message>" # 用一条规范信息完成合并提交
+git log --oneline -1                    # ★ 强制校验：HEAD 必须是新提交且在 main 上
 git branch -D <type>-<name>             # 删除已合并的特性分支
 ```
 
 > 注意：`merge --squash` 不会创建 merge commit，特性分支的提交历史不进 main。
 > 分支删除用 `-D`（squash 后 git 不认为分支"已合并"，`-d` 会拒绝）。
+
+#### 合并防呆（★ 重要）
+
+`merge --squash` 会在**当前所在分支**上应用改动。若回主仓库时忘了切回 main（停在某个特性分支或游离 HEAD），squash 就会落到错误分支——这是"提交没进 main"事故的根因。两个强制校验点：
+
+1. **合并前** `git branch --show-current` 必须输出 `main`。不是 main 则 `git checkout main` 切回，绝不带病进入合并。
+2. **合并后** `git log --oneline -1` 确认 HEAD 是刚提交的那个新 commit（而非合并前的旧 HEAD）。若 HEAD 没变，说明 merge/commit 没生效，需排查。
+
+> 这两个校验是不可跳过的硬门：把"以为合并了实际没合并"的错误挡在当场，而不是靠事后 review 发现。
 
 ### 3.4 闭环原子性（★ 重要）
 
@@ -340,13 +351,15 @@ pnpm --dir web lint && pnpm --dir web build                  # 前端：lint→b
 
 # 完成（回主目录 squash 合并）
 cd /path/to/vigil
+git branch --show-current              # ★ 校验：必须输出 main（合并防呆，见 §3.3）
 git merge --squash <type>-<name>       # 压缩到暂存区（不自动提交）
 git commit -m "feat(scope): 描述"      # 用一条规范信息完成 squash 提交
+git log --oneline -1                   # ★ 校验：HEAD 是新提交（合并防呆，见 §3.3）
 git worktree remove .worktree/<type>-<name>
 git branch -D <type>-<name>            # squash 后用 -D（git 不认为已合并）
 
-# main 复验（合并后确认 main 仍可编译，闭环收尾）
-go build ./... && pnpm --dir web build
+# main 复验（合并后确认 main 仍可编译 + 测试通过，闭环收尾）
+go vet ./... && go test ./... && go build ./... && pnpm --dir web build
 ```
 
 ---
