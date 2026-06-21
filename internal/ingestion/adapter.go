@@ -28,9 +28,11 @@ type NormalizedEvent struct {
 type Adapter interface {
 	// Type 返回适配器类型标识（对应 ent.Integration.Type）。
 	Type() string
-	// Normalize 把 raw payload 归一化为 NormalizedEvent。
+	// Normalize 把 raw payload 归一化为多个 NormalizedEvent。
+	// 返回切片：一次 webhook 可能含多条 alert（如 Prometheus/Grafana alerts[] 数组），
+	// 每条 alert 归一化为一个独立 Event。单条 alert 的源返回单元素切片即可。
 	// integ 是接入点配置（可读 config 字段）；raw 是原始记录（可读 headers）。
-	Normalize(ctx context.Context, raw []byte, integ *ent.Integration, rawEvent *ent.RawEvent) (*NormalizedEvent, error)
+	Normalize(ctx context.Context, raw []byte, integ *ent.Integration, rawEvent *ent.RawEvent) ([]*NormalizedEvent, error)
 }
 
 // AdapterRegistry 适配器注册表。按 Integration.Type 查找对应适配器。
@@ -53,8 +55,9 @@ func (r *AdapterRegistry) Register(a Adapter) {
 // RegisterBuiltins 注册内置适配器。
 func (r *AdapterRegistry) RegisterBuiltins() {
 	r.Register(&PrometheusAdapter{})
+	r.Register(&GrafanaAdapter{})
 	r.Register(&GenericJSONAdapter{})
-	// TODO: Zabbix / Grafana / 云监控 / 邮件
+	// 云监控/邮件接入见 TODO.md（本期不实现，Integration.type 枚举已预留）
 }
 
 // Get 按 Integration.Type 取适配器。

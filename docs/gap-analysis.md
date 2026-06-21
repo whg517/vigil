@@ -47,8 +47,8 @@ r.Register(&GenericJSONAdapter{})
 
 | 缺失 | PRD | 本期范围 |
 |------|-----|---------|
-| **Grafana 适配器** | M1.2 | ✅ 做 |
-| 多条 alert 拆分 | —— | ✅ 做（`adapters_builtin.go:25` Prometheus 一次 webhook 多 alert 只取首条，**会丢告警**） |
+| **Grafana 适配器** | M1.2 | ✅ 已完成（feat-grafana-adapter：原生 severity + fingerprint 去重） |
+| 多条 alert 拆分 | —— | ✅ 已完成（feat-grafana-adapter：Adapter 接口改返回切片，每条 alert 独立归一化，修复"只取首条"丢告警 bug） |
 | 严重度映射表可配置 | M2.3 | ⚠️ `mapPromSeverity` 写死，本期可选 |
 | Zabbix / 云监控 / 邮件 | M1.2/M1.3 | ❌ 进 `TODO.md` |
 

@@ -208,48 +208,51 @@ func (w *NormalizeWorker) Handle(ctx context.Context, t *asynq.Task) error {
 		return w.failRaw(ctx, raw.ID, "get integration: "+err.Error())
 	}
 
-	evt, err := adapter.Normalize(ctx, raw.Payload, integ, raw)
+	evts, err := adapter.Normalize(ctx, raw.Payload, integ, raw)
 	if err != nil {
 		return w.failRaw(ctx, raw.ID, "normalize: "+err.Error())
 	}
 
-	// 4. 落 Event（幂等：source + source_event_id 唯一索引保证）
-	eventCreate := w.db.Event.Create().
-		SetSourceEventID(evt.SourceEventID).
-		SetSource(evt.Source).
-		SetSeverity(event.Severity(evt.Severity)).
-		SetStatus(event.Status(evt.Status)).
-		SetSummary(evt.Summary).
-		SetDetail(evt.Detail).
-		SetLabels(evt.Labels).
-		SetDedupKey(evt.DedupKey).
-		SetIntegration(integ)
-	created, err := eventCreate.Save(ctx)
-	if err != nil {
-		// 幂等冲突（重复推送）视为成功，不再触发分诊
-		if ent.IsConstraintError(err) {
-			return w.markRawNormalized(ctx, raw.ID, 0)
-		}
-		return fmt.Errorf("save event: %w", err)
-	}
-	// 埋点：告警接入量（按 source/severity）
-	metrics.AlertsReceived.WithLabelValues(evt.Source, evt.Severity).Inc()
-
-	// 5. RawEvent 标记 normalized
-	if err := w.markRawNormalized(ctx, raw.ID, created.ID); err != nil {
-		return err
-	}
-
-	// 6. 入队分诊任务（能力域 3），流水线串接
-	if w.queue != nil {
-		task, err := triage.EnqueueTask(created.ID)
+	// 4. 落 Event（每条 alert 一个 Event，幂等：source + source_event_id 唯一索引保证）
+	// 多 alert 场景：一次 webhook 的 alerts[] 每条独立归一化落库（修复早期"只取首条"丢告警 bug）。
+	for _, evt := range evts {
+		created, err := w.db.Event.Create().
+			SetSourceEventID(evt.SourceEventID).
+			SetSource(evt.Source).
+			SetSeverity(event.Severity(evt.Severity)).
+			SetStatus(event.Status(evt.Status)).
+			SetSummary(evt.Summary).
+			SetDetail(evt.Detail).
+			SetLabels(evt.Labels).
+			SetDedupKey(evt.DedupKey).
+			SetIntegration(integ).
+			Save(ctx)
 		if err != nil {
-			return fmt.Errorf("build triage task: %w", err)
+			// 幂等冲突（重复推送）视为成功，跳过此条不再触发分诊
+			if ent.IsConstraintError(err) {
+				continue
+			}
+			return fmt.Errorf("save event: %w", err)
 		}
-		if _, err := w.queue.Client.Enqueue(task, asynq.Queue("default")); err != nil {
-			// 入队失败不阻塞归一化（Event 已落库，可由巡检任务回灌分诊）
-			return fmt.Errorf("enqueue triage: %w", err)
+		// 埋点：告警接入量（按 source/severity）
+		metrics.AlertsReceived.WithLabelValues(evt.Source, evt.Severity).Inc()
+
+		// 5. 入队分诊任务（能力域 3），流水线串接（每条 Event 各自入队）
+		if w.queue != nil {
+			task, err := triage.EnqueueTask(created.ID)
+			if err != nil {
+				return fmt.Errorf("build triage task: %w", err)
+			}
+			if _, err := w.queue.Client.Enqueue(task, asynq.Queue("default")); err != nil {
+				// 入队失败不阻塞归一化（Event 已落库，可由巡检任务回灌分诊）
+				return fmt.Errorf("enqueue triage: %w", err)
+			}
 		}
+	}
+
+	// 6. RawEvent 标记 normalized（所有 alert 处理完）
+	if err := w.markRawNormalized(ctx, raw.ID, 0); err != nil {
+		return err
 	}
 	return nil
 }
