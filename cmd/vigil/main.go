@@ -34,6 +34,7 @@ import (
 	"github.com/kevin/vigil/internal/migrate"
 	"github.com/kevin/vigil/internal/notification"
 	"github.com/kevin/vigil/internal/postmortem"
+	"github.com/kevin/vigil/internal/middleware"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/runbook"
 	"github.com/kevin/vigil/internal/schedule"
@@ -163,6 +164,10 @@ func run() error {
 	// 5.1 初始化接入（能力域 1-2）：适配器注册表 + webhook handler + 归一化 worker
 	adapterRegistry := ingestion.NewAdapterRegistry()
 	ingestHandler := ingestion.NewHandler(st.DB, q)
+	// 限流（M1.7）：按 Integration 维度 Redis 滑动窗口，超限 429 但 payload 仍落库。
+	// 背压：队列积压超阈值返回 503（payload 仍落库，恢复后回灌）。无 Redis 时降级跳过。
+	ingestHandler.SetLimiter(middleware.NewLimiter(st.Redis), cfg.Ingestion.RateLimitPerMin)
+	ingestHandler.SetBackpressureChecker(middleware.NewBackpressureChecker(st.Redis, cfg.Ingestion.BackpressureDepth))
 	// 归一化 worker 持有 queue，归一化成功后入队分诊任务（流水线串接）
 	normalizeWorker := ingestion.NewNormalizeWorker(st.DB, adapterRegistry, q)
 	q.Register(ingestion.TaskNormalize, normalizeWorker.Handle)

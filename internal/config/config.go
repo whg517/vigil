@@ -39,6 +39,9 @@ type Config struct {
 
 	// Webhook 出口配置（能力域 14，向外部推送 incident 生命周期事件）
 	Webhook Webhook `envconfig:"webhook"`
+
+	// Ingestion 接入配置（能力域 1，限流/背压保护）
+	Ingestion Ingestion `envconfig:"ingestion"`
 }
 
 // App 应用级配置。
@@ -123,6 +126,17 @@ func (a Auth) EffectiveRefreshTokenTTL() time.Duration {
 // 为空则不推送。
 type Webhook struct {
 	OutURLs string `envconfig:"out_urls"` // 订阅 URL，逗号分隔
+}
+
+// Ingestion 接入限流/背压配置（能力域 1，PRD M1.7）。
+// 保护系统不被单个告警源拖垮。无 Redis 时全部降级跳过（放行，可用性优先）。
+type Ingestion struct {
+	// RateLimitPerMin 单个接入点每分钟默认最大请求数。0=不限流。
+	// 单个 Integration 可在 config.rate_limit 覆盖此默认值。
+	RateLimitPerMin int `envconfig:"rate_limit_per_min" default:"600"`
+	// BackpressureDepth 队列积压阈值，超过则接入层返回 503（payload 仍落库）。
+	// 0=不检查背压。
+	BackpressureDepth int `envconfig:"backpressure_depth" default:"10000"`
 }
 
 // LLM 配置（智谱 GLM）。APIKey 为空时 AI 功能自动降级（设计基线第 7 条）。

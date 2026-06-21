@@ -14,12 +14,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/rawevent"
 	"github.com/kevin/vigil/internal/metrics"
+	"github.com/kevin/vigil/internal/middleware"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/triage"
 
@@ -28,16 +30,28 @@ import (
 )
 
 // Handler 处理告警 webhook 接入。
-// 接收 → 鉴权（token）→ 落 RawEvent → 入归一化队列 → 秒级返回 202。
+// 接收 → 鉴权（token）→ 限流/背压检查（payload 仍落库）→ 落 RawEvent → 入归一化队列 → 秒级返回 202。
 type Handler struct {
-	db    *ent.Client
-	queue *queue.Queue
+	db               *ent.Client
+	queue            *queue.Queue
+	limiter          *middleware.Limiter             // 按 Integration 限流（nil 不限流）
+	backpressure     *middleware.BackpressureChecker // 队列积压背压（nil 不检查）
+	defaultRateLimit int                            // 接入点默认限流（0=用代码默认 600）
 }
 
 // NewHandler 创建接入 handler。
 func NewHandler(db *ent.Client, q *queue.Queue) *Handler {
 	return &Handler{db: db, queue: q}
 }
+
+// SetLimiter 注入限流器（main 装配时调用）。defaultRateLimit 为接入点默认每分钟上限（0 用代码默认）。
+func (h *Handler) SetLimiter(l *middleware.Limiter, defaultRateLimit int) {
+	h.limiter = l
+	h.defaultRateLimit = defaultRateLimit
+}
+
+// SetBackpressureChecker 注入背压检查器。
+func (h *Handler) SetBackpressureChecker(b *middleware.BackpressureChecker) { h.backpressure = b }
 
 // Register 把 webhook 路由挂到 Echo group。
 // 路由：POST /webhook/:token —— token 即接入点鉴权凭证（对应 Integration.token）。
@@ -67,7 +81,7 @@ func (h *Handler) receiveWebhook(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errMsg("read body: "+err.Error()))
 	}
 
-	// 3. 落 RawEvent（先落库，保证不丢）
+	// 3. 落 RawEvent（先落库，保证不丢——即使限流/背压，payload 也必须落库，capabilities §3.3）
 	raw, err := h.db.RawEvent.Create().
 		SetPayload(body).
 		SetHeaders(extractHeaders(c.Request())).
@@ -79,7 +93,42 @@ func (h *Handler) receiveWebhook(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, errMsg("persist failed"))
 	}
 
-	// 4. 入归一化队列（异步处理）
+	// 4. 限流检查（按 Integration 维度）。超限仍返回 429，但 payload 已落库不丢。
+	//    告警源收到 429 应降低推送频率；Vigil 恢复后从 RawEvent 回灌。
+	if h.limiter != nil && h.limiter.Available() {
+		rateLimit := h.defaultRateLimit
+		if rateLimit <= 0 {
+			rateLimit = defaultIntegrationRateLimit
+		}
+		if configured := integrationRateLimit(integ); configured > 0 {
+			rateLimit = configured // Integration.config 覆盖
+		}
+		allowed, _ := h.limiter.Allow(c.Request().Context(), "integration:"+strconv.Itoa(integ.ID), rateLimit)
+		if !allowed {
+			return c.JSON(http.StatusTooManyRequests, map[string]any{
+				"status":       "rate_limited",
+				"raw_event_id": raw.ID,
+				"retry_after":  60,
+			})
+		}
+	}
+
+	// 5. 背压检查（队列积压超阈值）。超限时返回 503，payload 已落库，恢复后回灌。
+	if h.backpressure != nil && h.backpressure.IsOverloaded(c.Request().Context()) {
+		return c.JSON(http.StatusServiceUnavailable, map[string]any{
+			"status":       "backpressure",
+			"raw_event_id": raw.ID,
+			"retry_after":  30,
+		})
+	}
+
+	// 6. 入归一化队列（异步处理）。queue 未配置时跳过入队（RawEvent 已落库，可后续回灌）。
+	if h.queue == nil {
+		return c.JSON(http.StatusAccepted, map[string]any{
+			"status":       "accepted_no_queue",
+			"raw_event_id": raw.ID,
+		})
+	}
 	taskPayload, _ := json.Marshal(normalizePayload{
 		RawEventID:    raw.ID,
 		IntegrationID: integ.ID,
@@ -226,7 +275,30 @@ const (
 
 	// maxPayloadBytes 单个 webhook payload 上限（1MB）。
 	maxPayloadBytes = 1 << 20
+
+	// defaultIntegrationRateLimit 单个接入点每分钟默认最大请求数（capabilities §3.3 背压）。
+	// Integration.config.rate_limit 可覆盖；未配置时用此默认值。
+	defaultIntegrationRateLimit = 600 // 600/min = 10/s，足够常规告警源
 )
+
+// integrationRateLimit 从 Integration.config 解析 rate_limit（每分钟次数）。
+// config 是 map[string]any，rate_limit 字段为数字。未配置返回 0（用默认值）。
+func integrationRateLimit(integ *ent.Integration) int {
+	if integ.Config == nil {
+		return 0
+	}
+	v, ok := integ.Config["rate_limit"]
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64: // JSON 数字反序列化为 float64
+		return int(n)
+	case int:
+		return n
+	}
+	return 0
+}
 
 // normalizePayload 归一化任务 payload。
 type normalizePayload struct {

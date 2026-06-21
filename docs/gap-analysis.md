@@ -135,7 +135,7 @@ README 第 44-50 行：
 
 | 项 | 现状 |
 |----|------|
-| 限流与背压（M1.7，429/503） | ❌ handler 注释提到"不丢告警"但无 rate_limit 实现，单源可拖垮系统 |
+| 限流与背压（M1.7，429/503） | ✅ 已实现（feat-ratelimit：Redis 滑动窗口按 Integration 限流 429 + 队列积压背压 503，payload 均仍落 RawEvent 不丢告警） |
 | 熔断 | ❌ 无 |
 | 死信重放 UI | ⚠️ doc 说"Asynqmon 可视化"，Asynqmon 未部署（compose 无此服务） |
 
@@ -181,8 +181,8 @@ README 第 44-50 行：
 ## 五、优先级建议（按"能否上生产"排序）
 
 ### P0（阻塞生产，必须做）
-1. **登录态鉴权**替换 `X-Vigil-User-ID` 头伪造（安全红线）
-2. **限流/背压**（M1.7，否则单源拖垮系统）
+1. **登录态鉴权**替换 `X-Vigil-User-ID` 头伪造（安全红线）✅
+2. **限流/背压**（M1.7，否则单源拖垮系统）✅ 已完成（feat-ratelimit）
 3. **邮件通道真实 SMTP**（M7.3 占位会假性"发送成功"）
 4. **审计日志实体 + API Key**（M13.5/M13.7）✅ 已完成（feat-auth-jwt + feat-apikey + feat-audit-log）
 
