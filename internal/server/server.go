@@ -43,6 +43,7 @@ func New(cfg *config.Config, st *store.Store) *Server {
 
 	// 基础路由（无需鉴权）
 	s.registerBase()
+	s.registerOpenAPI() // OpenAPI spec + Swagger UI（/openapi.yaml, /docs）
 
 	// API v1 路由组
 	s.v1 = e.Group("/api/v1")     // 业务路由（鉴权中间件由 main 挂载）

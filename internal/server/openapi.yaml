@@ -1,0 +1,502 @@
+openapi: 3.0.3
+info:
+  title: Vigil API
+  version: 0.3.0
+  description: |
+    Vigil（守夜人）告警处置平台 REST API。
+
+    认证：业务 API 通过 `X-Vigil-User-ID` 头携带操作者身份（由鉴权中间件解析）；
+    webhook 接入（`/webhook/:token`）与 IM 回调（`/im/:platform/callback`）用各自 token/签名鉴权，
+    不走 RBAC。
+    权限：各端点所需的权限点见 `internal/auth/permission.go`（`<resource>.<action>`）。
+  license:
+    name: MIT
+servers:
+  - url: /api/v1
+    description: 同源（前端与 API 同部署）
+tags:
+  - name: incident
+  - name: timeline
+  - name: ai
+  - name: service
+  - name: schedule
+  - name: runbook
+  - name: postmortem
+  - name: notification
+  - name: suppression
+  - name: template
+  - name: analytics
+  - name: rbac
+  - name: ingestion
+  - name: im
+paths:
+  # ===== Incident =====
+  /incidents:
+    get:
+      tags: [incident]
+      summary: 事件列表（支持 status/severity/limit/offset 过滤）
+      parameters:
+        - {in: query, name: status, schema: {type: string, enum: [triggered, escalated, acked, resolved, closed]}}
+        - {in: query, name: severity, schema: {type: string, enum: [critical, warning, info]}}
+        - {in: query, name: limit, schema: {type: integer, default: 50, maximum: 200}}
+        - {in: query, name: offset, schema: {type: integer, default: 0}}
+      responses:
+        '200':
+          description: 事件列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/Incident'}}
+                  total: {type: integer}
+                  limit: {type: integer}
+                  offset: {type: integer}
+  /incidents/{id}:
+    get:
+      tags: [incident]
+      summary: 事件详情（含 responders/events）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 事件详情, content: {application/json: {schema: {$ref: '#/components/schemas/Incident'}}}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /incidents/{id}/ack:
+    post:
+      tags: [incident]
+      summary: 确认事件（权限 incident.ack）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 已确认的事件, content: {application/json: {schema: {$ref: '#/components/schemas/Incident'}}}}
+  /incidents/{id}/resolve:
+    post:
+      tags: [incident]
+      summary: 解决事件（权限 incident.resolve）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 已解决的事件, content: {application/json: {schema: {$ref: '#/components/schemas/Incident'}}}}
+  /incidents/{id}/escalate:
+    post:
+      tags: [incident]
+      summary: 手动升级（权限 incident.escalate）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 已升级的事件, content: {application/json: {schema: {$ref: '#/components/schemas/Incident'}}}}
+  /incidents/{id}/timeline:
+    get:
+      tags: [timeline]
+      summary: 事件时间线
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 时间线条目列表}
+    post:
+      tags: [timeline]
+      summary: 手动追加时间线条目
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {content: {type: string}, type: {type: string}}}}}}
+      responses:
+        '201': {description: 已创建的条目}
+  /incidents/{id}/diagnose:
+    post:
+      tags: [ai]
+      summary: AI 根因诊断（落 AIInsight，status=suggested）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 诊断结果（LLM 不可用时返回 null 降级）}
+  /incidents/{id}/similar:
+    get:
+      tags: [ai]
+      summary: 相似历史事件（pgvector 语义检索，降级 LIKE）
+      parameters:
+        - {in: path, name: id, required: true, schema: {type: integer}}
+        - {in: query, name: limit, schema: {type: integer, default: 5}}
+      responses:
+        '200': {description: 相似事件列表}
+  /incidents/{id}/postmortem/draft:
+    post:
+      tags: [postmortem]
+      summary: 为事件生成复盘草稿（AI 起草，降级规则草稿）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '201': {description: 复盘草稿}
+  # ===== AI Insight =====
+  /ai-insights/{id}/resolve:
+    post:
+      tags: [ai]
+      summary: 人确认/拒绝 AI 建议（human-in-the-loop）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {accepted: {type: boolean}}}}}}
+      responses:
+        '200': {description: 已处理}
+  # ===== Service（能力域 4/13）=====
+  /services:
+    get:
+      tags: [service]
+      summary: 服务目录列表（权限 service.view）
+      responses:
+        '200': {description: 服务列表}
+    post:
+      tags: [service]
+      summary: 创建服务（权限 service.create）
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ServiceCreate'}}}}
+      responses:
+        '201': {description: 已创建的服务}
+  /services/{id}:
+    get:
+      tags: [service]
+      summary: 服务详情
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 服务}
+        '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [service]
+      summary: 更新服务（权限 service.update）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/ServiceUpdate'}}}}
+      responses:
+        '200': {description: 已更新的服务}
+    delete:
+      tags: [service]
+      summary: 删除服务（权限 service.delete）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '204': {description: 已删除}
+  # ===== Schedule（能力域 5）=====
+  /schedules:
+    get:
+      tags: [schedule]
+      summary: 排班列表（权限 schedule.view）
+      responses:
+        '200': {description: 排班列表}
+    post:
+      tags: [schedule]
+      summary: 创建排班（权限 schedule.create）
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {name: {type: string}, type: {type: string}, timezone: {type: string}, team_id: {type: integer}}}}}}
+      responses:
+        '201': {description: 已创建的排班}
+  /schedules/{id}:
+    get:
+      tags: [schedule]
+      summary: 排班详情
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 排班}
+        '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [schedule]
+      summary: 更新排班（权限 schedule.update）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 已更新的排班}
+    delete:
+      tags: [schedule]
+      summary: 删除排班（权限 schedule.delete）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '204': {description: 已删除}
+  /schedules/{id}/oncall:
+    get:
+      tags: [schedule]
+      summary: 查询某时刻在班人（引擎实时计算）
+      parameters:
+        - {in: path, name: id, required: true, schema: {type: integer}}
+        - {in: query, name: time, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: 在班人（按 layer）}
+  /schedules/{id}/preview:
+    get:
+      tags: [schedule]
+      summary: 预览未来 N 天排班
+      parameters:
+        - {in: path, name: id, required: true, schema: {type: integer}}
+        - {in: query, name: days, schema: {type: integer, default: 14, maximum: 90}}
+      responses:
+        '200': {description: 预览日}
+  # ===== Runbook（能力域 9）=====
+  /runbooks:
+    get:
+      tags: [runbook]
+      summary: Runbook 列表
+      responses:
+        '200': {description: Runbook 列表（裸数组）}
+    post:
+      tags: [runbook]
+      summary: 创建 Runbook（权限 runbook.create）
+      responses:
+        '201': {description: 已创建}
+  /runbooks/{id}:
+    get:
+      tags: [runbook]
+      summary: Runbook 详情
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: Runbook}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [runbook]
+      summary: 删除 Runbook（权限 runbook.delete）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '204': {description: 已删除}
+  /runbooks/{id}/execute:
+    post:
+      tags: [runbook]
+      summary: 执行 Runbook（写操作 require_approval 人确认）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      requestBody: {content: {application/json: {schema: {type: object, properties: {incident_id: {type: integer}, approved: {type: boolean}}}}}}
+      responses:
+        '200': {description: 执行结果}
+  # ===== Postmortem（能力域 12）=====
+  /postmortems:
+    get:
+      tags: [postmortem]
+      summary: 复盘列表
+      responses:
+        '200': {description: 复盘列表（裸数组）}
+  /postmortems/{id}:
+    get:
+      tags: [postmortem]
+      summary: 复盘详情（含 action_items）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 复盘}
+  /postmortems/{id}/transition:
+    patch:
+      tags: [postmortem]
+      summary: 复盘状态流转（draft→in_review→published→archived）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      requestBody: {content: {application/json: {schema: {type: object, properties: {status: {type: string}}}}}}
+      responses:
+        '200': {description: 已流转}
+  /postmortems/{id}/action-items:
+    post:
+      tags: [postmortem]
+      summary: 添加改进项
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '201': {description: 已创建的改进项}
+  /action-items/{id}:
+    patch:
+      tags: [postmortem]
+      summary: 更新改进项（status/owner/tracker_url）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 已更新}
+  # ===== Notification Rule（能力域 7）=====
+  /notification-rules:
+    get:
+      tags: [notification]
+      summary: 通知规则列表（权限 notification.rule.view）
+      responses:
+        '200': {description: 规则列表}
+    post:
+      tags: [notification]
+      summary: 创建通知规则（权限 notification.rule.create）
+      responses:
+        '201': {description: 已创建}
+  /notification-rules/{id}:
+    get:
+      tags: [notification]
+      summary: 规则详情
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 规则}
+    patch:
+      tags: [notification]
+      summary: 更新规则（权限 notification.rule.update）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 已更新}
+    delete:
+      tags: [notification]
+      summary: 删除规则（权限 notification.rule.delete）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '204': {description: 已删除}
+  /notification-rules/{id}/test:
+    post:
+      tags: [notification]
+      summary: dry-run：评估某 incident 是否被静默
+      parameters:
+        - {in: path, name: id, required: true, schema: {type: integer}}
+        - {in: query, name: incident_id, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: 评估结果（是否静默/通道）}
+  # ===== Suppression Rule（能力域 3 M3.2）=====
+  /suppression-rules:
+    get:
+      tags: [suppression]
+      summary: 抑制规则列表（权限 suppression.view）
+      responses:
+        '200': {description: 抑制规则列表}
+    post:
+      tags: [suppression]
+      summary: 创建抑制规则（权限 suppression.create）
+      responses:
+        '201': {description: 已创建}
+  /suppression-rules/{id}:
+    get:
+      tags: [suppression]
+      summary: 抑制规则详情
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 抑制规则}
+    patch:
+      tags: [suppression]
+      summary: 更新抑制规则（权限 suppression.update）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 已更新}
+    delete:
+      tags: [suppression]
+      summary: 删除抑制规则（权限 suppression.delete）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '204': {description: 已删除}
+  # ===== Notification Template（能力域 7 M7.5）=====
+  /notification-templates:
+    get:
+      tags: [template]
+      summary: 通知模板列表（权限 notification.template.view）
+      responses:
+        '200': {description: 模板列表（含内置）}
+    post:
+      tags: [template]
+      summary: 创建通知模板（权限 notification.template.create）
+      responses:
+        '201': {description: 已创建}
+  /notification-templates/{id}:
+    get:
+      tags: [template]
+      summary: 模板详情
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 模板}
+    patch:
+      tags: [template]
+      summary: 更新模板（内置模板不可改；权限 notification.template.update）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '200': {description: 已更新}
+        '403': {description: 内置模板不可改}
+    delete:
+      tags: [template]
+      summary: 删除模板（内置不可删；权限 notification.template.delete）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '204': {description: 已删除}
+        '403': {description: 内置模板不可删}
+  /notification-templates/{id}/preview:
+    post:
+      tags: [template]
+      summary: 渲染预览（传 incident_id 所见即所得）
+      parameters:
+        - {in: path, name: id, required: true, schema: {type: integer}}
+        - {in: query, name: incident_id, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: 渲染后的 title/body}
+  # ===== Analytics（能力域 15）=====
+  /analytics/dashboard:
+    get:
+      tags: [analytics]
+      summary: 仪表盘度量（告警/事件/团队负载，含 days 范围）
+      parameters: [{in: query, name: days, schema: {type: integer, default: 7}}]
+      responses:
+        '200': {description: DashboardMetrics}
+  /analytics/alerts:
+    get: {tags: [analytics], summary: 告警度量, responses: {'200': {description: 告警度量}}}
+  /analytics/incidents:
+    get: {tags: [analytics], summary: 事件度量（MTTA/MTTR）, responses: {'200': {description: 事件度量}}}
+  /analytics/team-load:
+    get: {tags: [analytics], summary: 团队负载, responses: {'200': {description: 团队负载}}}
+  /analytics/postmortems:
+    get: {tags: [analytics], summary: 复盘度量, responses: {'200': {description: 复盘度量}}}
+  /analytics/trend:
+    get: {tags: [analytics], summary: 趋势, responses: {'200': {description: 趋势序列}}}
+  # ===== RBAC（能力域 13）=====
+  /roles:
+    get: {tags: [rbac], summary: 角色列表, responses: {'200': {description: 角色列表}}}
+    post: {tags: [rbac], summary: 创建角色（需 org_admin）, responses: {'201': {description: 已创建}}}
+  /roles/{id}:
+    delete:
+      tags: [rbac]
+      summary: 删除角色（内置角色不可删）
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '204': {description: 已删除}
+        '403': {description: 内置角色不可删}
+  /role-bindings:
+    get: {tags: [rbac], summary: 角色绑定列表, responses: {'200': {description: 绑定列表}}}
+    post: {tags: [rbac], summary: 创建角色绑定（含临时授权 expires_in）, responses: {'201': {description: 已创建}}}
+  /role-bindings/{id}:
+    delete:
+      tags: [rbac]
+      summary: 删除角色绑定
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '204': {description: 已删除}
+  # ===== Inbound（公开，token/签名鉴权，不走 RBAC）=====
+  /webhook/{token}:
+    post:
+      tags: [ingestion]
+      summary: 告警 webhook 接入（按 token 鉴权，归一化为 Event）
+      parameters: [{in: path, name: token, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object}}}}
+      responses:
+        '202': {description: 已接收}
+        '401': {description: token 无效}
+  /im/{platform}/callback:
+    post:
+      tags: [im]
+      summary: IM 平台回调（feishu/dingtalk/wecom，平台签名校验）
+      parameters: [{in: path, name: platform, required: true, schema: {type: string, enum: [feishu, dingtalk, wecom]}}]
+      responses:
+        '200': {description: 已处理}
+        '401': {description: 签名校验失败}
+components:
+  responses:
+    NotFound:
+      description: 资源不存在
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    BadRequest:
+      description: 请求无效
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: {type: string}
+    Incident:
+      type: object
+      properties:
+        id: {type: integer}
+        number: {type: string, description: 'INC-0042'}
+        title: {type: string}
+        severity: {type: string, enum: [critical, warning, info]}
+        status: {type: string, enum: [triggered, escalated, acked, resolved, closed]}
+        priority: {type: string, enum: [p1, p2, p3, p4]}
+        summary: {type: string}
+        escalated_count: {type: integer}
+        current_level: {type: integer}
+        created_at: {type: string, format: date-time}
+        resolved_at: {type: string, format: date-time, nullable: true}
+    ServiceCreate:
+      type: object
+      required: [name, slug]
+      properties:
+        name: {type: string}
+        slug: {type: string}
+        description: {type: string}
+        labels: {type: object, additionalProperties: {type: string}}
+        auto_create_incident: {type: boolean, default: true}
+        status: {type: string, enum: [active, disabled], default: active}
+        team_id: {type: integer}
+    ServiceUpdate:
+      type: object
+      properties:
+        name: {type: string}
+        slug: {type: string}
+        description: {type: string}
+        labels: {type: object, additionalProperties: {type: string}}
+        auto_create_incident: {type: boolean}
+        status: {type: string, enum: [active, disabled]}

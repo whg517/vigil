@@ -37,6 +37,7 @@ import (
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/runbook"
 	"github.com/kevin/vigil/internal/schedule"
+	"github.com/kevin/vigil/internal/service"
 	"github.com/kevin/vigil/internal/server"
 	"github.com/kevin/vigil/internal/store"
 	"github.com/kevin/vigil/internal/timeline"
@@ -351,7 +352,9 @@ func run() error {
 	// 业务路由组（受鉴权开关控制）：身份解析中间件
 	v1 := srv.APIGroup()
 	v1.Use(auth.RequireUser(cfg.Auth.Enabled))
-	schedule.NewHandler(schedEngine).Register(v1)
+	schedule.NewHandler(schedEngine, st.DB).Register(v1)
+	// 服务目录（能力域 4/13）：Service CRUD（此前仅 schema 无 handler）
+	service.NewHandler(st.DB).Register(v1)
 	// Incident API（能力域 14 集成入口 + 8 IM/Web 操作）：list/get/ack/resolve/escalate
 	incident.NewHandler(st.DB, incService).Register(v1)
 	// RBAC（能力域 13）：角色/绑定管理

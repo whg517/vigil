@@ -15,9 +15,21 @@
  */
 import { http } from "@/lib/http";
 import type {
+  ActionItem,
   DashboardMetrics,
   Incident,
   ListResponse,
+  NotificationRule,
+  NotificationTemplate,
+  OncallResult,
+  Postmortem,
+  PreviewResult,
+  Role,
+  RoleBinding,
+  Runbook,
+  Schedule,
+  Service,
+  SuppressionRule,
   TimelineItem,
 } from "@/lib/types";
 
@@ -71,5 +83,168 @@ export const api = {
     return http
       .get<DashboardMetrics>("/analytics/dashboard", { params: { days } })
       .then((r) => r.data);
+  },
+
+  // —— Service（能力域 4/13）——
+  listServices() {
+    return http.get<Service[]>("/services").then((r) => r.data);
+  },
+  getService(id: number) {
+    return http.get<Service>(`/services/${id}`).then((r) => r.data);
+  },
+  createService(body: Partial<Service> & { name: string; slug: string }) {
+    return http.post<Service>("/services", body).then((r) => r.data);
+  },
+  updateService(id: number, body: Partial<Service>) {
+    return http.patch<Service>(`/services/${id}`, body).then((r) => r.data);
+  },
+  deleteService(id: number) {
+    return http.delete(`/services/${id}`).then((r) => r.data);
+  },
+
+  // —— Schedule（能力域 5）——
+  listSchedules() {
+    return http.get<Schedule[]>("/schedules").then((r) => r.data);
+  },
+  getSchedule(id: number) {
+    return http.get<Schedule>(`/schedules/${id}`).then((r) => r.data);
+  },
+  createSchedule(body: Partial<Schedule> & { name: string }) {
+    return http.post<Schedule>("/schedules", body).then((r) => r.data);
+  },
+  updateSchedule(id: number, body: Partial<Schedule>) {
+    return http.patch<Schedule>(`/schedules/${id}`, body).then((r) => r.data);
+  },
+  deleteSchedule(id: number) {
+    return http.delete(`/schedules/${id}`).then((r) => r.data);
+  },
+  getOncall(id: number, time?: string) {
+    return http
+      .get<OncallResult>(`/schedules/${id}/oncall`, {
+        params: time ? { time } : {},
+      })
+      .then((r) => r.data);
+  },
+  previewSchedule(id: number, days = 14) {
+    return http
+      .get<PreviewResult>(`/schedules/${id}/preview`, { params: { days } })
+      .then((r) => r.data);
+  },
+
+  // —— Runbook（能力域 9）——
+  listRunbooks() {
+    return http.get<Runbook[]>("/runbooks").then((r) => r.data);
+  },
+  getRunbook(id: number) {
+    return http.get<Runbook>(`/runbooks/${id}`).then((r) => r.data);
+  },
+  createRunbook(body: Partial<Runbook> & { name: string; type: Runbook["type"] }) {
+    return http.post<Runbook>("/runbooks", body).then((r) => r.data);
+  },
+  deleteRunbook(id: number) {
+    return http.delete(`/runbooks/${id}`).then((r) => r.data);
+  },
+  executeRunbook(id: number, body: { incident_id: number; approved?: boolean }) {
+    return http
+      .post<{ result?: string; error?: string }>(`/runbooks/${id}/execute`, body)
+      .then((r) => r.data);
+  },
+
+  // —— Postmortem（能力域 12）——
+  listPostmortems() {
+    return http.get<Postmortem[]>("/postmortems").then((r) => r.data);
+  },
+  getPostmortem(id: number) {
+    return http.get<Postmortem>(`/postmortems/${id}`).then((r) => r.data);
+  },
+  generatePostmortemDraft(incidentId: number) {
+    return http
+      .post<Postmortem>(`/incidents/${incidentId}/postmortem/draft`, {})
+      .then((r) => r.data);
+  },
+  transitionPostmortem(id: number, status: Postmortem["status"]) {
+    return http
+      .patch<Postmortem>(`/postmortems/${id}/transition`, { status })
+      .then((r) => r.data);
+  },
+  addActionItem(id: number, body: { title: string; owner_id?: string }) {
+    return http
+      .post<ActionItem>(`/postmortems/${id}/action-items`, body)
+      .then((r) => r.data);
+  },
+  updateActionItem(id: number, body: Partial<ActionItem>) {
+    return http.patch<ActionItem>(`/action-items/${id}`, body).then((r) => r.data);
+  },
+
+  // —— 通知规则（能力域 7）——
+  listNotificationRules() {
+    return http.get<NotificationRule[]>("/notification-rules").then((r) => r.data);
+  },
+  createNotificationRule(body: Partial<NotificationRule> & { name: string }) {
+    return http.post<NotificationRule>("/notification-rules", body).then((r) => r.data);
+  },
+  updateNotificationRule(id: number, body: Partial<NotificationRule>) {
+    return http.patch<NotificationRule>(`/notification-rules/${id}`, body).then((r) => r.data);
+  },
+  deleteNotificationRule(id: number) {
+    return http.delete(`/notification-rules/${id}`).then((r) => r.data);
+  },
+  testNotificationRule(id: number, incidentId: number) {
+    return http
+      .post<{ quiet_hours_suppress?: boolean }>(`/notification-rules/${id}/test`, {}, { params: { incident_id: incidentId } })
+      .then((r) => r.data);
+  },
+
+  // —— 抑制规则（能力域 3 M3.2）——
+  listSuppressionRules() {
+    return http.get<SuppressionRule[]>("/suppression-rules").then((r) => r.data);
+  },
+  createSuppressionRule(body: Partial<SuppressionRule> & { name: string }) {
+    return http.post<SuppressionRule>("/suppression-rules", body).then((r) => r.data);
+  },
+  updateSuppressionRule(id: number, body: Partial<SuppressionRule>) {
+    return http.patch<SuppressionRule>(`/suppression-rules/${id}`, body).then((r) => r.data);
+  },
+  deleteSuppressionRule(id: number) {
+    return http.delete(`/suppression-rules/${id}`).then((r) => r.data);
+  },
+
+  // —— 通知模板（能力域 7 M7.5）——
+  listNotificationTemplates() {
+    return http.get<NotificationTemplate[]>("/notification-templates").then((r) => r.data);
+  },
+  createNotificationTemplate(body: Partial<NotificationTemplate> & { name: string; title_template: string }) {
+    return http.post<NotificationTemplate>("/notification-templates", body).then((r) => r.data);
+  },
+  updateNotificationTemplate(id: number, body: Partial<NotificationTemplate>) {
+    return http.patch<NotificationTemplate>(`/notification-templates/${id}`, body).then((r) => r.data);
+  },
+  deleteNotificationTemplate(id: number) {
+    return http.delete(`/notification-templates/${id}`).then((r) => r.data);
+  },
+  previewTemplate(id: number, incidentId: number) {
+    return http
+      .post<{ title: string; body: string }>(`/notification-templates/${id}/preview`, {}, { params: { incident_id: incidentId } })
+      .then((r) => r.data);
+  },
+
+  // —— RBAC（能力域 13）——
+  listRoles() {
+    return http.get<Role[]>("/roles").then((r) => r.data);
+  },
+  createRole(body: { name: string; description?: string; scope_level?: "org" | "team"; permissions?: string[] }) {
+    return http.post<Role>("/roles", body).then((r) => r.data);
+  },
+  deleteRole(id: number) {
+    return http.delete(`/roles/${id}`).then((r) => r.data);
+  },
+  listRoleBindings() {
+    return http.get<RoleBinding[]>("/role-bindings").then((r) => r.data);
+  },
+  createRoleBinding(body: { user_id: number; role_id: number; scope_level?: "org" | "team"; team_id?: number; expires_in?: number }) {
+    return http.post<RoleBinding>("/role-bindings", body).then((r) => r.data);
+  },
+  deleteRoleBinding(id: number) {
+    return http.delete(`/role-bindings/${id}`).then((r) => r.data);
   },
 };

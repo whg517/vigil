@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	entschedule "github.com/kevin/vigil/ent/schedule"
+	"github.com/kevin/vigil/ent/schema"
 
 	"github.com/labstack/echo/v4"
 )
@@ -14,19 +16,144 @@ import (
 // Handler 排班 API。
 type Handler struct {
 	engine *Engine
+	db     *ent.Client
 }
 
-// NewHandler 创建排班 handler。
-func NewHandler(e *Engine) *Handler {
-	return &Handler{engine: e}
+// NewHandler 创建排班 handler。db 非 nil 时启用 Schedule CRUD（前端枚举/管理用）。
+func NewHandler(e *Engine, db *ent.Client) *Handler {
+	return &Handler{engine: e, db: db}
 }
 
 // Register 把排班路由挂到 group。
-// GET /schedules/:id/oncall  —— 查询某时刻在班人
-// GET /schedules/:id/preview —— 预览未来 N 天排班
+// CRUD（db 非 nil 时启用）+ 查询。
 func (h *Handler) Register(g *echo.Group) {
+	// CRUD（能力域 5，权限点 schedule.* 由调用方在装配时授权）
+	if h.db != nil {
+		g.GET("/schedules", h.list)
+		g.POST("/schedules", h.create)
+		g.GET("/schedules/:id", h.get)
+		g.PATCH("/schedules/:id", h.update)
+		g.DELETE("/schedules/:id", h.delete)
+	}
+	// 查询：某时刻在班人 + 预览
 	g.GET("/schedules/:id/oncall", h.oncall)
 	g.GET("/schedules/:id/preview", h.preview)
+}
+
+// ===== Schedule CRUD =====
+
+func (h *Handler) list(c echo.Context) error {
+	schedules, err := h.db.Schedule.Query().All(c.Request().Context())
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, schedules)
+}
+
+type createScheduleReq struct {
+	Name     string              `json:"name"`
+	Type     string              `json:"type"`     // calendar | rotation | follow_the_sun
+	Timezone string              `json:"timezone"` // 默认 Asia/Shanghai
+	Layers   []schema.ScheduleLayer `json:"layers"`
+	TeamID   int                 `json:"team_id"`
+}
+
+func (h *Handler) create(c echo.Context) error {
+	var req createScheduleReq
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+	}
+	if req.Name == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name required"})
+	}
+	typ := "rotation"
+	if req.Type != "" {
+		typ = req.Type
+	}
+	tz := req.Timezone
+	if tz == "" {
+		tz = "Asia/Shanghai"
+	}
+	b := h.db.Schedule.Create().
+		SetName(req.Name).
+		SetType(entschedule.Type(typ)).
+		SetTimezone(tz)
+	if len(req.Layers) > 0 {
+		b.SetLayers(req.Layers)
+	}
+	if req.TeamID > 0 {
+		b.SetTeamID(req.TeamID)
+	}
+	s, err := b.Save(c.Request().Context())
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusCreated, s)
+}
+
+func (h *Handler) get(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	s, err := h.db.Schedule.Get(c.Request().Context(), id)
+	if ent.IsNotFound(err) {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+	}
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, s)
+}
+
+type updateScheduleReq struct {
+	Name     *string                `json:"name"`
+	Type     *string                `json:"type"`
+	Timezone *string                `json:"timezone"`
+	Layers   *[]schema.ScheduleLayer `json:"layers"`
+}
+
+func (h *Handler) update(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	var req updateScheduleReq
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+	}
+	upd := h.db.Schedule.UpdateOneID(id)
+	if req.Name != nil {
+		upd.SetName(*req.Name)
+	}
+	if req.Type != nil {
+		upd.SetType(entschedule.Type(*req.Type))
+	}
+	if req.Timezone != nil {
+		upd.SetTimezone(*req.Timezone)
+	}
+	if req.Layers != nil {
+		upd.SetLayers(*req.Layers)
+	}
+	s, err := upd.Save(c.Request().Context())
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, s)
+}
+
+func (h *Handler) delete(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	if err := h.db.Schedule.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
+		if ent.IsNotFound(err) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 // oncall 查询某 Schedule 在指定时刻的在班人。
