@@ -7,6 +7,7 @@ import (
 
 	"github.com/kevin/vigil/ent/actionitem"
 	"github.com/kevin/vigil/ent/aiinsight"
+	"github.com/kevin/vigil/ent/apikey"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/imaccountbinding"
@@ -50,6 +51,16 @@ func init() {
 	aiinsight.DefaultUpdatedAt = aiinsightDescUpdatedAt.Default.(func() time.Time)
 	// aiinsight.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	aiinsight.UpdateDefaultUpdatedAt = aiinsightDescUpdatedAt.UpdateDefault.(func() time.Time)
+	apikeyFields := schema.APIKey{}.Fields()
+	_ = apikeyFields
+	// apikeyDescName is the schema descriptor for name field.
+	apikeyDescName := apikeyFields[0].Descriptor()
+	// apikey.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	apikey.NameValidator = apikeyDescName.Validators[0].(func(string) error)
+	// apikeyDescCreatedAt is the schema descriptor for created_at field.
+	apikeyDescCreatedAt := apikeyFields[7].Descriptor()
+	// apikey.DefaultCreatedAt holds the default value on creation for the created_at field.
+	apikey.DefaultCreatedAt = apikeyDescCreatedAt.Default.(func() time.Time)
 	actionitemFields := schema.ActionItem{}.Fields()
 	_ = actionitemFields
 	// actionitemDescDescription is the schema descriptor for description field.

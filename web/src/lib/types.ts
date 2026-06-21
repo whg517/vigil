@@ -280,3 +280,20 @@ export interface RoleBinding {
   team_id?: number;
   expires_at?: string | null;
 }
+
+/** API Key（能力域 13 §API Key 管理）—— 列表视图不含明文 token */
+export interface APIKey {
+  id: number;
+  name: string;
+  prefix: string;
+  scope?: string[];
+  status: "active" | "disabled";
+  expires_at?: string | null;
+  last_used_at?: string | null;
+  created_at: string;
+}
+
+/** 创建 API Key 响应（含一次性明文 token，仅创建时返回） */
+export interface APIKeyCreated extends APIKey {
+  token: string;
+}

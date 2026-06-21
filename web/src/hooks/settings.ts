@@ -126,3 +126,23 @@ export function useDeleteRoleBinding() {
     onSuccess: () => { toast.success("授权已删除"); qc.invalidateQueries({ queryKey: ["role-bindings"] }); },
   });
 }
+
+// —— API Key（能力域 13 §API Key 管理）——
+export const apiKeyQk = { keys: () => ["api-keys"] as const };
+export function useAPIKeys() {
+  return useQuery({ queryKey: apiKeyQk.keys(), queryFn: () => api.listAPIKeys() });
+}
+export function useCreateAPIKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Parameters<typeof api.createAPIKey>[0]) => api.createAPIKey(body),
+    onSuccess: () => { toast.success("API Key 已创建"); qc.invalidateQueries({ queryKey: ["api-keys"] }); },
+  });
+}
+export function useDeleteAPIKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteAPIKey(id),
+    onSuccess: () => { toast.success("API Key 已撤销"); qc.invalidateQueries({ queryKey: ["api-keys"] }); },
+  });
+}

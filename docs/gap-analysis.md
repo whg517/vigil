@@ -126,7 +126,7 @@ README 第 44-50 行：
 | 项 | PRD | 现状 |
 |----|-----|------|
 | 登录态鉴权 | NFR-安全 | ✅ JWT 自管已实现（feat-auth-jwt：login/refresh/me + bcrypt + 前端登录页 + 路由守卫；`X-Vigil-User-ID` 保留为 AUTH_ENABLED=false 降级兼容） |
-| API Key（scoped） | M13.7 | ❌ 不存在 |
+| API Key（scoped） | M13.7 | ✅ 已实现（feat-apikey：APIKey 实体 + SHA256 哈希 + IdentityResolver 三轨统一 + CRUD + 前端 Tab；明文仅创建时返回一次；鉴权继承归属 User 角色） |
 | 凭证加密 | H1.3 | ❌ 明文环境变量 |
 | HTTPS 默认 | H1.6 | ⚠️ 靠用户前置 nginx，应用层无强制 |
 | 接入鉴权审计 | capabilities §3.2 | ❌ 无审计表 |

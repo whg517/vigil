@@ -9,6 +9,9 @@ import (
 // AIInsight is the predicate function for aiinsight builders.
 type AIInsight func(*sql.Selector)
 
+// APIKey is the predicate function for apikey builders.
+type APIKey func(*sql.Selector)
+
 // ActionItem is the predicate function for actionitem builders.
 type ActionItem func(*sql.Selector)
 

@@ -14,6 +14,8 @@ type Tx struct {
 	config
 	// AIInsight is the client for interacting with the AIInsight builders.
 	AIInsight *AIInsightClient
+	// APIKey is the client for interacting with the APIKey builders.
+	APIKey *APIKeyClient
 	// ActionItem is the client for interacting with the ActionItem builders.
 	ActionItem *ActionItemClient
 	// EscalationPolicy is the client for interacting with the EscalationPolicy builders.
@@ -188,6 +190,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.AIInsight = NewAIInsightClient(tx.config)
+	tx.APIKey = NewAPIKeyClient(tx.config)
 	tx.ActionItem = NewActionItemClient(tx.config)
 	tx.EscalationPolicy = NewEscalationPolicyClient(tx.config)
 	tx.Event = NewEventClient(tx.config)

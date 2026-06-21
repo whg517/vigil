@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/kevin/vigil/ent/apikey"
 	"github.com/kevin/vigil/ent/imaccountbinding"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/predicate"
@@ -31,6 +32,7 @@ type UserQuery struct {
 	withTeams               *TeamQuery
 	withRoleBindings        *RoleBindingQuery
 	withImBindings          *IMAccountBindingQuery
+	withAPIKeys             *APIKeyQuery
 	withAssignedIncidents   *IncidentQuery
 	withRespondingIncidents *IncidentQuery
 	withRotations           *RotationQuery
@@ -129,6 +131,28 @@ func (_q *UserQuery) QueryImBindings() *IMAccountBindingQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(imaccountbinding.Table, imaccountbinding.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.ImBindingsTable, user.ImBindingsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryAPIKeys chains the current query on the "api_keys" edge.
+func (_q *UserQuery) QueryAPIKeys() *APIKeyQuery {
+	query := (&APIKeyClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(apikey.Table, apikey.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.APIKeysTable, user.APIKeysColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -397,6 +421,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withTeams:               _q.withTeams.Clone(),
 		withRoleBindings:        _q.withRoleBindings.Clone(),
 		withImBindings:          _q.withImBindings.Clone(),
+		withAPIKeys:             _q.withAPIKeys.Clone(),
 		withAssignedIncidents:   _q.withAssignedIncidents.Clone(),
 		withRespondingIncidents: _q.withRespondingIncidents.Clone(),
 		withRotations:           _q.withRotations.Clone(),
@@ -436,6 +461,17 @@ func (_q *UserQuery) WithImBindings(opts ...func(*IMAccountBindingQuery)) *UserQ
 		opt(query)
 	}
 	_q.withImBindings = query
+	return _q
+}
+
+// WithAPIKeys tells the query-builder to eager-load the nodes that are connected to
+// the "api_keys" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithAPIKeys(opts ...func(*APIKeyQuery)) *UserQuery {
+	query := (&APIKeyClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withAPIKeys = query
 	return _q
 }
 
@@ -550,10 +586,11 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [6]bool{
+		loadedTypes = [7]bool{
 			_q.withTeams != nil,
 			_q.withRoleBindings != nil,
 			_q.withImBindings != nil,
+			_q.withAPIKeys != nil,
 			_q.withAssignedIncidents != nil,
 			_q.withRespondingIncidents != nil,
 			_q.withRotations != nil,
@@ -595,6 +632,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadImBindings(ctx, query, nodes,
 			func(n *User) { n.Edges.ImBindings = []*IMAccountBinding{} },
 			func(n *User, e *IMAccountBinding) { n.Edges.ImBindings = append(n.Edges.ImBindings, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withAPIKeys; query != nil {
+		if err := _q.loadAPIKeys(ctx, query, nodes,
+			func(n *User) { n.Edges.APIKeys = []*APIKey{} },
+			func(n *User, e *APIKey) { n.Edges.APIKeys = append(n.Edges.APIKeys, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -740,6 +784,37 @@ func (_q *UserQuery) loadImBindings(ctx context.Context, query *IMAccountBinding
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "user_im_bindings" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadAPIKeys(ctx context.Context, query *APIKeyQuery, nodes []*User, init func(*User), assign func(*User, *APIKey)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.APIKey(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.APIKeysColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.user_api_keys
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "user_api_keys" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_api_keys" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
 	}

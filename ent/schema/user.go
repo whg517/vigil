@@ -50,6 +50,8 @@ func (User) Edges() []ent.Edge {
 		edge.To("role_bindings", RoleBinding.Type),
 		// User -> IMAccountBinding（IM 平台账号绑定，可索引查询的独立表）
 		edge.To("im_bindings", IMAccountBinding.Type),
+		// User -> APIKey（程序化接入凭证，APIKey.user 的反向）
+		edge.To("api_keys", APIKey.Type),
 		// User <- Incident（作为当前责任人，Incident.assignee 的反向）
 		edge.From("assigned_incidents", Incident.Type).Ref("assignee"),
 		// User <- Incident（作为响应者，Incident.responders 的反向）

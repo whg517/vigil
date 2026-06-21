@@ -41,6 +41,8 @@ const (
 	EdgeRoleBindings = "role_bindings"
 	// EdgeImBindings holds the string denoting the im_bindings edge name in mutations.
 	EdgeImBindings = "im_bindings"
+	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
+	EdgeAPIKeys = "api_keys"
 	// EdgeAssignedIncidents holds the string denoting the assigned_incidents edge name in mutations.
 	EdgeAssignedIncidents = "assigned_incidents"
 	// EdgeRespondingIncidents holds the string denoting the responding_incidents edge name in mutations.
@@ -68,6 +70,13 @@ const (
 	ImBindingsInverseTable = "im_account_bindings"
 	// ImBindingsColumn is the table column denoting the im_bindings relation/edge.
 	ImBindingsColumn = "user_im_bindings"
+	// APIKeysTable is the table that holds the api_keys relation/edge.
+	APIKeysTable = "api_keys"
+	// APIKeysInverseTable is the table name for the APIKey entity.
+	// It exists in this package in order to avoid circular dependency with the "apikey" package.
+	APIKeysInverseTable = "api_keys"
+	// APIKeysColumn is the table column denoting the api_keys relation/edge.
+	APIKeysColumn = "user_api_keys"
 	// AssignedIncidentsTable is the table that holds the assigned_incidents relation/edge.
 	AssignedIncidentsTable = "incidents"
 	// AssignedIncidentsInverseTable is the table name for the Incident entity.
@@ -258,6 +267,20 @@ func ByImBindings(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByAPIKeysCount orders the results by api_keys count.
+func ByAPIKeysCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAPIKeysStep(), opts...)
+	}
+}
+
+// ByAPIKeys orders the results by api_keys terms.
+func ByAPIKeys(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAPIKeysStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByAssignedIncidentsCount orders the results by assigned_incidents count.
 func ByAssignedIncidentsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -318,6 +341,13 @@ func newImBindingsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ImBindingsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, ImBindingsTable, ImBindingsColumn),
+	)
+}
+func newAPIKeysStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(APIKeysInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, APIKeysTable, APIKeysColumn),
 	)
 }
 func newAssignedIncidentsStep() *sqlgraph.Step {

@@ -16,6 +16,8 @@
 import { http } from "@/lib/http";
 import type {
   ActionItem,
+  APIKey,
+  APIKeyCreated,
   DashboardMetrics,
   Incident,
   ListResponse,
@@ -246,5 +248,15 @@ export const api = {
   },
   deleteRoleBinding(id: number) {
     return http.delete(`/role-bindings/${id}`).then((r) => r.data);
+  },
+  // ===== API Key（能力域 13 §API Key 管理）=====
+  listAPIKeys() {
+    return http.get<APIKey[]>("/api-keys").then((r) => r.data);
+  },
+  createAPIKey(body: { name: string; scope?: string[]; expires_in_hours?: number }) {
+    return http.post<APIKeyCreated>("/api-keys", body).then((r) => r.data);
+  },
+  deleteAPIKey(id: number) {
+    return http.delete(`/api-keys/${id}`).then((r) => r.data);
   },
 };

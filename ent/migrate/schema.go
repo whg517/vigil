@@ -52,6 +52,45 @@ var (
 			},
 		},
 	}
+	// APIKeysColumns holds the columns for the "api_keys" table.
+	APIKeysColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "token_hash", Type: field.TypeString},
+		{Name: "prefix", Type: field.TypeString},
+		{Name: "scope", Type: field.TypeJSON, Nullable: true},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "disabled"}, Default: "active"},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_api_keys", Type: field.TypeInt},
+	}
+	// APIKeysTable holds the schema information for the "api_keys" table.
+	APIKeysTable = &schema.Table{
+		Name:       "api_keys",
+		Columns:    APIKeysColumns,
+		PrimaryKey: []*schema.Column{APIKeysColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "api_keys_users_api_keys",
+				Columns:    []*schema.Column{APIKeysColumns[9]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "apikey_token_hash",
+				Unique:  true,
+				Columns: []*schema.Column{APIKeysColumns[2]},
+			},
+			{
+				Name:    "apikey_status",
+				Unique:  false,
+				Columns: []*schema.Column{APIKeysColumns[7]},
+			},
+		},
+	}
 	// ActionItemsColumns holds the columns for the "action_items" table.
 	ActionItemsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -944,6 +983,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		AiInsightsTable,
+		APIKeysTable,
 		ActionItemsTable,
 		EscalationPoliciesTable,
 		EventsTable,
@@ -977,6 +1017,7 @@ var (
 
 func init() {
 	AiInsightsTable.ForeignKeys[0].RefTable = IncidentsTable
+	APIKeysTable.ForeignKeys[0].RefTable = UsersTable
 	ActionItemsTable.ForeignKeys[0].RefTable = PostmortemsTable
 	EscalationPoliciesTable.ForeignKeys[0].RefTable = TeamsTable
 	EventsTable.ForeignKeys[0].RefTable = IncidentsTable

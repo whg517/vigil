@@ -17,6 +17,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kevin/vigil/ent/actionitem"
 	"github.com/kevin/vigil/ent/aiinsight"
+	"github.com/kevin/vigil/ent/apikey"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/imaccountbinding"
@@ -46,6 +47,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// AIInsight is the client for interacting with the AIInsight builders.
 	AIInsight *AIInsightClient
+	// APIKey is the client for interacting with the APIKey builders.
+	APIKey *APIKeyClient
 	// ActionItem is the client for interacting with the ActionItem builders.
 	ActionItem *ActionItemClient
 	// EscalationPolicy is the client for interacting with the EscalationPolicy builders.
@@ -100,6 +103,7 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.AIInsight = NewAIInsightClient(c.config)
+	c.APIKey = NewAPIKeyClient(c.config)
 	c.ActionItem = NewActionItemClient(c.config)
 	c.EscalationPolicy = NewEscalationPolicyClient(c.config)
 	c.Event = NewEventClient(c.config)
@@ -214,6 +218,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:                  ctx,
 		config:               cfg,
 		AIInsight:            NewAIInsightClient(cfg),
+		APIKey:               NewAPIKeyClient(cfg),
 		ActionItem:           NewActionItemClient(cfg),
 		EscalationPolicy:     NewEscalationPolicyClient(cfg),
 		Event:                NewEventClient(cfg),
@@ -255,6 +260,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:                  ctx,
 		config:               cfg,
 		AIInsight:            NewAIInsightClient(cfg),
+		APIKey:               NewAPIKeyClient(cfg),
 		ActionItem:           NewActionItemClient(cfg),
 		EscalationPolicy:     NewEscalationPolicyClient(cfg),
 		Event:                NewEventClient(cfg),
@@ -305,11 +311,11 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AIInsight, c.ActionItem, c.EscalationPolicy, c.Event, c.IMAccountBinding,
-		c.Incident, c.IncidentAction, c.Integration, c.NotificationRule,
-		c.NotificationTemplate, c.Postmortem, c.RawEvent, c.Role, c.RoleBinding,
-		c.Rotation, c.Runbook, c.Schedule, c.Service, c.SuppressionRule, c.Team,
-		c.TimelineItem, c.User,
+		c.AIInsight, c.APIKey, c.ActionItem, c.EscalationPolicy, c.Event,
+		c.IMAccountBinding, c.Incident, c.IncidentAction, c.Integration,
+		c.NotificationRule, c.NotificationTemplate, c.Postmortem, c.RawEvent, c.Role,
+		c.RoleBinding, c.Rotation, c.Runbook, c.Schedule, c.Service, c.SuppressionRule,
+		c.Team, c.TimelineItem, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -319,11 +325,11 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AIInsight, c.ActionItem, c.EscalationPolicy, c.Event, c.IMAccountBinding,
-		c.Incident, c.IncidentAction, c.Integration, c.NotificationRule,
-		c.NotificationTemplate, c.Postmortem, c.RawEvent, c.Role, c.RoleBinding,
-		c.Rotation, c.Runbook, c.Schedule, c.Service, c.SuppressionRule, c.Team,
-		c.TimelineItem, c.User,
+		c.AIInsight, c.APIKey, c.ActionItem, c.EscalationPolicy, c.Event,
+		c.IMAccountBinding, c.Incident, c.IncidentAction, c.Integration,
+		c.NotificationRule, c.NotificationTemplate, c.Postmortem, c.RawEvent, c.Role,
+		c.RoleBinding, c.Rotation, c.Runbook, c.Schedule, c.Service, c.SuppressionRule,
+		c.Team, c.TimelineItem, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -334,6 +340,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *AIInsightMutation:
 		return c.AIInsight.mutate(ctx, m)
+	case *APIKeyMutation:
+		return c.APIKey.mutate(ctx, m)
 	case *ActionItemMutation:
 		return c.ActionItem.mutate(ctx, m)
 	case *EscalationPolicyMutation:
@@ -527,6 +535,155 @@ func (c *AIInsightClient) mutate(ctx context.Context, m *AIInsightMutation) (Val
 		return (&AIInsightDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown AIInsight mutation op: %q", m.Op())
+	}
+}
+
+// APIKeyClient is a client for the APIKey schema.
+type APIKeyClient struct {
+	config
+}
+
+// NewAPIKeyClient returns a client for the APIKey from the given config.
+func NewAPIKeyClient(c config) *APIKeyClient {
+	return &APIKeyClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `apikey.Hooks(f(g(h())))`.
+func (c *APIKeyClient) Use(hooks ...Hook) {
+	c.hooks.APIKey = append(c.hooks.APIKey, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `apikey.Intercept(f(g(h())))`.
+func (c *APIKeyClient) Intercept(interceptors ...Interceptor) {
+	c.inters.APIKey = append(c.inters.APIKey, interceptors...)
+}
+
+// Create returns a builder for creating a APIKey entity.
+func (c *APIKeyClient) Create() *APIKeyCreate {
+	mutation := newAPIKeyMutation(c.config, OpCreate)
+	return &APIKeyCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of APIKey entities.
+func (c *APIKeyClient) CreateBulk(builders ...*APIKeyCreate) *APIKeyCreateBulk {
+	return &APIKeyCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *APIKeyClient) MapCreateBulk(slice any, setFunc func(*APIKeyCreate, int)) *APIKeyCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &APIKeyCreateBulk{err: fmt.Errorf("calling to APIKeyClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*APIKeyCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &APIKeyCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for APIKey.
+func (c *APIKeyClient) Update() *APIKeyUpdate {
+	mutation := newAPIKeyMutation(c.config, OpUpdate)
+	return &APIKeyUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *APIKeyClient) UpdateOne(_m *APIKey) *APIKeyUpdateOne {
+	mutation := newAPIKeyMutation(c.config, OpUpdateOne, withAPIKey(_m))
+	return &APIKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *APIKeyClient) UpdateOneID(id int) *APIKeyUpdateOne {
+	mutation := newAPIKeyMutation(c.config, OpUpdateOne, withAPIKeyID(id))
+	return &APIKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for APIKey.
+func (c *APIKeyClient) Delete() *APIKeyDelete {
+	mutation := newAPIKeyMutation(c.config, OpDelete)
+	return &APIKeyDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *APIKeyClient) DeleteOne(_m *APIKey) *APIKeyDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *APIKeyClient) DeleteOneID(id int) *APIKeyDeleteOne {
+	builder := c.Delete().Where(apikey.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &APIKeyDeleteOne{builder}
+}
+
+// Query returns a query builder for APIKey.
+func (c *APIKeyClient) Query() *APIKeyQuery {
+	return &APIKeyQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAPIKey},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a APIKey entity by its id.
+func (c *APIKeyClient) Get(ctx context.Context, id int) (*APIKey, error) {
+	return c.Query().Where(apikey.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *APIKeyClient) GetX(ctx context.Context, id int) *APIKey {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a APIKey.
+func (c *APIKeyClient) QueryUser(_m *APIKey) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(apikey.Table, apikey.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, apikey.UserTable, apikey.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *APIKeyClient) Hooks() []Hook {
+	return c.hooks.APIKey
+}
+
+// Interceptors returns the client interceptors.
+func (c *APIKeyClient) Interceptors() []Interceptor {
+	return c.inters.APIKey
+}
+
+func (c *APIKeyClient) mutate(ctx context.Context, m *APIKeyMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&APIKeyCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&APIKeyUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&APIKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&APIKeyDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown APIKey mutation op: %q", m.Op())
 	}
 }
 
@@ -4322,6 +4479,22 @@ func (c *UserClient) QueryImBindings(_m *User) *IMAccountBindingQuery {
 	return query
 }
 
+// QueryAPIKeys queries the api_keys edge of a User.
+func (c *UserClient) QueryAPIKeys(_m *User) *APIKeyQuery {
+	query := (&APIKeyClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(apikey.Table, apikey.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.APIKeysTable, user.APIKeysColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryAssignedIncidents queries the assigned_incidents edge of a User.
 func (c *UserClient) QueryAssignedIncidents(_m *User) *IncidentQuery {
 	query := (&IncidentClient{config: c.config}).Query()
@@ -4398,14 +4571,14 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AIInsight, ActionItem, EscalationPolicy, Event, IMAccountBinding, Incident,
-		IncidentAction, Integration, NotificationRule, NotificationTemplate,
+		AIInsight, APIKey, ActionItem, EscalationPolicy, Event, IMAccountBinding,
+		Incident, IncidentAction, Integration, NotificationRule, NotificationTemplate,
 		Postmortem, RawEvent, Role, RoleBinding, Rotation, Runbook, Schedule, Service,
 		SuppressionRule, Team, TimelineItem, User []ent.Hook
 	}
 	inters struct {
-		AIInsight, ActionItem, EscalationPolicy, Event, IMAccountBinding, Incident,
-		IncidentAction, Integration, NotificationRule, NotificationTemplate,
+		AIInsight, APIKey, ActionItem, EscalationPolicy, Event, IMAccountBinding,
+		Incident, IncidentAction, Integration, NotificationRule, NotificationTemplate,
 		Postmortem, RawEvent, Role, RoleBinding, Rotation, Runbook, Schedule, Service,
 		SuppressionRule, Team, TimelineItem, User []ent.Interceptor
 	}

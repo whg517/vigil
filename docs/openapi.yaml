@@ -30,6 +30,7 @@ tags:
   - name: ingestion
   - name: im
   - name: auth
+  - name: apikey
 paths:
   # ===== Auth 登录态（能力域 13）=====
   /auth/login:
@@ -116,6 +117,70 @@ paths:
                   email: {type: string}
                   status: {type: string, example: active}
         '401': {description: 未登录}
+  # ===== API Key 程序化接入凭证（能力域 13 M13.7）=====
+  /api-keys:
+    get:
+      tags: [apikey]
+      summary: API Key 列表（不回显明文 token）
+      security: [{bearerAuth: []}, {userIdHeader: []}]
+      responses:
+        '200':
+          description: 当前用户的 key 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: integer}
+                    name: {type: string}
+                    prefix: {type: string, description: 明文前缀，识别用}
+                    scope: {type: array, items: {type: string}}
+                    status: {type: string, example: active}
+                    expires_at: {type: string, format: date-time, nullable: true}
+                    last_used_at: {type: string, format: date-time, nullable: true}
+                    created_at: {type: string, format: date-time}
+    post:
+      tags: [apikey]
+      summary: 创建 API Key（返回明文仅此一次）
+      description: 鉴权继承归属 User 的角色。明文 token 仅创建时返回，库内只存 SHA256 哈希。
+      security: [{bearerAuth: []}, {userIdHeader: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string}
+                scope: {type: array, items: {type: string}, description: 权限范围（预留）}
+                expires_in_hours: {type: integer, description: 有效期小时，0/缺省=永久}
+      responses:
+        '201':
+          description: 已创建（含一次性明文 token）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: integer}
+                  name: {type: string}
+                  prefix: {type: string}
+                  token: {type: string, description: '★ 明文 token，仅此一次'}
+                  status: {type: string, example: active}
+                  created_at: {type: string, format: date-time}
+        '400': {description: 缺 name}
+  /api-keys/{id}:
+    delete:
+      tags: [apikey]
+      summary: 撤销 API Key（只能删自己的）
+      security: [{bearerAuth: []}, {userIdHeader: []}]
+      parameters: [{in: path, name: id, required: true, schema: {type: integer}}]
+      responses:
+        '204': {description: 已撤销}
+        '403': {description: 不能删除他人的 key}
   # ===== Incident =====
   /incidents:
     get:

@@ -150,6 +150,11 @@ func run() error {
 		}
 	}
 
+	// 4.3 身份解析聚合器（能力域 13）：统一 JWT / API Key / X-Vigil-User-ID 三轨。
+	// 中间件通过它解析身份，避免给每个中间件函数逐个传 signer/verifier。
+	apiKeyVerifier := auth.NewAPIKeyVerifier(st.DB)
+	identityResolver := auth.NewIdentityResolver(jwtSigner, apiKeyVerifier)
+
 	// 5. 初始化异步任务队列
 	q := queue.New(cfg)
 	defer func() { _ = q.Close() }()
@@ -369,11 +374,13 @@ func run() error {
 	// 登录态 API（能力域 13）：login/refresh 走 public（换取 token 无需已登录）
 	auth.NewAuthHandler(st.DB, jwtSigner).RegisterPublic(public)
 
-	// 业务路由组（受鉴权开关控制）：身份解析中间件（JWT 优先，回退 X-Vigil-User-ID）
+	// 业务路由组（受鉴权开关控制）：身份解析中间件（三轨：JWT/APIKey/header）
 	v1 := srv.APIGroup()
-	v1.Use(auth.RequireUser(cfg.Auth.Enabled, jwtSigner))
+	v1.Use(auth.RequireUser(cfg.Auth.Enabled, identityResolver))
 	// me 走 v1（RequireUser 保护，需已登录）
 	auth.NewAuthHandler(st.DB, jwtSigner).RegisterProtected(v1)
+	// API Key 管理（能力域 13 M13.7）：CRUD + 创建时返回明文仅一次
+	auth.NewAPIKeyHandler(st.DB).Register(v1)
 	schedule.NewHandler(schedEngine, st.DB).Register(v1)
 	// 服务目录（能力域 4/13）：Service CRUD（此前仅 schema 无 handler）
 	service.NewHandler(st.DB).Register(v1)

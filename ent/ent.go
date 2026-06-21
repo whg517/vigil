@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kevin/vigil/ent/actionitem"
 	"github.com/kevin/vigil/ent/aiinsight"
+	"github.com/kevin/vigil/ent/apikey"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/imaccountbinding"
@@ -95,6 +96,7 @@ func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			aiinsight.Table:            aiinsight.ValidColumn,
+			apikey.Table:               apikey.ValidColumn,
 			actionitem.Table:           actionitem.ValidColumn,
 			escalationpolicy.Table:     escalationpolicy.ValidColumn,
 			event.Table:                event.ValidColumn,
