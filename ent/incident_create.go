@@ -16,6 +16,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/postmortem"
+	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/service"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/timelineitem"
@@ -204,6 +205,12 @@ func (_c *IncidentCreate) SetNillableClosedAt(v *time.Time) *IncidentCreate {
 	if v != nil {
 		_c.SetClosedAt(*v)
 	}
+	return _c
+}
+
+// SetEmbedding sets the "embedding" field.
+func (_c *IncidentCreate) SetEmbedding(v *schema.NullableVector) *IncidentCreate {
+	_c.mutation.SetEmbedding(v)
 	return _c
 }
 
@@ -612,6 +619,10 @@ func (_c *IncidentCreate) createSpec() (*Incident, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ClosedAt(); ok {
 		_spec.SetField(incident.FieldClosedAt, field.TypeTime, value)
 		_node.ClosedAt = &value
+	}
+	if value, ok := _c.mutation.Embedding(); ok {
+		_spec.SetField(incident.FieldEmbedding, field.TypeOther, value)
+		_node.Embedding = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(incident.FieldCreatedAt, field.TypeTime, value)

@@ -18,6 +18,7 @@ import (
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/predicate"
+	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/service"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/timelineitem"
@@ -292,6 +293,18 @@ func (_u *IncidentUpdate) SetNillableClosedAt(v *time.Time) *IncidentUpdate {
 // ClearClosedAt clears the value of the "closed_at" field.
 func (_u *IncidentUpdate) ClearClosedAt() *IncidentUpdate {
 	_u.mutation.ClearClosedAt()
+	return _u
+}
+
+// SetEmbedding sets the "embedding" field.
+func (_u *IncidentUpdate) SetEmbedding(v *schema.NullableVector) *IncidentUpdate {
+	_u.mutation.SetEmbedding(v)
+	return _u
+}
+
+// ClearEmbedding clears the value of the "embedding" field.
+func (_u *IncidentUpdate) ClearEmbedding() *IncidentUpdate {
+	_u.mutation.ClearEmbedding()
 	return _u
 }
 
@@ -760,6 +773,12 @@ func (_u *IncidentUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.ClosedAtCleared() {
 		_spec.ClearField(incident.FieldClosedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Embedding(); ok {
+		_spec.SetField(incident.FieldEmbedding, field.TypeOther, value)
+	}
+	if _u.mutation.EmbeddingCleared() {
+		_spec.ClearField(incident.FieldEmbedding, field.TypeOther)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(incident.FieldUpdatedAt, field.TypeTime, value)
@@ -1412,6 +1431,18 @@ func (_u *IncidentUpdateOne) ClearClosedAt() *IncidentUpdateOne {
 	return _u
 }
 
+// SetEmbedding sets the "embedding" field.
+func (_u *IncidentUpdateOne) SetEmbedding(v *schema.NullableVector) *IncidentUpdateOne {
+	_u.mutation.SetEmbedding(v)
+	return _u
+}
+
+// ClearEmbedding clears the value of the "embedding" field.
+func (_u *IncidentUpdateOne) ClearEmbedding() *IncidentUpdateOne {
+	_u.mutation.ClearEmbedding()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *IncidentUpdateOne) SetUpdatedAt(v time.Time) *IncidentUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -1907,6 +1938,12 @@ func (_u *IncidentUpdateOne) sqlSave(ctx context.Context) (_node *Incident, err 
 	}
 	if _u.mutation.ClosedAtCleared() {
 		_spec.ClearField(incident.FieldClosedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Embedding(); ok {
+		_spec.SetField(incident.FieldEmbedding, field.TypeOther, value)
+	}
+	if _u.mutation.EmbeddingCleared() {
+		_spec.ClearField(incident.FieldEmbedding, field.TypeOther)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(incident.FieldUpdatedAt, field.TypeTime, value)

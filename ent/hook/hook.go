@@ -117,6 +117,18 @@ func (f NotificationRuleFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.NotificationRuleMutation", m)
 }
 
+// The NotificationTemplateFunc type is an adapter to allow the use of ordinary
+// function as NotificationTemplate mutator.
+type NotificationTemplateFunc func(context.Context, *ent.NotificationTemplateMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f NotificationTemplateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.NotificationTemplateMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.NotificationTemplateMutation", m)
+}
+
 // The PostmortemFunc type is an adapter to allow the use of ordinary
 // function as Postmortem mutator.
 type PostmortemFunc func(context.Context, *ent.PostmortemMutation) (ent.Value, error)
@@ -211,6 +223,18 @@ func (f ServiceFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ServiceMutation", m)
+}
+
+// The SuppressionRuleFunc type is an adapter to allow the use of ordinary
+// function as SuppressionRule mutator.
+type SuppressionRuleFunc func(context.Context, *ent.SuppressionRuleMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SuppressionRuleFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SuppressionRuleMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SuppressionRuleMutation", m)
 }
 
 // The TeamFunc type is an adapter to allow the use of ordinary

@@ -20,6 +20,7 @@ import (
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/notificationrule"
+	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/predicate"
 	"github.com/kevin/vigil/ent/rawevent"
@@ -30,6 +31,7 @@ import (
 	"github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
@@ -44,26 +46,28 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeAIInsight        = "AIInsight"
-	TypeActionItem       = "ActionItem"
-	TypeEscalationPolicy = "EscalationPolicy"
-	TypeEvent            = "Event"
-	TypeIMAccountBinding = "IMAccountBinding"
-	TypeIncident         = "Incident"
-	TypeIncidentAction   = "IncidentAction"
-	TypeIntegration      = "Integration"
-	TypeNotificationRule = "NotificationRule"
-	TypePostmortem       = "Postmortem"
-	TypeRawEvent         = "RawEvent"
-	TypeRole             = "Role"
-	TypeRoleBinding      = "RoleBinding"
-	TypeRotation         = "Rotation"
-	TypeRunbook          = "Runbook"
-	TypeSchedule         = "Schedule"
-	TypeService          = "Service"
-	TypeTeam             = "Team"
-	TypeTimelineItem     = "TimelineItem"
-	TypeUser             = "User"
+	TypeAIInsight            = "AIInsight"
+	TypeActionItem           = "ActionItem"
+	TypeEscalationPolicy     = "EscalationPolicy"
+	TypeEvent                = "Event"
+	TypeIMAccountBinding     = "IMAccountBinding"
+	TypeIncident             = "Incident"
+	TypeIncidentAction       = "IncidentAction"
+	TypeIntegration          = "Integration"
+	TypeNotificationRule     = "NotificationRule"
+	TypeNotificationTemplate = "NotificationTemplate"
+	TypePostmortem           = "Postmortem"
+	TypeRawEvent             = "RawEvent"
+	TypeRole                 = "Role"
+	TypeRoleBinding          = "RoleBinding"
+	TypeRotation             = "Rotation"
+	TypeRunbook              = "Runbook"
+	TypeSchedule             = "Schedule"
+	TypeService              = "Service"
+	TypeSuppressionRule      = "SuppressionRule"
+	TypeTeam                 = "Team"
+	TypeTimelineItem         = "TimelineItem"
+	TypeUser                 = "User"
 )
 
 // AIInsightMutation represents an operation that mutates the AIInsight nodes in the graph.
@@ -4217,6 +4221,7 @@ type IncidentMutation struct {
 	resolved_at              *time.Time
 	acked_at                 *time.Time
 	closed_at                *time.Time
+	embedding                **schema.NullableVector
 	created_at               *time.Time
 	updated_at               *time.Time
 	clearedFields            map[string]struct{}
@@ -5019,6 +5024,55 @@ func (m *IncidentMutation) ResetClosedAt() {
 	delete(m.clearedFields, incident.FieldClosedAt)
 }
 
+// SetEmbedding sets the "embedding" field.
+func (m *IncidentMutation) SetEmbedding(sv *schema.NullableVector) {
+	m.embedding = &sv
+}
+
+// Embedding returns the value of the "embedding" field in the mutation.
+func (m *IncidentMutation) Embedding() (r *schema.NullableVector, exists bool) {
+	v := m.embedding
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEmbedding returns the old "embedding" field's value of the Incident entity.
+// If the Incident object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IncidentMutation) OldEmbedding(ctx context.Context) (v *schema.NullableVector, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEmbedding is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEmbedding requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEmbedding: %w", err)
+	}
+	return oldValue.Embedding, nil
+}
+
+// ClearEmbedding clears the value of the "embedding" field.
+func (m *IncidentMutation) ClearEmbedding() {
+	m.embedding = nil
+	m.clearedFields[incident.FieldEmbedding] = struct{}{}
+}
+
+// EmbeddingCleared returns if the "embedding" field was cleared in this mutation.
+func (m *IncidentMutation) EmbeddingCleared() bool {
+	_, ok := m.clearedFields[incident.FieldEmbedding]
+	return ok
+}
+
+// ResetEmbedding resets all changes to the "embedding" field.
+func (m *IncidentMutation) ResetEmbedding() {
+	m.embedding = nil
+	delete(m.clearedFields, incident.FieldEmbedding)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *IncidentMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -5590,7 +5644,7 @@ func (m *IncidentMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *IncidentMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 18)
 	if m.number != nil {
 		fields = append(fields, incident.FieldNumber)
 	}
@@ -5636,6 +5690,9 @@ func (m *IncidentMutation) Fields() []string {
 	if m.closed_at != nil {
 		fields = append(fields, incident.FieldClosedAt)
 	}
+	if m.embedding != nil {
+		fields = append(fields, incident.FieldEmbedding)
+	}
 	if m.created_at != nil {
 		fields = append(fields, incident.FieldCreatedAt)
 	}
@@ -5680,6 +5737,8 @@ func (m *IncidentMutation) Field(name string) (ent.Value, bool) {
 		return m.AckedAt()
 	case incident.FieldClosedAt:
 		return m.ClosedAt()
+	case incident.FieldEmbedding:
+		return m.Embedding()
 	case incident.FieldCreatedAt:
 		return m.CreatedAt()
 	case incident.FieldUpdatedAt:
@@ -5723,6 +5782,8 @@ func (m *IncidentMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldAckedAt(ctx)
 	case incident.FieldClosedAt:
 		return m.OldClosedAt(ctx)
+	case incident.FieldEmbedding:
+		return m.OldEmbedding(ctx)
 	case incident.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case incident.FieldUpdatedAt:
@@ -5841,6 +5902,13 @@ func (m *IncidentMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetClosedAt(v)
 		return nil
+	case incident.FieldEmbedding:
+		v, ok := value.(*schema.NullableVector)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEmbedding(v)
+		return nil
 	case incident.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -5933,6 +6001,9 @@ func (m *IncidentMutation) ClearedFields() []string {
 	if m.FieldCleared(incident.FieldClosedAt) {
 		fields = append(fields, incident.FieldClosedAt)
 	}
+	if m.FieldCleared(incident.FieldEmbedding) {
+		fields = append(fields, incident.FieldEmbedding)
+	}
 	return fields
 }
 
@@ -5967,6 +6038,9 @@ func (m *IncidentMutation) ClearField(name string) error {
 		return nil
 	case incident.FieldClosedAt:
 		m.ClearClosedAt()
+		return nil
+	case incident.FieldEmbedding:
+		m.ClearEmbedding()
 		return nil
 	}
 	return fmt.Errorf("unknown Incident nullable field %s", name)
@@ -6020,6 +6094,9 @@ func (m *IncidentMutation) ResetField(name string) error {
 		return nil
 	case incident.FieldClosedAt:
 		m.ResetClosedAt()
+		return nil
+	case incident.FieldEmbedding:
+		m.ResetEmbedding()
 		return nil
 	case incident.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -8786,6 +8863,870 @@ func (m *NotificationRuleMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown NotificationRule edge %s", name)
+}
+
+// NotificationTemplateMutation represents an operation that mutates the NotificationTemplate nodes in the graph.
+type NotificationTemplateMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	name           *string
+	channel        *notificationtemplate.Channel
+	format         *notificationtemplate.Format
+	title_template *string
+	body_template  *string
+	actions        *[]schema.TemplateAction
+	appendactions  []schema.TemplateAction
+	builtin        *bool
+	created_at     *time.Time
+	updated_at     *time.Time
+	clearedFields  map[string]struct{}
+	team           *int
+	clearedteam    bool
+	done           bool
+	oldValue       func(context.Context) (*NotificationTemplate, error)
+	predicates     []predicate.NotificationTemplate
+}
+
+var _ ent.Mutation = (*NotificationTemplateMutation)(nil)
+
+// notificationtemplateOption allows management of the mutation configuration using functional options.
+type notificationtemplateOption func(*NotificationTemplateMutation)
+
+// newNotificationTemplateMutation creates new mutation for the NotificationTemplate entity.
+func newNotificationTemplateMutation(c config, op Op, opts ...notificationtemplateOption) *NotificationTemplateMutation {
+	m := &NotificationTemplateMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeNotificationTemplate,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withNotificationTemplateID sets the ID field of the mutation.
+func withNotificationTemplateID(id int) notificationtemplateOption {
+	return func(m *NotificationTemplateMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *NotificationTemplate
+		)
+		m.oldValue = func(ctx context.Context) (*NotificationTemplate, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().NotificationTemplate.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withNotificationTemplate sets the old NotificationTemplate of the mutation.
+func withNotificationTemplate(node *NotificationTemplate) notificationtemplateOption {
+	return func(m *NotificationTemplateMutation) {
+		m.oldValue = func(context.Context) (*NotificationTemplate, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m NotificationTemplateMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m NotificationTemplateMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *NotificationTemplateMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *NotificationTemplateMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().NotificationTemplate.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *NotificationTemplateMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *NotificationTemplateMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the NotificationTemplate entity.
+// If the NotificationTemplate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationTemplateMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *NotificationTemplateMutation) ResetName() {
+	m.name = nil
+}
+
+// SetChannel sets the "channel" field.
+func (m *NotificationTemplateMutation) SetChannel(n notificationtemplate.Channel) {
+	m.channel = &n
+}
+
+// Channel returns the value of the "channel" field in the mutation.
+func (m *NotificationTemplateMutation) Channel() (r notificationtemplate.Channel, exists bool) {
+	v := m.channel
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChannel returns the old "channel" field's value of the NotificationTemplate entity.
+// If the NotificationTemplate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationTemplateMutation) OldChannel(ctx context.Context) (v notificationtemplate.Channel, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChannel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChannel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChannel: %w", err)
+	}
+	return oldValue.Channel, nil
+}
+
+// ResetChannel resets all changes to the "channel" field.
+func (m *NotificationTemplateMutation) ResetChannel() {
+	m.channel = nil
+}
+
+// SetFormat sets the "format" field.
+func (m *NotificationTemplateMutation) SetFormat(n notificationtemplate.Format) {
+	m.format = &n
+}
+
+// Format returns the value of the "format" field in the mutation.
+func (m *NotificationTemplateMutation) Format() (r notificationtemplate.Format, exists bool) {
+	v := m.format
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFormat returns the old "format" field's value of the NotificationTemplate entity.
+// If the NotificationTemplate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationTemplateMutation) OldFormat(ctx context.Context) (v notificationtemplate.Format, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFormat is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFormat requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFormat: %w", err)
+	}
+	return oldValue.Format, nil
+}
+
+// ResetFormat resets all changes to the "format" field.
+func (m *NotificationTemplateMutation) ResetFormat() {
+	m.format = nil
+}
+
+// SetTitleTemplate sets the "title_template" field.
+func (m *NotificationTemplateMutation) SetTitleTemplate(s string) {
+	m.title_template = &s
+}
+
+// TitleTemplate returns the value of the "title_template" field in the mutation.
+func (m *NotificationTemplateMutation) TitleTemplate() (r string, exists bool) {
+	v := m.title_template
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTitleTemplate returns the old "title_template" field's value of the NotificationTemplate entity.
+// If the NotificationTemplate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationTemplateMutation) OldTitleTemplate(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTitleTemplate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTitleTemplate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTitleTemplate: %w", err)
+	}
+	return oldValue.TitleTemplate, nil
+}
+
+// ResetTitleTemplate resets all changes to the "title_template" field.
+func (m *NotificationTemplateMutation) ResetTitleTemplate() {
+	m.title_template = nil
+}
+
+// SetBodyTemplate sets the "body_template" field.
+func (m *NotificationTemplateMutation) SetBodyTemplate(s string) {
+	m.body_template = &s
+}
+
+// BodyTemplate returns the value of the "body_template" field in the mutation.
+func (m *NotificationTemplateMutation) BodyTemplate() (r string, exists bool) {
+	v := m.body_template
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBodyTemplate returns the old "body_template" field's value of the NotificationTemplate entity.
+// If the NotificationTemplate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationTemplateMutation) OldBodyTemplate(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBodyTemplate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBodyTemplate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBodyTemplate: %w", err)
+	}
+	return oldValue.BodyTemplate, nil
+}
+
+// ResetBodyTemplate resets all changes to the "body_template" field.
+func (m *NotificationTemplateMutation) ResetBodyTemplate() {
+	m.body_template = nil
+}
+
+// SetActions sets the "actions" field.
+func (m *NotificationTemplateMutation) SetActions(sa []schema.TemplateAction) {
+	m.actions = &sa
+	m.appendactions = nil
+}
+
+// Actions returns the value of the "actions" field in the mutation.
+func (m *NotificationTemplateMutation) Actions() (r []schema.TemplateAction, exists bool) {
+	v := m.actions
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldActions returns the old "actions" field's value of the NotificationTemplate entity.
+// If the NotificationTemplate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationTemplateMutation) OldActions(ctx context.Context) (v []schema.TemplateAction, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldActions is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldActions requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldActions: %w", err)
+	}
+	return oldValue.Actions, nil
+}
+
+// AppendActions adds sa to the "actions" field.
+func (m *NotificationTemplateMutation) AppendActions(sa []schema.TemplateAction) {
+	m.appendactions = append(m.appendactions, sa...)
+}
+
+// AppendedActions returns the list of values that were appended to the "actions" field in this mutation.
+func (m *NotificationTemplateMutation) AppendedActions() ([]schema.TemplateAction, bool) {
+	if len(m.appendactions) == 0 {
+		return nil, false
+	}
+	return m.appendactions, true
+}
+
+// ClearActions clears the value of the "actions" field.
+func (m *NotificationTemplateMutation) ClearActions() {
+	m.actions = nil
+	m.appendactions = nil
+	m.clearedFields[notificationtemplate.FieldActions] = struct{}{}
+}
+
+// ActionsCleared returns if the "actions" field was cleared in this mutation.
+func (m *NotificationTemplateMutation) ActionsCleared() bool {
+	_, ok := m.clearedFields[notificationtemplate.FieldActions]
+	return ok
+}
+
+// ResetActions resets all changes to the "actions" field.
+func (m *NotificationTemplateMutation) ResetActions() {
+	m.actions = nil
+	m.appendactions = nil
+	delete(m.clearedFields, notificationtemplate.FieldActions)
+}
+
+// SetBuiltin sets the "builtin" field.
+func (m *NotificationTemplateMutation) SetBuiltin(b bool) {
+	m.builtin = &b
+}
+
+// Builtin returns the value of the "builtin" field in the mutation.
+func (m *NotificationTemplateMutation) Builtin() (r bool, exists bool) {
+	v := m.builtin
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBuiltin returns the old "builtin" field's value of the NotificationTemplate entity.
+// If the NotificationTemplate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationTemplateMutation) OldBuiltin(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBuiltin is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBuiltin requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBuiltin: %w", err)
+	}
+	return oldValue.Builtin, nil
+}
+
+// ResetBuiltin resets all changes to the "builtin" field.
+func (m *NotificationTemplateMutation) ResetBuiltin() {
+	m.builtin = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *NotificationTemplateMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *NotificationTemplateMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the NotificationTemplate entity.
+// If the NotificationTemplate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationTemplateMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *NotificationTemplateMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *NotificationTemplateMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *NotificationTemplateMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the NotificationTemplate entity.
+// If the NotificationTemplate object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NotificationTemplateMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *NotificationTemplateMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetTeamID sets the "team" edge to the Team entity by id.
+func (m *NotificationTemplateMutation) SetTeamID(id int) {
+	m.team = &id
+}
+
+// ClearTeam clears the "team" edge to the Team entity.
+func (m *NotificationTemplateMutation) ClearTeam() {
+	m.clearedteam = true
+}
+
+// TeamCleared reports if the "team" edge to the Team entity was cleared.
+func (m *NotificationTemplateMutation) TeamCleared() bool {
+	return m.clearedteam
+}
+
+// TeamID returns the "team" edge ID in the mutation.
+func (m *NotificationTemplateMutation) TeamID() (id int, exists bool) {
+	if m.team != nil {
+		return *m.team, true
+	}
+	return
+}
+
+// TeamIDs returns the "team" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// TeamID instead. It exists only for internal usage by the builders.
+func (m *NotificationTemplateMutation) TeamIDs() (ids []int) {
+	if id := m.team; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetTeam resets all changes to the "team" edge.
+func (m *NotificationTemplateMutation) ResetTeam() {
+	m.team = nil
+	m.clearedteam = false
+}
+
+// Where appends a list predicates to the NotificationTemplateMutation builder.
+func (m *NotificationTemplateMutation) Where(ps ...predicate.NotificationTemplate) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the NotificationTemplateMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *NotificationTemplateMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.NotificationTemplate, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *NotificationTemplateMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *NotificationTemplateMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (NotificationTemplate).
+func (m *NotificationTemplateMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *NotificationTemplateMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.name != nil {
+		fields = append(fields, notificationtemplate.FieldName)
+	}
+	if m.channel != nil {
+		fields = append(fields, notificationtemplate.FieldChannel)
+	}
+	if m.format != nil {
+		fields = append(fields, notificationtemplate.FieldFormat)
+	}
+	if m.title_template != nil {
+		fields = append(fields, notificationtemplate.FieldTitleTemplate)
+	}
+	if m.body_template != nil {
+		fields = append(fields, notificationtemplate.FieldBodyTemplate)
+	}
+	if m.actions != nil {
+		fields = append(fields, notificationtemplate.FieldActions)
+	}
+	if m.builtin != nil {
+		fields = append(fields, notificationtemplate.FieldBuiltin)
+	}
+	if m.created_at != nil {
+		fields = append(fields, notificationtemplate.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, notificationtemplate.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *NotificationTemplateMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case notificationtemplate.FieldName:
+		return m.Name()
+	case notificationtemplate.FieldChannel:
+		return m.Channel()
+	case notificationtemplate.FieldFormat:
+		return m.Format()
+	case notificationtemplate.FieldTitleTemplate:
+		return m.TitleTemplate()
+	case notificationtemplate.FieldBodyTemplate:
+		return m.BodyTemplate()
+	case notificationtemplate.FieldActions:
+		return m.Actions()
+	case notificationtemplate.FieldBuiltin:
+		return m.Builtin()
+	case notificationtemplate.FieldCreatedAt:
+		return m.CreatedAt()
+	case notificationtemplate.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *NotificationTemplateMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case notificationtemplate.FieldName:
+		return m.OldName(ctx)
+	case notificationtemplate.FieldChannel:
+		return m.OldChannel(ctx)
+	case notificationtemplate.FieldFormat:
+		return m.OldFormat(ctx)
+	case notificationtemplate.FieldTitleTemplate:
+		return m.OldTitleTemplate(ctx)
+	case notificationtemplate.FieldBodyTemplate:
+		return m.OldBodyTemplate(ctx)
+	case notificationtemplate.FieldActions:
+		return m.OldActions(ctx)
+	case notificationtemplate.FieldBuiltin:
+		return m.OldBuiltin(ctx)
+	case notificationtemplate.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case notificationtemplate.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown NotificationTemplate field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *NotificationTemplateMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case notificationtemplate.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case notificationtemplate.FieldChannel:
+		v, ok := value.(notificationtemplate.Channel)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChannel(v)
+		return nil
+	case notificationtemplate.FieldFormat:
+		v, ok := value.(notificationtemplate.Format)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFormat(v)
+		return nil
+	case notificationtemplate.FieldTitleTemplate:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTitleTemplate(v)
+		return nil
+	case notificationtemplate.FieldBodyTemplate:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBodyTemplate(v)
+		return nil
+	case notificationtemplate.FieldActions:
+		v, ok := value.([]schema.TemplateAction)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetActions(v)
+		return nil
+	case notificationtemplate.FieldBuiltin:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBuiltin(v)
+		return nil
+	case notificationtemplate.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case notificationtemplate.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown NotificationTemplate field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *NotificationTemplateMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *NotificationTemplateMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *NotificationTemplateMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown NotificationTemplate numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *NotificationTemplateMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(notificationtemplate.FieldActions) {
+		fields = append(fields, notificationtemplate.FieldActions)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *NotificationTemplateMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *NotificationTemplateMutation) ClearField(name string) error {
+	switch name {
+	case notificationtemplate.FieldActions:
+		m.ClearActions()
+		return nil
+	}
+	return fmt.Errorf("unknown NotificationTemplate nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *NotificationTemplateMutation) ResetField(name string) error {
+	switch name {
+	case notificationtemplate.FieldName:
+		m.ResetName()
+		return nil
+	case notificationtemplate.FieldChannel:
+		m.ResetChannel()
+		return nil
+	case notificationtemplate.FieldFormat:
+		m.ResetFormat()
+		return nil
+	case notificationtemplate.FieldTitleTemplate:
+		m.ResetTitleTemplate()
+		return nil
+	case notificationtemplate.FieldBodyTemplate:
+		m.ResetBodyTemplate()
+		return nil
+	case notificationtemplate.FieldActions:
+		m.ResetActions()
+		return nil
+	case notificationtemplate.FieldBuiltin:
+		m.ResetBuiltin()
+		return nil
+	case notificationtemplate.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case notificationtemplate.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown NotificationTemplate field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *NotificationTemplateMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.team != nil {
+		edges = append(edges, notificationtemplate.EdgeTeam)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *NotificationTemplateMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case notificationtemplate.EdgeTeam:
+		if id := m.team; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *NotificationTemplateMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *NotificationTemplateMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *NotificationTemplateMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedteam {
+		edges = append(edges, notificationtemplate.EdgeTeam)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *NotificationTemplateMutation) EdgeCleared(name string) bool {
+	switch name {
+	case notificationtemplate.EdgeTeam:
+		return m.clearedteam
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *NotificationTemplateMutation) ClearEdge(name string) error {
+	switch name {
+	case notificationtemplate.EdgeTeam:
+		m.ClearTeam()
+		return nil
+	}
+	return fmt.Errorf("unknown NotificationTemplate unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *NotificationTemplateMutation) ResetEdge(name string) error {
+	switch name {
+	case notificationtemplate.EdgeTeam:
+		m.ResetTeam()
+		return nil
+	}
+	return fmt.Errorf("unknown NotificationTemplate edge %s", name)
 }
 
 // PostmortemMutation represents an operation that mutates the Postmortem nodes in the graph.
@@ -15854,49 +16795,1084 @@ func (m *ServiceMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Service edge %s", name)
 }
 
+// SuppressionRuleMutation represents an operation that mutates the SuppressionRule nodes in the graph.
+type SuppressionRuleMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *int
+	name                  *string
+	match_labels          *map[string]string
+	time_window           *map[string]interface{}
+	severity_filter       *[]string
+	appendseverity_filter []string
+	action                *suppressionrule.Action
+	reduce_to             *string
+	preserve_critical     *bool
+	enabled               *bool
+	expires_at            *time.Time
+	created_at            *time.Time
+	updated_at            *time.Time
+	clearedFields         map[string]struct{}
+	team                  *int
+	clearedteam           bool
+	done                  bool
+	oldValue              func(context.Context) (*SuppressionRule, error)
+	predicates            []predicate.SuppressionRule
+}
+
+var _ ent.Mutation = (*SuppressionRuleMutation)(nil)
+
+// suppressionruleOption allows management of the mutation configuration using functional options.
+type suppressionruleOption func(*SuppressionRuleMutation)
+
+// newSuppressionRuleMutation creates new mutation for the SuppressionRule entity.
+func newSuppressionRuleMutation(c config, op Op, opts ...suppressionruleOption) *SuppressionRuleMutation {
+	m := &SuppressionRuleMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSuppressionRule,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSuppressionRuleID sets the ID field of the mutation.
+func withSuppressionRuleID(id int) suppressionruleOption {
+	return func(m *SuppressionRuleMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *SuppressionRule
+		)
+		m.oldValue = func(ctx context.Context) (*SuppressionRule, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().SuppressionRule.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSuppressionRule sets the old SuppressionRule of the mutation.
+func withSuppressionRule(node *SuppressionRule) suppressionruleOption {
+	return func(m *SuppressionRuleMutation) {
+		m.oldValue = func(context.Context) (*SuppressionRule, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SuppressionRuleMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SuppressionRuleMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SuppressionRuleMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SuppressionRuleMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().SuppressionRule.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *SuppressionRuleMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *SuppressionRuleMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *SuppressionRuleMutation) ResetName() {
+	m.name = nil
+}
+
+// SetMatchLabels sets the "match_labels" field.
+func (m *SuppressionRuleMutation) SetMatchLabels(value map[string]string) {
+	m.match_labels = &value
+}
+
+// MatchLabels returns the value of the "match_labels" field in the mutation.
+func (m *SuppressionRuleMutation) MatchLabels() (r map[string]string, exists bool) {
+	v := m.match_labels
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMatchLabels returns the old "match_labels" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldMatchLabels(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMatchLabels is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMatchLabels requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMatchLabels: %w", err)
+	}
+	return oldValue.MatchLabels, nil
+}
+
+// ResetMatchLabels resets all changes to the "match_labels" field.
+func (m *SuppressionRuleMutation) ResetMatchLabels() {
+	m.match_labels = nil
+}
+
+// SetTimeWindow sets the "time_window" field.
+func (m *SuppressionRuleMutation) SetTimeWindow(value map[string]interface{}) {
+	m.time_window = &value
+}
+
+// TimeWindow returns the value of the "time_window" field in the mutation.
+func (m *SuppressionRuleMutation) TimeWindow() (r map[string]interface{}, exists bool) {
+	v := m.time_window
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTimeWindow returns the old "time_window" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldTimeWindow(ctx context.Context) (v map[string]interface{}, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTimeWindow is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTimeWindow requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTimeWindow: %w", err)
+	}
+	return oldValue.TimeWindow, nil
+}
+
+// ClearTimeWindow clears the value of the "time_window" field.
+func (m *SuppressionRuleMutation) ClearTimeWindow() {
+	m.time_window = nil
+	m.clearedFields[suppressionrule.FieldTimeWindow] = struct{}{}
+}
+
+// TimeWindowCleared returns if the "time_window" field was cleared in this mutation.
+func (m *SuppressionRuleMutation) TimeWindowCleared() bool {
+	_, ok := m.clearedFields[suppressionrule.FieldTimeWindow]
+	return ok
+}
+
+// ResetTimeWindow resets all changes to the "time_window" field.
+func (m *SuppressionRuleMutation) ResetTimeWindow() {
+	m.time_window = nil
+	delete(m.clearedFields, suppressionrule.FieldTimeWindow)
+}
+
+// SetSeverityFilter sets the "severity_filter" field.
+func (m *SuppressionRuleMutation) SetSeverityFilter(s []string) {
+	m.severity_filter = &s
+	m.appendseverity_filter = nil
+}
+
+// SeverityFilter returns the value of the "severity_filter" field in the mutation.
+func (m *SuppressionRuleMutation) SeverityFilter() (r []string, exists bool) {
+	v := m.severity_filter
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSeverityFilter returns the old "severity_filter" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldSeverityFilter(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSeverityFilter is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSeverityFilter requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSeverityFilter: %w", err)
+	}
+	return oldValue.SeverityFilter, nil
+}
+
+// AppendSeverityFilter adds s to the "severity_filter" field.
+func (m *SuppressionRuleMutation) AppendSeverityFilter(s []string) {
+	m.appendseverity_filter = append(m.appendseverity_filter, s...)
+}
+
+// AppendedSeverityFilter returns the list of values that were appended to the "severity_filter" field in this mutation.
+func (m *SuppressionRuleMutation) AppendedSeverityFilter() ([]string, bool) {
+	if len(m.appendseverity_filter) == 0 {
+		return nil, false
+	}
+	return m.appendseverity_filter, true
+}
+
+// ClearSeverityFilter clears the value of the "severity_filter" field.
+func (m *SuppressionRuleMutation) ClearSeverityFilter() {
+	m.severity_filter = nil
+	m.appendseverity_filter = nil
+	m.clearedFields[suppressionrule.FieldSeverityFilter] = struct{}{}
+}
+
+// SeverityFilterCleared returns if the "severity_filter" field was cleared in this mutation.
+func (m *SuppressionRuleMutation) SeverityFilterCleared() bool {
+	_, ok := m.clearedFields[suppressionrule.FieldSeverityFilter]
+	return ok
+}
+
+// ResetSeverityFilter resets all changes to the "severity_filter" field.
+func (m *SuppressionRuleMutation) ResetSeverityFilter() {
+	m.severity_filter = nil
+	m.appendseverity_filter = nil
+	delete(m.clearedFields, suppressionrule.FieldSeverityFilter)
+}
+
+// SetAction sets the "action" field.
+func (m *SuppressionRuleMutation) SetAction(s suppressionrule.Action) {
+	m.action = &s
+}
+
+// Action returns the value of the "action" field in the mutation.
+func (m *SuppressionRuleMutation) Action() (r suppressionrule.Action, exists bool) {
+	v := m.action
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAction returns the old "action" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldAction(ctx context.Context) (v suppressionrule.Action, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAction is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAction requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAction: %w", err)
+	}
+	return oldValue.Action, nil
+}
+
+// ResetAction resets all changes to the "action" field.
+func (m *SuppressionRuleMutation) ResetAction() {
+	m.action = nil
+}
+
+// SetReduceTo sets the "reduce_to" field.
+func (m *SuppressionRuleMutation) SetReduceTo(s string) {
+	m.reduce_to = &s
+}
+
+// ReduceTo returns the value of the "reduce_to" field in the mutation.
+func (m *SuppressionRuleMutation) ReduceTo() (r string, exists bool) {
+	v := m.reduce_to
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReduceTo returns the old "reduce_to" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldReduceTo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReduceTo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReduceTo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReduceTo: %w", err)
+	}
+	return oldValue.ReduceTo, nil
+}
+
+// ClearReduceTo clears the value of the "reduce_to" field.
+func (m *SuppressionRuleMutation) ClearReduceTo() {
+	m.reduce_to = nil
+	m.clearedFields[suppressionrule.FieldReduceTo] = struct{}{}
+}
+
+// ReduceToCleared returns if the "reduce_to" field was cleared in this mutation.
+func (m *SuppressionRuleMutation) ReduceToCleared() bool {
+	_, ok := m.clearedFields[suppressionrule.FieldReduceTo]
+	return ok
+}
+
+// ResetReduceTo resets all changes to the "reduce_to" field.
+func (m *SuppressionRuleMutation) ResetReduceTo() {
+	m.reduce_to = nil
+	delete(m.clearedFields, suppressionrule.FieldReduceTo)
+}
+
+// SetPreserveCritical sets the "preserve_critical" field.
+func (m *SuppressionRuleMutation) SetPreserveCritical(b bool) {
+	m.preserve_critical = &b
+}
+
+// PreserveCritical returns the value of the "preserve_critical" field in the mutation.
+func (m *SuppressionRuleMutation) PreserveCritical() (r bool, exists bool) {
+	v := m.preserve_critical
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPreserveCritical returns the old "preserve_critical" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldPreserveCritical(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPreserveCritical is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPreserveCritical requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPreserveCritical: %w", err)
+	}
+	return oldValue.PreserveCritical, nil
+}
+
+// ResetPreserveCritical resets all changes to the "preserve_critical" field.
+func (m *SuppressionRuleMutation) ResetPreserveCritical() {
+	m.preserve_critical = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *SuppressionRuleMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *SuppressionRuleMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *SuppressionRuleMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *SuppressionRuleMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *SuppressionRuleMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldExpiresAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (m *SuppressionRuleMutation) ClearExpiresAt() {
+	m.expires_at = nil
+	m.clearedFields[suppressionrule.FieldExpiresAt] = struct{}{}
+}
+
+// ExpiresAtCleared returns if the "expires_at" field was cleared in this mutation.
+func (m *SuppressionRuleMutation) ExpiresAtCleared() bool {
+	_, ok := m.clearedFields[suppressionrule.FieldExpiresAt]
+	return ok
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *SuppressionRuleMutation) ResetExpiresAt() {
+	m.expires_at = nil
+	delete(m.clearedFields, suppressionrule.FieldExpiresAt)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *SuppressionRuleMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *SuppressionRuleMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *SuppressionRuleMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *SuppressionRuleMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *SuppressionRuleMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *SuppressionRuleMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetTeamID sets the "team" edge to the Team entity by id.
+func (m *SuppressionRuleMutation) SetTeamID(id int) {
+	m.team = &id
+}
+
+// ClearTeam clears the "team" edge to the Team entity.
+func (m *SuppressionRuleMutation) ClearTeam() {
+	m.clearedteam = true
+}
+
+// TeamCleared reports if the "team" edge to the Team entity was cleared.
+func (m *SuppressionRuleMutation) TeamCleared() bool {
+	return m.clearedteam
+}
+
+// TeamID returns the "team" edge ID in the mutation.
+func (m *SuppressionRuleMutation) TeamID() (id int, exists bool) {
+	if m.team != nil {
+		return *m.team, true
+	}
+	return
+}
+
+// TeamIDs returns the "team" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// TeamID instead. It exists only for internal usage by the builders.
+func (m *SuppressionRuleMutation) TeamIDs() (ids []int) {
+	if id := m.team; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetTeam resets all changes to the "team" edge.
+func (m *SuppressionRuleMutation) ResetTeam() {
+	m.team = nil
+	m.clearedteam = false
+}
+
+// Where appends a list predicates to the SuppressionRuleMutation builder.
+func (m *SuppressionRuleMutation) Where(ps ...predicate.SuppressionRule) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SuppressionRuleMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SuppressionRuleMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.SuppressionRule, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SuppressionRuleMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SuppressionRuleMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (SuppressionRule).
+func (m *SuppressionRuleMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SuppressionRuleMutation) Fields() []string {
+	fields := make([]string, 0, 11)
+	if m.name != nil {
+		fields = append(fields, suppressionrule.FieldName)
+	}
+	if m.match_labels != nil {
+		fields = append(fields, suppressionrule.FieldMatchLabels)
+	}
+	if m.time_window != nil {
+		fields = append(fields, suppressionrule.FieldTimeWindow)
+	}
+	if m.severity_filter != nil {
+		fields = append(fields, suppressionrule.FieldSeverityFilter)
+	}
+	if m.action != nil {
+		fields = append(fields, suppressionrule.FieldAction)
+	}
+	if m.reduce_to != nil {
+		fields = append(fields, suppressionrule.FieldReduceTo)
+	}
+	if m.preserve_critical != nil {
+		fields = append(fields, suppressionrule.FieldPreserveCritical)
+	}
+	if m.enabled != nil {
+		fields = append(fields, suppressionrule.FieldEnabled)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, suppressionrule.FieldExpiresAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, suppressionrule.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, suppressionrule.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SuppressionRuleMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case suppressionrule.FieldName:
+		return m.Name()
+	case suppressionrule.FieldMatchLabels:
+		return m.MatchLabels()
+	case suppressionrule.FieldTimeWindow:
+		return m.TimeWindow()
+	case suppressionrule.FieldSeverityFilter:
+		return m.SeverityFilter()
+	case suppressionrule.FieldAction:
+		return m.Action()
+	case suppressionrule.FieldReduceTo:
+		return m.ReduceTo()
+	case suppressionrule.FieldPreserveCritical:
+		return m.PreserveCritical()
+	case suppressionrule.FieldEnabled:
+		return m.Enabled()
+	case suppressionrule.FieldExpiresAt:
+		return m.ExpiresAt()
+	case suppressionrule.FieldCreatedAt:
+		return m.CreatedAt()
+	case suppressionrule.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SuppressionRuleMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case suppressionrule.FieldName:
+		return m.OldName(ctx)
+	case suppressionrule.FieldMatchLabels:
+		return m.OldMatchLabels(ctx)
+	case suppressionrule.FieldTimeWindow:
+		return m.OldTimeWindow(ctx)
+	case suppressionrule.FieldSeverityFilter:
+		return m.OldSeverityFilter(ctx)
+	case suppressionrule.FieldAction:
+		return m.OldAction(ctx)
+	case suppressionrule.FieldReduceTo:
+		return m.OldReduceTo(ctx)
+	case suppressionrule.FieldPreserveCritical:
+		return m.OldPreserveCritical(ctx)
+	case suppressionrule.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case suppressionrule.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	case suppressionrule.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case suppressionrule.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown SuppressionRule field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SuppressionRuleMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case suppressionrule.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case suppressionrule.FieldMatchLabels:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMatchLabels(v)
+		return nil
+	case suppressionrule.FieldTimeWindow:
+		v, ok := value.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTimeWindow(v)
+		return nil
+	case suppressionrule.FieldSeverityFilter:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSeverityFilter(v)
+		return nil
+	case suppressionrule.FieldAction:
+		v, ok := value.(suppressionrule.Action)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAction(v)
+		return nil
+	case suppressionrule.FieldReduceTo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReduceTo(v)
+		return nil
+	case suppressionrule.FieldPreserveCritical:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPreserveCritical(v)
+		return nil
+	case suppressionrule.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case suppressionrule.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	case suppressionrule.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case suppressionrule.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SuppressionRule field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SuppressionRuleMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SuppressionRuleMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SuppressionRuleMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown SuppressionRule numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SuppressionRuleMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(suppressionrule.FieldTimeWindow) {
+		fields = append(fields, suppressionrule.FieldTimeWindow)
+	}
+	if m.FieldCleared(suppressionrule.FieldSeverityFilter) {
+		fields = append(fields, suppressionrule.FieldSeverityFilter)
+	}
+	if m.FieldCleared(suppressionrule.FieldReduceTo) {
+		fields = append(fields, suppressionrule.FieldReduceTo)
+	}
+	if m.FieldCleared(suppressionrule.FieldExpiresAt) {
+		fields = append(fields, suppressionrule.FieldExpiresAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SuppressionRuleMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SuppressionRuleMutation) ClearField(name string) error {
+	switch name {
+	case suppressionrule.FieldTimeWindow:
+		m.ClearTimeWindow()
+		return nil
+	case suppressionrule.FieldSeverityFilter:
+		m.ClearSeverityFilter()
+		return nil
+	case suppressionrule.FieldReduceTo:
+		m.ClearReduceTo()
+		return nil
+	case suppressionrule.FieldExpiresAt:
+		m.ClearExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown SuppressionRule nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SuppressionRuleMutation) ResetField(name string) error {
+	switch name {
+	case suppressionrule.FieldName:
+		m.ResetName()
+		return nil
+	case suppressionrule.FieldMatchLabels:
+		m.ResetMatchLabels()
+		return nil
+	case suppressionrule.FieldTimeWindow:
+		m.ResetTimeWindow()
+		return nil
+	case suppressionrule.FieldSeverityFilter:
+		m.ResetSeverityFilter()
+		return nil
+	case suppressionrule.FieldAction:
+		m.ResetAction()
+		return nil
+	case suppressionrule.FieldReduceTo:
+		m.ResetReduceTo()
+		return nil
+	case suppressionrule.FieldPreserveCritical:
+		m.ResetPreserveCritical()
+		return nil
+	case suppressionrule.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case suppressionrule.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	case suppressionrule.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case suppressionrule.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown SuppressionRule field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SuppressionRuleMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.team != nil {
+		edges = append(edges, suppressionrule.EdgeTeam)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SuppressionRuleMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case suppressionrule.EdgeTeam:
+		if id := m.team; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SuppressionRuleMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SuppressionRuleMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SuppressionRuleMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedteam {
+		edges = append(edges, suppressionrule.EdgeTeam)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SuppressionRuleMutation) EdgeCleared(name string) bool {
+	switch name {
+	case suppressionrule.EdgeTeam:
+		return m.clearedteam
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SuppressionRuleMutation) ClearEdge(name string) error {
+	switch name {
+	case suppressionrule.EdgeTeam:
+		m.ClearTeam()
+		return nil
+	}
+	return fmt.Errorf("unknown SuppressionRule unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SuppressionRuleMutation) ResetEdge(name string) error {
+	switch name {
+	case suppressionrule.EdgeTeam:
+		m.ResetTeam()
+		return nil
+	}
+	return fmt.Errorf("unknown SuppressionRule edge %s", name)
+}
+
 // TeamMutation represents an operation that mutates the Team nodes in the graph.
 type TeamMutation struct {
 	config
-	op                         Op
-	typ                        string
-	id                         *int
-	name                       *string
-	slug                       *string
-	description                *string
-	parent_team_id             *string
-	created_at                 *time.Time
-	updated_at                 *time.Time
-	clearedFields              map[string]struct{}
-	users                      map[int]struct{}
-	removedusers               map[int]struct{}
-	clearedusers               bool
-	services                   map[int]struct{}
-	removedservices            map[int]struct{}
-	clearedservices            bool
-	schedules                  map[int]struct{}
-	removedschedules           map[int]struct{}
-	clearedschedules           bool
-	escalation_policies        map[int]struct{}
-	removedescalation_policies map[int]struct{}
-	clearedescalation_policies bool
-	runbooks                   map[int]struct{}
-	removedrunbooks            map[int]struct{}
-	clearedrunbooks            bool
-	notification_rules         map[int]struct{}
-	removednotification_rules  map[int]struct{}
-	clearednotification_rules  bool
-	role_bindings              map[int]struct{}
-	removedrole_bindings       map[int]struct{}
-	clearedrole_bindings       bool
-	incidents                  map[int]struct{}
-	removedincidents           map[int]struct{}
-	clearedincidents           bool
-	integrations               map[int]struct{}
-	removedintegrations        map[int]struct{}
-	clearedintegrations        bool
-	done                       bool
-	oldValue                   func(context.Context) (*Team, error)
-	predicates                 []predicate.Team
+	op                            Op
+	typ                           string
+	id                            *int
+	name                          *string
+	slug                          *string
+	description                   *string
+	parent_team_id                *string
+	created_at                    *time.Time
+	updated_at                    *time.Time
+	clearedFields                 map[string]struct{}
+	users                         map[int]struct{}
+	removedusers                  map[int]struct{}
+	clearedusers                  bool
+	services                      map[int]struct{}
+	removedservices               map[int]struct{}
+	clearedservices               bool
+	schedules                     map[int]struct{}
+	removedschedules              map[int]struct{}
+	clearedschedules              bool
+	escalation_policies           map[int]struct{}
+	removedescalation_policies    map[int]struct{}
+	clearedescalation_policies    bool
+	runbooks                      map[int]struct{}
+	removedrunbooks               map[int]struct{}
+	clearedrunbooks               bool
+	notification_rules            map[int]struct{}
+	removednotification_rules     map[int]struct{}
+	clearednotification_rules     bool
+	notification_templates        map[int]struct{}
+	removednotification_templates map[int]struct{}
+	clearednotification_templates bool
+	suppression_rules             map[int]struct{}
+	removedsuppression_rules      map[int]struct{}
+	clearedsuppression_rules      bool
+	role_bindings                 map[int]struct{}
+	removedrole_bindings          map[int]struct{}
+	clearedrole_bindings          bool
+	incidents                     map[int]struct{}
+	removedincidents              map[int]struct{}
+	clearedincidents              bool
+	integrations                  map[int]struct{}
+	removedintegrations           map[int]struct{}
+	clearedintegrations           bool
+	done                          bool
+	oldValue                      func(context.Context) (*Team, error)
+	predicates                    []predicate.Team
 }
 
 var _ ent.Mutation = (*TeamMutation)(nil)
@@ -16563,6 +18539,114 @@ func (m *TeamMutation) ResetNotificationRules() {
 	m.removednotification_rules = nil
 }
 
+// AddNotificationTemplateIDs adds the "notification_templates" edge to the NotificationTemplate entity by ids.
+func (m *TeamMutation) AddNotificationTemplateIDs(ids ...int) {
+	if m.notification_templates == nil {
+		m.notification_templates = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.notification_templates[ids[i]] = struct{}{}
+	}
+}
+
+// ClearNotificationTemplates clears the "notification_templates" edge to the NotificationTemplate entity.
+func (m *TeamMutation) ClearNotificationTemplates() {
+	m.clearednotification_templates = true
+}
+
+// NotificationTemplatesCleared reports if the "notification_templates" edge to the NotificationTemplate entity was cleared.
+func (m *TeamMutation) NotificationTemplatesCleared() bool {
+	return m.clearednotification_templates
+}
+
+// RemoveNotificationTemplateIDs removes the "notification_templates" edge to the NotificationTemplate entity by IDs.
+func (m *TeamMutation) RemoveNotificationTemplateIDs(ids ...int) {
+	if m.removednotification_templates == nil {
+		m.removednotification_templates = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.notification_templates, ids[i])
+		m.removednotification_templates[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedNotificationTemplates returns the removed IDs of the "notification_templates" edge to the NotificationTemplate entity.
+func (m *TeamMutation) RemovedNotificationTemplatesIDs() (ids []int) {
+	for id := range m.removednotification_templates {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// NotificationTemplatesIDs returns the "notification_templates" edge IDs in the mutation.
+func (m *TeamMutation) NotificationTemplatesIDs() (ids []int) {
+	for id := range m.notification_templates {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetNotificationTemplates resets all changes to the "notification_templates" edge.
+func (m *TeamMutation) ResetNotificationTemplates() {
+	m.notification_templates = nil
+	m.clearednotification_templates = false
+	m.removednotification_templates = nil
+}
+
+// AddSuppressionRuleIDs adds the "suppression_rules" edge to the SuppressionRule entity by ids.
+func (m *TeamMutation) AddSuppressionRuleIDs(ids ...int) {
+	if m.suppression_rules == nil {
+		m.suppression_rules = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.suppression_rules[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSuppressionRules clears the "suppression_rules" edge to the SuppressionRule entity.
+func (m *TeamMutation) ClearSuppressionRules() {
+	m.clearedsuppression_rules = true
+}
+
+// SuppressionRulesCleared reports if the "suppression_rules" edge to the SuppressionRule entity was cleared.
+func (m *TeamMutation) SuppressionRulesCleared() bool {
+	return m.clearedsuppression_rules
+}
+
+// RemoveSuppressionRuleIDs removes the "suppression_rules" edge to the SuppressionRule entity by IDs.
+func (m *TeamMutation) RemoveSuppressionRuleIDs(ids ...int) {
+	if m.removedsuppression_rules == nil {
+		m.removedsuppression_rules = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.suppression_rules, ids[i])
+		m.removedsuppression_rules[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSuppressionRules returns the removed IDs of the "suppression_rules" edge to the SuppressionRule entity.
+func (m *TeamMutation) RemovedSuppressionRulesIDs() (ids []int) {
+	for id := range m.removedsuppression_rules {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SuppressionRulesIDs returns the "suppression_rules" edge IDs in the mutation.
+func (m *TeamMutation) SuppressionRulesIDs() (ids []int) {
+	for id := range m.suppression_rules {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSuppressionRules resets all changes to the "suppression_rules" edge.
+func (m *TeamMutation) ResetSuppressionRules() {
+	m.suppression_rules = nil
+	m.clearedsuppression_rules = false
+	m.removedsuppression_rules = nil
+}
+
 // AddRoleBindingIDs adds the "role_bindings" edge to the RoleBinding entity by ids.
 func (m *TeamMutation) AddRoleBindingIDs(ids ...int) {
 	if m.role_bindings == nil {
@@ -16958,7 +19042,7 @@ func (m *TeamMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *TeamMutation) AddedEdges() []string {
-	edges := make([]string, 0, 9)
+	edges := make([]string, 0, 11)
 	if m.users != nil {
 		edges = append(edges, team.EdgeUsers)
 	}
@@ -16976,6 +19060,12 @@ func (m *TeamMutation) AddedEdges() []string {
 	}
 	if m.notification_rules != nil {
 		edges = append(edges, team.EdgeNotificationRules)
+	}
+	if m.notification_templates != nil {
+		edges = append(edges, team.EdgeNotificationTemplates)
+	}
+	if m.suppression_rules != nil {
+		edges = append(edges, team.EdgeSuppressionRules)
 	}
 	if m.role_bindings != nil {
 		edges = append(edges, team.EdgeRoleBindings)
@@ -17029,6 +19119,18 @@ func (m *TeamMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case team.EdgeNotificationTemplates:
+		ids := make([]ent.Value, 0, len(m.notification_templates))
+		for id := range m.notification_templates {
+			ids = append(ids, id)
+		}
+		return ids
+	case team.EdgeSuppressionRules:
+		ids := make([]ent.Value, 0, len(m.suppression_rules))
+		for id := range m.suppression_rules {
+			ids = append(ids, id)
+		}
+		return ids
 	case team.EdgeRoleBindings:
 		ids := make([]ent.Value, 0, len(m.role_bindings))
 		for id := range m.role_bindings {
@@ -17053,7 +19155,7 @@ func (m *TeamMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *TeamMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 9)
+	edges := make([]string, 0, 11)
 	if m.removedusers != nil {
 		edges = append(edges, team.EdgeUsers)
 	}
@@ -17071,6 +19173,12 @@ func (m *TeamMutation) RemovedEdges() []string {
 	}
 	if m.removednotification_rules != nil {
 		edges = append(edges, team.EdgeNotificationRules)
+	}
+	if m.removednotification_templates != nil {
+		edges = append(edges, team.EdgeNotificationTemplates)
+	}
+	if m.removedsuppression_rules != nil {
+		edges = append(edges, team.EdgeSuppressionRules)
 	}
 	if m.removedrole_bindings != nil {
 		edges = append(edges, team.EdgeRoleBindings)
@@ -17124,6 +19232,18 @@ func (m *TeamMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case team.EdgeNotificationTemplates:
+		ids := make([]ent.Value, 0, len(m.removednotification_templates))
+		for id := range m.removednotification_templates {
+			ids = append(ids, id)
+		}
+		return ids
+	case team.EdgeSuppressionRules:
+		ids := make([]ent.Value, 0, len(m.removedsuppression_rules))
+		for id := range m.removedsuppression_rules {
+			ids = append(ids, id)
+		}
+		return ids
 	case team.EdgeRoleBindings:
 		ids := make([]ent.Value, 0, len(m.removedrole_bindings))
 		for id := range m.removedrole_bindings {
@@ -17148,7 +19268,7 @@ func (m *TeamMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *TeamMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 9)
+	edges := make([]string, 0, 11)
 	if m.clearedusers {
 		edges = append(edges, team.EdgeUsers)
 	}
@@ -17166,6 +19286,12 @@ func (m *TeamMutation) ClearedEdges() []string {
 	}
 	if m.clearednotification_rules {
 		edges = append(edges, team.EdgeNotificationRules)
+	}
+	if m.clearednotification_templates {
+		edges = append(edges, team.EdgeNotificationTemplates)
+	}
+	if m.clearedsuppression_rules {
+		edges = append(edges, team.EdgeSuppressionRules)
 	}
 	if m.clearedrole_bindings {
 		edges = append(edges, team.EdgeRoleBindings)
@@ -17195,6 +19321,10 @@ func (m *TeamMutation) EdgeCleared(name string) bool {
 		return m.clearedrunbooks
 	case team.EdgeNotificationRules:
 		return m.clearednotification_rules
+	case team.EdgeNotificationTemplates:
+		return m.clearednotification_templates
+	case team.EdgeSuppressionRules:
+		return m.clearedsuppression_rules
 	case team.EdgeRoleBindings:
 		return m.clearedrole_bindings
 	case team.EdgeIncidents:
@@ -17234,6 +19364,12 @@ func (m *TeamMutation) ResetEdge(name string) error {
 		return nil
 	case team.EdgeNotificationRules:
 		m.ResetNotificationRules()
+		return nil
+	case team.EdgeNotificationTemplates:
+		m.ResetNotificationTemplates()
+		return nil
+	case team.EdgeSuppressionRules:
+		m.ResetSuppressionRules()
 		return nil
 	case team.EdgeRoleBindings:
 		m.ResetRoleBindings()

@@ -42,6 +42,10 @@ func (Team) Edges() []ent.Edge {
 		edge.To("runbooks", Runbook.Type),
 		// Team -> NotificationRule（团队拥有的通知规则）
 		edge.To("notification_rules", NotificationRule.Type),
+		// Team -> NotificationTemplate（团队拥有的通知模板）
+		edge.To("notification_templates", NotificationTemplate.Type),
+		// Team -> SuppressionRule（团队拥有的抑制规则）
+		edge.To("suppression_rules", SuppressionRule.Type),
 		// Team -> RoleBinding（团队作用域的角色绑定）
 		edge.To("role_bindings", RoleBinding.Type),
 		// Team -> Incident（归属事件）

@@ -227,6 +227,7 @@ var (
 		{Name: "resolved_at", Type: field.TypeTime, Nullable: true},
 		{Name: "acked_at", Type: field.TypeTime, Nullable: true},
 		{Name: "closed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "embedding", Type: field.TypeOther, Nullable: true, SchemaType: map[string]string{"postgres": "vector(1536)", "sqlite3": "blob"}},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "escalation_policy_incidents", Type: field.TypeInt, Nullable: true},
@@ -242,25 +243,25 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "incidents_escalation_policies_incidents",
-				Columns:    []*schema.Column{IncidentsColumns[18]},
+				Columns:    []*schema.Column{IncidentsColumns[19]},
 				RefColumns: []*schema.Column{EscalationPoliciesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "incidents_users_assignee",
-				Columns:    []*schema.Column{IncidentsColumns[19]},
+				Columns:    []*schema.Column{IncidentsColumns[20]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "incidents_services_incidents",
-				Columns:    []*schema.Column{IncidentsColumns[20]},
+				Columns:    []*schema.Column{IncidentsColumns[21]},
 				RefColumns: []*schema.Column{ServicesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "incidents_teams_incidents",
-				Columns:    []*schema.Column{IncidentsColumns[21]},
+				Columns:    []*schema.Column{IncidentsColumns[22]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -274,12 +275,12 @@ var (
 			{
 				Name:    "incident_team_incidents",
 				Unique:  false,
-				Columns: []*schema.Column{IncidentsColumns[21]},
+				Columns: []*schema.Column{IncidentsColumns[22]},
 			},
 			{
 				Name:    "incident_service_incidents",
 				Unique:  false,
-				Columns: []*schema.Column{IncidentsColumns[20]},
+				Columns: []*schema.Column{IncidentsColumns[21]},
 			},
 			{
 				Name:    "incident_resolved_at",
@@ -385,6 +386,34 @@ var (
 			{
 				Symbol:     "notification_rules_teams_notification_rules",
 				Columns:    []*schema.Column{NotificationRulesColumns[9]},
+				RefColumns: []*schema.Column{TeamsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+	}
+	// NotificationTemplatesColumns holds the columns for the "notification_templates" table.
+	NotificationTemplatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "channel", Type: field.TypeEnum, Enums: []string{"im", "email", "webhook", "phone", "sms"}},
+		{Name: "format", Type: field.TypeEnum, Enums: []string{"text", "interactive_card"}},
+		{Name: "title_template", Type: field.TypeString},
+		{Name: "body_template", Type: field.TypeString, Size: 2147483647},
+		{Name: "actions", Type: field.TypeJSON, Nullable: true},
+		{Name: "builtin", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "team_notification_templates", Type: field.TypeInt, Nullable: true},
+	}
+	// NotificationTemplatesTable holds the schema information for the "notification_templates" table.
+	NotificationTemplatesTable = &schema.Table{
+		Name:       "notification_templates",
+		Columns:    NotificationTemplatesColumns,
+		PrimaryKey: []*schema.Column{NotificationTemplatesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "notification_templates_teams_notification_templates",
+				Columns:    []*schema.Column{NotificationTemplatesColumns[10]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -611,6 +640,36 @@ var (
 				Name:    "service_status",
 				Unique:  false,
 				Columns: []*schema.Column{ServicesColumns[6]},
+			},
+		},
+	}
+	// SuppressionRulesColumns holds the columns for the "suppression_rules" table.
+	SuppressionRulesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "match_labels", Type: field.TypeJSON},
+		{Name: "time_window", Type: field.TypeJSON, Nullable: true},
+		{Name: "severity_filter", Type: field.TypeJSON, Nullable: true},
+		{Name: "action", Type: field.TypeEnum, Enums: []string{"suppress", "reduce_severity"}, Default: "suppress"},
+		{Name: "reduce_to", Type: field.TypeString, Nullable: true},
+		{Name: "preserve_critical", Type: field.TypeBool, Default: true},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "team_suppression_rules", Type: field.TypeInt, Nullable: true},
+	}
+	// SuppressionRulesTable holds the schema information for the "suppression_rules" table.
+	SuppressionRulesTable = &schema.Table{
+		Name:       "suppression_rules",
+		Columns:    SuppressionRulesColumns,
+		PrimaryKey: []*schema.Column{SuppressionRulesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "suppression_rules_teams_suppression_rules",
+				Columns:    []*schema.Column{SuppressionRulesColumns[12]},
+				RefColumns: []*schema.Column{TeamsColumns[0]},
+				OnDelete:   schema.SetNull,
 			},
 		},
 	}
@@ -892,6 +951,7 @@ var (
 		IncidentActionsTable,
 		IntegrationsTable,
 		NotificationRulesTable,
+		NotificationTemplatesTable,
 		PostmortemsTable,
 		RawEventsTable,
 		RolesTable,
@@ -900,6 +960,7 @@ var (
 		RunbooksTable,
 		SchedulesTable,
 		ServicesTable,
+		SuppressionRulesTable,
 		TeamsTable,
 		TimelineItemsTable,
 		UsersTable,
@@ -929,6 +990,7 @@ func init() {
 	IntegrationsTable.ForeignKeys[0].RefTable = ServicesTable
 	IntegrationsTable.ForeignKeys[1].RefTable = TeamsTable
 	NotificationRulesTable.ForeignKeys[0].RefTable = TeamsTable
+	NotificationTemplatesTable.ForeignKeys[0].RefTable = TeamsTable
 	PostmortemsTable.ForeignKeys[0].RefTable = IncidentsTable
 	RawEventsTable.ForeignKeys[0].RefTable = IntegrationsTable
 	RoleBindingsTable.ForeignKeys[0].RefTable = RolesTable
@@ -938,6 +1000,7 @@ func init() {
 	SchedulesTable.ForeignKeys[0].RefTable = TeamsTable
 	ServicesTable.ForeignKeys[0].RefTable = EscalationPoliciesTable
 	ServicesTable.ForeignKeys[1].RefTable = TeamsTable
+	SuppressionRulesTable.ForeignKeys[0].RefTable = TeamsTable
 	TimelineItemsTable.ForeignKeys[0].RefTable = IncidentsTable
 	EscalationPolicySchedulesTable.ForeignKeys[0].RefTable = EscalationPoliciesTable
 	EscalationPolicySchedulesTable.ForeignKeys[1].RefTable = SchedulesTable

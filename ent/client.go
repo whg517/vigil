@@ -24,6 +24,7 @@ import (
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/notificationrule"
+	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/rawevent"
 	"github.com/kevin/vigil/ent/role"
@@ -32,6 +33,7 @@ import (
 	"github.com/kevin/vigil/ent/runbook"
 	"github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
@@ -60,6 +62,8 @@ type Client struct {
 	Integration *IntegrationClient
 	// NotificationRule is the client for interacting with the NotificationRule builders.
 	NotificationRule *NotificationRuleClient
+	// NotificationTemplate is the client for interacting with the NotificationTemplate builders.
+	NotificationTemplate *NotificationTemplateClient
 	// Postmortem is the client for interacting with the Postmortem builders.
 	Postmortem *PostmortemClient
 	// RawEvent is the client for interacting with the RawEvent builders.
@@ -76,6 +80,8 @@ type Client struct {
 	Schedule *ScheduleClient
 	// Service is the client for interacting with the Service builders.
 	Service *ServiceClient
+	// SuppressionRule is the client for interacting with the SuppressionRule builders.
+	SuppressionRule *SuppressionRuleClient
 	// Team is the client for interacting with the Team builders.
 	Team *TeamClient
 	// TimelineItem is the client for interacting with the TimelineItem builders.
@@ -102,6 +108,7 @@ func (c *Client) init() {
 	c.IncidentAction = NewIncidentActionClient(c.config)
 	c.Integration = NewIntegrationClient(c.config)
 	c.NotificationRule = NewNotificationRuleClient(c.config)
+	c.NotificationTemplate = NewNotificationTemplateClient(c.config)
 	c.Postmortem = NewPostmortemClient(c.config)
 	c.RawEvent = NewRawEventClient(c.config)
 	c.Role = NewRoleClient(c.config)
@@ -110,6 +117,7 @@ func (c *Client) init() {
 	c.Runbook = NewRunbookClient(c.config)
 	c.Schedule = NewScheduleClient(c.config)
 	c.Service = NewServiceClient(c.config)
+	c.SuppressionRule = NewSuppressionRuleClient(c.config)
 	c.Team = NewTeamClient(c.config)
 	c.TimelineItem = NewTimelineItemClient(c.config)
 	c.User = NewUserClient(c.config)
@@ -203,28 +211,30 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:              ctx,
-		config:           cfg,
-		AIInsight:        NewAIInsightClient(cfg),
-		ActionItem:       NewActionItemClient(cfg),
-		EscalationPolicy: NewEscalationPolicyClient(cfg),
-		Event:            NewEventClient(cfg),
-		IMAccountBinding: NewIMAccountBindingClient(cfg),
-		Incident:         NewIncidentClient(cfg),
-		IncidentAction:   NewIncidentActionClient(cfg),
-		Integration:      NewIntegrationClient(cfg),
-		NotificationRule: NewNotificationRuleClient(cfg),
-		Postmortem:       NewPostmortemClient(cfg),
-		RawEvent:         NewRawEventClient(cfg),
-		Role:             NewRoleClient(cfg),
-		RoleBinding:      NewRoleBindingClient(cfg),
-		Rotation:         NewRotationClient(cfg),
-		Runbook:          NewRunbookClient(cfg),
-		Schedule:         NewScheduleClient(cfg),
-		Service:          NewServiceClient(cfg),
-		Team:             NewTeamClient(cfg),
-		TimelineItem:     NewTimelineItemClient(cfg),
-		User:             NewUserClient(cfg),
+		ctx:                  ctx,
+		config:               cfg,
+		AIInsight:            NewAIInsightClient(cfg),
+		ActionItem:           NewActionItemClient(cfg),
+		EscalationPolicy:     NewEscalationPolicyClient(cfg),
+		Event:                NewEventClient(cfg),
+		IMAccountBinding:     NewIMAccountBindingClient(cfg),
+		Incident:             NewIncidentClient(cfg),
+		IncidentAction:       NewIncidentActionClient(cfg),
+		Integration:          NewIntegrationClient(cfg),
+		NotificationRule:     NewNotificationRuleClient(cfg),
+		NotificationTemplate: NewNotificationTemplateClient(cfg),
+		Postmortem:           NewPostmortemClient(cfg),
+		RawEvent:             NewRawEventClient(cfg),
+		Role:                 NewRoleClient(cfg),
+		RoleBinding:          NewRoleBindingClient(cfg),
+		Rotation:             NewRotationClient(cfg),
+		Runbook:              NewRunbookClient(cfg),
+		Schedule:             NewScheduleClient(cfg),
+		Service:              NewServiceClient(cfg),
+		SuppressionRule:      NewSuppressionRuleClient(cfg),
+		Team:                 NewTeamClient(cfg),
+		TimelineItem:         NewTimelineItemClient(cfg),
+		User:                 NewUserClient(cfg),
 	}, nil
 }
 
@@ -242,28 +252,30 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:              ctx,
-		config:           cfg,
-		AIInsight:        NewAIInsightClient(cfg),
-		ActionItem:       NewActionItemClient(cfg),
-		EscalationPolicy: NewEscalationPolicyClient(cfg),
-		Event:            NewEventClient(cfg),
-		IMAccountBinding: NewIMAccountBindingClient(cfg),
-		Incident:         NewIncidentClient(cfg),
-		IncidentAction:   NewIncidentActionClient(cfg),
-		Integration:      NewIntegrationClient(cfg),
-		NotificationRule: NewNotificationRuleClient(cfg),
-		Postmortem:       NewPostmortemClient(cfg),
-		RawEvent:         NewRawEventClient(cfg),
-		Role:             NewRoleClient(cfg),
-		RoleBinding:      NewRoleBindingClient(cfg),
-		Rotation:         NewRotationClient(cfg),
-		Runbook:          NewRunbookClient(cfg),
-		Schedule:         NewScheduleClient(cfg),
-		Service:          NewServiceClient(cfg),
-		Team:             NewTeamClient(cfg),
-		TimelineItem:     NewTimelineItemClient(cfg),
-		User:             NewUserClient(cfg),
+		ctx:                  ctx,
+		config:               cfg,
+		AIInsight:            NewAIInsightClient(cfg),
+		ActionItem:           NewActionItemClient(cfg),
+		EscalationPolicy:     NewEscalationPolicyClient(cfg),
+		Event:                NewEventClient(cfg),
+		IMAccountBinding:     NewIMAccountBindingClient(cfg),
+		Incident:             NewIncidentClient(cfg),
+		IncidentAction:       NewIncidentActionClient(cfg),
+		Integration:          NewIntegrationClient(cfg),
+		NotificationRule:     NewNotificationRuleClient(cfg),
+		NotificationTemplate: NewNotificationTemplateClient(cfg),
+		Postmortem:           NewPostmortemClient(cfg),
+		RawEvent:             NewRawEventClient(cfg),
+		Role:                 NewRoleClient(cfg),
+		RoleBinding:          NewRoleBindingClient(cfg),
+		Rotation:             NewRotationClient(cfg),
+		Runbook:              NewRunbookClient(cfg),
+		Schedule:             NewScheduleClient(cfg),
+		Service:              NewServiceClient(cfg),
+		SuppressionRule:      NewSuppressionRuleClient(cfg),
+		Team:                 NewTeamClient(cfg),
+		TimelineItem:         NewTimelineItemClient(cfg),
+		User:                 NewUserClient(cfg),
 	}, nil
 }
 
@@ -294,9 +306,10 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AIInsight, c.ActionItem, c.EscalationPolicy, c.Event, c.IMAccountBinding,
-		c.Incident, c.IncidentAction, c.Integration, c.NotificationRule, c.Postmortem,
-		c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook, c.Schedule,
-		c.Service, c.Team, c.TimelineItem, c.User,
+		c.Incident, c.IncidentAction, c.Integration, c.NotificationRule,
+		c.NotificationTemplate, c.Postmortem, c.RawEvent, c.Role, c.RoleBinding,
+		c.Rotation, c.Runbook, c.Schedule, c.Service, c.SuppressionRule, c.Team,
+		c.TimelineItem, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -307,9 +320,10 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AIInsight, c.ActionItem, c.EscalationPolicy, c.Event, c.IMAccountBinding,
-		c.Incident, c.IncidentAction, c.Integration, c.NotificationRule, c.Postmortem,
-		c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook, c.Schedule,
-		c.Service, c.Team, c.TimelineItem, c.User,
+		c.Incident, c.IncidentAction, c.Integration, c.NotificationRule,
+		c.NotificationTemplate, c.Postmortem, c.RawEvent, c.Role, c.RoleBinding,
+		c.Rotation, c.Runbook, c.Schedule, c.Service, c.SuppressionRule, c.Team,
+		c.TimelineItem, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -336,6 +350,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Integration.mutate(ctx, m)
 	case *NotificationRuleMutation:
 		return c.NotificationRule.mutate(ctx, m)
+	case *NotificationTemplateMutation:
+		return c.NotificationTemplate.mutate(ctx, m)
 	case *PostmortemMutation:
 		return c.Postmortem.mutate(ctx, m)
 	case *RawEventMutation:
@@ -352,6 +368,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Schedule.mutate(ctx, m)
 	case *ServiceMutation:
 		return c.Service.mutate(ctx, m)
+	case *SuppressionRuleMutation:
+		return c.SuppressionRule.mutate(ctx, m)
 	case *TeamMutation:
 		return c.Team.mutate(ctx, m)
 	case *TimelineItemMutation:
@@ -1976,6 +1994,155 @@ func (c *NotificationRuleClient) mutate(ctx context.Context, m *NotificationRule
 	}
 }
 
+// NotificationTemplateClient is a client for the NotificationTemplate schema.
+type NotificationTemplateClient struct {
+	config
+}
+
+// NewNotificationTemplateClient returns a client for the NotificationTemplate from the given config.
+func NewNotificationTemplateClient(c config) *NotificationTemplateClient {
+	return &NotificationTemplateClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `notificationtemplate.Hooks(f(g(h())))`.
+func (c *NotificationTemplateClient) Use(hooks ...Hook) {
+	c.hooks.NotificationTemplate = append(c.hooks.NotificationTemplate, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `notificationtemplate.Intercept(f(g(h())))`.
+func (c *NotificationTemplateClient) Intercept(interceptors ...Interceptor) {
+	c.inters.NotificationTemplate = append(c.inters.NotificationTemplate, interceptors...)
+}
+
+// Create returns a builder for creating a NotificationTemplate entity.
+func (c *NotificationTemplateClient) Create() *NotificationTemplateCreate {
+	mutation := newNotificationTemplateMutation(c.config, OpCreate)
+	return &NotificationTemplateCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of NotificationTemplate entities.
+func (c *NotificationTemplateClient) CreateBulk(builders ...*NotificationTemplateCreate) *NotificationTemplateCreateBulk {
+	return &NotificationTemplateCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *NotificationTemplateClient) MapCreateBulk(slice any, setFunc func(*NotificationTemplateCreate, int)) *NotificationTemplateCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &NotificationTemplateCreateBulk{err: fmt.Errorf("calling to NotificationTemplateClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*NotificationTemplateCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &NotificationTemplateCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for NotificationTemplate.
+func (c *NotificationTemplateClient) Update() *NotificationTemplateUpdate {
+	mutation := newNotificationTemplateMutation(c.config, OpUpdate)
+	return &NotificationTemplateUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *NotificationTemplateClient) UpdateOne(_m *NotificationTemplate) *NotificationTemplateUpdateOne {
+	mutation := newNotificationTemplateMutation(c.config, OpUpdateOne, withNotificationTemplate(_m))
+	return &NotificationTemplateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *NotificationTemplateClient) UpdateOneID(id int) *NotificationTemplateUpdateOne {
+	mutation := newNotificationTemplateMutation(c.config, OpUpdateOne, withNotificationTemplateID(id))
+	return &NotificationTemplateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for NotificationTemplate.
+func (c *NotificationTemplateClient) Delete() *NotificationTemplateDelete {
+	mutation := newNotificationTemplateMutation(c.config, OpDelete)
+	return &NotificationTemplateDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *NotificationTemplateClient) DeleteOne(_m *NotificationTemplate) *NotificationTemplateDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *NotificationTemplateClient) DeleteOneID(id int) *NotificationTemplateDeleteOne {
+	builder := c.Delete().Where(notificationtemplate.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NotificationTemplateDeleteOne{builder}
+}
+
+// Query returns a query builder for NotificationTemplate.
+func (c *NotificationTemplateClient) Query() *NotificationTemplateQuery {
+	return &NotificationTemplateQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeNotificationTemplate},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a NotificationTemplate entity by its id.
+func (c *NotificationTemplateClient) Get(ctx context.Context, id int) (*NotificationTemplate, error) {
+	return c.Query().Where(notificationtemplate.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *NotificationTemplateClient) GetX(ctx context.Context, id int) *NotificationTemplate {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryTeam queries the team edge of a NotificationTemplate.
+func (c *NotificationTemplateClient) QueryTeam(_m *NotificationTemplate) *TeamQuery {
+	query := (&TeamClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(notificationtemplate.Table, notificationtemplate.FieldID, id),
+			sqlgraph.To(team.Table, team.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, notificationtemplate.TeamTable, notificationtemplate.TeamColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *NotificationTemplateClient) Hooks() []Hook {
+	return c.hooks.NotificationTemplate
+}
+
+// Interceptors returns the client interceptors.
+func (c *NotificationTemplateClient) Interceptors() []Interceptor {
+	return c.inters.NotificationTemplate
+}
+
+func (c *NotificationTemplateClient) mutate(ctx context.Context, m *NotificationTemplateMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&NotificationTemplateCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&NotificationTemplateUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&NotificationTemplateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&NotificationTemplateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown NotificationTemplate mutation op: %q", m.Op())
+	}
+}
+
 // PostmortemClient is a client for the Postmortem schema.
 type PostmortemClient struct {
 	config
@@ -3392,6 +3559,155 @@ func (c *ServiceClient) mutate(ctx context.Context, m *ServiceMutation) (Value, 
 	}
 }
 
+// SuppressionRuleClient is a client for the SuppressionRule schema.
+type SuppressionRuleClient struct {
+	config
+}
+
+// NewSuppressionRuleClient returns a client for the SuppressionRule from the given config.
+func NewSuppressionRuleClient(c config) *SuppressionRuleClient {
+	return &SuppressionRuleClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `suppressionrule.Hooks(f(g(h())))`.
+func (c *SuppressionRuleClient) Use(hooks ...Hook) {
+	c.hooks.SuppressionRule = append(c.hooks.SuppressionRule, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `suppressionrule.Intercept(f(g(h())))`.
+func (c *SuppressionRuleClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SuppressionRule = append(c.inters.SuppressionRule, interceptors...)
+}
+
+// Create returns a builder for creating a SuppressionRule entity.
+func (c *SuppressionRuleClient) Create() *SuppressionRuleCreate {
+	mutation := newSuppressionRuleMutation(c.config, OpCreate)
+	return &SuppressionRuleCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SuppressionRule entities.
+func (c *SuppressionRuleClient) CreateBulk(builders ...*SuppressionRuleCreate) *SuppressionRuleCreateBulk {
+	return &SuppressionRuleCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SuppressionRuleClient) MapCreateBulk(slice any, setFunc func(*SuppressionRuleCreate, int)) *SuppressionRuleCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SuppressionRuleCreateBulk{err: fmt.Errorf("calling to SuppressionRuleClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SuppressionRuleCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SuppressionRuleCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SuppressionRule.
+func (c *SuppressionRuleClient) Update() *SuppressionRuleUpdate {
+	mutation := newSuppressionRuleMutation(c.config, OpUpdate)
+	return &SuppressionRuleUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SuppressionRuleClient) UpdateOne(_m *SuppressionRule) *SuppressionRuleUpdateOne {
+	mutation := newSuppressionRuleMutation(c.config, OpUpdateOne, withSuppressionRule(_m))
+	return &SuppressionRuleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SuppressionRuleClient) UpdateOneID(id int) *SuppressionRuleUpdateOne {
+	mutation := newSuppressionRuleMutation(c.config, OpUpdateOne, withSuppressionRuleID(id))
+	return &SuppressionRuleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SuppressionRule.
+func (c *SuppressionRuleClient) Delete() *SuppressionRuleDelete {
+	mutation := newSuppressionRuleMutation(c.config, OpDelete)
+	return &SuppressionRuleDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SuppressionRuleClient) DeleteOne(_m *SuppressionRule) *SuppressionRuleDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SuppressionRuleClient) DeleteOneID(id int) *SuppressionRuleDeleteOne {
+	builder := c.Delete().Where(suppressionrule.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SuppressionRuleDeleteOne{builder}
+}
+
+// Query returns a query builder for SuppressionRule.
+func (c *SuppressionRuleClient) Query() *SuppressionRuleQuery {
+	return &SuppressionRuleQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSuppressionRule},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SuppressionRule entity by its id.
+func (c *SuppressionRuleClient) Get(ctx context.Context, id int) (*SuppressionRule, error) {
+	return c.Query().Where(suppressionrule.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SuppressionRuleClient) GetX(ctx context.Context, id int) *SuppressionRule {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryTeam queries the team edge of a SuppressionRule.
+func (c *SuppressionRuleClient) QueryTeam(_m *SuppressionRule) *TeamQuery {
+	query := (&TeamClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(suppressionrule.Table, suppressionrule.FieldID, id),
+			sqlgraph.To(team.Table, team.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, suppressionrule.TeamTable, suppressionrule.TeamColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *SuppressionRuleClient) Hooks() []Hook {
+	return c.hooks.SuppressionRule
+}
+
+// Interceptors returns the client interceptors.
+func (c *SuppressionRuleClient) Interceptors() []Interceptor {
+	return c.inters.SuppressionRule
+}
+
+func (c *SuppressionRuleClient) mutate(ctx context.Context, m *SuppressionRuleMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SuppressionRuleCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SuppressionRuleUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SuppressionRuleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SuppressionRuleDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SuppressionRule mutation op: %q", m.Op())
+	}
+}
+
 // TeamClient is a client for the Team schema.
 type TeamClient struct {
 	config
@@ -3589,6 +3905,38 @@ func (c *TeamClient) QueryNotificationRules(_m *Team) *NotificationRuleQuery {
 			sqlgraph.From(team.Table, team.FieldID, id),
 			sqlgraph.To(notificationrule.Table, notificationrule.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, team.NotificationRulesTable, team.NotificationRulesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryNotificationTemplates queries the notification_templates edge of a Team.
+func (c *TeamClient) QueryNotificationTemplates(_m *Team) *NotificationTemplateQuery {
+	query := (&NotificationTemplateClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, id),
+			sqlgraph.To(notificationtemplate.Table, notificationtemplate.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, team.NotificationTemplatesTable, team.NotificationTemplatesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QuerySuppressionRules queries the suppression_rules edge of a Team.
+func (c *TeamClient) QuerySuppressionRules(_m *Team) *SuppressionRuleQuery {
+	query := (&SuppressionRuleClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, id),
+			sqlgraph.To(suppressionrule.Table, suppressionrule.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, team.SuppressionRulesTable, team.SuppressionRulesColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -4051,14 +4399,14 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		AIInsight, ActionItem, EscalationPolicy, Event, IMAccountBinding, Incident,
-		IncidentAction, Integration, NotificationRule, Postmortem, RawEvent, Role,
-		RoleBinding, Rotation, Runbook, Schedule, Service, Team, TimelineItem,
-		User []ent.Hook
+		IncidentAction, Integration, NotificationRule, NotificationTemplate,
+		Postmortem, RawEvent, Role, RoleBinding, Rotation, Runbook, Schedule, Service,
+		SuppressionRule, Team, TimelineItem, User []ent.Hook
 	}
 	inters struct {
 		AIInsight, ActionItem, EscalationPolicy, Event, IMAccountBinding, Incident,
-		IncidentAction, Integration, NotificationRule, Postmortem, RawEvent, Role,
-		RoleBinding, Rotation, Runbook, Schedule, Service, Team, TimelineItem,
-		User []ent.Interceptor
+		IncidentAction, Integration, NotificationRule, NotificationTemplate,
+		Postmortem, RawEvent, Role, RoleBinding, Rotation, Runbook, Schedule, Service,
+		SuppressionRule, Team, TimelineItem, User []ent.Interceptor
 	}
 )

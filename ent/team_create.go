@@ -14,10 +14,12 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/notificationrule"
+	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/runbook"
 	"github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/user"
 )
@@ -185,6 +187,36 @@ func (_c *TeamCreate) AddNotificationRules(v ...*NotificationRule) *TeamCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddNotificationRuleIDs(ids...)
+}
+
+// AddNotificationTemplateIDs adds the "notification_templates" edge to the NotificationTemplate entity by IDs.
+func (_c *TeamCreate) AddNotificationTemplateIDs(ids ...int) *TeamCreate {
+	_c.mutation.AddNotificationTemplateIDs(ids...)
+	return _c
+}
+
+// AddNotificationTemplates adds the "notification_templates" edges to the NotificationTemplate entity.
+func (_c *TeamCreate) AddNotificationTemplates(v ...*NotificationTemplate) *TeamCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddNotificationTemplateIDs(ids...)
+}
+
+// AddSuppressionRuleIDs adds the "suppression_rules" edge to the SuppressionRule entity by IDs.
+func (_c *TeamCreate) AddSuppressionRuleIDs(ids ...int) *TeamCreate {
+	_c.mutation.AddSuppressionRuleIDs(ids...)
+	return _c
+}
+
+// AddSuppressionRules adds the "suppression_rules" edges to the SuppressionRule entity.
+func (_c *TeamCreate) AddSuppressionRules(v ...*SuppressionRule) *TeamCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSuppressionRuleIDs(ids...)
 }
 
 // AddRoleBindingIDs adds the "role_bindings" edge to the RoleBinding entity by IDs.
@@ -435,6 +467,38 @@ func (_c *TeamCreate) createSpec() (*Team, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(notificationrule.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.NotificationTemplatesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.NotificationTemplatesTable,
+			Columns: []string{team.NotificationTemplatesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(notificationtemplate.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SuppressionRulesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.SuppressionRulesTable,
+			Columns: []string{team.SuppressionRulesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(suppressionrule.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

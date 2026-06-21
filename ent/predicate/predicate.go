@@ -33,6 +33,9 @@ type Integration func(*sql.Selector)
 // NotificationRule is the predicate function for notificationrule builders.
 type NotificationRule func(*sql.Selector)
 
+// NotificationTemplate is the predicate function for notificationtemplate builders.
+type NotificationTemplate func(*sql.Selector)
+
 // Postmortem is the predicate function for postmortem builders.
 type Postmortem func(*sql.Selector)
 
@@ -56,6 +59,9 @@ type Schedule func(*sql.Selector)
 
 // Service is the predicate function for service builders.
 type Service func(*sql.Selector)
+
+// SuppressionRule is the predicate function for suppressionrule builders.
+type SuppressionRule func(*sql.Selector)
 
 // Team is the predicate function for team builders.
 type Team func(*sql.Selector)

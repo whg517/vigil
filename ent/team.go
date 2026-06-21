@@ -49,6 +49,10 @@ type TeamEdges struct {
 	Runbooks []*Runbook `json:"runbooks,omitempty"`
 	// NotificationRules holds the value of the notification_rules edge.
 	NotificationRules []*NotificationRule `json:"notification_rules,omitempty"`
+	// NotificationTemplates holds the value of the notification_templates edge.
+	NotificationTemplates []*NotificationTemplate `json:"notification_templates,omitempty"`
+	// SuppressionRules holds the value of the suppression_rules edge.
+	SuppressionRules []*SuppressionRule `json:"suppression_rules,omitempty"`
 	// RoleBindings holds the value of the role_bindings edge.
 	RoleBindings []*RoleBinding `json:"role_bindings,omitempty"`
 	// Incidents holds the value of the incidents edge.
@@ -57,7 +61,7 @@ type TeamEdges struct {
 	Integrations []*Integration `json:"integrations,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [9]bool
+	loadedTypes [11]bool
 }
 
 // UsersOrErr returns the Users value or an error if the edge
@@ -114,10 +118,28 @@ func (e TeamEdges) NotificationRulesOrErr() ([]*NotificationRule, error) {
 	return nil, &NotLoadedError{edge: "notification_rules"}
 }
 
+// NotificationTemplatesOrErr returns the NotificationTemplates value or an error if the edge
+// was not loaded in eager-loading.
+func (e TeamEdges) NotificationTemplatesOrErr() ([]*NotificationTemplate, error) {
+	if e.loadedTypes[6] {
+		return e.NotificationTemplates, nil
+	}
+	return nil, &NotLoadedError{edge: "notification_templates"}
+}
+
+// SuppressionRulesOrErr returns the SuppressionRules value or an error if the edge
+// was not loaded in eager-loading.
+func (e TeamEdges) SuppressionRulesOrErr() ([]*SuppressionRule, error) {
+	if e.loadedTypes[7] {
+		return e.SuppressionRules, nil
+	}
+	return nil, &NotLoadedError{edge: "suppression_rules"}
+}
+
 // RoleBindingsOrErr returns the RoleBindings value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) RoleBindingsOrErr() ([]*RoleBinding, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[8] {
 		return e.RoleBindings, nil
 	}
 	return nil, &NotLoadedError{edge: "role_bindings"}
@@ -126,7 +148,7 @@ func (e TeamEdges) RoleBindingsOrErr() ([]*RoleBinding, error) {
 // IncidentsOrErr returns the Incidents value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) IncidentsOrErr() ([]*Incident, error) {
-	if e.loadedTypes[7] {
+	if e.loadedTypes[9] {
 		return e.Incidents, nil
 	}
 	return nil, &NotLoadedError{edge: "incidents"}
@@ -135,7 +157,7 @@ func (e TeamEdges) IncidentsOrErr() ([]*Incident, error) {
 // IntegrationsOrErr returns the Integrations value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) IntegrationsOrErr() ([]*Integration, error) {
-	if e.loadedTypes[8] {
+	if e.loadedTypes[10] {
 		return e.Integrations, nil
 	}
 	return nil, &NotLoadedError{edge: "integrations"}
@@ -250,6 +272,16 @@ func (_m *Team) QueryRunbooks() *RunbookQuery {
 // QueryNotificationRules queries the "notification_rules" edge of the Team entity.
 func (_m *Team) QueryNotificationRules() *NotificationRuleQuery {
 	return NewTeamClient(_m.config).QueryNotificationRules(_m)
+}
+
+// QueryNotificationTemplates queries the "notification_templates" edge of the Team entity.
+func (_m *Team) QueryNotificationTemplates() *NotificationTemplateQuery {
+	return NewTeamClient(_m.config).QueryNotificationTemplates(_m)
+}
+
+// QuerySuppressionRules queries the "suppression_rules" edge of the Team entity.
+func (_m *Team) QuerySuppressionRules() *SuppressionRuleQuery {
+	return NewTeamClient(_m.config).QuerySuppressionRules(_m)
 }
 
 // QueryRoleBindings queries the "role_bindings" edge of the Team entity.

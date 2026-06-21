@@ -45,6 +45,8 @@ const (
 	FieldAckedAt = "acked_at"
 	// FieldClosedAt holds the string denoting the closed_at field in the database.
 	FieldClosedAt = "closed_at"
+	// FieldEmbedding holds the string denoting the embedding field in the database.
+	FieldEmbedding = "embedding"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -159,6 +161,7 @@ var Columns = []string{
 	FieldResolvedAt,
 	FieldAckedAt,
 	FieldClosedAt,
+	FieldEmbedding,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -392,6 +395,11 @@ func ByAckedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByClosedAt orders the results by the closed_at field.
 func ByClosedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldClosedAt, opts...).ToFunc()
+}
+
+// ByEmbedding orders the results by the embedding field.
+func ByEmbedding(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEmbedding, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

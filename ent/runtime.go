@@ -14,6 +14,7 @@ import (
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/notificationrule"
+	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/rawevent"
 	"github.com/kevin/vigil/ent/role"
@@ -23,6 +24,7 @@ import (
 	"github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
@@ -123,11 +125,11 @@ func init() {
 	// incident.DefaultCurrentLevel holds the default value on creation for the current_level field.
 	incident.DefaultCurrentLevel = incidentDescCurrentLevel.Default.(int)
 	// incidentDescCreatedAt is the schema descriptor for created_at field.
-	incidentDescCreatedAt := incidentFields[15].Descriptor()
+	incidentDescCreatedAt := incidentFields[16].Descriptor()
 	// incident.DefaultCreatedAt holds the default value on creation for the created_at field.
 	incident.DefaultCreatedAt = incidentDescCreatedAt.Default.(func() time.Time)
 	// incidentDescUpdatedAt is the schema descriptor for updated_at field.
-	incidentDescUpdatedAt := incidentFields[16].Descriptor()
+	incidentDescUpdatedAt := incidentFields[17].Descriptor()
 	// incident.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	incident.DefaultUpdatedAt = incidentDescUpdatedAt.Default.(func() time.Time)
 	// incident.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -178,6 +180,26 @@ func init() {
 	notificationrule.DefaultUpdatedAt = notificationruleDescUpdatedAt.Default.(func() time.Time)
 	// notificationrule.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	notificationrule.UpdateDefaultUpdatedAt = notificationruleDescUpdatedAt.UpdateDefault.(func() time.Time)
+	notificationtemplateFields := schema.NotificationTemplate{}.Fields()
+	_ = notificationtemplateFields
+	// notificationtemplateDescName is the schema descriptor for name field.
+	notificationtemplateDescName := notificationtemplateFields[0].Descriptor()
+	// notificationtemplate.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	notificationtemplate.NameValidator = notificationtemplateDescName.Validators[0].(func(string) error)
+	// notificationtemplateDescBuiltin is the schema descriptor for builtin field.
+	notificationtemplateDescBuiltin := notificationtemplateFields[6].Descriptor()
+	// notificationtemplate.DefaultBuiltin holds the default value on creation for the builtin field.
+	notificationtemplate.DefaultBuiltin = notificationtemplateDescBuiltin.Default.(bool)
+	// notificationtemplateDescCreatedAt is the schema descriptor for created_at field.
+	notificationtemplateDescCreatedAt := notificationtemplateFields[7].Descriptor()
+	// notificationtemplate.DefaultCreatedAt holds the default value on creation for the created_at field.
+	notificationtemplate.DefaultCreatedAt = notificationtemplateDescCreatedAt.Default.(func() time.Time)
+	// notificationtemplateDescUpdatedAt is the schema descriptor for updated_at field.
+	notificationtemplateDescUpdatedAt := notificationtemplateFields[8].Descriptor()
+	// notificationtemplate.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	notificationtemplate.DefaultUpdatedAt = notificationtemplateDescUpdatedAt.Default.(func() time.Time)
+	// notificationtemplate.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	notificationtemplate.UpdateDefaultUpdatedAt = notificationtemplateDescUpdatedAt.UpdateDefault.(func() time.Time)
 	postmortemFields := schema.Postmortem{}.Fields()
 	_ = postmortemFields
 	// postmortemDescCreatedAt is the schema descriptor for created_at field.
@@ -306,6 +328,30 @@ func init() {
 	service.DefaultUpdatedAt = serviceDescUpdatedAt.Default.(func() time.Time)
 	// service.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	service.UpdateDefaultUpdatedAt = serviceDescUpdatedAt.UpdateDefault.(func() time.Time)
+	suppressionruleFields := schema.SuppressionRule{}.Fields()
+	_ = suppressionruleFields
+	// suppressionruleDescName is the schema descriptor for name field.
+	suppressionruleDescName := suppressionruleFields[0].Descriptor()
+	// suppressionrule.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	suppressionrule.NameValidator = suppressionruleDescName.Validators[0].(func(string) error)
+	// suppressionruleDescPreserveCritical is the schema descriptor for preserve_critical field.
+	suppressionruleDescPreserveCritical := suppressionruleFields[6].Descriptor()
+	// suppressionrule.DefaultPreserveCritical holds the default value on creation for the preserve_critical field.
+	suppressionrule.DefaultPreserveCritical = suppressionruleDescPreserveCritical.Default.(bool)
+	// suppressionruleDescEnabled is the schema descriptor for enabled field.
+	suppressionruleDescEnabled := suppressionruleFields[7].Descriptor()
+	// suppressionrule.DefaultEnabled holds the default value on creation for the enabled field.
+	suppressionrule.DefaultEnabled = suppressionruleDescEnabled.Default.(bool)
+	// suppressionruleDescCreatedAt is the schema descriptor for created_at field.
+	suppressionruleDescCreatedAt := suppressionruleFields[9].Descriptor()
+	// suppressionrule.DefaultCreatedAt holds the default value on creation for the created_at field.
+	suppressionrule.DefaultCreatedAt = suppressionruleDescCreatedAt.Default.(func() time.Time)
+	// suppressionruleDescUpdatedAt is the schema descriptor for updated_at field.
+	suppressionruleDescUpdatedAt := suppressionruleFields[10].Descriptor()
+	// suppressionrule.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	suppressionrule.DefaultUpdatedAt = suppressionruleDescUpdatedAt.Default.(func() time.Time)
+	// suppressionrule.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	suppressionrule.UpdateDefaultUpdatedAt = suppressionruleDescUpdatedAt.UpdateDefault.(func() time.Time)
 	teamFields := schema.Team{}.Fields()
 	_ = teamFields
 	// teamDescName is the schema descriptor for name field.

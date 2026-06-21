@@ -8,6 +8,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kevin/vigil/ent/predicate"
+	"github.com/kevin/vigil/ent/schema"
 )
 
 // ID filters vertices based on their ID field.
@@ -103,6 +104,11 @@ func AckedAt(v time.Time) predicate.Incident {
 // ClosedAt applies equality check predicate on the "closed_at" field. It's identical to ClosedAtEQ.
 func ClosedAt(v time.Time) predicate.Incident {
 	return predicate.Incident(sql.FieldEQ(FieldClosedAt, v))
+}
+
+// Embedding applies equality check predicate on the "embedding" field. It's identical to EmbeddingEQ.
+func Embedding(v *schema.NullableVector) predicate.Incident {
+	return predicate.Incident(sql.FieldEQ(FieldEmbedding, v))
 }
 
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
@@ -788,6 +794,56 @@ func ClosedAtIsNil() predicate.Incident {
 // ClosedAtNotNil applies the NotNil predicate on the "closed_at" field.
 func ClosedAtNotNil() predicate.Incident {
 	return predicate.Incident(sql.FieldNotNull(FieldClosedAt))
+}
+
+// EmbeddingEQ applies the EQ predicate on the "embedding" field.
+func EmbeddingEQ(v *schema.NullableVector) predicate.Incident {
+	return predicate.Incident(sql.FieldEQ(FieldEmbedding, v))
+}
+
+// EmbeddingNEQ applies the NEQ predicate on the "embedding" field.
+func EmbeddingNEQ(v *schema.NullableVector) predicate.Incident {
+	return predicate.Incident(sql.FieldNEQ(FieldEmbedding, v))
+}
+
+// EmbeddingIn applies the In predicate on the "embedding" field.
+func EmbeddingIn(vs ...*schema.NullableVector) predicate.Incident {
+	return predicate.Incident(sql.FieldIn(FieldEmbedding, vs...))
+}
+
+// EmbeddingNotIn applies the NotIn predicate on the "embedding" field.
+func EmbeddingNotIn(vs ...*schema.NullableVector) predicate.Incident {
+	return predicate.Incident(sql.FieldNotIn(FieldEmbedding, vs...))
+}
+
+// EmbeddingGT applies the GT predicate on the "embedding" field.
+func EmbeddingGT(v *schema.NullableVector) predicate.Incident {
+	return predicate.Incident(sql.FieldGT(FieldEmbedding, v))
+}
+
+// EmbeddingGTE applies the GTE predicate on the "embedding" field.
+func EmbeddingGTE(v *schema.NullableVector) predicate.Incident {
+	return predicate.Incident(sql.FieldGTE(FieldEmbedding, v))
+}
+
+// EmbeddingLT applies the LT predicate on the "embedding" field.
+func EmbeddingLT(v *schema.NullableVector) predicate.Incident {
+	return predicate.Incident(sql.FieldLT(FieldEmbedding, v))
+}
+
+// EmbeddingLTE applies the LTE predicate on the "embedding" field.
+func EmbeddingLTE(v *schema.NullableVector) predicate.Incident {
+	return predicate.Incident(sql.FieldLTE(FieldEmbedding, v))
+}
+
+// EmbeddingIsNil applies the IsNil predicate on the "embedding" field.
+func EmbeddingIsNil() predicate.Incident {
+	return predicate.Incident(sql.FieldIsNull(FieldEmbedding))
+}
+
+// EmbeddingNotNil applies the NotNil predicate on the "embedding" field.
+func EmbeddingNotNil() predicate.Incident {
+	return predicate.Incident(sql.FieldNotNull(FieldEmbedding))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

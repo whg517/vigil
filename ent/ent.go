@@ -21,6 +21,7 @@ import (
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/notificationrule"
+	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/rawevent"
 	"github.com/kevin/vigil/ent/role"
@@ -29,6 +30,7 @@ import (
 	"github.com/kevin/vigil/ent/runbook"
 	"github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
@@ -92,26 +94,28 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			aiinsight.Table:        aiinsight.ValidColumn,
-			actionitem.Table:       actionitem.ValidColumn,
-			escalationpolicy.Table: escalationpolicy.ValidColumn,
-			event.Table:            event.ValidColumn,
-			imaccountbinding.Table: imaccountbinding.ValidColumn,
-			incident.Table:         incident.ValidColumn,
-			incidentaction.Table:   incidentaction.ValidColumn,
-			integration.Table:      integration.ValidColumn,
-			notificationrule.Table: notificationrule.ValidColumn,
-			postmortem.Table:       postmortem.ValidColumn,
-			rawevent.Table:         rawevent.ValidColumn,
-			role.Table:             role.ValidColumn,
-			rolebinding.Table:      rolebinding.ValidColumn,
-			rotation.Table:         rotation.ValidColumn,
-			runbook.Table:          runbook.ValidColumn,
-			schedule.Table:         schedule.ValidColumn,
-			service.Table:          service.ValidColumn,
-			team.Table:             team.ValidColumn,
-			timelineitem.Table:     timelineitem.ValidColumn,
-			user.Table:             user.ValidColumn,
+			aiinsight.Table:            aiinsight.ValidColumn,
+			actionitem.Table:           actionitem.ValidColumn,
+			escalationpolicy.Table:     escalationpolicy.ValidColumn,
+			event.Table:                event.ValidColumn,
+			imaccountbinding.Table:     imaccountbinding.ValidColumn,
+			incident.Table:             incident.ValidColumn,
+			incidentaction.Table:       incidentaction.ValidColumn,
+			integration.Table:          integration.ValidColumn,
+			notificationrule.Table:     notificationrule.ValidColumn,
+			notificationtemplate.Table: notificationtemplate.ValidColumn,
+			postmortem.Table:           postmortem.ValidColumn,
+			rawevent.Table:             rawevent.ValidColumn,
+			role.Table:                 role.ValidColumn,
+			rolebinding.Table:          rolebinding.ValidColumn,
+			rotation.Table:             rotation.ValidColumn,
+			runbook.Table:              runbook.ValidColumn,
+			schedule.Table:             schedule.ValidColumn,
+			service.Table:              service.ValidColumn,
+			suppressionrule.Table:      suppressionrule.ValidColumn,
+			team.Table:                 team.ValidColumn,
+			timelineitem.Table:         timelineitem.ValidColumn,
+			user.Table:                 user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

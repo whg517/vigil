@@ -583,6 +583,52 @@ func HasNotificationRulesWith(preds ...predicate.NotificationRule) predicate.Tea
 	})
 }
 
+// HasNotificationTemplates applies the HasEdge predicate on the "notification_templates" edge.
+func HasNotificationTemplates() predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, NotificationTemplatesTable, NotificationTemplatesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasNotificationTemplatesWith applies the HasEdge predicate on the "notification_templates" edge with a given conditions (other predicates).
+func HasNotificationTemplatesWith(preds ...predicate.NotificationTemplate) predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := newNotificationTemplatesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasSuppressionRules applies the HasEdge predicate on the "suppression_rules" edge.
+func HasSuppressionRules() predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, SuppressionRulesTable, SuppressionRulesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSuppressionRulesWith applies the HasEdge predicate on the "suppression_rules" edge with a given conditions (other predicates).
+func HasSuppressionRulesWith(preds ...predicate.SuppressionRule) predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := newSuppressionRulesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasRoleBindings applies the HasEdge predicate on the "role_bindings" edge.
 func HasRoleBindings() predicate.Team {
 	return predicate.Team(func(s *sql.Selector) {

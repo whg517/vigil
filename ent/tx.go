@@ -30,6 +30,8 @@ type Tx struct {
 	Integration *IntegrationClient
 	// NotificationRule is the client for interacting with the NotificationRule builders.
 	NotificationRule *NotificationRuleClient
+	// NotificationTemplate is the client for interacting with the NotificationTemplate builders.
+	NotificationTemplate *NotificationTemplateClient
 	// Postmortem is the client for interacting with the Postmortem builders.
 	Postmortem *PostmortemClient
 	// RawEvent is the client for interacting with the RawEvent builders.
@@ -46,6 +48,8 @@ type Tx struct {
 	Schedule *ScheduleClient
 	// Service is the client for interacting with the Service builders.
 	Service *ServiceClient
+	// SuppressionRule is the client for interacting with the SuppressionRule builders.
+	SuppressionRule *SuppressionRuleClient
 	// Team is the client for interacting with the Team builders.
 	Team *TeamClient
 	// TimelineItem is the client for interacting with the TimelineItem builders.
@@ -192,6 +196,7 @@ func (tx *Tx) init() {
 	tx.IncidentAction = NewIncidentActionClient(tx.config)
 	tx.Integration = NewIntegrationClient(tx.config)
 	tx.NotificationRule = NewNotificationRuleClient(tx.config)
+	tx.NotificationTemplate = NewNotificationTemplateClient(tx.config)
 	tx.Postmortem = NewPostmortemClient(tx.config)
 	tx.RawEvent = NewRawEventClient(tx.config)
 	tx.Role = NewRoleClient(tx.config)
@@ -200,6 +205,7 @@ func (tx *Tx) init() {
 	tx.Runbook = NewRunbookClient(tx.config)
 	tx.Schedule = NewScheduleClient(tx.config)
 	tx.Service = NewServiceClient(tx.config)
+	tx.SuppressionRule = NewSuppressionRuleClient(tx.config)
 	tx.Team = NewTeamClient(tx.config)
 	tx.TimelineItem = NewTimelineItemClient(tx.config)
 	tx.User = NewUserClient(tx.config)

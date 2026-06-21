@@ -43,6 +43,18 @@ func (Incident) Fields() []ent.Field {
 		// acked_at 确认时间（真实 MTTA = acked_at - created_at）。Nullable 表示未确认。
 		field.Time("acked_at").Optional().Nillable().Comment("确认时间，MTTA 计算"),
 		field.Time("closed_at").Optional().Nillable(),
+		// embedding 语义向量（pgvector），用于相似事件检索（能力域 11 M11.4）。
+		// 懒计算：FindSimilar 首次命中时调 LLM embed 并回写持久化，避免重复 embed。
+		// 列类型为 vector(1536)；依赖 PG 的 pgvector 扩展（见 migrations/0002_pgvector.sql）。
+		// 无扩展的环境跑 migrate 会报错（部署文档注明），FindSimilar 运行时降级回 LIKE。
+		// 用 NullableVector（非裸 pgvector.Vector）以正确处理 SQL NULL（避免 Scan nil 报错）。
+		field.Other("embedding", &NullableVector{}).
+			SchemaType(map[string]string{
+				"postgres": "vector(1536)",
+				"sqlite3":  "blob", // sqlite 测试用：pgvector 类型仅 postgres 支持
+			}).
+			Optional().
+			Comment("语义向量，pgvector，相似事件检索用"),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}

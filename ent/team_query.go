@@ -16,11 +16,13 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/notificationrule"
+	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/predicate"
 	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/runbook"
 	"github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/user"
 )
@@ -28,19 +30,21 @@ import (
 // TeamQuery is the builder for querying Team entities.
 type TeamQuery struct {
 	config
-	ctx                    *QueryContext
-	order                  []team.OrderOption
-	inters                 []Interceptor
-	predicates             []predicate.Team
-	withUsers              *UserQuery
-	withServices           *ServiceQuery
-	withSchedules          *ScheduleQuery
-	withEscalationPolicies *EscalationPolicyQuery
-	withRunbooks           *RunbookQuery
-	withNotificationRules  *NotificationRuleQuery
-	withRoleBindings       *RoleBindingQuery
-	withIncidents          *IncidentQuery
-	withIntegrations       *IntegrationQuery
+	ctx                       *QueryContext
+	order                     []team.OrderOption
+	inters                    []Interceptor
+	predicates                []predicate.Team
+	withUsers                 *UserQuery
+	withServices              *ServiceQuery
+	withSchedules             *ScheduleQuery
+	withEscalationPolicies    *EscalationPolicyQuery
+	withRunbooks              *RunbookQuery
+	withNotificationRules     *NotificationRuleQuery
+	withNotificationTemplates *NotificationTemplateQuery
+	withSuppressionRules      *SuppressionRuleQuery
+	withRoleBindings          *RoleBindingQuery
+	withIncidents             *IncidentQuery
+	withIntegrations          *IntegrationQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -202,6 +206,50 @@ func (_q *TeamQuery) QueryNotificationRules() *NotificationRuleQuery {
 			sqlgraph.From(team.Table, team.FieldID, selector),
 			sqlgraph.To(notificationrule.Table, notificationrule.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, team.NotificationRulesTable, team.NotificationRulesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryNotificationTemplates chains the current query on the "notification_templates" edge.
+func (_q *TeamQuery) QueryNotificationTemplates() *NotificationTemplateQuery {
+	query := (&NotificationTemplateClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, selector),
+			sqlgraph.To(notificationtemplate.Table, notificationtemplate.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, team.NotificationTemplatesTable, team.NotificationTemplatesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QuerySuppressionRules chains the current query on the "suppression_rules" edge.
+func (_q *TeamQuery) QuerySuppressionRules() *SuppressionRuleQuery {
+	query := (&SuppressionRuleClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, selector),
+			sqlgraph.To(suppressionrule.Table, suppressionrule.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, team.SuppressionRulesTable, team.SuppressionRulesColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -462,20 +510,22 @@ func (_q *TeamQuery) Clone() *TeamQuery {
 		return nil
 	}
 	return &TeamQuery{
-		config:                 _q.config,
-		ctx:                    _q.ctx.Clone(),
-		order:                  append([]team.OrderOption{}, _q.order...),
-		inters:                 append([]Interceptor{}, _q.inters...),
-		predicates:             append([]predicate.Team{}, _q.predicates...),
-		withUsers:              _q.withUsers.Clone(),
-		withServices:           _q.withServices.Clone(),
-		withSchedules:          _q.withSchedules.Clone(),
-		withEscalationPolicies: _q.withEscalationPolicies.Clone(),
-		withRunbooks:           _q.withRunbooks.Clone(),
-		withNotificationRules:  _q.withNotificationRules.Clone(),
-		withRoleBindings:       _q.withRoleBindings.Clone(),
-		withIncidents:          _q.withIncidents.Clone(),
-		withIntegrations:       _q.withIntegrations.Clone(),
+		config:                    _q.config,
+		ctx:                       _q.ctx.Clone(),
+		order:                     append([]team.OrderOption{}, _q.order...),
+		inters:                    append([]Interceptor{}, _q.inters...),
+		predicates:                append([]predicate.Team{}, _q.predicates...),
+		withUsers:                 _q.withUsers.Clone(),
+		withServices:              _q.withServices.Clone(),
+		withSchedules:             _q.withSchedules.Clone(),
+		withEscalationPolicies:    _q.withEscalationPolicies.Clone(),
+		withRunbooks:              _q.withRunbooks.Clone(),
+		withNotificationRules:     _q.withNotificationRules.Clone(),
+		withNotificationTemplates: _q.withNotificationTemplates.Clone(),
+		withSuppressionRules:      _q.withSuppressionRules.Clone(),
+		withRoleBindings:          _q.withRoleBindings.Clone(),
+		withIncidents:             _q.withIncidents.Clone(),
+		withIntegrations:          _q.withIntegrations.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -545,6 +595,28 @@ func (_q *TeamQuery) WithNotificationRules(opts ...func(*NotificationRuleQuery))
 		opt(query)
 	}
 	_q.withNotificationRules = query
+	return _q
+}
+
+// WithNotificationTemplates tells the query-builder to eager-load the nodes that are connected to
+// the "notification_templates" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TeamQuery) WithNotificationTemplates(opts ...func(*NotificationTemplateQuery)) *TeamQuery {
+	query := (&NotificationTemplateClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withNotificationTemplates = query
+	return _q
+}
+
+// WithSuppressionRules tells the query-builder to eager-load the nodes that are connected to
+// the "suppression_rules" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TeamQuery) WithSuppressionRules(opts ...func(*SuppressionRuleQuery)) *TeamQuery {
+	query := (&SuppressionRuleClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSuppressionRules = query
 	return _q
 }
 
@@ -659,13 +731,15 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 	var (
 		nodes       = []*Team{}
 		_spec       = _q.querySpec()
-		loadedTypes = [9]bool{
+		loadedTypes = [11]bool{
 			_q.withUsers != nil,
 			_q.withServices != nil,
 			_q.withSchedules != nil,
 			_q.withEscalationPolicies != nil,
 			_q.withRunbooks != nil,
 			_q.withNotificationRules != nil,
+			_q.withNotificationTemplates != nil,
+			_q.withSuppressionRules != nil,
 			_q.withRoleBindings != nil,
 			_q.withIncidents != nil,
 			_q.withIntegrations != nil,
@@ -728,6 +802,22 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 		if err := _q.loadNotificationRules(ctx, query, nodes,
 			func(n *Team) { n.Edges.NotificationRules = []*NotificationRule{} },
 			func(n *Team, e *NotificationRule) { n.Edges.NotificationRules = append(n.Edges.NotificationRules, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withNotificationTemplates; query != nil {
+		if err := _q.loadNotificationTemplates(ctx, query, nodes,
+			func(n *Team) { n.Edges.NotificationTemplates = []*NotificationTemplate{} },
+			func(n *Team, e *NotificationTemplate) {
+				n.Edges.NotificationTemplates = append(n.Edges.NotificationTemplates, e)
+			}); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withSuppressionRules; query != nil {
+		if err := _q.loadSuppressionRules(ctx, query, nodes,
+			func(n *Team) { n.Edges.SuppressionRules = []*SuppressionRule{} },
+			func(n *Team, e *SuppressionRule) { n.Edges.SuppressionRules = append(n.Edges.SuppressionRules, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -966,6 +1056,68 @@ func (_q *TeamQuery) loadNotificationRules(ctx context.Context, query *Notificat
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "team_notification_rules" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *TeamQuery) loadNotificationTemplates(ctx context.Context, query *NotificationTemplateQuery, nodes []*Team, init func(*Team), assign func(*Team, *NotificationTemplate)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Team)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.NotificationTemplate(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(team.NotificationTemplatesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.team_notification_templates
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "team_notification_templates" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "team_notification_templates" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *TeamQuery) loadSuppressionRules(ctx context.Context, query *SuppressionRuleQuery, nodes []*Team, init func(*Team), assign func(*Team, *SuppressionRule)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Team)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.SuppressionRule(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(team.SuppressionRulesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.team_suppression_rules
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "team_suppression_rules" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "team_suppression_rules" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
 	}

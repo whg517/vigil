@@ -38,6 +38,10 @@ const (
 	EdgeRunbooks = "runbooks"
 	// EdgeNotificationRules holds the string denoting the notification_rules edge name in mutations.
 	EdgeNotificationRules = "notification_rules"
+	// EdgeNotificationTemplates holds the string denoting the notification_templates edge name in mutations.
+	EdgeNotificationTemplates = "notification_templates"
+	// EdgeSuppressionRules holds the string denoting the suppression_rules edge name in mutations.
+	EdgeSuppressionRules = "suppression_rules"
 	// EdgeRoleBindings holds the string denoting the role_bindings edge name in mutations.
 	EdgeRoleBindings = "role_bindings"
 	// EdgeIncidents holds the string denoting the incidents edge name in mutations.
@@ -86,6 +90,20 @@ const (
 	NotificationRulesInverseTable = "notification_rules"
 	// NotificationRulesColumn is the table column denoting the notification_rules relation/edge.
 	NotificationRulesColumn = "team_notification_rules"
+	// NotificationTemplatesTable is the table that holds the notification_templates relation/edge.
+	NotificationTemplatesTable = "notification_templates"
+	// NotificationTemplatesInverseTable is the table name for the NotificationTemplate entity.
+	// It exists in this package in order to avoid circular dependency with the "notificationtemplate" package.
+	NotificationTemplatesInverseTable = "notification_templates"
+	// NotificationTemplatesColumn is the table column denoting the notification_templates relation/edge.
+	NotificationTemplatesColumn = "team_notification_templates"
+	// SuppressionRulesTable is the table that holds the suppression_rules relation/edge.
+	SuppressionRulesTable = "suppression_rules"
+	// SuppressionRulesInverseTable is the table name for the SuppressionRule entity.
+	// It exists in this package in order to avoid circular dependency with the "suppressionrule" package.
+	SuppressionRulesInverseTable = "suppression_rules"
+	// SuppressionRulesColumn is the table column denoting the suppression_rules relation/edge.
+	SuppressionRulesColumn = "team_suppression_rules"
 	// RoleBindingsTable is the table that holds the role_bindings relation/edge. The primary key declared below.
 	RoleBindingsTable = "team_role_bindings"
 	// RoleBindingsInverseTable is the table name for the RoleBinding entity.
@@ -270,6 +288,34 @@ func ByNotificationRules(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption
 	}
 }
 
+// ByNotificationTemplatesCount orders the results by notification_templates count.
+func ByNotificationTemplatesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newNotificationTemplatesStep(), opts...)
+	}
+}
+
+// ByNotificationTemplates orders the results by notification_templates terms.
+func ByNotificationTemplates(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newNotificationTemplatesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// BySuppressionRulesCount orders the results by suppression_rules count.
+func BySuppressionRulesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSuppressionRulesStep(), opts...)
+	}
+}
+
+// BySuppressionRules orders the results by suppression_rules terms.
+func BySuppressionRules(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSuppressionRulesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByRoleBindingsCount orders the results by role_bindings count.
 func ByRoleBindingsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -351,6 +397,20 @@ func newNotificationRulesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(NotificationRulesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, NotificationRulesTable, NotificationRulesColumn),
+	)
+}
+func newNotificationTemplatesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(NotificationTemplatesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, NotificationTemplatesTable, NotificationTemplatesColumn),
+	)
+}
+func newSuppressionRulesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SuppressionRulesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SuppressionRulesTable, SuppressionRulesColumn),
 	)
 }
 func newRoleBindingsStep() *sqlgraph.Step {

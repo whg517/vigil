@@ -13,6 +13,7 @@ import (
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/postmortem"
+	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/service"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/user"
@@ -53,6 +54,8 @@ type Incident struct {
 	AckedAt *time.Time `json:"acked_at,omitempty"`
 	// ClosedAt holds the value of the "closed_at" field.
 	ClosedAt *time.Time `json:"closed_at,omitempty"`
+	// 语义向量，pgvector，相似事件检索用
+	Embedding *schema.NullableVector `json:"embedding,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -201,6 +204,8 @@ func (*Incident) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case incident.FieldWarRoom:
 			values[i] = new([]byte)
+		case incident.FieldEmbedding:
+			values[i] = new(schema.NullableVector)
 		case incident.FieldID, incident.FieldEscalatedCount, incident.FieldCurrentLevel:
 			values[i] = new(sql.NullInt64)
 		case incident.FieldNumber, incident.FieldTitle, incident.FieldSeverity, incident.FieldStatus, incident.FieldPriority, incident.FieldSummary, incident.FieldMergedInto, incident.FieldTriggerType, incident.FieldTriggerSourceEventID:
@@ -330,6 +335,12 @@ func (_m *Incident) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ClosedAt = new(time.Time)
 				*_m.ClosedAt = value.Time
+			}
+		case incident.FieldEmbedding:
+			if value, ok := values[i].(*schema.NullableVector); !ok {
+				return fmt.Errorf("unexpected type %T for field embedding", values[i])
+			} else if value != nil {
+				_m.Embedding = value
 			}
 		case incident.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -507,6 +518,9 @@ func (_m *Incident) String() string {
 		builder.WriteString("closed_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("embedding=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Embedding))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
