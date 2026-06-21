@@ -85,11 +85,11 @@ go build ./... && pnpm --dir web build
 ### 工作模式：worktree + 特性分支
 
 - 主仓库目录**永远停在 `main`**，只用于合并，不直接开发。
-- 每个特性在 `.worktree/<特性>/` 下独立开发：
+- 每个特性在 `.worktree/<type>-<特性>/` 下独立开发（**目录名 = 分支名 = `<type>-<特性>`**，扁平名无斜杠；type 与提交信息一致，见 docs/development.md §4.2）：
 
   ```bash
-  git worktree add .worktree/feature-<name> -b feature/<name>
-  cd .worktree/feature-<name>
+  git worktree add .worktree/<type>-<name> -b <type>-<name>
+  cd .worktree/<type>-<name>
   ```
 
 - `.worktree/` 已 gitignore，不入库。
