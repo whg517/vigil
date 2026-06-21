@@ -20,6 +20,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/notificationrule"
+	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/ai"
 	"github.com/kevin/vigil/internal/analytics"
 	"github.com/kevin/vigil/internal/auth"
@@ -185,7 +186,31 @@ func run() error {
 	notifReg.Register(notification.NewWebhookChannel(func(inc *ent.Incident) []string {
 		return notifWebhookURLs
 	}))
-	notifReg.Register(&notification.EmailChannel{})
+	// 邮件通道（能力域 7 M7.3）：SMTP 配置后真实发送，未配置降级跳过。
+	// GetEmails 从 targets 解析 email（当前简化：从 incident.team 成员查 email，后续按 NotificationRule 细化）。
+	emailChan := &notification.EmailChannel{
+		Config: notification.SMTPConfig{
+			Host: cfg.Notification.SMTP.Host, Port: cfg.Notification.SMTP.Port,
+			Username: cfg.Notification.SMTP.Username, Password: cfg.Notification.SMTP.Password,
+		},
+		From:      cfg.Notification.SMTP.From,
+		GetEmails: func(targets []notification.Target) []string { return resolveEmails(ctx, st.DB, targets) },
+	}
+	notifReg.Register(emailChan)
+	if emailChan.Available() {
+		log.Info("email channel ready (smtp)")
+	}
+	// 电话/SMS 通道（能力域 7 M7.2，占位）：转发 webhook 供用户对接云语音 API。
+	phoneChan := &notification.PhoneChannel{
+		Config: notification.VoiceProviderConfig{WebhookURL: cfg.Notification.Phone.WebhookURL, From: cfg.Notification.Phone.From},
+		GetPhones: func(targets []notification.Target) []string { return resolvePhones(ctx, st.DB, targets) },
+	}
+	smsChan := &notification.SMSChannel{
+		Config: notification.VoiceProviderConfig{WebhookURL: cfg.Notification.SMS.WebhookURL, From: cfg.Notification.SMS.From},
+		GetPhones: func(targets []notification.Target) []string { return resolvePhones(ctx, st.DB, targets) },
+	}
+	notifReg.Register(phoneChan)
+	notifReg.Register(smsChan)
 	// 默认通道含 im（IMChannel 在 5.6.1 注册，notifier 实时查 registry，晚注册也能生效）
 	// 无 webhook URL 配置时不把 webhook 放默认通道，避免无效空跑
 	defaultChans := []string{"im", "email"}
@@ -520,4 +545,53 @@ func parseWebhookURLs(csv string) []string {
 		}
 	}
 	return urls
+}
+
+// resolveEmails 从 targets 的 user_id 批量查 User.email（邮件通道用）。
+// 查询失败的 user 跳过，不阻塞其他目标。
+func resolveEmails(ctx context.Context, db *ent.Client, targets []notification.Target) []string {
+	var uids []int
+	for _, t := range targets {
+		if t.UserID > 0 {
+			uids = append(uids, t.UserID)
+		}
+	}
+	if len(uids) == 0 {
+		return nil
+	}
+	users, err := db.User.Query().Where(user.IDIn(uids...)).All(ctx)
+	if err != nil {
+		return nil
+	}
+	var emails []string
+	for _, u := range users {
+		if u.Email != "" {
+			emails = append(emails, u.Email)
+		}
+	}
+	return emails
+}
+
+// resolvePhones 从 targets 的 user_id 批量查 User.phone（电话/SMS 通道用）。
+func resolvePhones(ctx context.Context, db *ent.Client, targets []notification.Target) []string {
+	var uids []int
+	for _, t := range targets {
+		if t.UserID > 0 {
+			uids = append(uids, t.UserID)
+		}
+	}
+	if len(uids) == 0 {
+		return nil
+	}
+	users, err := db.User.Query().Where(user.IDIn(uids...)).All(ctx)
+	if err != nil {
+		return nil
+	}
+	var phones []string
+	for _, u := range users {
+		if u.Phone != "" {
+			phones = append(phones, u.Phone)
+		}
+	}
+	return phones
 }

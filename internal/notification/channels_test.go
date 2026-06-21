@@ -90,19 +90,43 @@ func TestWebhookChannel_Failure(t *testing.T) {
 	}
 }
 
-// TestEmailChannel 验证邮件通道按 targets 生成结果（模拟）。
-func TestEmailChannel(t *testing.T) {
-	ch := &EmailChannel{GetEmails: func(targets []Target) []string {
-		return []string{"a@x.com", "b@x.com"}
-	}}
-	results, _ := ch.Send(context.Background(), &Message{Targets: []Target{{Name: "u1"}}})
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results, got %d", len(results))
+// TestEmailChannel_UnconfiguredSkips 未配置 SMTP 时降级跳过（不发送）。
+func TestEmailChannel_UnconfiguredSkips(t *testing.T) {
+	ch := &EmailChannel{
+		GetEmails: func(targets []Target) []string { return []string{"a@x.com"} },
 	}
-	for _, r := range results {
-		if !r.Success || r.Channel != "email" {
-			t.Errorf("unexpected result: %+v", r)
-		}
+	if ch.Available() {
+		t.Error("unconfigured email channel Available()=true, want false")
+	}
+	results, _ := ch.Send(context.Background(), &Message{Targets: []Target{{Name: "u1"}}})
+	if len(results) != 0 {
+		t.Errorf("unconfigured email channel sent %d results, want 0 (degrade)", len(results))
+	}
+}
+
+// TestEmailChannel_ConfiguredNoGetEmails 配了 SMTP 但无 GetEmails → 不发送。
+func TestEmailChannel_ConfiguredNoGetEmails(t *testing.T) {
+	ch := &EmailChannel{
+		Config: SMTPConfig{Host: "smtp.example.com", Port: 587},
+	}
+	if !ch.Available() {
+		t.Error("configured email channel Available()=false")
+	}
+	results, _ := ch.Send(context.Background(), &Message{Targets: []Target{}})
+	if len(results) != 0 {
+		t.Errorf("email without GetEmails sent %d, want 0", len(results))
+	}
+}
+
+// TestEmailChannel_SMTPAddr 验证 SMTPAddr 拼接（含默认端口）。
+func TestEmailChannel_SMTPAddr(t *testing.T) {
+	c := SMTPConfig{Host: "smtp.x.com"}
+	if got := c.SMTPAddr(); got != "smtp.x.com:25" {
+		t.Errorf("default port: %q, want smtp.x.com:25", got)
+	}
+	c.Port = 587
+	if got := c.SMTPAddr(); got != "smtp.x.com:587" {
+		t.Errorf("custom port: %q, want smtp.x.com:587", got)
 	}
 }
 

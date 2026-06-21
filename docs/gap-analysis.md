@@ -58,8 +58,8 @@ r.Register(&GenericJSONAdapter{})
 |------|-----|------|
 | IM（飞书/钉钉） | M7.1 | ✅ 真实 |
 | Webhook | M7.4 | ✅ 真实 |
-| **邮件（SMTP）** | M7.3 | ❌ `channels_builtin.go:91` `// TODO: 接入 SMTP`，只模拟返回 success，**没真发** |
-| **电话/SMS（云语音）** | M7.2 | ❌ 完全无通道实现，仅在 channel.go 留字符串 `"phone"|"sms"` 占位 |
+| **邮件（SMTP）** | M7.3 | ✅ 已实现（feat-notify-channels：net/smtp 真实发送 + SMTPConfig，未配置降级） |
+| **电话/SMS（云语音）** | M7.2 | ✅ 抽象层已实现（feat-notify-channels：PhoneChannel/SMSChannel 占位转发 webhook，真实云厂商对接留 TODO.md） |
 | 送达确认持久化 | M7.6 | ❌ 无 Notification 实体（`main.go:168`「后续加表」），送达结果只打日志 |
 | NotificationRule 精确匹配 | M7.5 | ⚠️ `main.go:189/215`「本期简化：取首条 enabled 规则」，条件匹配未实现 |
 

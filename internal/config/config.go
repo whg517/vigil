@@ -42,6 +42,9 @@ type Config struct {
 
 	// Ingestion 接入配置（能力域 1，限流/背压保护）
 	Ingestion Ingestion `envconfig:"ingestion"`
+
+	// Notification 通知通道配置（能力域 7，邮件/电话/SMS）
+	Notification Notification `envconfig:"notification"`
 }
 
 // App 应用级配置。
@@ -137,6 +140,31 @@ type Ingestion struct {
 	// BackpressureDepth 队列积压阈值，超过则接入层返回 503（payload 仍落库）。
 	// 0=不检查背压。
 	BackpressureDepth int `envconfig:"backpressure_depth" default:"10000"`
+}
+
+// Notification 通知通道配置（能力域 7，PRD M7.2/M7.3）。
+// 各通道凭证缺失时降级为不发送（设计基线第 7 条）。
+type Notification struct {
+	SMTP  SMTP  `envconfig:"smtp"`  // 邮件通道
+	Phone Voice `envconfig:"phone"` // 电话通道（占位，转发 webhook）
+	SMS   Voice `envconfig:"sms"`   // 短信通道（占位，转发 webhook）
+}
+
+// SMTP 邮件服务器配置（能力域 7 M7.3）。Host 为空时邮件通道禁用。
+type SMTP struct {
+	Host     string `envconfig:"host"`     // SMTP 服务器（如 smtp.example.com），空=禁用
+	Port     int    `envconfig:"port"`     // 端口（25/465/587），0=25
+	Username string `envconfig:"username"` // 认证用户名，空=匿名
+	Password string `envconfig:"password"` // 认证密码
+	From     string `envconfig:"from"`     // 发件人地址，空=vigil@localhost
+}
+
+// Voice 电话/SMS 提供商配置（能力域 7 M7.2，本期占位）。
+// WebhookURL 非空时，通知 POST 到此 URL，用户在端侧对接云语音 API（阿里云/腾讯云）。
+// 真实云厂商对接留 TODO.md，避免本期绑定具体厂商。
+type Voice struct {
+	WebhookURL string `envconfig:"webhook_url"` // 语音/SMS 接收端点，空=禁用
+	From       string `envconfig:"from"`        // 主叫/发件标识（可选）
 }
 
 // LLM 配置（智谱 GLM）。APIKey 为空时 AI 功能自动降级（设计基线第 7 条）。
