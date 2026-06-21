@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"github.com/kevin/vigil/internal/incident"
 	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/logger"
+	"github.com/kevin/vigil/internal/migrate"
 	"github.com/kevin/vigil/internal/notification"
 	"github.com/kevin/vigil/internal/postmortem"
 	"github.com/kevin/vigil/internal/queue"
@@ -59,21 +61,29 @@ func main() {
 	}
 }
 
-// runMigrate 应用 ent schema 到 PostgreSQL（auto-migration）。
+// runMigrate 执行版本化迁移到 PostgreSQL。
+// 先应用 migrations/*.sql（版本追踪），再 ent auto-migrate 补充同步。
 func runMigrate() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	db, err := ent.Open("postgres", cfg.DB.DSN())
+	// 打开 sql.DB（原生 SQL，用于版本追踪表 + 迁移文件 apply）
+	sqlDB, err := sql.Open("postgres", cfg.DB.DSN())
 	if err != nil {
-		return fmt.Errorf("open db: %w", err)
+		return fmt.Errorf("open sql db: %w", err)
 	}
-	defer func() { _ = db.Close() }()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer func() { _ = sqlDB.Close() }()
+	// 打开 ent.Client（schema 同步）
+	entDB, err := ent.Open("postgres", cfg.DB.DSN())
+	if err != nil {
+		return fmt.Errorf("open ent db: %w", err)
+	}
+	defer func() { _ = entDB.Close() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	if err := db.Schema.Create(ctx); err != nil {
-		return fmt.Errorf("apply schema: %w", err)
+	if err := migrate.Run(ctx, sqlDB, entDB); err != nil {
+		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil
 }
