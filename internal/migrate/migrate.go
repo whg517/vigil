@@ -22,7 +22,7 @@ import (
 var migrationFS embed.FS
 
 // preMigratePrefix 迁移文件名前缀：pre_ 开头的文件在 ent auto-migrate 之前执行
-//（如安装 pgvector 扩展），其余在之后执行。
+// （如安装 pgvector 扩展），其余在之后执行。
 const preMigratePrefix = "pre_"
 
 // Run 执行版本化迁移：
