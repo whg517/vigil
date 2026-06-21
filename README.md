@@ -43,11 +43,18 @@ open http://localhost:8080/docs # Swagger API 文档
 
 > ⚠️ **安全警告（自托管必读）**
 >
-> 当前业务 API 鉴权**默认关闭**（`VIGIL_AUTH_ENABLED=false`），仅解析 `X-Vigil-User-ID` 头做身份标识，无任何登录态校验。这意味着：
-> - 任何能访问到 API 端口的人都能调用所有业务接口（ack/resolve/角色管理等）；
-> - `X-Vigil-User-ID` 可被任意伪造。
+> **JWT 登录态已就绪**（`POST /api/v1/auth/login`）。生产部署步骤：
+> 1. 设置 `VIGIL_AUTH_JWT_SECRET`（必填，强随机字符串，用于 JWT 签名）；
+> 2. 设置 `VIGIL_AUTH_ENABLED=true`（开启业务 API 强制身份解析）；
+> 3. 首次启动自动创建默认管理员 **admin / changeme**，**请立即改密**。
 >
-> **在接入正式登录态之前，切勿将 API 直接暴露到公网或不受信网络**。生产部署应通过反向代理 + 网络策略（防火墙/VPN/内网）限制访问，或设置 `VIGIL_AUTH_ENABLED=true` 并接入完整的登录态中间件后再上线。
+> 鉴权双轨：
+> - **JWT（推荐）**：前端登录后带 `Authorization: Bearer <token>`，`AUTH_ENABLED=true` 时优先校验；
+> - **`X-Vigil-User-ID` 头（降级兼容）**：`AUTH_ENABLED=false` 时的遗留链路，**可被伪造**，仅用于内网/试用。生产环境务必保持 `AUTH_ENABLED=true`。
+>
+> **`AUTH_ENABLED=false`（默认）时切勿将 API 暴露到公网或不受信网络**。仍应通过反向代理 + 网络策略（防火墙/VPN/内网）限制访问。
+>
+> API Key（程序化接入）与审计日志为后续特性（见 [`docs/gap-analysis.md`](docs/gap-analysis.md)）。
 
 ## 文档导航
 

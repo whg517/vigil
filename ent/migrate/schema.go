@@ -749,6 +749,7 @@ var (
 		{Name: "im_accounts", Type: field.TypeJSON, Nullable: true},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "disabled"}, Default: "active"},
 		{Name: "timezone", Type: field.TypeString, Default: "Asia/Shanghai"},
+		{Name: "password_hash", Type: field.TypeString, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

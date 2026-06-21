@@ -1,6 +1,7 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { Shield } from "lucide-react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { LogOut, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { logout } from "@/lib/auth";
 
 /**
  * AppShell —— 应用主布局：左侧导航 + 右侧内容区（Outlet）。
@@ -17,6 +18,12 @@ const navItems = [
 ];
 
 export function AppShell() {
+  const navigate = useNavigate();
+  const onLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {/* 侧边栏 */}
@@ -44,6 +51,17 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
+        {/* 登出（闭环登录态）：清 token 跳登录页 */}
+        <div className="border-t p-2">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+            登出
+          </button>
+        </div>
       </aside>
 
       {/* 内容区 */}

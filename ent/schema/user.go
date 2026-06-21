@@ -26,6 +26,10 @@ func (User) Fields() []ent.Field {
 		field.JSON("im_accounts", []IMAccount{}).Optional().Comment("IM 账号绑定（JSON，兼容字段；新数据见 im_bindings 表）"),
 		field.Enum("status").Values("active", "disabled").Default("active"),
 		field.String("timezone").Default("Asia/Shanghai"),
+		// password_hash 本地密码 bcrypt 哈希（能力域 13 JWT 登录态）。
+		// Sensitive：ent 序列化/日志时自动脱敏，避免泄露。
+		// 仅 JWT 登录链路使用；IM/SSO 绑定不写此字段。空=未设密码，拒绝密码登录。
+		field.String("password_hash").Sensitive().Optional().Comment("密码哈希（bcrypt），仅登录链路用"),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}

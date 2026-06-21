@@ -29,6 +29,8 @@ const (
 	FieldStatus = "status"
 	// FieldTimezone holds the string denoting the timezone field in the database.
 	FieldTimezone = "timezone"
+	// FieldPasswordHash holds the string denoting the password_hash field in the database.
+	FieldPasswordHash = "password_hash"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -95,6 +97,7 @@ var Columns = []string{
 	FieldImAccounts,
 	FieldStatus,
 	FieldTimezone,
+	FieldPasswordHash,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -196,6 +199,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByTimezone orders the results by the timezone field.
 func ByTimezone(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTimezone, opts...).ToFunc()
+}
+
+// ByPasswordHash orders the results by the password_hash field.
+func ByPasswordHash(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPasswordHash, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

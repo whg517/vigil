@@ -15,9 +15,14 @@ export const http: AxiosInstance = axios.create({
 });
 
 // 请求拦截：附加鉴权与身份。
-// 身份：后端 RequireUser 中间件从 X-Vigil-User-ID 解析（渐进式鉴权阶段），
-// 浏览器侧从 localStorage 取当前用户 ID 注入，避免每个调用方手写。
+// 鉴权优先级与后端中间件一致：JWT Bearer（登录态）优先，X-Vigil-User-ID 回退（兼容降级）。
+// 浏览器侧从 localStorage 取 token/userId 注入，避免每个调用方手写。
 http.interceptors.request.use((config) => {
+  // JWT 登录态（能力域 13）：登录后存 vigil_token
+  const token = localStorage.getItem("vigil_token");
+  if (token) {
+    config.headers["Authorization"] = `Bearer ${token}`;
+  }
   const apiKey = localStorage.getItem("vigil_api_key");
   if (apiKey) {
     config.headers["X-Vigil-Key"] = apiKey;
@@ -46,9 +51,19 @@ export function extractError(error: unknown): string {
 
 // 响应拦截：统一错误提示（接 sonner toast）。
 // 仍 reject 以便调用方（如 react-query）感知错误做 loading/重试处理。
+// 401 特殊处理：登录态失效时清 token 跳登录页（避免递归——登录页自身的 401 不触发重定向）。
 http.interceptors.response.use(
   (response) => response,
   (error) => {
+    // 401 登录态失效：清凭据跳登录（登录页自身 401 除外，防递归）
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      localStorage.removeItem("vigil_token");
+      localStorage.removeItem("vigil_refresh_token");
+      localStorage.removeItem("vigil_user_id");
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
+      }
+    }
     const message = extractError(error);
     console.error("[vigil] request error:", message, error);
     toast.error(message);

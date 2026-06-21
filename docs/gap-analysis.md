@@ -125,7 +125,7 @@ README 第 44-50 行：
 
 | 项 | PRD | 现状 |
 |----|-----|------|
-| 登录态鉴权 | NFR-安全 | ❌ `middleware.go:7`「简化，后续」，无 JWT/Session/OAuth，改 header 即伪造身份 |
+| 登录态鉴权 | NFR-安全 | ✅ JWT 自管已实现（feat-auth-jwt：login/refresh/me + bcrypt + 前端登录页 + 路由守卫；`X-Vigil-User-ID` 保留为 AUTH_ENABLED=false 降级兼容） |
 | API Key（scoped） | M13.7 | ❌ 不存在 |
 | 凭证加密 | H1.3 | ❌ 明文环境变量 |
 | HTTPS 默认 | H1.6 | ⚠️ 靠用户前置 nginx，应用层无强制 |
@@ -205,6 +205,6 @@ README 第 44-50 行：
 |---|------|--------|
 | D1 | **首批攻坚方向**：先补 P0 安全闭环，还是先补通知通道广度，还是先补前端管理页？ | 取决于"先能上生产"还是"先补差异化" |
 | D2 | **交付节奏**：一次做一个完整闭环（含前端+后端+测试+文档），还是按层批量铺开？ | 项目 development.md 强调特性闭环原子性，倾向前者 |
-| D3 | **鉴权方案选型**：JWT（自管）vs Session vs OIDC（接企业 SSO）？ | 影响 M13.1 用户管理设计 |
+| D3 | **鉴权方案选型**：JWT（自管）vs Session vs OIDC（接企业 SSO）？ | ✅ 已定：JWT 自管（feat-auth-jwt 已落地） |
 | D4 | **告警源/通知通道的接入策略**：自己实现 vs 定义 Adapter 接口等社区贡献？ | 影响 P2 优先级 |
 | D5 | **AI 知识沉淀**：新建 knowledge_base 实体，还是复用 postmortem + pgvector 直接检索？ | 影响 M12.6 实现成本 |

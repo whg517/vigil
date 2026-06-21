@@ -6,6 +6,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/kelseyhightower/envconfig"
 )
@@ -86,10 +87,34 @@ type Asynq struct {
 
 // Auth 鉴权配置（能力域 13）。
 // Enabled 为 false 时业务 API 不强制身份解析（匿名放行，渐进启用阶段默认 false）；
-// 为 true 时所有业务 API 需 X-Vigil-User-ID 身份头。
+// 为 true 时所有业务 API 须提供有效身份（JWT 优先，回退 X-Vigil-User-ID）。
 // webhook 接入/IM 回调不受此开关影响（它们用各自的 token/签名鉴权）。
 type Auth struct {
 	Enabled bool `envconfig:"enabled" default:"false"` // 是否强制业务 API 鉴权
+
+	// JWT 自管登录态配置（能力域 13 登录链路）。
+	// JWTSecret 为空时登录链路降级（拒绝签发，提示配置缺失）。
+	// ⚠️ Secret 仅从环境变量读取，绝不硬编码/提交 git；生产必须显式设置。
+	JWTSecret       string        `envconfig:"jwt_secret"`                       // HMAC 签名密钥（VIGIL_AUTH_JWT_SECRET）
+	AccessTokenTTL  time.Duration `envconfig:"access_token_ttl" default:"15m"`   // access token 有效期
+	RefreshTokenTTL time.Duration `envconfig:"refresh_token_ttl" default:"720h"` // refresh token 有效期（30d）
+}
+
+// EffectiveAccessTokenTTL 返回 access token 有效期，零值时回退默认 15m。
+// envconfig 嵌套 default 在部分场景不生效（见 .env.example 注释），故提供兜底。
+func (a Auth) EffectiveAccessTokenTTL() time.Duration {
+	if a.AccessTokenTTL == 0 {
+		return 15 * time.Minute
+	}
+	return a.AccessTokenTTL
+}
+
+// EffectiveRefreshTokenTTL 返回 refresh token 有效期，零值时回退默认 720h（30d）。
+func (a Auth) EffectiveRefreshTokenTTL() time.Duration {
+	if a.RefreshTokenTTL == 0 {
+		return 720 * time.Hour
+	}
+	return a.RefreshTokenTTL
 }
 
 // Webhook 出口配置（能力域 14）。

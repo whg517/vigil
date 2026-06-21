@@ -44,7 +44,7 @@ func TestHandler_AckActorFromContext(t *testing.T) {
 
 	e := echo.New()
 	// 复刻线上装配：v1 组挂 RequireUser(false) 做身份解析（渐进式鉴权阶段）
-	v1 := e.Group("/api/v1", auth.RequireUser(false))
+	v1 := e.Group("/api/v1", auth.RequireUser(false, nil))
 	h.Register(v1)
 
 	// 关键：body 不带 actor_id，仅靠 header X-Vigil-User-ID 标识身份。
@@ -91,7 +91,7 @@ func TestHandler_AckNoUser_NoActor(t *testing.T) {
 	svc := NewService(c, timeline.NewRecorder(c), nil)
 	h := NewHandler(c, svc)
 	e := echo.New()
-	h.Register(e.Group("/api/v1", auth.RequireUser(false)))
+	h.Register(e.Group("/api/v1", auth.RequireUser(false, nil)))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(inc.ID)+"/ack", nil)
 	rec := httptest.NewRecorder()

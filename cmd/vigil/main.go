@@ -132,6 +132,24 @@ func run() error {
 		log.Info("builtin roles seeded")
 	}
 
+	// 4.2 JWT 签发器 + 默认管理员种子（能力域 13 登录态）。
+	// JWTSecret 为空时登录链路降级（拒绝签发），仅靠 X-Vigil-User-ID 兼容。
+	// 配置了 secret 才 seed 默认 admin（避免无登录态时建无用账号）。
+	jwtSigner := auth.NewJWTSigner(
+		cfg.Auth.JWTSecret,
+		cfg.Auth.EffectiveAccessTokenTTL(),
+		cfg.Auth.EffectiveRefreshTokenTTL(),
+	)
+	if !jwtSigner.Available() {
+		log.Warn("auth jwt secret not set; login disabled (set VIGIL_AUTH_JWT_SECRET)")
+	} else {
+		if created, err := auth.SeedDefaultAdmin(ctx, st.DB); err != nil {
+			log.Warn("seed default admin failed", zap.Error(err))
+		} else if created {
+			log.Warn("default admin created (username=admin password=changeme) — CHANGE IMMEDIATELY")
+		}
+	}
+
 	// 5. 初始化异步任务队列
 	q := queue.New(cfg)
 	defer func() { _ = q.Close() }()
@@ -344,14 +362,18 @@ func run() error {
 	// 6. 启动 HTTP 服务
 	srv := server.New(cfg, st)
 
-	// 公开路由组（自带鉴权，不走 RBAC）：webhook 接入、IM 回调
+	// 公开路由组（自带鉴权，不走 RBAC）：webhook 接入、IM 回调、登录换 token
 	public := srv.PublicGroup()
 	ingestHandler.Register(public) // 告警 webhook（token 鉴权）
 	imHandler.Register(public)     // IM 平台回调（平台签名校验）
+	// 登录态 API（能力域 13）：login/refresh 走 public（换取 token 无需已登录）
+	auth.NewAuthHandler(st.DB, jwtSigner).RegisterPublic(public)
 
-	// 业务路由组（受鉴权开关控制）：身份解析中间件
+	// 业务路由组（受鉴权开关控制）：身份解析中间件（JWT 优先，回退 X-Vigil-User-ID）
 	v1 := srv.APIGroup()
-	v1.Use(auth.RequireUser(cfg.Auth.Enabled))
+	v1.Use(auth.RequireUser(cfg.Auth.Enabled, jwtSigner))
+	// me 走 v1（RequireUser 保护，需已登录）
+	auth.NewAuthHandler(st.DB, jwtSigner).RegisterProtected(v1)
 	schedule.NewHandler(schedEngine, st.DB).Register(v1)
 	// 服务目录（能力域 4/13）：Service CRUD（此前仅 schema 无 handler）
 	service.NewHandler(st.DB).Register(v1)

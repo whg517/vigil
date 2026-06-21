@@ -20137,6 +20137,7 @@ type UserMutation struct {
 	appendim_accounts           []schema.IMAccount
 	status                      *user.Status
 	timezone                    *string
+	password_hash               *string
 	created_at                  *time.Time
 	updated_at                  *time.Time
 	clearedFields               map[string]struct{}
@@ -20566,6 +20567,55 @@ func (m *UserMutation) OldTimezone(ctx context.Context) (v string, err error) {
 // ResetTimezone resets all changes to the "timezone" field.
 func (m *UserMutation) ResetTimezone() {
 	m.timezone = nil
+}
+
+// SetPasswordHash sets the "password_hash" field.
+func (m *UserMutation) SetPasswordHash(s string) {
+	m.password_hash = &s
+}
+
+// PasswordHash returns the value of the "password_hash" field in the mutation.
+func (m *UserMutation) PasswordHash() (r string, exists bool) {
+	v := m.password_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPasswordHash returns the old "password_hash" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldPasswordHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPasswordHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPasswordHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPasswordHash: %w", err)
+	}
+	return oldValue.PasswordHash, nil
+}
+
+// ClearPasswordHash clears the value of the "password_hash" field.
+func (m *UserMutation) ClearPasswordHash() {
+	m.password_hash = nil
+	m.clearedFields[user.FieldPasswordHash] = struct{}{}
+}
+
+// PasswordHashCleared returns if the "password_hash" field was cleared in this mutation.
+func (m *UserMutation) PasswordHashCleared() bool {
+	_, ok := m.clearedFields[user.FieldPasswordHash]
+	return ok
+}
+
+// ResetPasswordHash resets all changes to the "password_hash" field.
+func (m *UserMutation) ResetPasswordHash() {
+	m.password_hash = nil
+	delete(m.clearedFields, user.FieldPasswordHash)
 }
 
 // SetCreatedAt sets the "created_at" field.
@@ -20998,7 +21048,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 9)
+	fields := make([]string, 0, 10)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -21019,6 +21069,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.timezone != nil {
 		fields = append(fields, user.FieldTimezone)
+	}
+	if m.password_hash != nil {
+		fields = append(fields, user.FieldPasswordHash)
 	}
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
@@ -21048,6 +21101,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case user.FieldTimezone:
 		return m.Timezone()
+	case user.FieldPasswordHash:
+		return m.PasswordHash()
 	case user.FieldCreatedAt:
 		return m.CreatedAt()
 	case user.FieldUpdatedAt:
@@ -21075,6 +21130,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldStatus(ctx)
 	case user.FieldTimezone:
 		return m.OldTimezone(ctx)
+	case user.FieldPasswordHash:
+		return m.OldPasswordHash(ctx)
 	case user.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case user.FieldUpdatedAt:
@@ -21137,6 +21194,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetTimezone(v)
 		return nil
+	case user.FieldPasswordHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPasswordHash(v)
+		return nil
 	case user.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -21190,6 +21254,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldImAccounts) {
 		fields = append(fields, user.FieldImAccounts)
 	}
+	if m.FieldCleared(user.FieldPasswordHash) {
+		fields = append(fields, user.FieldPasswordHash)
+	}
 	return fields
 }
 
@@ -21212,6 +21279,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldImAccounts:
 		m.ClearImAccounts()
+		return nil
+	case user.FieldPasswordHash:
+		m.ClearPasswordHash()
 		return nil
 	}
 	return fmt.Errorf("unknown User nullable field %s", name)
@@ -21241,6 +21311,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldTimezone:
 		m.ResetTimezone()
+		return nil
+	case user.FieldPasswordHash:
+		m.ResetPasswordHash()
 		return nil
 	case user.FieldCreatedAt:
 		m.ResetCreatedAt()

@@ -33,6 +33,8 @@ type User struct {
 	Status user.Status `json:"status,omitempty"`
 	// Timezone holds the value of the "timezone" field.
 	Timezone string `json:"timezone,omitempty"`
+	// 密码哈希（bcrypt），仅登录链路用
+	PasswordHash string `json:"-"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -125,7 +127,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case user.FieldID:
 			values[i] = new(sql.NullInt64)
-		case user.FieldUsername, user.FieldName, user.FieldEmail, user.FieldPhone, user.FieldStatus, user.FieldTimezone:
+		case user.FieldUsername, user.FieldName, user.FieldEmail, user.FieldPhone, user.FieldStatus, user.FieldTimezone, user.FieldPasswordHash:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -193,6 +195,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field timezone", values[i])
 			} else if value.Valid {
 				_m.Timezone = value.String
+			}
+		case user.FieldPasswordHash:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field password_hash", values[i])
+			} else if value.Valid {
+				_m.PasswordHash = value.String
 			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -292,6 +300,8 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("timezone=")
 	builder.WriteString(_m.Timezone)
+	builder.WriteString(", ")
+	builder.WriteString("password_hash=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

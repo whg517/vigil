@@ -100,6 +100,20 @@ func (_c *UserCreate) SetNillableTimezone(v *string) *UserCreate {
 	return _c
 }
 
+// SetPasswordHash sets the "password_hash" field.
+func (_c *UserCreate) SetPasswordHash(v string) *UserCreate {
+	_c.mutation.SetPasswordHash(v)
+	return _c
+}
+
+// SetNillablePasswordHash sets the "password_hash" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePasswordHash(v *string) *UserCreate {
+	if v != nil {
+		_c.SetPasswordHash(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserCreate) SetCreatedAt(v time.Time) *UserCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -354,6 +368,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Timezone(); ok {
 		_spec.SetField(user.FieldTimezone, field.TypeString, value)
 		_node.Timezone = value
+	}
+	if value, ok := _c.mutation.PasswordHash(); ok {
+		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
+		_node.PasswordHash = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
