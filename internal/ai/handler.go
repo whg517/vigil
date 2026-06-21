@@ -21,10 +21,12 @@ func NewHandler(e *DiagnoseEngine) *Handler {
 // Register 挂载路由。
 // POST /incidents/:id/diagnose     触发 AI 根因诊断
 // GET  /incidents/:id/similar      查询相似历史事件
+// GET  /incidents/:id/similar-postmortems  查询相似已发布复盘（知识沉淀 M12.6）
 // POST /ai-insights/:id/resolve    人确认/拒绝 AI 建议（human-in-the-loop）
 func (h *Handler) Register(g *echo.Group) {
 	g.POST("/incidents/:id/diagnose", h.diagnose)
 	g.GET("/incidents/:id/similar", h.similar)
+	g.GET("/incidents/:id/similar-postmortems", h.similarPostmortems)
 	g.POST("/ai-insights/:id/resolve", h.resolve)
 }
 
@@ -56,6 +58,21 @@ func (h *Handler) similar(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]any{"similar": similar})
+}
+
+// similarPostmortems 查询相似的已发布复盘（知识沉淀 M12.6）。
+// "上次类似故障是怎么处理的"——published 复盘反哺新事件诊断。
+func (h *Handler) similarPostmortems(c echo.Context) error {
+	incID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	pms, err := h.engine.FindSimilarPostmortems(c.Request().Context(), incID, limit)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]any{"similar_postmortems": pms})
 }
 
 // resolveReq 确认/拒绝请求。

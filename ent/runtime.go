@@ -241,11 +241,11 @@ func init() {
 	postmortemFields := schema.Postmortem{}.Fields()
 	_ = postmortemFields
 	// postmortemDescCreatedAt is the schema descriptor for created_at field.
-	postmortemDescCreatedAt := postmortemFields[4].Descriptor()
+	postmortemDescCreatedAt := postmortemFields[5].Descriptor()
 	// postmortem.DefaultCreatedAt holds the default value on creation for the created_at field.
 	postmortem.DefaultCreatedAt = postmortemDescCreatedAt.Default.(func() time.Time)
 	// postmortemDescUpdatedAt is the schema descriptor for updated_at field.
-	postmortemDescUpdatedAt := postmortemFields[5].Descriptor()
+	postmortemDescUpdatedAt := postmortemFields[6].Descriptor()
 	// postmortem.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	postmortem.DefaultUpdatedAt = postmortemDescUpdatedAt.Default.(func() time.Time)
 	// postmortem.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

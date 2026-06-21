@@ -13,6 +13,7 @@ import (
 	"github.com/kevin/vigil/ent/actionitem"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/postmortem"
+	"github.com/kevin/vigil/ent/schema"
 )
 
 // PostmortemCreate is the builder for creating a Postmortem entity.
@@ -67,6 +68,12 @@ func (_c *PostmortemCreate) SetNillablePublishedAt(v *time.Time) *PostmortemCrea
 	if v != nil {
 		_c.SetPublishedAt(*v)
 	}
+	return _c
+}
+
+// SetEmbedding sets the "embedding" field.
+func (_c *PostmortemCreate) SetEmbedding(v *schema.NullableVector) *PostmortemCreate {
+	_c.mutation.SetEmbedding(v)
 	return _c
 }
 
@@ -253,6 +260,10 @@ func (_c *PostmortemCreate) createSpec() (*Postmortem, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.PublishedAt(); ok {
 		_spec.SetField(postmortem.FieldPublishedAt, field.TypeTime, value)
 		_node.PublishedAt = &value
+	}
+	if value, ok := _c.mutation.Embedding(); ok {
+		_spec.SetField(postmortem.FieldEmbedding, field.TypeOther, value)
+		_node.Embedding = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(postmortem.FieldCreatedAt, field.TypeTime, value)

@@ -23,6 +23,8 @@ const (
 	FieldSections = "sections"
 	// FieldPublishedAt holds the string denoting the published_at field in the database.
 	FieldPublishedAt = "published_at"
+	// FieldEmbedding holds the string denoting the embedding field in the database.
+	FieldEmbedding = "embedding"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -56,6 +58,7 @@ var Columns = []string{
 	FieldGeneratedBy,
 	FieldSections,
 	FieldPublishedAt,
+	FieldEmbedding,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -166,6 +169,11 @@ func ByGeneratedBy(opts ...sql.OrderTermOption) OrderOption {
 // ByPublishedAt orders the results by the published_at field.
 func ByPublishedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPublishedAt, opts...).ToFunc()
+}
+
+// ByEmbedding orders the results by the embedding field.
+func ByEmbedding(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEmbedding, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

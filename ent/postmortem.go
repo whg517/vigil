@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/postmortem"
+	"github.com/kevin/vigil/ent/schema"
 )
 
 // Postmortem is the model entity for the Postmortem schema.
@@ -27,6 +28,8 @@ type Postmortem struct {
 	Sections map[string]interface{} `json:"sections,omitempty"`
 	// PublishedAt holds the value of the "published_at" field.
 	PublishedAt *time.Time `json:"published_at,omitempty"`
+	// 语义向量，published 复盘入库后计算，知识沉淀检索用
+	Embedding *schema.NullableVector `json:"embedding,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -76,6 +79,8 @@ func (*Postmortem) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case postmortem.FieldSections:
 			values[i] = new([]byte)
+		case postmortem.FieldEmbedding:
+			values[i] = new(schema.NullableVector)
 		case postmortem.FieldID:
 			values[i] = new(sql.NullInt64)
 		case postmortem.FieldStatus, postmortem.FieldGeneratedBy:
@@ -131,6 +136,12 @@ func (_m *Postmortem) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.PublishedAt = new(time.Time)
 				*_m.PublishedAt = value.Time
+			}
+		case postmortem.FieldEmbedding:
+			if value, ok := values[i].(*schema.NullableVector); !ok {
+				return fmt.Errorf("unexpected type %T for field embedding", values[i])
+			} else if value != nil {
+				_m.Embedding = value
 			}
 		case postmortem.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -210,6 +221,9 @@ func (_m *Postmortem) String() string {
 		builder.WriteString("published_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("embedding=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Embedding))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

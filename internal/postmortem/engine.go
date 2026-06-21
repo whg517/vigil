@@ -18,7 +18,10 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/postmortem"
+	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/timelineitem"
+
+	"github.com/pgvector/pgvector-go"
 )
 
 // LLMProvider LLM 接口（AI 起草用，可插拔）。nil 时降级为纯时间线草稿。
@@ -29,16 +32,27 @@ type LLMProvider interface {
 	DraftSection(ctx context.Context, section string, context map[string]any) (string, error)
 }
 
+// Embedder 向量化接口（知识沉淀 M12.6 用）。nil 时 published 复盘不入库检索。
+// 由 ai.Provider（GLMProvider）实现，注入后 published 时计算 embedding。
+type Embedder interface {
+	Embed(ctx context.Context, text string) ([]float32, error)
+}
+
 // Engine 复盘引擎。
 type Engine struct {
-	db  *ent.Client
-	llm LLMProvider // 可为 nil（无 AI 时降级）
+	db       *ent.Client
+	llm      LLMProvider // 可为 nil（无 AI 时降级）
+	embedder Embedder    // 可为 nil（无 embedding 时 published 不入库检索）
 }
 
 // NewEngine 创建复盘引擎。llm 可为 nil。
 func NewEngine(db *ent.Client, llm LLMProvider) *Engine {
 	return &Engine{db: db, llm: llm}
 }
+
+// SetEmbedder 注入向量化器（main 装配时调用）。
+// 配置后 published 复盘计算 embedding 入库，供知识沉淀检索（M12.6）。
+func (e *Engine) SetEmbedder(em Embedder) { e.embedder = em }
 
 // GenerateDraft 为某 Incident 生成复盘草稿。
 // 流程：取事件 + 时间线 → 填 timeline 章节 → AI/规则填其他章节 → 落 Postmortem。
@@ -169,7 +183,45 @@ func (e *Engine) Transition(ctx context.Context, pmID int, target postmortem.Sta
 		now := time.Now()
 		update.SetPublishedAt(now)
 	}
-	return update.Save(ctx)
+	pm, err = update.Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("update postmortem: %w", err)
+	}
+	// 知识沉淀（M12.6）：published 时计算 embedding 入库，供相似检索反哺。
+	// embedder 未配置或计算失败不阻塞 publish（降级：复盘仍发布，但不进检索库）。
+	if target == postmortem.StatusPublished && e.embedder != nil {
+		_ = e.ensurePublishedEmbedding(ctx, pm)
+	}
+	return pm, nil
+}
+
+// ensurePublishedEmbedding 计算复盘内容的 embedding 并回写。
+// 文本取 sections 的 summary + root_cause（最具语义代表性）。
+// 失败仅返回 error，调用方 best-effort 忽略（不阻塞 publish）。
+func (e *Engine) ensurePublishedEmbedding(ctx context.Context, pm *ent.Postmortem) error {
+	text := extractPostmortemText(pm)
+	if text == "" {
+		return nil
+	}
+	vec, err := e.embedder.Embed(ctx, text)
+	if err != nil || len(vec) == 0 {
+		return fmt.Errorf("embed postmortem: %w", err)
+	}
+	nv := &schema.NullableVector{Valid: true}
+	nv.Vector = pgvector.NewVector(vec)
+	return e.db.Postmortem.UpdateOneID(pm.ID).SetEmbedding(nv).Exec(ctx)
+}
+
+// extractPostmortemText 从 sections 提取语义文本（summary + root_cause）。
+func extractPostmortemText(pm *ent.Postmortem) string {
+	var parts []string
+	if s, ok := pm.Sections["summary"].(string); ok && s != "" {
+		parts = append(parts, s)
+	}
+	if rc, ok := pm.Sections["root_cause"].(string); ok && rc != "" {
+		parts = append(parts, rc)
+	}
+	return strings.Join(parts, " ")
 }
 
 // isValidTransition 校验状态机合法流转。

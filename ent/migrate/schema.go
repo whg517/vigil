@@ -508,6 +508,7 @@ var (
 		{Name: "generated_by", Type: field.TypeEnum, Enums: []string{"ai", "human", "mixed"}, Default: "mixed"},
 		{Name: "sections", Type: field.TypeJSON},
 		{Name: "published_at", Type: field.TypeTime, Nullable: true},
+		{Name: "embedding", Type: field.TypeOther, Nullable: true, SchemaType: map[string]string{"postgres": "vector(1536)", "sqlite3": "blob"}},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "incident_postmortem", Type: field.TypeInt, Unique: true, Nullable: true},
@@ -520,7 +521,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "postmortems_incidents_postmortem",
-				Columns:    []*schema.Column{PostmortemsColumns[7]},
+				Columns:    []*schema.Column{PostmortemsColumns[8]},
 				RefColumns: []*schema.Column{IncidentsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},

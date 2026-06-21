@@ -11605,6 +11605,7 @@ type PostmortemMutation struct {
 	generated_by        *postmortem.GeneratedBy
 	sections            *map[string]interface{}
 	published_at        *time.Time
+	embedding           **schema.NullableVector
 	created_at          *time.Time
 	updated_at          *time.Time
 	clearedFields       map[string]struct{}
@@ -11873,6 +11874,55 @@ func (m *PostmortemMutation) ResetPublishedAt() {
 	delete(m.clearedFields, postmortem.FieldPublishedAt)
 }
 
+// SetEmbedding sets the "embedding" field.
+func (m *PostmortemMutation) SetEmbedding(sv *schema.NullableVector) {
+	m.embedding = &sv
+}
+
+// Embedding returns the value of the "embedding" field in the mutation.
+func (m *PostmortemMutation) Embedding() (r *schema.NullableVector, exists bool) {
+	v := m.embedding
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEmbedding returns the old "embedding" field's value of the Postmortem entity.
+// If the Postmortem object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PostmortemMutation) OldEmbedding(ctx context.Context) (v *schema.NullableVector, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEmbedding is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEmbedding requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEmbedding: %w", err)
+	}
+	return oldValue.Embedding, nil
+}
+
+// ClearEmbedding clears the value of the "embedding" field.
+func (m *PostmortemMutation) ClearEmbedding() {
+	m.embedding = nil
+	m.clearedFields[postmortem.FieldEmbedding] = struct{}{}
+}
+
+// EmbeddingCleared returns if the "embedding" field was cleared in this mutation.
+func (m *PostmortemMutation) EmbeddingCleared() bool {
+	_, ok := m.clearedFields[postmortem.FieldEmbedding]
+	return ok
+}
+
+// ResetEmbedding resets all changes to the "embedding" field.
+func (m *PostmortemMutation) ResetEmbedding() {
+	m.embedding = nil
+	delete(m.clearedFields, postmortem.FieldEmbedding)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *PostmortemMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -12072,7 +12122,7 @@ func (m *PostmortemMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PostmortemMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.status != nil {
 		fields = append(fields, postmortem.FieldStatus)
 	}
@@ -12084,6 +12134,9 @@ func (m *PostmortemMutation) Fields() []string {
 	}
 	if m.published_at != nil {
 		fields = append(fields, postmortem.FieldPublishedAt)
+	}
+	if m.embedding != nil {
+		fields = append(fields, postmortem.FieldEmbedding)
 	}
 	if m.created_at != nil {
 		fields = append(fields, postmortem.FieldCreatedAt)
@@ -12107,6 +12160,8 @@ func (m *PostmortemMutation) Field(name string) (ent.Value, bool) {
 		return m.Sections()
 	case postmortem.FieldPublishedAt:
 		return m.PublishedAt()
+	case postmortem.FieldEmbedding:
+		return m.Embedding()
 	case postmortem.FieldCreatedAt:
 		return m.CreatedAt()
 	case postmortem.FieldUpdatedAt:
@@ -12128,6 +12183,8 @@ func (m *PostmortemMutation) OldField(ctx context.Context, name string) (ent.Val
 		return m.OldSections(ctx)
 	case postmortem.FieldPublishedAt:
 		return m.OldPublishedAt(ctx)
+	case postmortem.FieldEmbedding:
+		return m.OldEmbedding(ctx)
 	case postmortem.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case postmortem.FieldUpdatedAt:
@@ -12168,6 +12225,13 @@ func (m *PostmortemMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPublishedAt(v)
+		return nil
+	case postmortem.FieldEmbedding:
+		v, ok := value.(*schema.NullableVector)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEmbedding(v)
 		return nil
 	case postmortem.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -12216,6 +12280,9 @@ func (m *PostmortemMutation) ClearedFields() []string {
 	if m.FieldCleared(postmortem.FieldPublishedAt) {
 		fields = append(fields, postmortem.FieldPublishedAt)
 	}
+	if m.FieldCleared(postmortem.FieldEmbedding) {
+		fields = append(fields, postmortem.FieldEmbedding)
+	}
 	return fields
 }
 
@@ -12232,6 +12299,9 @@ func (m *PostmortemMutation) ClearField(name string) error {
 	switch name {
 	case postmortem.FieldPublishedAt:
 		m.ClearPublishedAt()
+		return nil
+	case postmortem.FieldEmbedding:
+		m.ClearEmbedding()
 		return nil
 	}
 	return fmt.Errorf("unknown Postmortem nullable field %s", name)
@@ -12252,6 +12322,9 @@ func (m *PostmortemMutation) ResetField(name string) error {
 		return nil
 	case postmortem.FieldPublishedAt:
 		m.ResetPublishedAt()
+		return nil
+	case postmortem.FieldEmbedding:
+		m.ResetEmbedding()
 		return nil
 	case postmortem.FieldCreatedAt:
 		m.ResetCreatedAt()

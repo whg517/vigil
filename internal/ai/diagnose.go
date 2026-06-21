@@ -19,6 +19,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/incident"
+	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/pgvector/pgvector-go"
@@ -201,6 +202,46 @@ func (e *DiagnoseEngine) ensureEmbedding(ctx context.Context, inc *ent.Incident)
 		_ = err
 	}
 	return vec, nil
+}
+
+// FindSimilarPostmortems 检索与指定 incident 相似的已发布复盘（知识沉淀 M12.6）。
+// 用 incident 的 embedding 在 postmortems.embedding 上做余弦距离检索。
+// 用于"上次类似故障是怎么处理的"——published 复盘反哺新事件诊断。
+// pgvector/Embed 不可用时返回空切片（降级，不阻塞诊断）。
+func (e *DiagnoseEngine) FindSimilarPostmortems(ctx context.Context, incID int, limit int) ([]*ent.Postmortem, error) {
+	if limit <= 0 {
+		limit = 3
+	}
+	inc, err := e.db.Incident.Get(ctx, incID)
+	if err != nil {
+		return nil, err
+	}
+	// 复用 incident 的 embedding（确保已计算）
+	vec, err := e.ensureEmbedding(ctx, inc)
+	if err != nil || len(vec) == 0 {
+		return []*ent.Postmortem{}, nil // 降级：无 embedding 无法语义检索
+	}
+	if e.runSQL == nil {
+		return []*ent.Postmortem{}, nil
+	}
+	// 检索 published 且有 embedding 的复盘，按余弦距离排序
+	const q = `SELECT id FROM postmortems
+			   WHERE embedding IS NOT NULL AND status = 'published'
+			   ORDER BY embedding <=> $1::vector
+			   LIMIT $2`
+	var ids []int
+	scanErr := e.runSQL(ctx, q, []any{vectorLiteral(vec), limit}, func(rows *sql.Rows) error {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+		return nil
+	})
+	if scanErr != nil || len(ids) == 0 {
+		return []*ent.Postmortem{}, nil
+	}
+	return e.db.Postmortem.Query().Where(postmortem.IDIn(ids...)).WithIncident().All(ctx)
 }
 
 // vectorLiteral 把 []float32 转成 pgvector 文本字面量 '[0.1,0.2,...]'。

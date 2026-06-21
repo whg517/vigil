@@ -15,6 +15,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/predicate"
+	"github.com/kevin/vigil/ent/schema"
 )
 
 // PostmortemUpdate is the builder for updating Postmortem entities.
@@ -81,6 +82,18 @@ func (_u *PostmortemUpdate) SetNillablePublishedAt(v *time.Time) *PostmortemUpda
 // ClearPublishedAt clears the value of the "published_at" field.
 func (_u *PostmortemUpdate) ClearPublishedAt() *PostmortemUpdate {
 	_u.mutation.ClearPublishedAt()
+	return _u
+}
+
+// SetEmbedding sets the "embedding" field.
+func (_u *PostmortemUpdate) SetEmbedding(v *schema.NullableVector) *PostmortemUpdate {
+	_u.mutation.SetEmbedding(v)
+	return _u
+}
+
+// ClearEmbedding clears the value of the "embedding" field.
+func (_u *PostmortemUpdate) ClearEmbedding() *PostmortemUpdate {
+	_u.mutation.ClearEmbedding()
 	return _u
 }
 
@@ -234,6 +247,12 @@ func (_u *PostmortemUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	if _u.mutation.PublishedAtCleared() {
 		_spec.ClearField(postmortem.FieldPublishedAt, field.TypeTime)
 	}
+	if value, ok := _u.mutation.Embedding(); ok {
+		_spec.SetField(postmortem.FieldEmbedding, field.TypeOther, value)
+	}
+	if _u.mutation.EmbeddingCleared() {
+		_spec.ClearField(postmortem.FieldEmbedding, field.TypeOther)
+	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(postmortem.FieldUpdatedAt, field.TypeTime, value)
 	}
@@ -382,6 +401,18 @@ func (_u *PostmortemUpdateOne) SetNillablePublishedAt(v *time.Time) *PostmortemU
 // ClearPublishedAt clears the value of the "published_at" field.
 func (_u *PostmortemUpdateOne) ClearPublishedAt() *PostmortemUpdateOne {
 	_u.mutation.ClearPublishedAt()
+	return _u
+}
+
+// SetEmbedding sets the "embedding" field.
+func (_u *PostmortemUpdateOne) SetEmbedding(v *schema.NullableVector) *PostmortemUpdateOne {
+	_u.mutation.SetEmbedding(v)
+	return _u
+}
+
+// ClearEmbedding clears the value of the "embedding" field.
+func (_u *PostmortemUpdateOne) ClearEmbedding() *PostmortemUpdateOne {
+	_u.mutation.ClearEmbedding()
 	return _u
 }
 
@@ -564,6 +595,12 @@ func (_u *PostmortemUpdateOne) sqlSave(ctx context.Context) (_node *Postmortem, 
 	}
 	if _u.mutation.PublishedAtCleared() {
 		_spec.ClearField(postmortem.FieldPublishedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Embedding(); ok {
+		_spec.SetField(postmortem.FieldEmbedding, field.TypeOther, value)
+	}
+	if _u.mutation.EmbeddingCleared() {
+		_spec.ClearField(postmortem.FieldEmbedding, field.TypeOther)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(postmortem.FieldUpdatedAt, field.TypeTime, value)

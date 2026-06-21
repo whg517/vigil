@@ -311,6 +311,16 @@ paths:
         - {in: query, name: limit, schema: {type: integer, default: 5}}
       responses:
         '200': {description: 相似事件列表}
+  /incidents/{id}/similar-postmortems:
+    get:
+      tags: [ai]
+      summary: 相似已发布复盘（知识沉淀 M12.6）
+      description: 检索与该事件相似的 published 复盘（pgvector 语义检索），用于"上次类似故障怎么处理的"。降级返回空。
+      parameters:
+        - {in: path, name: id, required: true, schema: {type: integer}}
+        - {in: query, name: limit, schema: {type: integer, default: 3}}
+      responses:
+        '200': {description: 相似复盘列表}
   /incidents/{id}/postmortem/draft:
     post:
       tags: [postmortem]

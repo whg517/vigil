@@ -8,6 +8,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kevin/vigil/ent/predicate"
+	"github.com/kevin/vigil/ent/schema"
 )
 
 // ID filters vertices based on their ID field.
@@ -58,6 +59,11 @@ func IDLTE(id int) predicate.Postmortem {
 // PublishedAt applies equality check predicate on the "published_at" field. It's identical to PublishedAtEQ.
 func PublishedAt(v time.Time) predicate.Postmortem {
 	return predicate.Postmortem(sql.FieldEQ(FieldPublishedAt, v))
+}
+
+// Embedding applies equality check predicate on the "embedding" field. It's identical to EmbeddingEQ.
+func Embedding(v *schema.NullableVector) predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldEQ(FieldEmbedding, v))
 }
 
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
@@ -158,6 +164,56 @@ func PublishedAtIsNil() predicate.Postmortem {
 // PublishedAtNotNil applies the NotNil predicate on the "published_at" field.
 func PublishedAtNotNil() predicate.Postmortem {
 	return predicate.Postmortem(sql.FieldNotNull(FieldPublishedAt))
+}
+
+// EmbeddingEQ applies the EQ predicate on the "embedding" field.
+func EmbeddingEQ(v *schema.NullableVector) predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldEQ(FieldEmbedding, v))
+}
+
+// EmbeddingNEQ applies the NEQ predicate on the "embedding" field.
+func EmbeddingNEQ(v *schema.NullableVector) predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldNEQ(FieldEmbedding, v))
+}
+
+// EmbeddingIn applies the In predicate on the "embedding" field.
+func EmbeddingIn(vs ...*schema.NullableVector) predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldIn(FieldEmbedding, vs...))
+}
+
+// EmbeddingNotIn applies the NotIn predicate on the "embedding" field.
+func EmbeddingNotIn(vs ...*schema.NullableVector) predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldNotIn(FieldEmbedding, vs...))
+}
+
+// EmbeddingGT applies the GT predicate on the "embedding" field.
+func EmbeddingGT(v *schema.NullableVector) predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldGT(FieldEmbedding, v))
+}
+
+// EmbeddingGTE applies the GTE predicate on the "embedding" field.
+func EmbeddingGTE(v *schema.NullableVector) predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldGTE(FieldEmbedding, v))
+}
+
+// EmbeddingLT applies the LT predicate on the "embedding" field.
+func EmbeddingLT(v *schema.NullableVector) predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldLT(FieldEmbedding, v))
+}
+
+// EmbeddingLTE applies the LTE predicate on the "embedding" field.
+func EmbeddingLTE(v *schema.NullableVector) predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldLTE(FieldEmbedding, v))
+}
+
+// EmbeddingIsNil applies the IsNil predicate on the "embedding" field.
+func EmbeddingIsNil() predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldIsNull(FieldEmbedding))
+}
+
+// EmbeddingNotNil applies the NotNil predicate on the "embedding" field.
+func EmbeddingNotNil() predicate.Postmortem {
+	return predicate.Postmortem(sql.FieldNotNull(FieldEmbedding))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

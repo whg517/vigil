@@ -465,6 +465,11 @@ func run() error {
 		log.Info("ai llm disabled (no api key), postmortem uses fallback drafts")
 	}
 	postmortemEngine := postmortem.NewEngine(st.DB, pmLLM)
+	// 知识沉淀（M12.6）：published 复盘计算 embedding 入库，供相似检索反哺。
+	// glmProvider 实现 ai.Provider（含 Embed），LLM 不可用时 embedder 为 nil（降级不入库）。
+	if glmProvider.Available() {
+		postmortemEngine.SetEmbedder(glmProvider)
+	}
 	postmortem.NewHandler(st.DB, postmortemEngine).Register(v1)
 	// AI 诊断（能力域 11）：根因线索 + 相似事件 + human-in-the-loop
 	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)

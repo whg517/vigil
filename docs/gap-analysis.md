@@ -91,7 +91,7 @@ r.Register(&GenericJSONAdapter{})
 | 需求 | PRD | 状态 |
 |------|-----|------|
 | 智能降噪（AI 学模式） | M11.5 | ❌ 仅规则式 |
-| 知识沉淀（published 复盘进知识库，反哺相似检索） | M12.6 | ❌ 无 knowledge_base 实体，相似事件检索只查 incident 不查复盘 |
+| 知识沉淀（published 复盘进知识库，反哺相似检索） | M12.6 | ✅ 已实现（feat-knowledge：复用 Postmortem + pgvector，published 时计算 embedding 入库，FindSimilarPostmortems 反哺相似检索） |
 | Runbook on_failure=escalate | M9.7 | ❌ `engine.go:89` `// TODO: 触发升级`，处置失败不升级 |
 | InternalExecutor 真实诊断（查指标/日志/拓扑） | M9.4 | ❌ `executor.go:94` `// TODO`，返回模拟结果 |
 
@@ -188,7 +188,7 @@ README 第 44-50 行：
 
 ### P1（核心差异化受损）
 5. **电话/SMS 通道**（M7.2，升级兜底链断一截）
-6. **知识沉淀闭环**（M12.6，AI 差异化"越用越聪明"没闭）
+6. **知识沉淀闭环**（M12.6，AI 差异化"越用越聪明"没闭）✅ 已完成（feat-knowledge）
 7. **前端 Integration / 升级策略 / 用户团队管理页**
 8. **WebSocket 实时同步**（架构承诺的 IM↔Web 双向同步）✅ 已完成（feat-websocket）
 
@@ -207,4 +207,4 @@ README 第 44-50 行：
 | D2 | **交付节奏**：一次做一个完整闭环（含前端+后端+测试+文档），还是按层批量铺开？ | 项目 development.md 强调特性闭环原子性，倾向前者 |
 | D3 | **鉴权方案选型**：JWT（自管）vs Session vs OIDC（接企业 SSO）？ | ✅ 已定：JWT 自管（feat-auth-jwt 已落地） |
 | D4 | **告警源/通知通道的接入策略**：自己实现 vs 定义 Adapter 接口等社区贡献？ | 影响 P2 优先级 |
-| D5 | **AI 知识沉淀**：新建 knowledge_base 实体，还是复用 postmortem + pgvector 直接检索？ | 影响 M12.6 实现成本 |
+| D5 | **AI 知识沉淀**：新建 knowledge_base 实体，还是复用 postmortem + pgvector 直接检索？ | ✅ 已定：复用 Postmortem + pgvector（feat-knowledge） |

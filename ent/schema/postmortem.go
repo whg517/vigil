@@ -26,6 +26,16 @@ func (Postmortem) Fields() []ent.Field {
 		// sections 结构化内容（summary/impact/timeline/root_cause/...）
 		field.JSON("sections", map[string]any{}).Comment("结构化内容章节"),
 		field.Time("published_at").Optional().Nillable(),
+		// embedding 语义向量（pgvector），published 后计算入库，用于知识沉淀检索（M12.6）。
+		// 复用 Incident.embedding 的 NullableVector 模式（见 incident.go）。
+		// 列类型 vector(1536)；仅 postgres 支持，sqlite 测试用 blob。
+		field.Other("embedding", &NullableVector{}).
+			SchemaType(map[string]string{
+				"postgres": "vector(1536)",
+				"sqlite3":  "blob",
+			}).
+			Optional().
+			Comment("语义向量，published 复盘入库后计算，知识沉淀检索用"),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}
