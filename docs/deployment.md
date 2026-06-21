@@ -98,11 +98,14 @@ VIGIL_WEBHOOK_OUT_URLS=                # incident 生命周期事件外推，逗
 
 ## 4. 迁移机制
 
-Vigil 用版本化迁移（`internal/migrate/migrations/*.sql`）+ ent auto-migrate：
+Vigil 用**版本化 SQL 迁移 + ent auto-migrate** 双轨，执行分三个阶段：
 
-1. `0001_baseline.sql`：占位 baseline。
-2. `0002_pgvector.sql`：`CREATE EXTENSION IF NOT EXISTS vector`（**需 pgvector 已安装**）。
-3. ent auto-migrate：按 schema 建表/补列。
+1. **pre-migrate**（`pre_` 前缀文件）：在 ent auto-migrate 之前执行。当前仅 `pre_0001_pgvector.sql`（`CREATE EXTENSION IF NOT EXISTS vector`，**需 pgvector 已安装**）。
+2. **ent auto-migrate**：根据 `ent/schema/*.go` 自动创建/更新所有表结构。
+3. **post-migrate**（其余 `.sql` 文件）：在 ent auto-migrate 之后执行。当前仅 `0002_baseline.sql`（占位）。
+
+> 职责划分：ent schema 负责"建表 + 基本约束"，SQL 迁移仅处理 ent 不擅长的操作（PG 扩展安装、数据迁移等）。
+> 新增迁移文件时，如需在 ent auto-migrate 之前执行（如安装扩展），文件名加 `pre_` 前缀。
 
 幂等：`schema_migrations` 表追踪已应用版本，重复执行安全。
 
@@ -110,9 +113,11 @@ Vigil 用版本化迁移（`internal/migrate/migrations/*.sql`）+ ent auto-migr
 # 容器内
 docker compose exec vigil vigil migrate
 
-# 或本地源码
+# 或本地源码（开发模式 godotenv 自动加载 .env）
 go run ./cmd/vigil migrate
 ```
+
+更多本地开发说明见 [`docs/local-dev.md`](local-dev.md)。
 
 ## 5. 生产 checklist
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -219,11 +220,25 @@ type Dingtalk struct {
 }
 
 // Load 从环境变量加载配置（前缀 VIGIL）。
+// 优先从 .env 文件加载（开发便捷），再读取 OS 环境变量（生产注入）。
+// .env 文件不存在时静默跳过（生产环境无 .env 是正常的）。
+//
 // 例：VIGIL_DB_HOST=... VIGIL_HTTP_ADDR=:9090
 func Load() (*Config, error) {
+	// 开发便捷：自动加载项目根目录 .env 文件。
+	// 生产环境（Docker/K8s）通过 OS 环境变量注入，无 .env 文件，静默跳过。
+	_ = godotenv.Load()
+
 	var c Config
 	if err := envconfig.Process("vigil", &c); err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
+
+	// development 模式自动填充 JWT secret（避免新开发者启动后登录不可用）。
+	// 仅 development 生效，生产模式不填充。
+	if c.App.Env == "development" && c.Auth.JWTSecret == "" {
+		c.Auth.JWTSecret = "dev-jwt-secret-not-for-production"
+	}
+
 	return &c, nil
 }
