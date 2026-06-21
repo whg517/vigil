@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, ChevronUp, Hand } from "lucide-react";
 import { useIncident, useIncidentAction, useTimeline } from "@/hooks/incidents";
+import { useIncidentWS } from "@/hooks/use-incident-ws";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,9 +19,12 @@ import type { TimelineType } from "@/lib/types";
 export function IncidentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const incId = Number(id);
+	const incId = Number(id);
 
-  const { data: inc, isLoading } = useIncident(incId);
+	// WebSocket 实时同步（能力域 8）：incident 变更自动刷新，无需手动刷新页面
+	useIncidentWS(incId);
+
+	const { data: inc, isLoading } = useIncident(incId);
   const { data: tl } = useTimeline(incId);
   const action = useIncidentAction(incId);
 

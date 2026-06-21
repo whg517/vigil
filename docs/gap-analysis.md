@@ -167,7 +167,7 @@ README 第 44-50 行：
 | H2.2 Health 端点 | ✅ |
 | H2.3 结构化日志 | ✅ zap |
 | **H2.4 吃自己狗粮** | ⚠️ 队列积压/通知失败率超阈值未对接自身告警，闭环没闭 |
-| **实时推送（WebSocket）** | ❌ 前端无 WS/SSE/轮询，后端无 WS handler，IM↔Web 双向同步未落地 |
+| **实时推送（WebSocket）** | ✅ 已实现（feat-websocket：gorilla/websocket + 内存 hub 按 incident_id 广播 + 前端 ws client 自动重连 + 详情页接入实时刷新） |
 
 ---
 
@@ -190,7 +190,7 @@ README 第 44-50 行：
 5. **电话/SMS 通道**（M7.2，升级兜底链断一截）
 6. **知识沉淀闭环**（M12.6，AI 差异化"越用越聪明"没闭）
 7. **前端 Integration / 升级策略 / 用户团队管理页**
-8. **WebSocket 实时同步**（架构承诺的 IM↔Web 双向同步）
+8. **WebSocket 实时同步**（架构承诺的 IM↔Web 双向同步）✅ 已完成（feat-websocket）
 
 ### P2（广度补全）
 9. Zabbix/Grafana/云监控适配器（M1.2）

@@ -224,6 +224,12 @@ paths:
                   total: {type: integer}
                   limit: {type: integer}
                   offset: {type: integer}
+  # ===== WebSocket 实时推送（能力域 8 §状态双向同步，非 REST）=====
+  # 端点：GET /ws/incidents/{id}（WebSocket Upgrade）
+  # 订阅某 incident 的实时变更推送。消息体：{type, incident_id, action, data}
+  #   type=incident_changed: ack/resolve/escalate/add_responder 状态变更
+  #   type=timeline_added: 时间线新增条目
+  # 单实例内存 hub；多实例时换 Redis pub/sub（架构 §6.4 预留）。
   # ===== Incident =====
   /incidents:
     get:

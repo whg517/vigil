@@ -45,6 +45,7 @@ import (
 	"github.com/kevin/vigil/internal/timeline"
 	"github.com/kevin/vigil/internal/triage"
 	"github.com/kevin/vigil/internal/webhook"
+	"github.com/kevin/vigil/internal/ws"
 
 	"github.com/hibiken/asynq"
 	_ "github.com/lib/pq" // 注册 postgres 驱动（ent dialect "postgres" 用）
@@ -349,6 +350,10 @@ func run() error {
 	})
 	imHandler := im.NewHandler(st.DB, imRegistry, imMapper, authz, incService, imRenderer, imCards)
 
+	// WebSocket hub（能力域 8 §状态双向同步）：incident 变更实时推给 Web 订阅者。
+	// 单实例内存 hub；多实例时换 Redis pub/sub（架构 §6.4 预留）。
+	wsHub := ws.NewHub()
+
 	// 状态变更回调：incident 状态一变即刷新已发卡片（§8 双向同步之 Web→IM / IM 内自更新）
 	incService.SetOnIncidentChanged(func(ctx context.Context, inc *ent.Incident, action incident.Action) {
 		// IM 卡片刷新（Web→IM 双向同步）
@@ -360,6 +365,8 @@ func run() error {
 		}
 		// Webhook 出口推送（incident 生命周期事件给外部订阅者）
 		webhookDisp.OnIncidentChanged(ctx, inc, action)
+		// WebSocket 推送（Web 端实时刷新，IM→Web 双向同步）
+		wsHub.BroadcastIncident(inc.ID, string(action), inc)
 	})
 	if feishuBot.Available() {
 		log.Info("im ready (feishu bot online)")
@@ -405,6 +412,9 @@ func run() error {
 	public := srv.PublicGroup()
 	ingestHandler.Register(public) // 告警 webhook（token 鉴权）
 	imHandler.Register(public)     // IM 平台回调（平台签名校验）
+	// WebSocket 实时推送（能力域 8）：GET /ws/incidents/:id 订阅 incident 变更
+	ws.NewHandler(wsHub).Register(public)
+	log.Info("websocket ready (/ws/incidents/:id)")
 	// 登录态 API（能力域 13）：login/refresh 走 public（换取 token 无需已登录）
 	authHandler := auth.NewAuthHandler(st.DB, jwtSigner)
 	authHandler.SetAuditRecorder(auditRecorder) // 登录成功/失败记审计（安全溯源）
