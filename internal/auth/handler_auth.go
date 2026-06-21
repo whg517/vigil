@@ -22,11 +22,17 @@ import (
 type AuthHandler struct {
 	db     *ent.Client
 	signer *JWTSigner
+	audit  *AuditRecorder // 审计记录器（可选，登录成功/失败都记）
 }
 
 // NewAuthHandler 创建登录态 handler。signer 为 nil 时签发链路返回 500（降级保护）。
 func NewAuthHandler(db *ent.Client, signer *JWTSigner) *AuthHandler {
 	return &AuthHandler{db: db, signer: signer}
+}
+
+// SetAuditRecorder 注入审计记录器（main 装配时调用）。
+func (h *AuthHandler) SetAuditRecorder(r *AuditRecorder) {
+	h.audit = r
 }
 
 type loginReq struct {
@@ -83,12 +89,15 @@ func (h *AuthHandler) login(c echo.Context) error {
 	u, err := h.db.User.Query().Where(user.UsernameEQ(req.Username)).Only(c.Request().Context())
 	if err != nil {
 		// 用户不存在也返回 invalid credentials（避免用户名枚举）
+		h.auditLogin(c, 0, req.Username, AuditResultFailed, map[string]any{"reason": "user_not_found"})
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 	}
 	if !VerifyPassword(req.Password, u.PasswordHash) {
+		h.auditLogin(c, u.ID, u.Username, AuditResultFailed, map[string]any{"reason": "wrong_password"})
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 	}
 	if u.Status != user.StatusActive {
+		h.auditLogin(c, u.ID, u.Username, AuditResultDenied, map[string]any{"reason": "user_disabled"})
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "user disabled"})
 	}
 	access, err := h.signer.GenerateAccessToken(u.ID, u.Username)
@@ -99,10 +108,28 @@ func (h *AuthHandler) login(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+	h.auditLogin(c, u.ID, u.Username, AuditResultSuccess, nil)
 	return c.JSON(http.StatusOK, loginResp{
 		AccessToken: access, RefreshToken: refresh, TokenType: "Bearer",
 		User: toLoginUser(u),
 	})
+}
+
+// auditLogin 记录登录审计（actor_user_id 可能 0=用户不存在，actor_name 记 username 用于溯源）。
+func (h *AuthHandler) auditLogin(c echo.Context, uid int, username string, result AuditResult, detail map[string]any) {
+	if h.audit == nil {
+		return
+	}
+	e := AuditEntryFromRequest(c.Request(), uid, username)
+	e.Action = "auth.login"
+	e.ResourceType = "user"
+	e.ResourceID = uid
+	e.ResourceName = username
+	e.Result = result
+	if detail != nil {
+		e.Detail = detail
+	}
+	h.audit.MustRecord(c.Request().Context(), e)
 }
 
 type refreshReq struct {

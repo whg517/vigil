@@ -13,10 +13,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import {
   useAPIKeys,
+  useAuditLogs,
   useCreateAPIKey,
   useDeleteAPIKey,
   useDeleteNotificationRule,
@@ -47,12 +49,14 @@ export function Settings() {
         items={[
           { value: "rbac", label: "权限（RBAC）" },
           { value: "apikey", label: "API Key" },
+          { value: "audit", label: "审计日志" },
           { value: "notification", label: "通知配置" },
           { value: "im", label: "IM 平台" },
         ]}
       />
       {tab === "rbac" && <RBACTab />}
       {tab === "apikey" && <APIKeyTab />}
+      {tab === "audit" && <AuditTab />}
       {tab === "notification" && <NotificationTab />}
       {tab === "im" && <IMTab />}
     </div>
@@ -437,5 +441,79 @@ function CreateAPIKeyDialog({ onClose }: { onClose: () => void }) {
         </Button>
       </form>
     </Dialog>
+  );
+}
+
+// ===== 审计日志（能力域 13 §审计日志，只读 + 筛选）=====
+/** AuditTab：审计日志列表（倒序），按操作类型筛选。只读，无写操作。 */
+function AuditTab() {
+  const [action, setAction] = useState("");
+  const { data, isLoading } = useAuditLogs(action ? { action, limit: 100 } : { limit: 100 });
+
+  const resultBadge = (r: string) => {
+    if (r === "success") return <Badge variant="default">{r}</Badge>;
+    return <Badge variant="destructive">{r}</Badge>;
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <p className="flex-1 text-sm text-muted-foreground">
+          敏感操作留痕（角色变更/API Key/登录等）。只读。
+        </p>
+        <Select value={action} onChange={(e) => setAction(e.target.value)}>
+          <option value="">全部操作</option>
+          <option value="role.create">角色创建</option>
+          <option value="role.delete">角色删除</option>
+          <option value="role.assign">角色授权</option>
+          <option value="role.unassign">角色解权</option>
+          <option value="apikey.create">API Key 创建</option>
+          <option value="apikey.delete">API Key 撤销</option>
+          <option value="auth.login">登录</option>
+        </Select>
+      </div>
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : !data || data.items.length === 0 ? (
+            <EmptyState title="暂无审计日志" description="敏感操作会在此记录。" />
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="border-b text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="p-3">时间</th>
+                  <th className="p-3">操作者</th>
+                  <th className="p-3">操作</th>
+                  <th className="p-3">对象</th>
+                  <th className="p-3">结果</th>
+                  <th className="p-3">IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((log) => (
+                  <tr key={log.id} className="border-b last:border-0">
+                    <td className="p-3 text-muted-foreground">{formatTime(log.created_at)}</td>
+                    <td className="p-3">
+                      <span className="font-medium">{log.actor_name || "—"}</span>
+                      {log.actor_user_id > 0 && (
+                        <span className="ml-1 text-xs text-muted-foreground">#{log.actor_user_id}</span>
+                      )}
+                    </td>
+                    <td className="p-3 font-mono text-xs">{log.action}</td>
+                    <td className="p-3 text-muted-foreground">
+                      {log.resource_type}
+                      {log.resource_name ? ` · ${log.resource_name}` : ""}
+                    </td>
+                    <td className="p-3">{resultBadge(log.result)}</td>
+                    <td className="p-3 font-mono text-xs text-muted-foreground">{log.ip || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

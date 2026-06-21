@@ -8,6 +8,7 @@ import (
 	"github.com/kevin/vigil/ent/actionitem"
 	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/apikey"
+	"github.com/kevin/vigil/ent/auditlog"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/imaccountbinding"
@@ -77,6 +78,32 @@ func init() {
 	actionitem.DefaultUpdatedAt = actionitemDescUpdatedAt.Default.(func() time.Time)
 	// actionitem.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	actionitem.UpdateDefaultUpdatedAt = actionitemDescUpdatedAt.UpdateDefault.(func() time.Time)
+	auditlogFields := schema.AuditLog{}.Fields()
+	_ = auditlogFields
+	// auditlogDescActorUserID is the schema descriptor for actor_user_id field.
+	auditlogDescActorUserID := auditlogFields[0].Descriptor()
+	// auditlog.DefaultActorUserID holds the default value on creation for the actor_user_id field.
+	auditlog.DefaultActorUserID = auditlogDescActorUserID.Default.(int)
+	// auditlogDescActorName is the schema descriptor for actor_name field.
+	auditlogDescActorName := auditlogFields[1].Descriptor()
+	// auditlog.DefaultActorName holds the default value on creation for the actor_name field.
+	auditlog.DefaultActorName = auditlogDescActorName.Default.(string)
+	// auditlogDescAction is the schema descriptor for action field.
+	auditlogDescAction := auditlogFields[2].Descriptor()
+	// auditlog.ActionValidator is a validator for the "action" field. It is called by the builders before save.
+	auditlog.ActionValidator = auditlogDescAction.Validators[0].(func(string) error)
+	// auditlogDescResourceType is the schema descriptor for resource_type field.
+	auditlogDescResourceType := auditlogFields[3].Descriptor()
+	// auditlog.ResourceTypeValidator is a validator for the "resource_type" field. It is called by the builders before save.
+	auditlog.ResourceTypeValidator = auditlogDescResourceType.Validators[0].(func(string) error)
+	// auditlogDescResourceID is the schema descriptor for resource_id field.
+	auditlogDescResourceID := auditlogFields[4].Descriptor()
+	// auditlog.DefaultResourceID holds the default value on creation for the resource_id field.
+	auditlog.DefaultResourceID = auditlogDescResourceID.Default.(int)
+	// auditlogDescCreatedAt is the schema descriptor for created_at field.
+	auditlogDescCreatedAt := auditlogFields[10].Descriptor()
+	// auditlog.DefaultCreatedAt holds the default value on creation for the created_at field.
+	auditlog.DefaultCreatedAt = auditlogDescCreatedAt.Default.(func() time.Time)
 	escalationpolicyFields := schema.EscalationPolicy{}.Fields()
 	_ = escalationpolicyFields
 	// escalationpolicyDescName is the schema descriptor for name field.

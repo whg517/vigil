@@ -19,12 +19,29 @@ import (
 
 // Handler RBAC 管理 API。
 type Handler struct {
-	db *ent.Client
+	db    *ent.Client
+	audit *AuditRecorder // 审计记录器（可选，nil 时跳过审计）
 }
 
 // NewHandler 创建 RBAC handler。
 func NewHandler(db *ent.Client) *Handler {
 	return &Handler{db: db}
+}
+
+// SetAuditRecorder 注入审计记录器（main 装配时调用）。
+func (h *Handler) SetAuditRecorder(r *AuditRecorder) {
+	h.audit = r
+}
+
+// auditFrom 从请求构造审计条目（提取 actor + IP/UA）。
+func (h *Handler) auditFrom(c echo.Context, action, resType string, resID int, resName string) AuditEntry {
+	uid, _ := UserIDFromContext(c.Request().Context())
+	e := AuditEntryFromRequest(c.Request(), uid, "")
+	e.Action = action
+	e.ResourceType = resType
+	e.ResourceID = resID
+	e.ResourceName = resName
+	return e
 }
 
 // Register 挂载 RBAC 路由（这些路由本身需要 org_admin 权限，装配时加中间件）。
@@ -84,6 +101,9 @@ func (h *Handler) createRole(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+	if h.audit != nil {
+		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.create", "role", rl.ID, rl.Name))
+	}
 	return c.JSON(http.StatusCreated, rl)
 }
 
@@ -102,6 +122,9 @@ func (h *Handler) deleteRole(c echo.Context) error {
 	}
 	if err := h.db.Role.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	if h.audit != nil {
+		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.delete", "role", id, rl.Name))
 	}
 	return c.NoContent(http.StatusNoContent)
 }
@@ -154,6 +177,11 @@ func (h *Handler) createBinding(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+	if h.audit != nil {
+		e := h.auditFrom(c, "role.assign", "role_binding", saved.ID, "")
+		e.Detail = map[string]any{"user_id": req.UserID, "role_id": req.RoleID, "scope": scope}
+		h.audit.MustRecord(c.Request().Context(), e)
+	}
 	return c.JSON(http.StatusCreated, saved)
 }
 
@@ -164,6 +192,9 @@ func (h *Handler) deleteBinding(c echo.Context) error {
 	}
 	if err := h.db.RoleBinding.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	if h.audit != nil {
+		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.unassign", "role_binding", id, ""))
 	}
 	return c.NoContent(http.StatusNoContent)
 }

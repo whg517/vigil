@@ -68,7 +68,7 @@ r.Register(&GenericJSONAdapter{})
 | 需求 | PRD | 状态 |
 |------|-----|------|
 | API Key 管理（org_admin，scoped） | M13.7 | ❌ 无 apikey 实体，开放 API `/api/v1/events` 端点不存在 |
-| 审计日志（角色变更/token/删除留痕） | M13.5 | ❌ 无 AuditLog 实体，鉴权失败/角色变更无审计落库 |
+| 审计日志（角色变更/token/删除留痕） | M13.5 | ✅ 已实现（feat-audit-log：AuditLog 实体 + AuditRecorder + 角色变更/API Key/登录埋点 + GET /audit-logs 查询 + 前端 Tab） |
 | 操作审计查询/导出 | M13.6 | ⚠️ 有 timeline_action 实体，无独立查询/导出 API |
 | 凭证加密（非功能-安全） | NFR | ❌ IM AppSecret/LLM Key 明文环境变量，无加密存储 |
 
@@ -184,7 +184,7 @@ README 第 44-50 行：
 1. **登录态鉴权**替换 `X-Vigil-User-ID` 头伪造（安全红线）
 2. **限流/背压**（M1.7，否则单源拖垮系统）
 3. **邮件通道真实 SMTP**（M7.3 占位会假性"发送成功"）
-4. **审计日志实体 + API Key**（M13.5/M13.7）
+4. **审计日志实体 + API Key**（M13.5/M13.7）✅ 已完成（feat-auth-jwt + feat-apikey + feat-audit-log）
 
 ### P1（核心差异化受损）
 5. **电话/SMS 通道**（M7.2，升级兜底链断一截）

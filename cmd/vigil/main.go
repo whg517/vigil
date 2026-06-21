@@ -260,6 +260,10 @@ func run() error {
 	// 5.6 RBAC 鉴权器（能力域 13）——提前创建，供 incident.Service 与 IM 层共用（同一鉴权链路）
 	authz := auth.NewAuthorizer(st.DB)
 
+	// 5.6.1 审计日志记录器（能力域 13 M13.5）：关键写操作埋点（角色变更/API Key/登录等）。
+	// 解耦组件，各 handler 注入后调用 MustRecord（best-effort，失败不阻塞业务）。
+	auditRecorder := auth.NewAuditRecorder(st.DB)
+
 	// 5.7 事件动作服务（能力域 8 复用层）：IM 与 Web 共用的 ack/resolve/escalate/add_responder 入口。
 	// 注入 recorder + escEngine；OnIncidentChanged 回调后续接 IM 卡片刷新（见 5.8）。
 	incService := incident.NewService(st.DB, timelineRecorder, escEngine)
@@ -372,22 +376,30 @@ func run() error {
 	ingestHandler.Register(public) // 告警 webhook（token 鉴权）
 	imHandler.Register(public)     // IM 平台回调（平台签名校验）
 	// 登录态 API（能力域 13）：login/refresh 走 public（换取 token 无需已登录）
-	auth.NewAuthHandler(st.DB, jwtSigner).RegisterPublic(public)
+	authHandler := auth.NewAuthHandler(st.DB, jwtSigner)
+	authHandler.SetAuditRecorder(auditRecorder) // 登录成功/失败记审计（安全溯源）
+	authHandler.RegisterPublic(public)
 
 	// 业务路由组（受鉴权开关控制）：身份解析中间件（三轨：JWT/APIKey/header）
 	v1 := srv.APIGroup()
 	v1.Use(auth.RequireUser(cfg.Auth.Enabled, identityResolver))
 	// me 走 v1（RequireUser 保护，需已登录）
-	auth.NewAuthHandler(st.DB, jwtSigner).RegisterProtected(v1)
-	// API Key 管理（能力域 13 M13.7）：CRUD + 创建时返回明文仅一次
-	auth.NewAPIKeyHandler(st.DB).Register(v1)
+	authHandler.RegisterProtected(v1)
+	// API Key 管理（能力域 13 M13.7）：CRUD + 创建时返回明文仅一次；记审计
+	apiKeyHandler := auth.NewAPIKeyHandler(st.DB)
+	apiKeyHandler.SetAuditRecorder(auditRecorder)
+	apiKeyHandler.Register(v1)
 	schedule.NewHandler(schedEngine, st.DB).Register(v1)
 	// 服务目录（能力域 4/13）：Service CRUD（此前仅 schema 无 handler）
 	service.NewHandler(st.DB).Register(v1)
 	// Incident API（能力域 14 集成入口 + 8 IM/Web 操作）：list/get/ack/resolve/escalate
 	incident.NewHandler(st.DB, incService).Register(v1)
-	// RBAC（能力域 13）：角色/绑定管理
-	auth.NewHandler(st.DB).Register(v1)
+	// RBAC（能力域 13）：角色/绑定管理；记审计（角色变更/授权是敏感操作）
+	rbacHandler := auth.NewHandler(st.DB)
+	rbacHandler.SetAuditRecorder(auditRecorder)
+	rbacHandler.Register(v1)
+	// 审计日志查询（能力域 13 M13.5）：只读 + 筛选（权限点 admin.audit.view）
+	auth.NewAuditHandler(st.DB).Register(v1)
 	// Runbook（能力域 9）：处置手册 + 受控执行，注入时间线记录器
 	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
 	runbookEngine.SetTimelineRecorder(timelineRecorder)

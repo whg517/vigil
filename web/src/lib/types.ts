@@ -297,3 +297,27 @@ export interface APIKey {
 export interface APIKeyCreated extends APIKey {
   token: string;
 }
+
+/** 审计日志条目（能力域 13 §审计日志）—— 只读 */
+export interface AuditLog {
+  id: number;
+  actor_user_id: number;
+  actor_name: string;
+  action: string;
+  resource_type: string;
+  resource_id: number;
+  resource_name?: string;
+  result: "success" | "failed" | "denied";
+  detail?: Record<string, unknown>;
+  ip?: string;
+  user_agent?: string;
+  created_at: string;
+}
+
+/** 审计日志列表响应（含分页元数据） */
+export interface AuditLogListResponse {
+  items: AuditLog[];
+  total: number;
+  limit: number;
+  offset: number;
+}

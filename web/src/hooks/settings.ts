@@ -146,3 +146,14 @@ export function useDeleteAPIKey() {
     onSuccess: () => { toast.success("API Key 已撤销"); qc.invalidateQueries({ queryKey: ["api-keys"] }); },
   });
 }
+
+// —— 审计日志（能力域 13 §审计日志，只读）——
+export const auditQk = {
+  logs: (action?: string, actor?: number) => ["audit-logs", action ?? "", actor ?? 0] as const,
+};
+export function useAuditLogs(params?: { action?: string; actor_user_id?: number; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: auditQk.logs(params?.action, params?.actor_user_id),
+    queryFn: () => api.listAuditLogs(params),
+  });
+}

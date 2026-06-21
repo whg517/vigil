@@ -18,6 +18,7 @@ import type {
   ActionItem,
   APIKey,
   APIKeyCreated,
+  AuditLogListResponse,
   DashboardMetrics,
   Incident,
   ListResponse,
@@ -258,5 +259,9 @@ export const api = {
   },
   deleteAPIKey(id: number) {
     return http.delete(`/api-keys/${id}`).then((r) => r.data);
+  },
+  // ===== 审计日志（能力域 13 §审计日志，只读查询）=====
+  listAuditLogs(params?: { actor_user_id?: number; action?: string; resource_type?: string; limit?: number; offset?: number }) {
+    return http.get<AuditLogListResponse>("/audit-logs", { params }).then((r) => r.data);
   },
 };

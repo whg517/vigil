@@ -25,12 +25,18 @@ import (
 
 // APIKeyHandler API Key 管理 handler。
 type APIKeyHandler struct {
-	db *ent.Client
+	db    *ent.Client
+	audit *AuditRecorder // 审计记录器（可选）
 }
 
 // NewAPIKeyHandler 创建 handler。
 func NewAPIKeyHandler(db *ent.Client) *APIKeyHandler {
 	return &APIKeyHandler{db: db}
+}
+
+// SetAuditRecorder 注入审计记录器。
+func (h *APIKeyHandler) SetAuditRecorder(r *AuditRecorder) {
+	h.audit = r
 }
 
 // Register 挂载路由到业务路由组（v1，已过 RequireUser 身份解析）。
@@ -119,6 +125,12 @@ func (h *APIKeyHandler) create(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+	if h.audit != nil {
+		uid, _ := UserIDFromContext(c.Request().Context())
+		e := AuditEntryFromRequest(c.Request(), uid, "")
+		e.Action, e.ResourceType, e.ResourceID, e.ResourceName = "apikey.create", "api_key", k.ID, req.Name
+		h.audit.MustRecord(c.Request().Context(), e)
+	}
 	return c.JSON(http.StatusCreated, apiKeyCreateResp{
 		apiKeyView: toAPIKeyView(k),
 		Plaintext:  plaintext,
@@ -145,6 +157,12 @@ func (h *APIKeyHandler) delete(c echo.Context) error {
 	}
 	if err := h.db.APIKey.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	if h.audit != nil {
+		uid, _ := UserIDFromContext(c.Request().Context())
+		e := AuditEntryFromRequest(c.Request(), uid, "")
+		e.Action, e.ResourceType, e.ResourceID, e.ResourceName = "apikey.delete", "api_key", id, k.Name
+		h.audit.MustRecord(c.Request().Context(), e)
 	}
 	return c.NoContent(http.StatusNoContent)
 }
