@@ -10,6 +10,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/auditlog"
+	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v4"
 )
@@ -31,6 +32,20 @@ func (h *AuditHandler) Register(g *echo.Group) {
 
 // list 查询审计日志（支持筛选 + 分页，默认倒序）。
 // 查询参数：actor_user_id / action / resource_type / resource_id / limit / offset
+//
+// @Summary      审计日志查询
+// @Tags         audit
+// @Produce      json
+// @Param        actor_user_id   query    int     false  "按操作者过滤"
+// @Param        action          query    string  false  "按操作类型过滤"
+// @Param        resource_type   query    string  false  "按对象类型过滤"
+// @Param        resource_id     query    int     false  "按对象 ID 过滤"
+// @Param        limit           query    int     false  "分页大小（默认 50，上限 200）"  default(50) maximum(200)
+// @Param        offset          query    int     false  "分页偏移"                       default(0)
+// @Success      200             {object} httputil.Paginated[ent.AuditLog]
+// @Failure      500             {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /audit-logs [get]
 func (h *AuditHandler) list(c echo.Context) error {
 	ctx := c.Request().Context()
 	q := h.db.AuditLog.Query().Order(ent.Desc(auditlog.FieldCreatedAt))
@@ -73,12 +88,9 @@ func (h *AuditHandler) list(c echo.Context) error {
 
 	logs, err := q.Limit(limit).Offset(offset).All(ctx)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
-	return c.JSON(http.StatusOK, map[string]any{
-		"items":  logs,
-		"total":  total,
-		"limit":  limit,
-		"offset": offset,
+	return c.JSON(http.StatusOK, httputil.Paginated[*ent.AuditLog]{
+		Items: logs, Total: total, Limit: limit, Offset: offset,
 	})
 }

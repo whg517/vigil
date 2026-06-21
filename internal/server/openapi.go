@@ -1,10 +1,11 @@
 // openapi.go OpenAPI spec 服务端点（能力域 14 开放 API）。
 //
 // 暴露：
-//   - GET /openapi.yaml：原始 OpenAPI 3.0 spec（供前端/外部消费）
+//   - GET /openapi.yaml：由 swag v2 (--v3.1) 从代码注解生成的 OpenAPI 3.1 spec
 //   - GET /docs：Swagger UI（在线 CDN 加载，无需前端依赖）
 //
-// spec 文件随二进制 embed（docs/openapi.yaml 为权威源，编译时复制到本包 embed）。
+// spec 由 `go generate ./cmd/vigil/...` 重新生成至 internal/server/gen/swagger.yaml，
+// 编译时 embed 进二进制；权威源是 handler 注解，而非本文件。
 package server
 
 import (
@@ -14,10 +15,11 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-//go:embed openapi.yaml
+//go:embed gen/swagger.yaml
 var openapiYAML string
 
 // swaggerUI 是最小 Swagger UI HTML（从 CDN 加载，指向 /openapi.yaml）。
+// swagger-ui-dist@5 原生支持 OpenAPI 3.1。
 const swaggerUI = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>

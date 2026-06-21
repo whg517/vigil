@@ -13,6 +13,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/role"
 	"github.com/kevin/vigil/ent/rolebinding"
+	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v4"
 )
@@ -66,26 +67,47 @@ type createRoleReq struct {
 	Permissions []string `json:"permissions"`
 }
 
+// listRoles 角色列表。
+//
+// @Summary      角色列表
+// @Tags         rbac
+// @Produce      json
+// @Success      200  {array}   ent.Role
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /roles [get]
 func (h *Handler) listRoles(c echo.Context) error {
 	rls, err := h.db.Role.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, rls)
 }
 
+// createRole 创建角色。
+//
+// @Summary      创建角色
+// @Tags         rbac
+// @Accept       json
+// @Produce      json
+// @Param        body  body     createRoleReq  true  "角色创建参数"
+// @Success      201   {object} ent.Role
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      500   {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /roles [post]
 func (h *Handler) createRole(c echo.Context) error {
 	var req createRoleReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	if req.Name == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "name required"})
 	}
 	// 校验权限点合法性（角色配置时必须从系统枚举选）
 	for _, p := range req.Permissions {
 		if !Permission(p).IsValid() {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid permission: " + p})
+			return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid permission: " + p})
 		}
 	}
 	scope := role.ScopeLevel(req.ScopeLevel)
@@ -99,7 +121,7 @@ func (h *Handler) createRole(c echo.Context) error {
 		SetPermissions(req.Permissions).
 		Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if h.audit != nil {
 		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.create", "role", rl.ID, rl.Name))
@@ -107,21 +129,32 @@ func (h *Handler) createRole(c echo.Context) error {
 	return c.JSON(http.StatusCreated, rl)
 }
 
+// deleteRole 删除角色（内置角色不可删）。
+//
+// @Summary      删除角色
+// @Tags         rbac
+// @Param        id   path  int  true  "角色 ID"
+// @Success      204
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      403  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /roles/{id} [delete]
 func (h *Handler) deleteRole(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	// 内置角色不可删（builtin=true）
 	rl, err := h.db.Role.Get(c.Request().Context(), id)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "role not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "role not found"})
 	}
 	if rl.Builtin {
-		return c.JSON(http.StatusForbidden, map[string]string{"error": "builtin role cannot be deleted"})
+		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "builtin role cannot be deleted"})
 	}
 	if err := h.db.Role.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if h.audit != nil {
 		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.delete", "role", id, rl.Name))
@@ -139,28 +172,49 @@ type createBindingReq struct {
 	ExpiresIn  *int   `json:"expires_in_hours"` // 可选，临时授权小时数
 }
 
+// listBindings 角色绑定列表。
+//
+// @Summary      角色绑定列表
+// @Tags         rbac
+// @Produce      json
+// @Success      200  {array}   ent.RoleBinding
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /role-bindings [get]
 func (h *Handler) listBindings(c echo.Context) error {
 	bs, err := h.db.RoleBinding.Query().WithRole().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, bs)
 }
 
+// createBinding 创建角色绑定（把 Role 授予 User）。
+//
+// @Summary      创建角色绑定
+// @Tags         rbac
+// @Accept       json
+// @Produce      json
+// @Param        body  body     createBindingReq  true  "绑定参数"
+// @Success      201   {object} ent.RoleBinding
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      500   {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /role-bindings [post]
 func (h *Handler) createBinding(c echo.Context) error {
 	var req createBindingReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	if req.UserID == 0 || req.RoleID == 0 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "user_id and role_id required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "user_id and role_id required"})
 	}
 	scope := rolebinding.ScopeLevel(req.ScopeLevel)
 	if scope != rolebinding.ScopeLevelOrg && scope != rolebinding.ScopeLevelTeam {
 		scope = rolebinding.ScopeLevelTeam
 	}
 	if scope == rolebinding.ScopeLevelTeam && req.TeamID == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "team_id required for team scope"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "team_id required for team scope"})
 	}
 	b := h.db.RoleBinding.Create().
 		SetUserID(req.UserID).
@@ -175,7 +229,7 @@ func (h *Handler) createBinding(c echo.Context) error {
 	}
 	saved, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if h.audit != nil {
 		e := h.auditFrom(c, "role.assign", "role_binding", saved.ID, "")
@@ -185,13 +239,23 @@ func (h *Handler) createBinding(c echo.Context) error {
 	return c.JSON(http.StatusCreated, saved)
 }
 
+// deleteBinding 删除角色绑定（撤销授权）。
+//
+// @Summary      删除角色绑定
+// @Tags         rbac
+// @Param        id   path  int  true  "绑定 ID"
+// @Success      204
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /role-bindings/{id} [delete]
 func (h *Handler) deleteBinding(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	if err := h.db.RoleBinding.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if h.audit != nil {
 		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.unassign", "role_binding", id, ""))

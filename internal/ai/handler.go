@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/kevin/vigil/internal/httputil"
+
 	"github.com/labstack/echo/v4"
 )
 
@@ -30,15 +32,27 @@ func (h *Handler) Register(g *echo.Group) {
 	g.POST("/ai-insights/:id/resolve", h.resolve)
 }
 
-// diagnose 触发根因诊断。
+// DiagnoseIncident 触发根因诊断。
+//
+// @Summary      Diagnose incident (AI)
+// @Description  触发 LLM 根因诊断；若未启用 LLM 返回 200 与 disabled 状态。
+// @Tags         ai
+// @Produce      json
+// @Param        id   path      int  true  "Incident ID"
+// @Success      200  {object}  map[string]string  "AI 诊断未启用"
+// @Success      201  {object}  ai.DiagnoseResult
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /incidents/{id}/diagnose [post]
+// @Security     bearerAuth
 func (h *Handler) diagnose(c echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	res, err := h.engine.Diagnose(c.Request().Context(), incID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if res == nil {
 		return c.JSON(http.StatusOK, map[string]string{"status": "disabled", "message": "AI 诊断未启用（无 LLM）"})
@@ -46,16 +60,28 @@ func (h *Handler) diagnose(c echo.Context) error {
 	return c.JSON(http.StatusCreated, res)
 }
 
-// similar 查询相似历史事件。
+// FindSimilarIncidents 查询相似历史事件。
+//
+// @Summary      Find similar incidents
+// @Description  按向量/文本相似度查询与给定 incident 相似的历史事件。
+// @Tags         ai
+// @Produce      json
+// @Param        id     path   int  true   "Incident ID"
+// @Param        limit  query  int  false  "返回条数上限"
+// @Success      200    {object}  map[string]any  "{similar: []*ent.Incident}"
+// @Failure      400    {object}  httputil.ErrorResponse
+// @Failure      500    {object}  httputil.ErrorResponse
+// @Router       /incidents/{id}/similar [get]
+// @Security     bearerAuth
 func (h *Handler) similar(c echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	similar, err := h.engine.FindSimilar(c.Request().Context(), incID, limit)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]any{"similar": similar})
 }
@@ -80,16 +106,29 @@ type resolveReq struct {
 	Accepted bool `json:"accepted"`
 }
 
-// resolve 人确认/拒绝 AI 建议。
+// ResolveAIInsight 人确认/拒绝 AI 建议。
+//
+// @Summary      Resolve AI insight
+// @Description  人确认/拒绝 AI 建议（human-in-the-loop）。
+// @Tags         ai
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int          true  "AI Insight ID"
+// @Param        request  body      resolveReq   true  "accepted=true 接受，false 拒绝"
+// @Success      200      {object}  map[string]any
+// @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      500      {object}  httputil.ErrorResponse
+// @Router       /ai-insights/{id}/resolve [post]
+// @Security     bearerAuth
 func (h *Handler) resolve(c echo.Context) error {
 	insightID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	var req resolveReq
 	_ = c.Bind(&req)
 	if err := h.engine.ResolveInsight(c.Request().Context(), insightID, req.Accepted); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]any{"status": "resolved", "accepted": req.Accepted})
 }

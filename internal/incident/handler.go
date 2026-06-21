@@ -11,6 +11,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/internal/auth"
+	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v4"
 )
@@ -42,6 +43,19 @@ func (h *Handler) Register(g *echo.Group) {
 
 // list 查询事件列表（?status=&severity=&limit=&offset=）。
 // total 与筛选条件一致（用 clone 在加 limit/offset 前统计）。
+//
+// @Summary      查询事件列表
+// @Description  按状态/严重度过滤并分页返回事件，total 与筛选条件一致。
+// @Tags         incident
+// @Produce      json
+// @Param        status    query    string  false  "按状态过滤"  Enums(triggered, escalated, acked, resolved, closed)
+// @Param        severity  query    string  false  "按严重度过滤"  Enums(critical, warning, info)
+// @Param        limit     query    int     false  "分页大小（默认 50，上限 200）"  default(50) maximum(200)
+// @Param        offset    query    int     false  "分页偏移"  default(0)
+// @Success      200       {object} httputil.Paginated[ent.Incident]
+// @Failure      500       {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents [get]
 func (h *Handler) list(c echo.Context) error {
 	ctx := c.Request().Context()
 	q := h.db.Incident.Query()
@@ -54,7 +68,7 @@ func (h *Handler) list(c echo.Context) error {
 	// 在加 limit/offset 前 clone 出计数 query，保证 total 与列表筛选条件一致
 	total, err := q.Clone().Count(ctx)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	offset, _ := strconv.Atoi(c.QueryParam("offset"))
@@ -67,16 +81,29 @@ func (h *Handler) list(c echo.Context) error {
 	}
 	items, err := q.Order(ent.Desc(incident.FieldCreatedAt)).All(ctx)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
-	return c.JSON(http.StatusOK, map[string]any{"items": items, "total": total, "limit": limit, "offset": offset})
+	return c.JSON(http.StatusOK, httputil.Paginated[*ent.Incident]{
+		Items: items, Total: total, Limit: limit, Offset: offset,
+	})
 }
 
 // get 事件详情（含 responders/events）。
+//
+// @Summary      事件详情
+// @Description  含 responders 与 events 关联。
+// @Tags         incident
+// @Produce      json
+// @Param        id   path     int  true  "事件 ID"
+// @Success      200  {object} ent.Incident
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id} [get]
 func (h *Handler) get(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	inc, err := h.db.Incident.Query().
 		Where(incident.IDEQ(id)).
@@ -84,7 +111,7 @@ func (h *Handler) get(c echo.Context) error {
 		WithEvents().
 		Only(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	return c.JSON(http.StatusOK, inc)
 }
@@ -100,38 +127,68 @@ func (h *Handler) actorFromContext(c echo.Context) int {
 	return 0
 }
 
+// ack 确认事件（@Router /incidents/{id}/ack）。
+//
+// @Summary      确认事件（ack）
+// @Tags         incident
+// @Produce      json
+// @Param        id   path     int  true  "事件 ID"
+// @Success      200  {object} ent.Incident
+// @Failure      400  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id}/ack [post]
 func (h *Handler) ack(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	inc, err := h.svc.Ack(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, inc)
 }
 
+// resolve 解决事件。
+//
+// @Summary      解决事件（resolve）
+// @Tags         incident
+// @Produce      json
+// @Param        id   path     int  true  "事件 ID"
+// @Success      200  {object} ent.Incident
+// @Failure      400  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id}/resolve [post]
 func (h *Handler) resolve(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	inc, err := h.svc.Resolve(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, inc)
 }
 
+// escalate 升级事件。
+//
+// @Summary      升级事件（escalate）
+// @Tags         incident
+// @Produce      json
+// @Param        id   path     int  true  "事件 ID"
+// @Success      200  {object} ent.Incident
+// @Failure      400  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id}/escalate [post]
 func (h *Handler) escalate(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	inc, err := h.svc.Escalate(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, inc)
 }

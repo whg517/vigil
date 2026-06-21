@@ -51,7 +51,7 @@ export function useTransitionPostmortem(id: number) {
 export function useAddActionItem(id: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { title: string; owner_id?: string }) => api.addActionItem(id, body),
+    mutationFn: (body: { description: string; owner_id?: string }) => api.addActionItem(id, body),
     onSuccess: () => {
       toast.success("改进项已添加");
       qc.invalidateQueries({ queryKey: postmortemQk.postmortem(id) });

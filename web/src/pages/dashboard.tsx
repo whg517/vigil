@@ -22,15 +22,15 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { data, isLoading, isError } = useDashboard(7);
 
-  const alert = data?.Alert;
-  const inc = data?.Incident;
-  const load = data?.Load ?? [];
+  const alert = data?.alert;
+  const inc = data?.incident;
+  const load = data?.load ?? [];
 
   // 活跃事件 = 非已解决/已关闭
   const activeCount = inc
-    ? (inc.ByStatus["triggered"] ?? 0) +
-      (inc.ByStatus["escalated"] ?? 0) +
-      (inc.ByStatus["acked"] ?? 0)
+    ? (inc.byStatus["triggered"] ?? 0) +
+      (inc.byStatus["escalated"] ?? 0) +
+      (inc.byStatus["acked"] ?? 0)
     : 0;
 
   return (
@@ -53,23 +53,23 @@ export function Dashboard() {
         <KpiCard
           icon={<AlertTriangle className="h-4 w-4" />}
           label="近 7 天告警"
-          value={isLoading ? null : alert?.Total}
+          value={isLoading ? null : alert?.total}
           sub={
-            alert && alert.Total > 0
-              ? `降噪率 ${Math.round(alert.NoiseRate * 100)}%`
+            alert && alert.total > 0
+              ? `降噪率 ${Math.round(alert.noiseRate * 100)}%`
               : undefined
           }
         />
         <KpiCard
           icon={<Clock className="h-4 w-4" />}
           label="MTTA 平均确认"
-          value={isLoading ? null : inc?.MTTARatio}
+          value={isLoading ? null : inc?.mttaratio}
           renderValue={(v) => formatDuration(v as number)}
         />
         <KpiCard
           icon={<Clock className="h-4 w-4" />}
           label="MTTR 平均解决"
-          value={isLoading ? null : inc?.MTTRatio}
+          value={isLoading ? null : inc?.mttratio}
           renderValue={(v) => formatDuration(v as number)}
         />
       </div>
@@ -83,10 +83,10 @@ export function Dashboard() {
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-20 w-full" />
-            ) : isError ? null : !inc || inc.Total === 0 ? (
+            ) : isError ? null : !inc || inc.total === 0 ? (
               <EmptyState title="暂无事件数据" />
             ) : (
-              <SeverityDistribution bySeverity={inc.BySeverity} total={inc.Total} />
+              <SeverityDistribution bySeverity={inc.bySeverity} total={inc.total} />
             )}
           </CardContent>
         </Card>
@@ -201,21 +201,21 @@ function SeverityDistribution({
 function TeamLoadBars({
   load,
 }: {
-  load: { TeamID: number; TeamName: string; Incidents: number }[];
+  load: { teamID: number; teamName: string; incidents: number }[];
 }) {
-  const max = Math.max(1, ...load.map((t) => t.Incidents));
+  const max = Math.max(1, ...load.map((t) => t.incidents));
   return (
     <div className="space-y-2.5">
       {load.map((t) => (
-        <div key={t.TeamID} className="space-y-1">
+        <div key={t.teamID} className="space-y-1">
           <div className="flex items-center justify-between text-sm">
-            <span>{t.TeamName || `团队 ${t.TeamID}`}</span>
-            <span className="text-muted-foreground">{t.Incidents}</span>
+            <span>{t.teamName || `团队 ${t.teamID}`}</span>
+            <span className="text-muted-foreground">{t.incidents}</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full bg-primary"
-              style={{ width: `${(t.Incidents / max) * 100}%` }}
+              style={{ width: `${(t.incidents / max) * 100}%` }}
             />
           </div>
         </div>

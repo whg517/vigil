@@ -19,6 +19,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/apikey"
 	"github.com/kevin/vigil/ent/user"
+	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v4"
 )
@@ -72,10 +73,20 @@ type apiKeyCreateResp struct {
 	Plaintext string `json:"token"` // ★ 明文 token，仅此一次返回
 }
 
+// list 列出当前用户的 API Key。
+//
+// @Summary      API Key 列表
+// @Tags         apikey
+// @Produce      json
+// @Success      200  {array}   auth.apiKeyView
+// @Failure      401  {object} httputil.ErrorResponse
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /api-keys [get]
 func (h *APIKeyHandler) list(c echo.Context) error {
 	uid, ok := UserIDFromContext(c.Request().Context())
 	if !ok {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "not authenticated"})
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "not authenticated"})
 	}
 	// 列出当前用户的 API Key（按创建时间倒序）
 	keys, err := h.db.APIKey.Query().
@@ -83,7 +94,7 @@ func (h *APIKeyHandler) list(c echo.Context) error {
 		Order(ent.Desc(apikey.FieldCreatedAt)).
 		All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	out := make([]apiKeyView, 0, len(keys))
 	for _, k := range keys {
@@ -92,22 +103,36 @@ func (h *APIKeyHandler) list(c echo.Context) error {
 	return c.JSON(http.StatusOK, out)
 }
 
+// create 创建 API Key（明文 token 仅返回一次）。
+//
+// @Summary      创建 API Key
+// @Description  生成明文 token（vgl_ 前缀）+ 哈希存储；明文 token 仅在本次响应返回，丢失只能重建。
+// @Tags         apikey
+// @Accept       json
+// @Produce      json
+// @Param        body  body     apiKeyCreateReq   true  "创建参数"
+// @Success      201   {object} auth.apiKeyCreateResp
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      401   {object} httputil.ErrorResponse
+// @Failure      500   {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /api-keys [post]
 func (h *APIKeyHandler) create(c echo.Context) error {
 	uid, ok := UserIDFromContext(c.Request().Context())
 	if !ok {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "not authenticated"})
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "not authenticated"})
 	}
 	var req apiKeyCreateReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	if req.Name == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "name required"})
 	}
 
 	plaintext, hash, err := GenerateAPIKey()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 
 	builder := h.db.APIKey.Create().
@@ -123,7 +148,7 @@ func (h *APIKeyHandler) create(c echo.Context) error {
 	}
 	k, err := builder.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if h.audit != nil {
 		uid, _ := UserIDFromContext(c.Request().Context())
@@ -137,26 +162,38 @@ func (h *APIKeyHandler) create(c echo.Context) error {
 	})
 }
 
+// delete 删除 API Key（只能删自己的）。
+//
+// @Summary      删除 API Key
+// @Tags         apikey
+// @Param        id   path  int  true  "API Key ID"
+// @Success      204
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      401  {object} httputil.ErrorResponse
+// @Failure      403  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /api-keys/{id} [delete]
 func (h *APIKeyHandler) delete(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	uid, ok := UserIDFromContext(c.Request().Context())
 	if !ok {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "not authenticated"})
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "not authenticated"})
 	}
 	// 只能删除自己的 key（防越权删他人 key）
 	k, err := h.db.APIKey.Get(c.Request().Context(), id)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "api key not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "api key not found"})
 	}
 	kUID, err := k.QueryUser().OnlyID(c.Request().Context())
 	if err != nil || kUID != uid {
-		return c.JSON(http.StatusForbidden, map[string]string{"error": "cannot delete others' api key"})
+		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "cannot delete others' api key"})
 	}
 	if err := h.db.APIKey.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if h.audit != nil {
 		uid, _ := UserIDFromContext(c.Request().Context())

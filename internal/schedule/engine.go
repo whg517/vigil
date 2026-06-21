@@ -164,6 +164,12 @@ type DayOncall struct {
 	Layers []OncallLayer
 }
 
+// PreviewResult 排班预览结果（preview handler 返回）。
+type PreviewResult struct {
+	ScheduleID int         `json:"schedule_id"`
+	Days       []DayOncall `json:"days"`
+}
+
 // computeRotationUsers 纯函数：根据 Rotation 规则算出 at 时刻的在班人。
 // 核心算法：班次序号 = floor((at - start_date) / shift)，值班 = participants[序号 mod 人数]。
 func computeRotationUsers(rot *ent.Rotation, at time.Time) []OncallUser {

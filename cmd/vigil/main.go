@@ -5,6 +5,20 @@
 //	init queue → start http server → start queue worker。
 //
 // 优雅退出：捕获 SIGINT/SIGTERM，按序关闭 queue → server → store。
+//
+// OpenAPI 全局信息（swag v2 --v3.1 解析）。
+// spec 由 handler 上的注解经 `go generate ./cmd/vigil/...` 生成到 internal/server/gen。
+//
+// @title          Vigil API
+// @version        0.1.0
+// @description    Vigil 告警处置平台 REST API。
+// @description    认证：业务 API 要求 Bearer JWT（/auth/login 换取）。鉴权中间件另接受 X-Vigil-User-ID 头作为本地/回退身份（可伪造，仅限受信网络，生产禁用），该回退方案不在 securitySchemes 中声明。
+// @license.name   MIT
+// @servers.url    /api/v1
+//
+// @securitydefinitions.bearerauth bearerAuth
+// @description    业务 API 推荐（唯一声明）方案：HTTP Bearer JWT（/auth/login 换取）。
+// @bearerformat   JWT
 package main
 
 import (

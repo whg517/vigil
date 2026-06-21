@@ -18,6 +18,7 @@ import (
 	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/suppressionrule"
+	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v4"
 )
@@ -68,10 +69,20 @@ func (h *Handler) Register(g *echo.Group) {
 
 // ===== NotificationRule =====
 
+// ListNotificationRules 列出全部通知规则。
+//
+// @Summary      List notification rules
+// @Description  返回全部 NotificationRule（无分页）。
+// @Tags         notification
+// @Produce      json
+// @Success      200  {array}  ent.NotificationRule
+// @Failure      500  {object} httputil.ErrorResponse
+// @Router       /notification-rules [get]
+// @Security     bearerAuth
 func (h *Handler) listRules(c echo.Context) error {
 	rules, err := h.db.NotificationRule.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, rules)
 }
@@ -86,13 +97,26 @@ type createRuleReq struct {
 	Enabled    *bool          `json:"enabled"`
 }
 
+// CreateNotificationRule 创建通知规则。
+//
+// @Summary      Create notification rule
+// @Description  新建 NotificationRule（条件/渠道/静默时段等）。
+// @Tags         notification
+// @Accept       json
+// @Produce      json
+// @Param        request  body      createRuleReq  true  "通知规则定义"
+// @Success      201      {object}  ent.NotificationRule
+// @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      500      {object}  httputil.ErrorResponse
+// @Router       /notification-rules [post]
+// @Security     bearerAuth
 func (h *Handler) createRule(c echo.Context) error {
 	var req createRuleReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	if req.Name == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "name required"})
 	}
 	if len(req.Channels) == 0 {
 		req.Channels = []string{"im", "webhook"}
@@ -113,22 +137,35 @@ func (h *Handler) createRule(c echo.Context) error {
 	}
 	r, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusCreated, r)
 }
 
+// GetNotificationRule 获取单个通知规则。
+//
+// @Summary      Get notification rule
+// @Description  按 ID 取得 NotificationRule。
+// @Tags         notification
+// @Produce      json
+// @Param        id   path      int  true  "规则 ID"
+// @Success      200  {object}  ent.NotificationRule
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /notification-rules/{id} [get]
+// @Security     bearerAuth
 func (h *Handler) getRule(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	r, err := h.db.NotificationRule.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, r)
 }
@@ -142,14 +179,28 @@ type updateRuleReq struct {
 	Enabled    *bool           `json:"enabled"`
 }
 
+// UpdateNotificationRule 更新通知规则（部分字段）。
+//
+// @Summary      Update notification rule
+// @Description  按 ID 部分更新 NotificationRule。
+// @Tags         notification
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int             true  "规则 ID"
+// @Param        request  body      updateRuleReq   true  "待更新字段"
+// @Success      200      {object}  ent.NotificationRule
+// @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      500      {object}  httputil.ErrorResponse
+// @Router       /notification-rules/{id} [patch]
+// @Security     bearerAuth
 func (h *Handler) updateRule(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	var req updateRuleReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	upd := h.db.NotificationRule.UpdateOneID(id)
 	if req.Name != nil {
@@ -172,40 +223,65 @@ func (h *Handler) updateRule(c echo.Context) error {
 	}
 	r, err := upd.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, r)
 }
 
+// DeleteNotificationRule 删除通知规则。
+//
+// @Summary      Delete notification rule
+// @Description  按 ID 删除 NotificationRule。
+// @Tags         notification
+// @Param        id   path  int  true  "规则 ID"
+// @Success      204
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /notification-rules/{id} [delete]
+// @Security     bearerAuth
 func (h *Handler) deleteRule(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	if err := h.db.NotificationRule.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		if ent.IsNotFound(err) {
-			return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.NoContent(http.StatusNoContent)
 }
 
-// testRule dry-run：给定 incident_id，评估该规则是否对其静默。
+// TestNotificationRule dry-run：给定 incident_id，评估该规则是否对其静默。
 // 返回 {quiet_hours_suppress: bool, quiet_hours_config: {...}, channels: [...]}。
+//
+// @Summary      Test notification rule (dry-run)
+// @Description  对给定 incident_id 评估该规则是否对其静默（dry-run，无副作用）。
+// @Tags         notification
+// @Produce      json
+// @Param        id           path   int     true   "规则 ID"
+// @Param        incident_id  query  int     false  "待评估 incident ID"
+// @Success      200          {object}  map[string]any
+// @Failure      400          {object}  httputil.ErrorResponse
+// @Failure      404          {object}  httputil.ErrorResponse
+// @Failure      500          {object}  httputil.ErrorResponse
+// @Router       /notification-rules/{id}/test [post]
+// @Security     bearerAuth
 func (h *Handler) testRule(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	incIDStr := c.QueryParam("incident_id")
 	incID, _ := strconv.Atoi(incIDStr)
 	r, err := h.db.NotificationRule.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "rule not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "rule not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	// 解析静默配置
 	qh := parseQuietHours(r.QuietHours)
@@ -266,10 +342,20 @@ func ParseQuietHoursPublic(m map[string]any) *QuietHours {
 
 // ===== SuppressionRule =====
 
+// ListSuppressionRules 列出全部抑制规则。
+//
+// @Summary      List suppression rules
+// @Description  返回全部 SuppressionRule（无分页）。
+// @Tags         suppression
+// @Produce      json
+// @Success      200  {array}  ent.SuppressionRule
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /suppression-rules [get]
+// @Security     bearerAuth
 func (h *Handler) listSuppressions(c echo.Context) error {
 	rules, err := h.db.SuppressionRule.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, rules)
 }
@@ -287,13 +373,26 @@ type createSuppressionReq struct {
 	ExpiresAt        *string           `json:"expires_at"`
 }
 
+// CreateSuppressionRule 创建抑制规则。
+//
+// @Summary      Create suppression rule
+// @Description  新建 SuppressionRule（标签匹配/时间窗/严重度过滤等）。
+// @Tags         suppression
+// @Accept       json
+// @Produce      json
+// @Param        request  body      createSuppressionReq  true  "抑制规则定义"
+// @Success      201      {object}  ent.SuppressionRule
+// @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      500      {object}  httputil.ErrorResponse
+// @Router       /suppression-rules [post]
+// @Security     bearerAuth
 func (h *Handler) createSuppression(c echo.Context) error {
 	var req createSuppressionReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	if req.Name == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "name required"})
 	}
 	action := suppressionrule.ActionSuppress
 	if req.Action == "reduce_severity" {
@@ -323,22 +422,35 @@ func (h *Handler) createSuppression(c echo.Context) error {
 	}
 	r, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusCreated, r)
 }
 
+// GetSuppressionRule 获取单个抑制规则。
+//
+// @Summary      Get suppression rule
+// @Description  按 ID 取得 SuppressionRule。
+// @Tags         suppression
+// @Produce      json
+// @Param        id   path      int  true  "规则 ID"
+// @Success      200  {object}  ent.SuppressionRule
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /suppression-rules/{id} [get]
+// @Security     bearerAuth
 func (h *Handler) getSuppression(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	r, err := h.db.SuppressionRule.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, r)
 }
@@ -354,14 +466,28 @@ type updateSuppressionReq struct {
 	Enabled          *bool              `json:"enabled"`
 }
 
+// UpdateSuppressionRule 更新抑制规则（部分字段）。
+//
+// @Summary      Update suppression rule
+// @Description  按 ID 部分更新 SuppressionRule。
+// @Tags         suppression
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int                    true  "规则 ID"
+// @Param        request  body      updateSuppressionReq   true  "待更新字段"
+// @Success      200      {object}  ent.SuppressionRule
+// @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      500      {object}  httputil.ErrorResponse
+// @Router       /suppression-rules/{id} [patch]
+// @Security     bearerAuth
 func (h *Handler) updateSuppression(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	var req updateSuppressionReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	upd := h.db.SuppressionRule.UpdateOneID(id)
 	if req.Name != nil {
@@ -395,31 +521,53 @@ func (h *Handler) updateSuppression(c echo.Context) error {
 	}
 	r, err := upd.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, r)
 }
 
+// DeleteSuppressionRule 删除抑制规则。
+//
+// @Summary      Delete suppression rule
+// @Description  按 ID 删除 SuppressionRule。
+// @Tags         suppression
+// @Param        id   path  int  true  "规则 ID"
+// @Success      204
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /suppression-rules/{id} [delete]
+// @Security     bearerAuth
 func (h *Handler) deleteSuppression(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	if err := h.db.SuppressionRule.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		if ent.IsNotFound(err) {
-			return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.NoContent(http.StatusNoContent)
 }
 
 // ===== NotificationTemplate =====
 
+// ListNotificationTemplates 列出全部通知模板。
+//
+// @Summary      List notification templates
+// @Description  返回全部 NotificationTemplate（无分页）。
+// @Tags         notification
+// @Produce      json
+// @Success      200  {array}  ent.NotificationTemplate
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /notification-templates [get]
+// @Security     bearerAuth
 func (h *Handler) listTemplates(c echo.Context) error {
 	templates, err := h.db.NotificationTemplate.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, templates)
 }
@@ -435,13 +583,26 @@ type createTemplateReq struct {
 	Builtin       *bool            `json:"builtin"`
 }
 
+// CreateNotificationTemplate 创建通知模板。
+//
+// @Summary      Create notification template
+// @Description  新建 NotificationTemplate（渠道/格式/标题/正文模板/动作）。
+// @Tags         notification
+// @Accept       json
+// @Produce      json
+// @Param        request  body      createTemplateReq  true  "模板定义"
+// @Success      201      {object}  ent.NotificationTemplate
+// @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      500      {object}  httputil.ErrorResponse
+// @Router       /notification-templates [post]
+// @Security     bearerAuth
 func (h *Handler) createTemplate(c echo.Context) error {
 	var req createTemplateReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	if req.Name == "" || req.TitleTemplate == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name and title_template required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "name and title_template required"})
 	}
 	b := h.db.NotificationTemplate.Create().
 		SetName(req.Name).
@@ -460,7 +621,7 @@ func (h *Handler) createTemplate(c echo.Context) error {
 	}
 	t, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if h.templates != nil {
 		h.templates.InvalidateCache()
@@ -468,17 +629,30 @@ func (h *Handler) createTemplate(c echo.Context) error {
 	return c.JSON(http.StatusCreated, t)
 }
 
+// GetNotificationTemplate 获取单个通知模板。
+//
+// @Summary      Get notification template
+// @Description  按 ID 取得 NotificationTemplate。
+// @Tags         notification
+// @Produce      json
+// @Param        id   path      int  true  "模板 ID"
+// @Success      200  {object}  ent.NotificationTemplate
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /notification-templates/{id} [get]
+// @Security     bearerAuth
 func (h *Handler) getTemplate(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	t, err := h.db.NotificationTemplate.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, t)
 }
@@ -492,25 +666,41 @@ type updateTemplateReq struct {
 	Actions       *[]map[string]any `json:"actions"`
 }
 
+// UpdateNotificationTemplate 更新通知模板（内置模板禁止修改）。
+//
+// @Summary      Update notification template
+// @Description  按 ID 部分更新 NotificationTemplate；内置模板返回 403。
+// @Tags         notification
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int                 true  "模板 ID"
+// @Param        request  body      updateTemplateReq   true  "待更新字段"
+// @Success      200      {object}  ent.NotificationTemplate
+// @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      403      {object}  httputil.ErrorResponse
+// @Failure      404      {object}  httputil.ErrorResponse
+// @Failure      500      {object}  httputil.ErrorResponse
+// @Router       /notification-templates/{id} [patch]
+// @Security     bearerAuth
 func (h *Handler) updateTemplate(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	// 内置模板不可改（只能由 seed 更新）
 	existing, err := h.db.NotificationTemplate.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if existing.Builtin {
-		return c.JSON(http.StatusForbidden, map[string]string{"error": "builtin template cannot be modified"})
+		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "builtin template cannot be modified"})
 	}
 	var req updateTemplateReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	upd := h.db.NotificationTemplate.UpdateOneID(id)
 	if req.Name != nil {
@@ -533,7 +723,7 @@ func (h *Handler) updateTemplate(c echo.Context) error {
 	}
 	t, err := upd.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if h.templates != nil {
 		h.templates.InvalidateCache()
@@ -541,23 +731,36 @@ func (h *Handler) updateTemplate(c echo.Context) error {
 	return c.JSON(http.StatusOK, t)
 }
 
+// DeleteNotificationTemplate 删除通知模板（内置模板禁止删除）。
+//
+// @Summary      Delete notification template
+// @Description  按 ID 删除 NotificationTemplate；内置模板返回 403。
+// @Tags         notification
+// @Param        id   path  int  true  "模板 ID"
+// @Success      204
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      403  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /notification-templates/{id} [delete]
+// @Security     bearerAuth
 func (h *Handler) deleteTemplate(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	existing, err := h.db.NotificationTemplate.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if existing.Builtin {
-		return c.JSON(http.StatusForbidden, map[string]string{"error": "builtin template cannot be deleted"})
+		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "builtin template cannot be deleted"})
 	}
 	if err := h.db.NotificationTemplate.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	if h.templates != nil {
 		h.templates.InvalidateCache()
@@ -565,41 +768,55 @@ func (h *Handler) deleteTemplate(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-// previewTemplate 传 incident_id，返回该模板渲染后的 title/body。
+// PreviewNotificationTemplate 传 incident_id，返回该模板渲染后的 title/body。
 // 所见即所得，用于模板编辑器预览。
+//
+// @Summary      Preview notification template
+// @Description  按 incident_id 渲染 NotificationTemplate，返回 title/body 预览。
+// @Tags         notification
+// @Produce      json
+// @Param        id           path   int     true   "模板 ID"
+// @Param        incident_id  query  int     true   "用于渲染上下文的 incident ID"
+// @Success      200          {object}  map[string]any
+// @Failure      400          {object}  httputil.ErrorResponse
+// @Failure      404          {object}  httputil.ErrorResponse
+// @Failure      500          {object}  httputil.ErrorResponse
+// @Failure      503          {object}  httputil.ErrorResponse
+// @Router       /notification-templates/{id}/preview [post]
+// @Security     bearerAuth
 func (h *Handler) previewTemplate(c echo.Context) error {
 	if h.templates == nil {
-		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "template engine not configured"})
+		return c.JSON(http.StatusServiceUnavailable, httputil.ErrorResponse{Error: "template engine not configured"})
 	}
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	incID, _ := strconv.Atoi(c.QueryParam("incident_id"))
 	if incID == 0 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "incident_id required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "incident_id required"})
 	}
 	ctx := c.Request().Context()
 	tmpl, err := h.db.NotificationTemplate.Get(ctx, id)
 	if ent.IsNotFound(err) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "template not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "template not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	inc, err := h.db.Incident.Get(ctx, incID)
 	if ent.IsNotFound(err) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "incident not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "incident not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	rendered, err := h.templates.Render(ctx, tmpl.Name, string(tmpl.Channel), TemplateData{
 		Incident: inc,
 		Level:    inc.CurrentLevel,
 	})
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]any{
 		"template_id":   tmpl.ID,

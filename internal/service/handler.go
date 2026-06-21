@@ -12,6 +12,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	entservice "github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v4"
 )
@@ -41,14 +42,24 @@ func (h *Handler) Register(g *echo.Group) {
 	g.DELETE("/services/:id", h.delete)
 }
 
+// list 服务目录列表。
+//
+// @Summary      服务列表
+// @Tags         service
+// @Produce      json
+// @Success      200  {array}   ent.Service
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /services [get]
 func (h *Handler) list(c echo.Context) error {
 	svcs, err := h.db.Service.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, svcs)
 }
 
+// createReq 创建服务请求。
 type createReq struct {
 	Name               string            `json:"name"`
 	Slug               string            `json:"slug"`
@@ -59,13 +70,25 @@ type createReq struct {
 	TeamID             int               `json:"team_id"`
 }
 
+// create 创建服务。
+//
+// @Summary      创建服务
+// @Tags         service
+// @Accept       json
+// @Produce      json
+// @Param        body  body     createReq  true  "服务创建参数"
+// @Success      201   {object} ent.Service
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      500   {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /services [post]
 func (h *Handler) create(c echo.Context) error {
 	var req createReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	if req.Name == "" || req.Slug == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name and slug required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "name and slug required"})
 	}
 	b := h.db.Service.Create().
 		SetName(req.Name).
@@ -87,26 +110,39 @@ func (h *Handler) create(c echo.Context) error {
 	}
 	s, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusCreated, s)
 }
 
+// get 服务详情。
+//
+// @Summary      服务详情
+// @Tags         service
+// @Produce      json
+// @Param        id   path     int  true  "服务 ID"
+// @Success      200  {object} ent.Service
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /services/{id} [get]
 func (h *Handler) get(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	s, err := h.db.Service.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, s)
 }
 
+// updateReq 更新服务请求（全部字段可选，部分更新）。
 type updateReq struct {
 	Name               *string            `json:"name"`
 	Slug               *string            `json:"slug"`
@@ -116,14 +152,27 @@ type updateReq struct {
 	Status             *string            `json:"status"`
 }
 
+// update 更新服务。
+//
+// @Summary      更新服务
+// @Tags         service
+// @Accept       json
+// @Produce      json
+// @Param        id    path     int        true  "服务 ID"
+// @Param        body  body     updateReq  true  "服务更新参数"
+// @Success      200   {object} ent.Service
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      500   {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /services/{id} [patch]
 func (h *Handler) update(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	var req updateReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	upd := h.db.Service.UpdateOneID(id)
 	if req.Name != nil {
@@ -146,21 +195,31 @@ func (h *Handler) update(c echo.Context) error {
 	}
 	s, err := upd.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, s)
 }
 
+// delete 删除服务。
+//
+// @Summary      删除服务
+// @Tags         service
+// @Param        id   path  int  true  "服务 ID"
+// @Success      204
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /services/{id} [delete]
 func (h *Handler) delete(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	if err := h.db.Service.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		if ent.IsNotFound(err) {
-			return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.NoContent(http.StatusNoContent)
 }

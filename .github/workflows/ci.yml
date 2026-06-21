@@ -28,11 +28,18 @@ jobs:
           version: v2.0.2
           args: --timeout 5m
 
-      # ② Test
+      # ② OpenAPI spec 漂移检测（与 ent go:generate 同款纪律）
+      #    handler 注解是权威源；若改动注解后未重新 `go generate`，此处会失败。
+      - name: openapi spec drift check
+        run: |
+          go generate ./cmd/vigil/...
+          git diff --exit-code -- internal/server/gen
+
+      # ③ Test
       - name: go test
         run: go test -race -cover ./internal/... ./cmd/...
 
-      # ③ Build
+      # ④ Build
       - name: go build
         run: go build ./...
 
@@ -57,12 +64,19 @@ jobs:
         working-directory: web
         run: pnpm install --frozen-lockfile
 
-      # ① Lint
+      # ① OpenAPI 类型漂移检测（types.gen.ts 必须与已提交的 spec 同步）
+      - name: openapi types drift check
+        working-directory: web
+        run: |
+          pnpm gen:types
+          git diff --exit-code -- src/lib/api/types.gen.ts
+
+      # ② Lint
       - name: eslint
         working-directory: web
         run: pnpm lint
 
-      # ② Build（含 tsc 类型检查）
+      # ③ Build（含 tsc 类型检查）
       - name: build
         working-directory: web
         run: pnpm build

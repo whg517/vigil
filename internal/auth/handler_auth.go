@@ -14,6 +14,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/user"
+	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v4"
 )
@@ -75,38 +76,52 @@ func toLoginUser(u *ent.User) loginUser {
 	}
 }
 
+// login 用户名密码登录，换取 access+refresh token。
+//
+// @Summary      登录
+// @Description  username+password 校验通过后签发 access+refresh token。
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body     loginReq   true  "登录凭证"
+// @Success      200   {object} auth.loginResp
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      401   {object} httputil.ErrorResponse
+// @Failure      403   {object} httputil.ErrorResponse
+// @Failure      500   {object} httputil.ErrorResponse
+// @Router       /auth/login [post]
 func (h *AuthHandler) login(c echo.Context) error {
 	var req loginReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	if req.Username == "" || req.Password == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "username and password required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "username and password required"})
 	}
 	if h.signer == nil || !h.signer.Available() {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "jwt not configured"})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: "jwt not configured"})
 	}
 	u, err := h.db.User.Query().Where(user.UsernameEQ(req.Username)).Only(c.Request().Context())
 	if err != nil {
 		// 用户不存在也返回 invalid credentials（避免用户名枚举）
 		h.auditLogin(c, 0, req.Username, AuditResultFailed, map[string]any{"reason": "user_not_found"})
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid credentials"})
 	}
 	if !VerifyPassword(req.Password, u.PasswordHash) {
 		h.auditLogin(c, u.ID, u.Username, AuditResultFailed, map[string]any{"reason": "wrong_password"})
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid credentials"})
 	}
 	if u.Status != user.StatusActive {
 		h.auditLogin(c, u.ID, u.Username, AuditResultDenied, map[string]any{"reason": "user_disabled"})
-		return c.JSON(http.StatusForbidden, map[string]string{"error": "user disabled"})
+		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "user disabled"})
 	}
 	access, err := h.signer.GenerateAccessToken(u.ID, u.Username)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	refresh, err := h.signer.GenerateRefreshToken(u.ID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	h.auditLogin(c, u.ID, u.Username, AuditResultSuccess, nil)
 	return c.JSON(http.StatusOK, loginResp{
@@ -136,36 +151,58 @@ type refreshReq struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// refresh 用 refresh token 换取新的 access token。
+//
+// @Summary      刷新 token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body     refreshReq  true  "refresh token"
+// @Success      200   {object} map[string]string
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      401   {object} httputil.ErrorResponse
+// @Failure      500   {object} httputil.ErrorResponse
+// @Router       /auth/refresh [post]
 func (h *AuthHandler) refresh(c echo.Context) error {
 	var req refreshReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
 	if req.RefreshToken == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "refresh_token required"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "refresh_token required"})
 	}
 	if h.signer == nil || !h.signer.Available() {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "jwt not configured"})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: "jwt not configured"})
 	}
 	claims, err := h.signer.ParseToken(req.RefreshToken)
 	if err != nil || claims.TokenType != TokenTypeRefresh {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid refresh token"})
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid refresh token"})
 	}
 	access, err := h.signer.GenerateAccessToken(claims.UserID, claims.Username)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"access_token": access, "token_type": "Bearer"})
 }
 
+// me 当前登录用户信息。
+//
+// @Summary      当前用户信息
+// @Tags         auth
+// @Produce      json
+// @Success      200  {object} auth.loginUser
+// @Failure      401  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /auth/me [get]
 func (h *AuthHandler) me(c echo.Context) error {
 	uid, ok := UserIDFromContext(c.Request().Context())
 	if !ok {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "not authenticated"})
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "not authenticated"})
 	}
 	u, err := h.db.User.Get(c.Request().Context(), uid)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "user not found"})
 	}
 	return c.JSON(http.StatusOK, toLoginUser(u))
 }

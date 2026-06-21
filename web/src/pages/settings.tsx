@@ -149,7 +149,7 @@ function RBACTab() {
               {bindings.data.map((b) => (
                 <div key={b.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
                   <div>
-                    用户 #{b.user_id} → 角色 #{b.role_id}
+                    用户 #{b.user?.id ?? "?"} → 角色 #{b.role?.id ?? "?"}
                     {b.team_id && <span className="ml-2 text-xs text-muted-foreground">team #{b.team_id}</span>}
                     {b.expires_at && (
                       <Badge variant="outline" className="ml-2 text-xs">临时 {formatTime(b.expires_at)}</Badge>

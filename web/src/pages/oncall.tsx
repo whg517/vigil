@@ -88,17 +88,17 @@ export function Oncall() {
                 <div className="space-y-3">
                   {oncall.data.layers
                     .slice()
-                    .sort((a, b) => a.priority - b.priority)
+                    .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
                     .map((layer) => (
                       <div key={layer.name}>
                         <div className="text-xs font-medium text-muted-foreground">
                           {layer.name}（优先级 {layer.priority}）
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2">
-                          {layer.users.length === 0 ? (
+                          {(layer.users ?? []).length === 0 ? (
                             <span className="text-xs text-muted-foreground">—</span>
                           ) : (
-                            layer.users.map((u) => (
+                            (layer.users ?? []).map((u) => (
                               <span
                                 key={u.id}
                                 className="rounded-md bg-primary/10 px-2 py-1 text-sm font-medium text-primary"
@@ -125,24 +125,30 @@ export function Oncall() {
             <CardContent>
               {preview.isLoading ? (
                 <Skeleton className="h-40 w-full" />
-              ) : preview.isError || !preview.data?.days ? (
+              ) : preview.isError || !preview.data?.days?.length ? (
                 <p className="text-sm text-muted-foreground">暂无预览数据。</p>
               ) : (
                 <div className="max-h-72 space-y-1 overflow-auto pr-1">
-                  {Object.entries(preview.data.days).map(([date, info]) => (
-                    <div
-                      key={date}
-                      className={cn(
-                        "flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
-                        isToday(date) && "bg-primary/10",
-                      )}
-                    >
-                      <span className="font-mono text-xs text-muted-foreground">{date}</span>
-                      <span className="text-xs">
-                        {info.users.map((u) => u.name).join("、") || "—"}
-                      </span>
-                    </div>
-                  ))}
+                  {preview.data.days.map((day) => {
+                    const users = (day.layers ?? [])
+                      .flatMap((l) => l.users ?? [])
+                      .map((u) => u.name)
+                      .filter(Boolean);
+                    return (
+                      <div
+                        key={day.date}
+                        className={cn(
+                          "flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
+                          day.date && isToday(day.date) && "bg-primary/10",
+                        )}
+                      >
+                        <span className="font-mono text-xs text-muted-foreground">{day.date}</span>
+                        <span className="text-xs">
+                          {users.join("、") || "—"}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

@@ -20,6 +20,7 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/rawevent"
+	"github.com/kevin/vigil/internal/httputil"
 	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/middleware"
 	"github.com/kevin/vigil/internal/queue"
@@ -60,6 +61,20 @@ func (h *Handler) Register(g *echo.Group) {
 }
 
 // receiveWebhook 处理通用 webhook 接入。
+//
+// @Summary      接收告警 webhook
+// @Description  token 鉴权 → 限流/背压检查（payload 仍落库）→ 落 RawEvent → 入归一化队列 → 秒级返回 202。公开入口，不走 RBAC。
+// @Tags         ingestion
+// @Accept       application/json
+// @Produce      json
+// @Param        token   path    string  true  "接入点鉴权 token（对应 Integration.token）"
+// @Success      202     {object} httputil.AckResponse
+// @Failure      400     {object} httputil.ErrorResponse
+// @Failure      401     {object} httputil.ErrorResponse
+// @Failure      429     {object} httputil.AckResponse
+// @Failure      500     {object} httputil.ErrorResponse
+// @Failure      503     {object} httputil.AckResponse
+// @Router       /webhook/{token} [post]
 func (h *Handler) receiveWebhook(c echo.Context) error {
 	token := c.Param("token")
 	if token == "" {
@@ -105,28 +120,23 @@ func (h *Handler) receiveWebhook(c echo.Context) error {
 		}
 		allowed, _ := h.limiter.Allow(c.Request().Context(), "integration:"+strconv.Itoa(integ.ID), rateLimit)
 		if !allowed {
-			return c.JSON(http.StatusTooManyRequests, map[string]any{
-				"status":       "rate_limited",
-				"raw_event_id": raw.ID,
-				"retry_after":  60,
+			return c.JSON(http.StatusTooManyRequests, httputil.AckResponse{
+				Status: "rate_limited", RawEventID: raw.ID, RetryAfter: 60,
 			})
 		}
 	}
 
 	// 5. 背压检查（队列积压超阈值）。超限时返回 503，payload 已落库，恢复后回灌。
 	if h.backpressure != nil && h.backpressure.IsOverloaded(c.Request().Context()) {
-		return c.JSON(http.StatusServiceUnavailable, map[string]any{
-			"status":       "backpressure",
-			"raw_event_id": raw.ID,
-			"retry_after":  30,
+		return c.JSON(http.StatusServiceUnavailable, httputil.AckResponse{
+			Status: "backpressure", RawEventID: raw.ID, RetryAfter: 30,
 		})
 	}
 
 	// 6. 入归一化队列（异步处理）。queue 未配置时跳过入队（RawEvent 已落库，可后续回灌）。
 	if h.queue == nil {
-		return c.JSON(http.StatusAccepted, map[string]any{
-			"status":       "accepted_no_queue",
-			"raw_event_id": raw.ID,
+		return c.JSON(http.StatusAccepted, httputil.AckResponse{
+			Status: "accepted_no_queue", RawEventID: raw.ID,
 		})
 	}
 	taskPayload, _ := json.Marshal(normalizePayload{
@@ -147,9 +157,8 @@ func (h *Handler) receiveWebhook(c echo.Context) error {
 	}
 
 	// 5. 秒级返回 202 Accepted
-	return c.JSON(http.StatusAccepted, map[string]any{
-		"status":       "accepted",
-		"raw_event_id": raw.ID,
+	return c.JSON(http.StatusAccepted, httputil.AckResponse{
+		Status: "accepted", RawEventID: raw.ID,
 	})
 }
 
@@ -163,8 +172,8 @@ func extractHeaders(r *http.Request) map[string]string {
 }
 
 // errMsg 构造错误响应体。
-func errMsg(msg string) map[string]any {
-	return map[string]any{"error": msg}
+func errMsg(msg string) httputil.ErrorResponse {
+	return httputil.ErrorResponse{Error: msg}
 }
 
 // NormalizeWorker 归一化 worker：消费归一化任务，把 RawEvent 转成 Event。

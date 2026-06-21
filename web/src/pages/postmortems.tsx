@@ -89,7 +89,7 @@ export function Postmortems() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium">复盘 #{pm.id}</span>
                     <Badge variant={STATUS_VARIANT[pm.status]}>{STATUS_LABEL[pm.status]}</Badge>
-                    <span className="text-xs text-muted-foreground">事件 #{pm.incident_id}</span>
+                    <span className="text-xs text-muted-foreground">事件 #{pm.incident?.id}</span>
                   </div>
                 </div>
                 <span className="text-xs text-muted-foreground">{formatTime(pm.created_at)}</span>
@@ -146,7 +146,7 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">复盘 #{pm.id}</h1>
         <Badge variant={STATUS_VARIANT[pm.status]}>{STATUS_LABEL[pm.status]}</Badge>
-        <span className="text-sm text-muted-foreground">关联事件 #{pm.incident_id}</span>
+        <span className="text-sm text-muted-foreground">关联事件 #{pm.incident?.id}</span>
       </div>
 
       {pm.sections && Object.keys(pm.sections).length > 0 && (
@@ -160,7 +160,7 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
             {Object.entries(pm.sections).map(([k, v]) => (
               <div key={k}>
                 <div className="text-xs font-medium text-muted-foreground">{k}</div>
-                <p className="mt-1 whitespace-pre-wrap text-sm">{v}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm">{String(v)}</p>
               </div>
             ))}
           </CardContent>
@@ -184,7 +184,7 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
             onSubmit={(e) => {
               e.preventDefault();
               if (!newItem) return;
-              addAction.mutate({ title: newItem }, { onSuccess: () => setNewItem("") });
+              addAction.mutate({ description: newItem }, { onSuccess: () => setNewItem("") });
             }}
           >
             <Input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="添加改进项…" />
@@ -204,10 +204,10 @@ function ActionItemRow({
   ai: ActionItem;
   onUpdate: (body: Partial<ActionItem>) => void;
 }) {
-  const STATUS: ActionItem["status"][] = ["open", "in_progress", "done", "skipped"];
+  const STATUS: ActionItem["status"][] = ["open", "in_progress", "done"];
   return (
     <div className="flex items-center gap-2 rounded-md border p-2">
-      <span className="flex-1 text-sm">{ai.title}</span>
+      <span className="flex-1 text-sm">{ai.description}</span>
       <Select
         value={ai.status}
         onChange={(e) => onUpdate({ status: e.target.value as ActionItem["status"] })}

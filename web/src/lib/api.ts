@@ -170,7 +170,7 @@ export const api = {
       .patch<Postmortem>(`/postmortems/${id}/transition`, { status })
       .then((r) => r.data);
   },
-  addActionItem(id: number, body: { title: string; owner_id?: string }) {
+  addActionItem(id: number, body: { description: string; owner_id?: string }) {
     return http
       .post<ActionItem>(`/postmortems/${id}/action-items`, body)
       .then((r) => r.data);

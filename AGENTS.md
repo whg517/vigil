@@ -59,6 +59,7 @@ go build ./...              # 编译
 go test ./...               # 测试
 go run ./cmd/vigil/         # 运行
 go generate ./ent/...       # ★ 改了 ent/schema 后必须重新生成
+go generate ./cmd/vigil/... # ★ 改了 handler 注解后必须重新生成 OpenAPI spec
 go mod tidy                 # 整理依赖
 ```
 
@@ -68,6 +69,7 @@ go mod tidy                 # 整理依赖
 pnpm --dir web install      # 安装依赖
 pnpm --dir web dev          # 开发服务器（含 /api 代理到 :8080）
 pnpm --dir web build        # 生产构建
+pnpm --dir web gen:types    # ★ 改了后端 spec 后必须重新生成 types.gen.ts
 ```
 
 ### 整体验证（提交前）
