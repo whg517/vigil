@@ -16,10 +16,14 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import {
   useAPIKeys,
   useAuditLogs,
   useCreateAPIKey,
+  useCreateNotificationRule,
+  useCreateNotificationTemplate,
+  useCreateSuppressionRule,
   useDeleteAPIKey,
   useDeleteNotificationRule,
   useDeleteRole,
@@ -187,9 +191,13 @@ function NotificationTab() {
 function NotificationRulesSection() {
   const { data, isLoading } = useNotificationRules();
   const del = useDeleteNotificationRule();
+  const [creating, setCreating] = useState(false);
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">通知规则</CardTitle></CardHeader>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle className="text-base">通知规则</CardTitle>
+        <Button size="sm" onClick={() => setCreating(true)}>创建</Button>
+      </CardHeader>
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-16 w-full" />
@@ -203,16 +211,73 @@ function NotificationRulesSection() {
           </div>
         )}
       </CardContent>
+      {creating && <CreateNotificationRuleDialog onClose={() => setCreating(false)} />}
     </Card>
+  );
+}
+
+/** CreateNotificationRuleDialog 创建通知规则。channels 多选（im/email/phone/sms/webhook）。 */
+function CreateNotificationRuleDialog({ onClose }: { onClose: () => void }) {
+  const create = useCreateNotificationRule();
+  const [name, setName] = useState("");
+  const [channels, setChannels] = useState<string[]>(["im"]);
+
+  const toggleChan = (ch: string) => {
+    setChannels((prev) => (prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]));
+  };
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    create.mutate(
+      { name, channels, enabled: true, condition: {} },
+      { onSuccess: onClose },
+    );
+  };
+
+  const channelOptions = ["im", "email", "phone", "sms", "webhook"];
+
+  return (
+    <Dialog open onClose={onClose} title="创建通知规则" description="配置告警触达的通道与条件。">
+      <form className="space-y-3" onSubmit={onSubmit}>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">名称</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="默认通知" required autoFocus />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">通道（多选）</label>
+          <div className="flex flex-wrap gap-2">
+            {channelOptions.map((ch) => (
+              <button
+                key={ch}
+                type="button"
+                onClick={() => toggleChan(ch)}
+                className={`rounded-md border px-3 py-1 text-sm transition-colors ${
+                  channels.includes(ch) ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent"
+                }`}
+              >
+                {ch}
+              </button>
+            ))}
+          </div>
+        </div>
+        <Button type="submit" className="w-full" disabled={create.isPending || !name || channels.length === 0}>
+          {create.isPending ? "创建中..." : "创建"}
+        </Button>
+      </form>
+    </Dialog>
   );
 }
 
 function SuppressionRulesSection() {
   const { data, isLoading } = useSuppressionRules();
   const del = useDeleteSuppressionRule();
+  const [creating, setCreating] = useState(false);
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">抑制规则（少打扰）</CardTitle></CardHeader>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle className="text-base">抑制规则（少打扰）</CardTitle>
+        <Button size="sm" onClick={() => setCreating(true)}>创建</Button>
+      </CardHeader>
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-16 w-full" />
@@ -233,16 +298,74 @@ function SuppressionRulesSection() {
           </div>
         )}
       </CardContent>
+      {creating && <CreateSuppressionRuleDialog onClose={() => setCreating(false)} />}
     </Card>
+  );
+}
+
+/** CreateSuppressionRuleDialog 创建抑制规则。action: suppress/reduce_severity。 */
+function CreateSuppressionRuleDialog({ onClose }: { onClose: () => void }) {
+  const create = useCreateSuppressionRule();
+  const [name, setName] = useState("");
+  const [action, setAction] = useState<"suppress" | "reduce_severity">("suppress");
+  const [matchLabelKey, setMatchLabelKey] = useState("");
+  const [matchLabelVal, setMatchLabelVal] = useState("");
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const matchLabels: Record<string, string> = {};
+    if (matchLabelKey && matchLabelVal) {
+      matchLabels[matchLabelKey] = matchLabelVal;
+    }
+    create.mutate(
+      { name, action, match_labels: matchLabels, enabled: true },
+      { onSuccess: onClose },
+    );
+  };
+
+  return (
+    <Dialog open onClose={onClose} title="创建抑制规则" description="满足条件时抑制或降级告警（维护窗口/已知问题）。">
+      <form className="space-y-3" onSubmit={onSubmit}>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">名称</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="维护窗口抑制" required autoFocus />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">动作</label>
+          <Select value={action} onChange={(e) => setAction(e.target.value as "suppress" | "reduce_severity")}>
+            <option value="suppress">抑制（suppress）</option>
+            <option value="reduce_severity">降级（reduce_severity）</option>
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">匹配 Label Key</label>
+            <Input value={matchLabelKey} onChange={(e) => setMatchLabelKey(e.target.value)} placeholder="env" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">匹配 Label Value</label>
+            <Input value={matchLabelVal} onChange={(e) => setMatchLabelVal(e.target.value)} placeholder="staging" />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">留空 Label 表示匹配所有（仅靠 action 控制）。</p>
+        <Button type="submit" className="w-full" disabled={create.isPending || !name}>
+          {create.isPending ? "创建中..." : "创建"}
+        </Button>
+      </form>
+    </Dialog>
   );
 }
 
 function TemplatesSection() {
   const { data, isLoading } = useNotificationTemplates();
   const del = useDeleteNotificationTemplate();
+  const [creating, setCreating] = useState(false);
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">通知模板</CardTitle></CardHeader>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle className="text-base">通知模板</CardTitle>
+        <Button size="sm" onClick={() => setCreating(true)}>创建</Button>
+      </CardHeader>
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-16 w-full" />
@@ -269,7 +392,67 @@ function TemplatesSection() {
           </div>
         )}
       </CardContent>
+      {creating && <CreateNotificationTemplateDialog onClose={() => setCreating(false)} />}
     </Card>
+  );
+}
+
+/** CreateNotificationTemplateDialog 创建通知模板。channel/format/title/body。 */
+function CreateNotificationTemplateDialog({ onClose }: { onClose: () => void }) {
+  const create = useCreateNotificationTemplate();
+  const [name, setName] = useState("");
+  const [channel, setChannel] = useState<"im" | "email" | "webhook" | "phone" | "sms">("im");
+  const [format, setFormat] = useState<"text" | "interactive_card">("text");
+  const [titleTemplate, setTitleTemplate] = useState("");
+  const [bodyTemplate, setBodyTemplate] = useState("");
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    create.mutate(
+      { name, channel, format, title_template: titleTemplate, body_template: bodyTemplate },
+      { onSuccess: onClose },
+    );
+  };
+
+  return (
+    <Dialog open onClose={onClose} title="创建通知模板" description="Go template 语法渲染标题与正文。">
+      <form className="space-y-3" onSubmit={onSubmit}>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">名称（唯一标识）</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="custom_im_card" required autoFocus />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">通道</label>
+            <Select value={channel} onChange={(e) => setChannel(e.target.value as "im" | "email" | "webhook" | "phone" | "sms")}>
+              <option value="im">im</option>
+              <option value="email">email</option>
+              <option value="webhook">webhook</option>
+              <option value="phone">phone</option>
+              <option value="sms">sms</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">格式</label>
+            <Select value={format} onChange={(e) => setFormat(e.target.value as "text" | "interactive_card")}>
+              <option value="text">text（纯文本）</option>
+              <option value="interactive_card">interactive_card（IM 卡片）</option>
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">标题模板</label>
+          <Input value={titleTemplate} onChange={(e) => setTitleTemplate(e.target.value)} placeholder={`[{{.Severity}}] {{.Number}}`} />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">正文模板</label>
+          <Textarea value={bodyTemplate} onChange={(e) => setBodyTemplate(e.target.value)} placeholder={`事件: {{.Summary}}\n负责人: {{.Responder}}`} className="min-h-[80px]" />
+        </div>
+        <Button type="submit" className="w-full" disabled={create.isPending || !name}>
+          {create.isPending ? "创建中..." : "创建"}
+        </Button>
+      </form>
+    </Dialog>
   );
 }
 
