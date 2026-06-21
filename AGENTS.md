@@ -94,6 +94,23 @@ go build ./... && pnpm --dir web build
 
 - `.worktree/` 已 gitignore，不入库。
 
+### 完整闭环：每个特性必须合入 main 才算交付（★ 重要）
+
+> 代码写完 ≠ 完成。**合入 main + main 复验**才算交付。详见 docs/development.md §3.4 闭环原子性。
+
+每个特性按以下顺序一次性做完（**不要在中途停下来请示合并/清理**，属规范已授权的可逆操作）：
+
+1. **从最新 main 拉分支**（`git worktree add ... -b <type>-<name>`）。**严禁在特性分支上叠特性分支**——有依赖时先把被依赖特性合并进 main，再从更新后的 main 拉下一个（见 §3.2.1）。
+2. **worktree 内开发 + 提交**。
+3. **worktree 内三道门禁全绿**（lint→test→build，见 docs/development.md §3.4）：`go vet && go test ./... && go build ./...` + `pnpm --dir web lint && pnpm --dir web build`。改了 schema 必须 `go generate ./ent/...` 且生成代码一起提交。
+4. **回主仓库 squash 合并**：`git merge --squash <type>-<name>` → `git commit`。
+5. **删 worktree + 分支**：`git worktree remove` + `git branch -D`。
+6. **main 复验**：`go build ./... && go test ./... && pnpm --dir web build`。
+
+中间状态（特性分支游离 main 之外、worktree 未清理）**不算交付**。
+
+### 提交信息规范（Conventional Commits，调整版）
+
 ### 提交信息规范（Conventional Commits，调整版）
 
 格式：`<type>(<scope>): <subject>`
