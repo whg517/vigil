@@ -87,9 +87,21 @@ const (
 	PermRoleDelete Permission = "role.delete"
 	PermRoleAssign Permission = "role.assign"
 
-	// —— notification 通知规则 ——
+	// —— notification 通知规则 / 模板 ——
 	PermNotificationRuleView   Permission = "notification.rule.view"
+	PermNotificationRuleCreate Permission = "notification.rule.create"
 	PermNotificationRuleUpdate Permission = "notification.rule.update"
+	PermNotificationRuleDelete Permission = "notification.rule.delete"
+	PermNotificationTemplateView   Permission = "notification.template.view"
+	PermNotificationTemplateCreate Permission = "notification.template.create"
+	PermNotificationTemplateUpdate Permission = "notification.template.update"
+	PermNotificationTemplateDelete Permission = "notification.template.delete"
+
+	// —— suppression 抑制规则（能力域 3 M3.2）——
+	PermSuppressionView   Permission = "suppression.view"
+	PermSuppressionCreate Permission = "suppression.create"
+	PermSuppressionUpdate Permission = "suppression.update"
+	PermSuppressionDelete Permission = "suppression.delete"
 
 	// —— admin 平台级管理 ——
 	PermAdminSettings          Permission = "admin.settings"
@@ -114,7 +126,9 @@ var AllPermissions = []Permission{
 	PermTeamView, PermTeamCreate, PermTeamUpdate, PermTeamDelete, PermTeamMemberManage,
 	PermUserView, PermUserCreate, PermUserUpdate, PermUserDisable, PermUserIMBind,
 	PermRoleView, PermRoleCreate, PermRoleUpdate, PermRoleDelete, PermRoleAssign,
-	PermNotificationRuleView, PermNotificationRuleUpdate,
+	PermNotificationRuleView, PermNotificationRuleCreate, PermNotificationRuleUpdate, PermNotificationRuleDelete,
+	PermNotificationTemplateView, PermNotificationTemplateCreate, PermNotificationTemplateUpdate, PermNotificationTemplateDelete,
+	PermSuppressionView, PermSuppressionCreate, PermSuppressionUpdate, PermSuppressionDelete,
 	PermAdminSettings, PermAdminAuditView, PermAdminAPIKeyManage, PermAdminGlobalIntegration,
 }
 

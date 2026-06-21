@@ -130,6 +130,11 @@ notification_template:
 - IM 用交互卡片（带按钮），其他通道用纯文本。
 - 模板渲染用 Go template，支持事件上下文变量。
 
+> **实现现状**：`internal/notification/template.go` 的 `TemplateEngine` 用 Go text/template 渲染，
+> 内置 3 个默认模板（`default_im_card`/`default_email`/`default_webhook`，启动 seed 幂等 upsert），
+> 用户模板按 name 覆盖；渲染失败降级 `FormatTitle/FormatSummary` 兜底，不丢通知。
+> API：`GET/POST/PATCH/DELETE /notification-templates` + `POST /:id/preview`（传 incident_id 所见即所得）。
+
 ---
 
 ## 7. 送达确认与重试（M7.6/M7.7）
@@ -193,3 +198,18 @@ type Notification struct {
 | Q1 | 电话通道的 IVR（语音菜单）设计 | 简单："按 1 ack，按 2 转人工"，复杂场景后置 |
 | Q2 | 通知模板的可视化编辑器 | 文本编辑为主，预览为辅 |
 | Q3 | 跨时区 quiet_hours（团队跨时区） | 按 target 用户时区计算，非全局 |
+
+---
+
+## 11. 实现映射（v0.1）
+
+| 文档章节 | 代码位置 |
+|---------|---------|
+| §5 静默时段（M7.8） | `internal/notification/quiet_hours.go`（`QuietHours.ShouldSuppress`：critical/值班人穿透、跨午夜窗） |
+| §5 静默配置接入 | `internal/notification/notifier.go`（`SetQuietHoursResolver` + `NotifyEscalation` 内评估）+ `main.go`（按 NotificationRule.quiet_hours 解析） |
+| §7.2 送达记录 + 重试 | `internal/notification/notifier.go`（`sendOne` + `recordResult` 回调） |
+| §8 通知聚合（M7.9） | `internal/notification/aggregator.go`（`Aggregator.Add/Flush`：Redis per-target 队列、30s 窗、critical 旁路）+ `Notifier.FlushAggregated` |
+| §4 通道可插拔 | `internal/notification/channel.go`（`Channel` 接口）+ `channels_builtin.go`（webhook/email）+ `im/notification_channel.go`（IM） |
+| §6 通知模板（M7.5） | `internal/notification/template.go`（`TemplateEngine.Render`：Go template、内置默认模板 seed、自定义覆盖、渲染失败降级兜底）+ `notifier.go`（`SetTemplateEngine` 注入）+ `handler.go`（template CRUD + `POST /:id/preview`） |
+| 配置 API（规则 + 抑制 CRUD） | `internal/notification/handler.go`（NotificationRule / SuppressionRule CRUD + `POST /:id/test` dry-run） |
+

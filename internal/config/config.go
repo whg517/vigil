@@ -106,6 +106,16 @@ type LLM struct {
 	APIKey  string `envconfig:"api_key"`                                                 // 智谱 API Key（VIGIL_LLM_API_KEY）
 	Model   string `envconfig:"model" default:"glm-4-flash"`                             // 模型，glm-4-flash 轻量低成本
 	BaseURL string `envconfig:"base_url" default:"https://open.bigmodel.cn/api/paas/v4"` // 智谱 OpenAPI 根
+	// Cost LLM 成本控制（能力域 11，缓存/限流/配额）。无 Redis 时全部降级跳过。
+	Cost LLMCost `envconfig:"cost"`
+}
+
+// LLMCost LLM 成本控制配置（capabilities/07 §B5 Q1）。
+type LLMCost struct {
+	CacheTTLSeconds  int  `envconfig:"cache_ttl_seconds" default:"3600"` // Complete 缓存 TTL（秒），0=1h 默认
+	DisableCache     bool `envconfig:"disable_cache"`                    // 关闭缓存（调试）
+	RateLimitPerMin  int  `envconfig:"rate_limit_per_min"`               // 每分钟最大请求数，0=不限流
+	TokenQuota       int  `envconfig:"token_quota"`                      // token 配额（累计），0=不限额
 }
 
 // IM 能力域 8 IM 协同配置。按平台分组，凭证缺失时对应适配器 Available()==false（降级）。

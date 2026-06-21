@@ -197,3 +197,18 @@ received ──► normalized ──► [去重] ──┬──► dedup_skippe
 | Q1 | 自定义聚合规则的表达形式（DSL / UI 配置） | UI 表单为主，DSL 为高级选项 |
 | Q2 | 服务拓扑的存储与查询效率 | 邻接表 + 缓存，初期不优化 |
 | Q3 | AI 噪音判定的介入时机（实时 vs 离线） | 离线建议为主，避免实时 LLM 拖慢分诊 |
+
+---
+
+## 7. 实现映射（v0.1）
+
+| 文档章节 | 代码位置 |
+|---------|---------|
+| §2.2 去重（M3.1） | `internal/triage/engine.go`（`checkDedup`：Redis SETNX + 窗口） |
+| §2.3 抑制规则（M3.2） | `internal/triage/suppression.go`（`SuppressionEngine.Evaluate/Apply`：label 全等 + 时间窗 + severity_filter + preserve_critical 守卫；action=suppress/reduce_severity） |
+| §2.3 抑制接入流水线 | `internal/triage/engine.go`（`Process` 去重后、路由前评估，§2.1 三层顺序） |
+| §2.4 相关性聚合（M3.3） | `internal/triage/engine.go`（`aggregate`：同 service+severity 窗口内并入/创建 Incident） |
+| §2.5 噪音判定 | `Event.is_noise`（suppress/dedup 标记，留痕可申诉） |
+| §2.7 resolved 处理（M3.7） | `internal/triage/engine.go`（`handleResolved`） |
+| 抑制规则 API | `internal/notification/handler.go`（SuppressionRule CRUD，权限 `suppression.*`） |
+

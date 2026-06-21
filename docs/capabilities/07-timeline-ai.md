@@ -122,6 +122,12 @@ AI 产出 AIInsight（status=suggested）
 - 初期：PostgreSQL `pgvector` + 文本特征。
 - 检索历史相似 Incident，**连同其复盘一起呈现**——"上次类似故障是怎么处理的"。
 
+> **实现现状**：`internal/ai/diagnose.go` 的 `FindSimilar` 主路径走 pgvector——
+> `Incident.embedding`（vector(1536) 列）为空时懒计算（LLM Embed 标题+摘要）并回写持久化，
+> 用 raw SQL 余弦距离 `<=>` 排序（`SQLRunner` 注入，避免 ai 包依赖 ent driver 内部）。
+> pgvector/Embed 不可用时（无扩展、无 LLM key、sqlite 测试）降级回 LIKE 文本匹配。
+> `Provider.Embed` 由 GLMProvider 实现（智谱 `embedding-3`，1536 维对齐列定义）。
+
 ### B5. LLM Provider 抽象（M11.10）
 
 ```go
@@ -140,6 +146,14 @@ type LLMProvider interface {
 - 配置驱动选择，业务层不感知。
 - **成本控制**：缓存 + 限流 + 配额（详见开放问题）。
 
+> **实现现状**：`internal/ai/cost.go` 的 `CostController` 实现 `Provider` 接口包装底层 GLM，
+> Complete 内部按 缓存→限流→配额→真实调用 顺序过三道闸：
+> · 缓存：Redis `vigil:llm:cache:`+sha256(prompt)，TTL 可配（默认 1h），命中省一次调用
+> · 限流：Redis ZSET 滑动窗口，按维度每分钟最大请求数
+> · 配额：Redis counter 累计 token，达上限拒绝
+> 无 Redis 时三道闸全部降级跳过（透传，保证调用可达）。配置 `VIGIL_LLM_COST_*`。
+> Embed 走限流但不缓存（向量检索语义稳定，由 ensureEmbedding 回写持久化去重）。
+
 ### B6. 可靠性与降级
 
 | 场景 | 处理 |
@@ -154,7 +168,7 @@ type LLMProvider interface {
 
 | # | 问题 | 倾向 |
 |---|------|------|
-| Q1 | LLM 成本控制（限流/缓存/配额） | 按团队配额 + 相似请求缓存 |
+| Q1 | LLM 成本控制（限流/缓存/配额） | ✅ 已实现：CostController 三道闸（缓存+限流+配额），按 org 维度，无 Redis 降级 |
 | Q2 | AI 建议的置信度阈值（低于多少不展示） | 默认 0.6，可配 |
 | Q3 | 本地模型（Ollama）的效果兜底 | 效果差时降级为规则式，不硬依赖 LLM |
 | Q4 | 时间线 IM 消息捕获的噪音过滤 | 仅含关键词/命令/标记消息 |

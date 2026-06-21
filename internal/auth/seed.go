@@ -49,8 +49,10 @@ var builtinRoles = []struct {
 			"event.view",
 			// 复盘
 			"postmortem.view", "postmortem.create", "postmortem.update", "postmortem.publish", "postmortem.actionitem.manage",
-			// 通知规则
-			"notification.rule.view", "notification.rule.update",
+			// 通知规则 + 模板 + 抑制规则（团队范围内全管理）
+			"notification.rule.view", "notification.rule.create", "notification.rule.update", "notification.rule.delete",
+			"notification.template.view", "notification.template.create", "notification.template.update", "notification.template.delete",
+			"suppression.view", "suppression.create", "suppression.update", "suppression.delete",
 			// 角色查看（不能改角色定义）
 			"role.view",
 		),
@@ -82,6 +84,8 @@ var builtinRoles = []struct {
 			"postmortem.view", "postmortem.create", "postmortem.update", "postmortem.publish",
 			"schedule.view",
 			"service.view",
+			// 通知/抑制规则查看（lead 需理解为何被抑制/静默）
+			"notification.rule.view", "notification.template.view", "suppression.view",
 		},
 	},
 	{

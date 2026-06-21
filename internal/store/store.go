@@ -6,6 +6,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -19,6 +20,9 @@ import (
 type Store struct {
 	DB    *ent.Client
 	Redis *redis.Client
+	// SQL 原生 *sql.DB（pgvector 等需要 raw SQL 的场景用，由 New 打开）。
+	// nil 时表示未启用 raw SQL（部分高级功能降级）。
+	SQL *sql.DB
 }
 
 // New 创建并连通 store（含连通性 ping）。
@@ -32,7 +36,15 @@ func New(ctx context.Context, cfg *config.Config) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{DB: db, Redis: rc}, nil
+	// 原生 *sql.DB：供 pgvector 相似检索等 raw SQL 场景用。
+	sqlDB, err := sql.Open("postgres", cfg.DB.DSN())
+	if err != nil {
+		_ = db.Close()
+		_ = rc.Close()
+		return nil, fmt.Errorf("open raw sql db: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(10)
+	return &Store{DB: db, Redis: rc, SQL: sqlDB}, nil
 }
 
 // openDB 打开 ent client（底层 PostgreSQL），并 ping 验证连通。
@@ -82,6 +94,11 @@ func (s *Store) Close() error {
 	}
 	if err := s.Redis.Close(); err != nil && firstErr == nil {
 		firstErr = err
+	}
+	if s.SQL != nil {
+		if err := s.SQL.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
 	return firstErr
 }

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/internal/ai"
 	"github.com/kevin/vigil/internal/analytics"
 	"github.com/kevin/vigil/internal/auth"
@@ -146,6 +147,7 @@ func run() error {
 	schedEngine := schedule.NewEngine(st.DB, st.Redis)
 
 	// 5.3 通知（能力域 7）：通道注册表 + Webhook/邮件通道 + 分发器
+	// 含静默时段（M7.8）+ 通知聚合（M7.9）—— "少打扰"核心。
 	notifReg := notification.NewRegistry()
 	// Webhook 通道 URL：复用出口 webhook 配置（VIGIL_WEBHOOK_OUT_URLS），
 	// 两者语义一致（都是把 incident 推给外部订阅者）。
@@ -177,6 +179,48 @@ func run() error {
 				zap.String("target", r.Target),
 				zap.String("error", r.Error))
 		}
+	})
+	// 通知聚合器（M7.9）：30s 窗口内对同一 target 合并；critical 不聚合。
+	// 无 Redis 时聚合器 Add 立即返回 sendNow（降级为不聚合，保证送达）。
+	notifAggregator := notification.NewAggregator(st.Redis, 30*time.Second)
+	notifier.SetAggregator(notifAggregator)
+	// 静默时段解析（M7.8）：按 incident.team 查适用的 NotificationRule.quiet_hours。
+	// 本期简化：取该 team 第一条 enabled 且配了 quiet_hours 的规则。
+	notifier.SetQuietHoursResolver(func(inc *ent.Incident) *notification.QuietHours {
+		if inc == nil {
+			return nil
+		}
+		rules, err := st.DB.NotificationRule.Query().
+			Where(notificationrule.EnabledEQ(true)).All(context.Background())
+		if err != nil {
+			return nil
+		}
+		for _, r := range rules {
+			if qh := notification.ParseQuietHoursPublic(r.QuietHours); qh != nil && qh.Enabled {
+				return qh
+			}
+		}
+		return nil
+	})
+
+	// 5.3.1 通知模板系统（能力域 7 M7.5）：内置默认模板 seed + 注入 notifier。
+	// 渲染失败由 TemplateEngine 内部降级（FormatTitle/Summary 兜底），不丢通知。
+	notifTemplates := notification.NewTemplateEngine(st.DB)
+	if err := notifTemplates.SeedBuiltinTemplates(ctx); err != nil {
+		log.Warn("seed notification templates failed", zap.Error(err))
+	} else {
+		log.Info("notification templates seeded")
+	}
+	// 按 incident.team 查 NotificationRule.template_id 解析适用模板名（本期简化：取首条 enabled 规则）。
+	notifier.SetTemplateEngine(notifTemplates, func(inc *ent.Incident) string {
+		if inc == nil {
+			return ""
+		}
+		r, err := st.DB.NotificationRule.Query().Where(notificationrule.EnabledEQ(true)).First(ctx)
+		if err != nil || r == nil {
+			return ""
+		}
+		return r.TemplateID
 	})
 
 	// 5.4 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链，注入通知分发器 + 时间线记录器
@@ -321,7 +365,15 @@ func run() error {
 	// 复盘（能力域 12）：草稿生成 + 状态机 + 改进项
 	// AI 起草：配置了 GLM key 则用 AI，否则降级（设计基线第 7 条）
 	var pmLLM postmortem.LLMProvider
-	glmProvider := ai.NewGLMProvider(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.BaseURL)
+	glmProvider := ai.Provider(ai.NewGLMProvider(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.BaseURL))
+	// LLM 成本控制（能力域 11，缓存/限流/配额）：包装 GLM，所有 Complete/Embed 走成本闸。
+	// 无 Redis 时降级为透传（缓存/限流/配额全跳过，仅保证调用可达）。
+	glmProvider = ai.NewCostController(glmProvider, st.Redis, "org:default", ai.CostConfig{
+		CacheTTL:       time.Duration(cfg.LLM.Cost.CacheTTLSeconds) * time.Second,
+		DisableCache:   cfg.LLM.Cost.DisableCache,
+		RateLimitPerMin: cfg.LLM.Cost.RateLimitPerMin,
+		TokenQuota:     cfg.LLM.Cost.TokenQuota,
+	})
 	if glmProvider.Available() {
 		pmLLM = ai.NewPostmortemDraftAdapter(glmProvider)
 		log.Info("ai llm ready (glm)")
@@ -332,9 +384,31 @@ func run() error {
 	postmortem.NewHandler(st.DB, postmortemEngine).Register(v1)
 	// AI 诊断（能力域 11）：根因线索 + 相似事件 + human-in-the-loop
 	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)
+	// 注入 raw SQL 执行器：FindSimilar 用 pgvector 余弦距离检索相似事件（M11.4）。
+	// 无 *sql.DB 或无 pgvector 扩展时，FindSimilar 自动降级回 LIKE 文本匹配。
+	if st.SQL != nil {
+		aiDiagEngine.SetSQLRunner(func(ctx context.Context, query string, args []any, scan func(*sql.Rows) error) error {
+			rows, err := st.SQL.QueryContext(ctx, query, args...)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = rows.Close() }()
+			for rows.Next() {
+				if err := scan(rows); err != nil {
+					return err
+				}
+			}
+			return rows.Err()
+		})
+	}
 	ai.NewHandler(aiDiagEngine).Register(v1)
 	// 报表（能力域 15）：告警/事件/团队负载/复盘/趋势 度量
 	analytics.NewHandler(analytics.NewEngine(st.DB)).Register(v1)
+	// 通知配置（能力域 7 + 3 抑制）：NotificationRule / SuppressionRule / Template CRUD + dry-run test
+	// 权限点 notification.rule.* / notification.template.* / suppression.* 由调用方在装配时按角色授权。
+	notifHandler := notification.NewHandler(st.DB, notifier, notifAggregator)
+	notifHandler.SetTemplateEngine(notifTemplates)
+	notifHandler.Register(v1)
 
 	// errCh 收集 http server 与 queue server 的致命错误，任一出错即触发退出。
 	// 容量 2：两个后台服务各可能上报一次，避免发送阻塞。

@@ -59,6 +59,23 @@ var (
 		Name: "vigil_llm_calls_total",
 		Help: "Total LLM calls by stage and result.",
 	}, []string{"stage", "result"})
+
+	// LLM 成本控制（能力域 11，capabilities/07 §B5 Q1）
+	// LLMCacheHits 缓存命中（避免真实调用，省 token）
+	LLMCacheHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "vigil_llm_cache_hits_total",
+		Help: "LLM completion cache hits (saved a real call).",
+	})
+	// LLMRateLimited 被限流/配额拒绝
+	LLMRateLimited = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "vigil_llm_rate_limited_total",
+		Help: "LLM calls rejected by rate limit or quota.",
+	})
+	// LLMTokensTotal 累计 token 消耗（按 provider）
+	LLMTokensTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "vigil_llm_tokens_total",
+		Help: "Total LLM tokens consumed by provider.",
+	}, []string{"provider"})
 )
 
 // HTTP 指标

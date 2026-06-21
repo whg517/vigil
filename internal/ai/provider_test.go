@@ -22,6 +22,9 @@ func (m *mockProvider) Complete(_ context.Context, _ string) (string, error) {
 	}
 	return m.resp, nil
 }
+func (m *mockProvider) Embed(_ context.Context, _ string) ([]float32, error) {
+	return []float32{0.1, 0.2, 0.3}, nil
+}
 func (m *mockProvider) Available() bool { return m.avail }
 
 // TestGLMProvider_NoKey 验证无 key 时 Available=false（降级前提）。

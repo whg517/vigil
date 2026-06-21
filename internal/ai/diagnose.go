@@ -9,27 +9,41 @@ package ai
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/incident"
+	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/timelineitem"
+	"github.com/pgvector/pgvector-go"
 )
+
+// SQLRunner 执行一条 raw SQL 查询，遍历行交给 scan 回调（pgvector 距离检索用）。
+// 由 main 注入（包 *sql.DB），避免 ai 包直接依赖 ent driver 内部。
+// 为 nil 时 FindSimilar 的 pgvector 路径降级为 LIKE 文本匹配。
+type SQLRunner func(ctx context.Context, query string, args []any, scan func(rows *sql.Rows) error) error
 
 // DiagnoseEngine AI 诊断引擎。
 type DiagnoseEngine struct {
 	db       *ent.Client
 	provider Provider // LLM 提供方，nil 或不可用时降级（不诊断）
+	// runSQL raw SQL 执行器（pgvector 相似检索用）；nil 时降级为 LIKE 匹配。
+	runSQL SQLRunner
 }
 
 // NewDiagnoseEngine 创建诊断引擎。
 func NewDiagnoseEngine(db *ent.Client, p Provider) *DiagnoseEngine {
 	return &DiagnoseEngine{db: db, provider: p}
 }
+
+// SetSQLRunner 注入 raw SQL 执行器（pgvector 相似检索用）。
+func (e *DiagnoseEngine) SetSQLRunner(r SQLRunner) { e.runSQL = r }
 
 // DiagnoseResult 诊断结果。
 type DiagnoseResult struct {
@@ -101,8 +115,13 @@ func (e *DiagnoseEngine) Diagnose(ctx context.Context, incID int) (*DiagnoseResu
 	}, nil
 }
 
-// FindSimilar 检索相似历史事件（简化版：按标题/摘要文本匹配）。
-// 向量化检索（pgvector）后续实现，当前用 LIKE 文本匹配。
+// FindSimilar 检索相似历史事件（能力域 11 M11.4）。
+//
+// 主路径：pgvector 语义检索。
+//  1. 取 incident.embedding；为空则懒计算（LLM Embed 标题+摘要）并回写持久化（避免重复 embed）
+//  2. 用 raw SQL 余弦距离 <=> 排序，排除自身
+//
+// 降级路径：pgvector 不可用（无扩展/sqlite 测试/Embed 失败）→ 回退 LIKE 文本匹配。
 func (e *DiagnoseEngine) FindSimilar(ctx context.Context, incID int, limit int) ([]*ent.Incident, error) {
 	if limit <= 0 {
 		limit = 5
@@ -111,7 +130,95 @@ func (e *DiagnoseEngine) FindSimilar(ctx context.Context, incID int, limit int) 
 	if err != nil {
 		return nil, err
 	}
-	// 用标题关键词匹配历史事件（排除自身）
+
+	// 尝试 pgvector 语义检索
+	if results, err := e.findSimilarVector(ctx, inc, limit); err == nil && results != nil {
+		return results, nil
+	}
+	// 降级：LIKE 文本匹配（capabilities/07 §B4 兜底）
+	return e.findSimilarText(ctx, inc, incID, limit)
+}
+
+// findSimilarVector pgvector 语义检索。任一步失败返回 error 让上层降级。
+func (e *DiagnoseEngine) findSimilarVector(ctx context.Context, inc *ent.Incident, limit int) ([]*ent.Incident, error) {
+	if e.provider == nil || !e.provider.Available() {
+		return nil, fmt.Errorf("provider unavailable")
+	}
+	if e.runSQL == nil {
+		return nil, fmt.Errorf("sql runner not configured")
+	}
+	// 取/算 embedding
+	vec, err := e.ensureEmbedding(ctx, inc)
+	if err != nil || len(vec) == 0 {
+		return nil, fmt.Errorf("ensure embedding: %w", err)
+	}
+	// raw SQL 余弦距离排序（pgvector <=> 操作符）
+	// vector 字面量格式：'[0.1,0.2,...]'，与 pgvector.Vector.String() 一致
+	const q = `SELECT id FROM incidents
+			   WHERE embedding IS NOT NULL AND id <> $1
+			   ORDER BY embedding <=> $2::vector
+			   LIMIT $3`
+	var ids []int
+	scanErr := e.runSQL(ctx, q, []any{inc.ID, vectorLiteral(vec), limit}, func(rows *sql.Rows) error {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+		return nil
+	})
+	if scanErr != nil {
+		return nil, fmt.Errorf("pgvector query: %w", scanErr)
+	}
+	if len(ids) == 0 {
+		return []*ent.Incident{}, nil
+	}
+	return e.db.Incident.Query().Where(incident.IDIn(ids...)).All(ctx)
+}
+
+// ensureEmbedding 确保 incident 有 embedding：为空则 Embed 并回写持久化（懒计算）。
+func (e *DiagnoseEngine) ensureEmbedding(ctx context.Context, inc *ent.Incident) ([]float32, error) {
+	if inc.Embedding != nil && inc.Embedding.Valid {
+		return inc.Embedding.Slice(), nil
+	}
+	// LLM embed：标题 + 摘要拼接（截断避免超 token）
+	text := strings.TrimSpace(inc.Title)
+	if inc.Summary != "" {
+		text += " " + inc.Summary
+	}
+	if len(text) > 2000 {
+		text = text[:2000]
+	}
+	vec, err := e.provider.Embed(ctx, text)
+	if err != nil {
+		return nil, err
+	}
+	// 回写持久化（schema.NullableVector）
+	nv := &schema.NullableVector{Valid: true}
+	nv.Vector = pgvector.NewVector(vec)
+	if err := e.db.Incident.UpdateOneID(inc.ID).SetEmbedding(nv).Exec(ctx); err != nil {
+		// 回写失败不阻塞检索（用内存中的 vec 继续）
+		_ = err
+	}
+	return vec, nil
+}
+
+// vectorLiteral 把 []float32 转成 pgvector 文本字面量 '[0.1,0.2,...]'。
+func vectorLiteral(v []float32) string {
+	var sb strings.Builder
+	sb.WriteByte('[')
+	for i, f := range v {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString(strconv.FormatFloat(float64(f), 'f', -1, 32))
+	}
+	sb.WriteByte(']')
+	return sb.String()
+}
+
+// findSimilarText 降级路径：LIKE 文本匹配（原实现）。
+func (e *DiagnoseEngine) findSimilarText(ctx context.Context, inc *ent.Incident, incID, limit int) ([]*ent.Incident, error) {
 	keyword := extractKeyword(inc.Title)
 	if keyword == "" {
 		return nil, nil

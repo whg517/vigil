@@ -22,7 +22,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Engine 分诊引擎：去重 + 路由 + 聚合。
+// Engine 分诊引擎：去重 + 抑制 + 路由 + 聚合。
 type Engine struct {
 	db    *ent.Client
 	redis *redis.Client
@@ -31,6 +31,9 @@ type Engine struct {
 	dedupWindow time.Duration
 	// aggregateWindow 聚合窗口（同 service+severity 在窗口内并入同一 Incident）
 	aggregateWindow time.Duration
+
+	// suppression 抑制规则评估器（能力域 3 M3.2）。为 nil 时跳过抑制评估（降级）。
+	suppression *SuppressionEngine
 
 	// OnIncidentCreated Incident 创建后的回调（由 main 注入，用于启动升级/通知）。
 	// 为 nil 时不触发。避免 triage 反向依赖 escalation。
@@ -44,29 +47,43 @@ func NewEngine(db *ent.Client, rc *redis.Client) *Engine {
 		redis:           rc,
 		dedupWindow:     5 * time.Minute,
 		aggregateWindow: 5 * time.Minute,
+		suppression:     NewSuppressionEngine(db),
 	}
+}
+
+// SetSuppressionEngine 注入抑制引擎（测试可替换 now）。
+func (e *Engine) SetSuppressionEngine(s *SuppressionEngine) {
+	e.suppression = s
 }
 
 // Result 分诊结果，描述一个 Event 被如何处置。
 type Result struct {
-	Action       ResultAction // skipped_dedup / routed / unrouted / aggregated / incident_created / resolved
+	Action       ResultAction // skipped_dedup / suppressed / routed / unrouted / aggregated / incident_created / resolved
 	IncidentID   int          // 关联/创建的 Incident（如有）
 	IncidentNum  string       // 人类可读编号（如 INC-0042）
 	ServiceID    int          // 路由命中的 Service（0 = 未命中）
 	ServiceName  string
 	IsNoise      bool
 	DedupSkipped bool
+	// Suppressed 命中抑制规则（action=suppress 时 true，Event 标记噪音不入 Incident）
+	Suppressed bool
+	// SeverityReduced 命中 reduce_severity 规则并已降级
+	SeverityReduced bool
+	// SuppressionRule 命中的规则名（未命中为空）
+	SuppressionRule string
 }
 
 // ResultAction 分诊动作类型。
 type ResultAction string
 
 const (
-	ActionIncidentCreated ResultAction = "incident_created" // 创建了新 Incident
-	ActionAggregated      ResultAction = "aggregated"       // 并入既有 Incident
-	ActionUnrouted        ResultAction = "unrouted"         // 路由未命中，入 unrouted 池
-	ActionDedupSkipped    ResultAction = "dedup_skipped"    // 去重丢弃
-	ActionResolved        ResultAction = "resolved"         // resolved 事件触发 Incident 解决
+	ActionIncidentCreated  ResultAction = "incident_created" // 创建了新 Incident
+	ActionAggregated       ResultAction = "aggregated"       // 并入既有 Incident
+	ActionUnrouted         ResultAction = "unrouted"         // 路由未命中，入 unrouted 池
+	ActionDedupSkipped     ResultAction = "dedup_skipped"    // 去重丢弃
+	ActionResolved         ResultAction = "resolved"         // resolved 事件触发 Incident 解决
+	ActionSuppressed       ResultAction = "suppressed"       // 命中抑制规则，标记噪音（§2.3）
+	ActionSeverityReduced  ResultAction = "severity_reduced" // 命中降级规则，降低严重度
 )
 
 // Process 处理一个 Event，执行 去重 → 路由 → 聚合 全流程。
@@ -91,14 +108,45 @@ func (e *Engine) Process(ctx context.Context, evtID int) (*Result, error) {
 		}
 	}
 
-	// 3. 路由：匹配 Service
+	// 3. 抑制规则评估（能力域 3 M3.2，§2.1 三层处理：去重→抑制→聚合）。
+	// 命中 suppress → 标记噪音、不入 Incident，仅留痕（可申诉）；
+	// 命中 reduce_severity → 降低严重度后继续后续流程（路由/聚合用新严重度）。
+	severityReduced := false
+	suppressionRule := ""
+	if e.suppression != nil {
+		out, err := e.suppression.Evaluate(ctx, evt)
+		if err != nil {
+			return nil, fmt.Errorf("suppression: %w", err)
+		}
+		if out.Matched {
+			originalSeverity := evt.Severity
+			evt, err = e.suppression.Apply(ctx, evt, out)
+			if err != nil {
+				return nil, fmt.Errorf("apply suppression: %w", err)
+			}
+			suppressionRule = out.RuleName
+			if out.Action == SuppressActionSuppress {
+				// suppress：标记噪音、不入 Incident（仅留痕，可申诉，§2.5）
+				return &Result{
+					Action:          ActionSuppressed,
+					IsNoise:         true,
+					Suppressed:      true,
+					SuppressionRule: out.RuleName,
+				}, nil
+			}
+			// reduce_severity：已降级（severity 已被 Apply 改写），继续路由/聚合
+			severityReduced = evt.Severity != originalSeverity
+		}
+	}
+
+	// 4. 路由：匹配 Service
 	svc, err := e.route(ctx, evt)
 	if err != nil {
 		return nil, fmt.Errorf("route: %w", err)
 	}
 	if svc == nil {
 		// 未命中：标记 unrouted（Event.service_id 留空），等待人工分诊
-		return &Result{Action: ActionUnrouted}, nil
+		return &Result{Action: ActionUnrouted, SeverityReduced: severityReduced, SuppressionRule: suppressionRule}, nil
 	}
 
 	// 把 Service 绑定到 Event
@@ -106,13 +154,22 @@ func (e *Engine) Process(ctx context.Context, evtID int) (*Result, error) {
 		return nil, fmt.Errorf("bind service: %w", err)
 	}
 
-	// 4. resolved 事件：触发既有 Incident 解决流程
+	// 5. resolved 事件：触发既有 Incident 解决流程
 	if evt.Status == event.StatusResolved {
 		return e.handleResolved(ctx, evt, svc)
 	}
 
-	// 5. 聚合：找既有活跃 Incident 或创建新的
-	return e.aggregate(ctx, evt, svc)
+	// 6. 聚合：找既有活跃 Incident 或创建新的
+	res, err := e.aggregate(ctx, evt, svc)
+	if err != nil {
+		return nil, err
+	}
+	// 标注降级信息（便于上层埋点/时间线）
+	if res != nil && severityReduced {
+		res.SeverityReduced = true
+		res.SuppressionRule = suppressionRule
+	}
+	return res, nil
 }
 
 // checkDedup 检查去重。窗口内已见过该 dedup_key 则返回 true（跳过）。
