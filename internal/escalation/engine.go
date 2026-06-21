@@ -27,6 +27,7 @@ import (
 	"github.com/kevin/vigil/internal/timeline"
 
 	"github.com/hibiken/asynq"
+	"go.uber.org/zap"
 )
 
 // Engine 升级引擎。
@@ -37,11 +38,25 @@ type Engine struct {
 	notifier Notifier              // 通知接口（能力域 7 接入）；nil 则只记时间线
 	redisOpt *asynq.RedisClientOpt // 用于创建 Inspector 删除待触发任务
 	recorder *timeline.Recorder    // 时间线记录器（统一 Recorder）；nil 则不记
+	logger   *zap.Logger           // 日志，nil 用 Nop
 }
 
 // SetRecorder 注入时间线记录器。
 func (e *Engine) SetRecorder(r *timeline.Recorder) {
 	e.recorder = r
+}
+
+// SetLogger 注入日志器。未注入时用 zap.NewNop()，不影响功能。
+func (e *Engine) SetLogger(l *zap.Logger) {
+	e.logger = l
+}
+
+// log 取日志器，未注入用 Nop（测试友好）。
+func (e *Engine) log() *zap.Logger {
+	if e.logger == nil {
+		return zap.NewNop()
+	}
+	return e.logger
 }
 
 // Notifier 通知接口，由能力域 7 实现。升级触发时调用以送达 targets。
@@ -69,6 +84,30 @@ func (e *Engine) StartEscalation(ctx context.Context, incID int, levels []schema
 		return nil
 	}
 	return e.scheduleLevel(ctx, incID, 0, levels, 0)
+}
+
+// TriggerLevelNow 立即触发某 level 的升级（用于人工「我现在就需要更高层级介入」）。
+// 与 scheduleLevel 的延迟入队不同：用 ProcessIn(0) 立即执行，
+// 复用 HandleTask 的「通知 + 时间线 + 推进下一 level」逻辑。
+// levelIdx 越界（无策略或超过末级）则不动作，幂等友好。
+// taskID 用 now: 前缀，避免与已存在的延迟任务（esc: 前缀）TaskID 冲突。
+func (e *Engine) TriggerLevelNow(ctx context.Context, incID, levelIdx int) error {
+	if levelIdx < 0 {
+		return nil
+	}
+	payload, _ := json.Marshal(escalationTask{IncidentID: incID, LevelIdx: levelIdx, RepeatSeq: 0})
+	task := asynq.NewTask(TaskEscalation, payload)
+	// TaskID 带 now: 前缀 + 时间戳，保证可重复触发（每次手动升级独立任务）
+	opts := []asynq.Option{
+		asynq.Queue("critical"),
+		asynq.TaskID(fmt.Sprintf("now:%d:%d:%d", incID, levelIdx, time.Now().UnixNano())),
+		asynq.ProcessIn(0),
+		asynq.Retention(5 * time.Minute), // 触发后保留 5 分钟便于排查
+	}
+	if _, err := e.queue.Client.EnqueueContext(ctx, task, opts...); err != nil {
+		return fmt.Errorf("enqueue immediate escalation level %d: %w", levelIdx, err)
+	}
+	return nil
 }
 
 // scheduleLevel 入队某 level 的延迟任务。
@@ -163,6 +202,8 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 }
 
 // resolveTargets 把 EscalationLevel.Targets 解析成实际通知人。
+// 解析失败（排班查询错/用户不存在）改为告警日志而非静默吞错——
+// 升级链上「该通知的人没通知到」是严重事故，必须可观测。
 func (e *Engine) resolveTargets(ctx context.Context, targets []schema.Target) ([]NotifyTarget, error) {
 	var out []NotifyTarget
 	seen := map[int]bool{} // 去重
@@ -170,11 +211,20 @@ func (e *Engine) resolveTargets(ctx context.Context, targets []schema.Target) ([
 		switch t.Type {
 		case "schedule":
 			schedID, _ := strconv.Atoi(t.TargetID)
-			if schedID == 0 || e.sched == nil {
+			if schedID == 0 {
+				e.log().Warn("escalation target: invalid schedule id",
+					zap.String("target_id", t.TargetID))
+				continue
+			}
+			if e.sched == nil {
+				e.log().Warn("escalation target: schedule engine nil, skip schedule target",
+					zap.Int("schedule_id", schedID))
 				continue
 			}
 			res, err := e.sched.OncallNow(ctx, schedID)
 			if err != nil {
+				e.log().Warn("escalation target: query oncall failed",
+					zap.Int("schedule_id", schedID), zap.Error(err))
 				continue
 			}
 			for _, layer := range res.Layers {
@@ -188,10 +238,14 @@ func (e *Engine) resolveTargets(ctx context.Context, targets []schema.Target) ([
 		case "user":
 			uid, _ := strconv.Atoi(t.TargetID)
 			if uid == 0 {
+				e.log().Warn("escalation target: invalid user id",
+					zap.String("target_id", t.TargetID))
 				continue
 			}
 			u, err := e.db.User.Get(ctx, uid)
 			if err != nil {
+				e.log().Warn("escalation target: user not found",
+					zap.Int("user_id", uid), zap.Error(err))
 				continue
 			}
 			if !seen[u.ID] {

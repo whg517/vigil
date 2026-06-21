@@ -48,6 +48,8 @@ func parseLevel(s string) (zapcore.Level, error) {
 }
 
 // Into 把 logger 注入 context，供下游通过 From(ctx) 取出。
+// 注：当前全项目通过 main 的全局 *zap.Logger 直接使用，未走 context 注入。
+// 如未来需要请求级日志关联（trace_id 等），可启用此机制。
 func Into(ctx context.Context, l *zap.Logger) context.Context {
 	return context.WithValue(ctx, ctxKey{}, l)
 }

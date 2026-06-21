@@ -97,7 +97,8 @@ func (s *Service) Ack(ctx context.Context, incID int, actorID int, src Source) (
 	}
 
 	upd := s.db.Incident.UpdateOneID(inc.ID).
-		SetStatus(incident.StatusAcked)
+		SetStatus(incident.StatusAcked).
+		SetAckedAt(time.Now())
 	if actorID > 0 {
 		upd.SetAssigneeID(actorID)
 	}
@@ -163,13 +164,21 @@ func (s *Service) Escalate(ctx context.Context, incID int, actorID int, src Sour
 		return nil, fmt.Errorf("%w: escalate from %s", ErrInvalidTransition, st)
 	}
 
+	// 目标 level = 当前 level + 1（跳到下一升级层级）。
+	// 取策略 levels 数判断是否越界；无策略时 nextLevel 仅作展示用。
 	nextLevel := inc.CurrentLevel + 1
 	policyLevels := 0
 	if policy, perr := inc.QueryEscalationPolicy().Only(ctx); perr == nil {
 		policyLevels = len(policy.Levels)
 	}
-	// 不超过策略最大 level（无策略则只记时间线，状态转 escalated）
-	if policyLevels == 0 || nextLevel <= policyLevels {
+	// targetLevel 是要触发升级任务的 level 索引（0-based）。
+	// 当前 current_level 表示「已执行到的层级」，所以下一级索引 = current_level。
+	// 例：current_level=0 表示 level[0] 已执行/在执行，手动升级应触发 level[1]。
+	targetLevelIdx := inc.CurrentLevel
+
+	canEscalate := policyLevels == 0 || targetLevelIdx < policyLevels
+	if canEscalate {
+		// 更新状态 + current_level；inc 重新赋值确保后续时间线用最新值（修原作用域 bug）。
 		inc, err = s.db.Incident.UpdateOneID(inc.ID).
 			SetStatus(incident.StatusEscalated).
 			SetCurrentLevel(nextLevel).
@@ -177,6 +186,17 @@ func (s *Service) Escalate(ctx context.Context, incID int, actorID int, src Sour
 			Save(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("update incident: %w", err)
+		}
+
+		// 接通升级链通知：有策略且有 escEngine 时，立即触发目标 level 的升级任务，
+		// 让更高层级的人真正收到通知（修复前只改数字不通知）。
+		if policyLevels > 0 && s.escEngine != nil {
+			if terr := s.escEngine.TriggerLevelNow(ctx, inc.ID, targetLevelIdx); terr != nil {
+				// 触发失败不阻塞手动升级本身（状态已落库），仅记时间线标注。
+				s.record(ctx, inc, timelineitem.TypeEscalated, actorID, src,
+					fmt.Sprintf("%s 手动升级到 level %d（通知触发失败: %v）", actorLabel(actorID), nextLevel, terr),
+					map[string]any{"level": nextLevel, "manual": true, "notify_error": terr.Error()})
+			}
 		}
 	}
 

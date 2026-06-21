@@ -180,6 +180,35 @@ var (
 			},
 		},
 	}
+	// ImAccountBindingsColumns holds the columns for the "im_account_bindings" table.
+	ImAccountBindingsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "platform", Type: field.TypeEnum, Enums: []string{"feishu", "dingtalk", "wecom"}},
+		{Name: "account_id", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_im_bindings", Type: field.TypeInt},
+	}
+	// ImAccountBindingsTable holds the schema information for the "im_account_bindings" table.
+	ImAccountBindingsTable = &schema.Table{
+		Name:       "im_account_bindings",
+		Columns:    ImAccountBindingsColumns,
+		PrimaryKey: []*schema.Column{ImAccountBindingsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "im_account_bindings_users_im_bindings",
+				Columns:    []*schema.Column{ImAccountBindingsColumns[4]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "imaccountbinding_platform_account_id",
+				Unique:  true,
+				Columns: []*schema.Column{ImAccountBindingsColumns[1], ImAccountBindingsColumns[2]},
+			},
+		},
+	}
 	// IncidentsColumns holds the columns for the "incidents" table.
 	IncidentsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -196,6 +225,7 @@ var (
 		{Name: "trigger_source_event_id", Type: field.TypeString, Nullable: true},
 		{Name: "war_room", Type: field.TypeJSON, Nullable: true},
 		{Name: "resolved_at", Type: field.TypeTime, Nullable: true},
+		{Name: "acked_at", Type: field.TypeTime, Nullable: true},
 		{Name: "closed_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -212,25 +242,25 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "incidents_escalation_policies_incidents",
-				Columns:    []*schema.Column{IncidentsColumns[17]},
+				Columns:    []*schema.Column{IncidentsColumns[18]},
 				RefColumns: []*schema.Column{EscalationPoliciesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "incidents_users_assignee",
-				Columns:    []*schema.Column{IncidentsColumns[18]},
+				Columns:    []*schema.Column{IncidentsColumns[19]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "incidents_services_incidents",
-				Columns:    []*schema.Column{IncidentsColumns[19]},
+				Columns:    []*schema.Column{IncidentsColumns[20]},
 				RefColumns: []*schema.Column{ServicesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "incidents_teams_incidents",
-				Columns:    []*schema.Column{IncidentsColumns[20]},
+				Columns:    []*schema.Column{IncidentsColumns[21]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -244,12 +274,12 @@ var (
 			{
 				Name:    "incident_team_incidents",
 				Unique:  false,
-				Columns: []*schema.Column{IncidentsColumns[20]},
+				Columns: []*schema.Column{IncidentsColumns[21]},
 			},
 			{
 				Name:    "incident_service_incidents",
 				Unique:  false,
-				Columns: []*schema.Column{IncidentsColumns[19]},
+				Columns: []*schema.Column{IncidentsColumns[20]},
 			},
 			{
 				Name:    "incident_resolved_at",
@@ -420,7 +450,7 @@ var (
 	// RolesColumns holds the columns for the "roles" table.
 	RolesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "name", Type: field.TypeString},
+		{Name: "name", Type: field.TypeString, Unique: true},
 		{Name: "description", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "builtin", Type: field.TypeBool, Default: false},
 		{Name: "scope_level", Type: field.TypeEnum, Enums: []string{"org", "team"}},
@@ -857,6 +887,7 @@ var (
 		ActionItemsTable,
 		EscalationPoliciesTable,
 		EventsTable,
+		ImAccountBindingsTable,
 		IncidentsTable,
 		IncidentActionsTable,
 		IntegrationsTable,
@@ -889,6 +920,7 @@ func init() {
 	EventsTable.ForeignKeys[0].RefTable = IncidentsTable
 	EventsTable.ForeignKeys[1].RefTable = IntegrationsTable
 	EventsTable.ForeignKeys[2].RefTable = ServicesTable
+	ImAccountBindingsTable.ForeignKeys[0].RefTable = UsersTable
 	IncidentsTable.ForeignKeys[0].RefTable = EscalationPoliciesTable
 	IncidentsTable.ForeignKeys[1].RefTable = UsersTable
 	IncidentsTable.ForeignKeys[2].RefTable = ServicesTable

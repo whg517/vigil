@@ -95,6 +95,11 @@ func ResolvedAt(v time.Time) predicate.Incident {
 	return predicate.Incident(sql.FieldEQ(FieldResolvedAt, v))
 }
 
+// AckedAt applies equality check predicate on the "acked_at" field. It's identical to AckedAtEQ.
+func AckedAt(v time.Time) predicate.Incident {
+	return predicate.Incident(sql.FieldEQ(FieldAckedAt, v))
+}
+
 // ClosedAt applies equality check predicate on the "closed_at" field. It's identical to ClosedAtEQ.
 func ClosedAt(v time.Time) predicate.Incident {
 	return predicate.Incident(sql.FieldEQ(FieldClosedAt, v))
@@ -683,6 +688,56 @@ func ResolvedAtIsNil() predicate.Incident {
 // ResolvedAtNotNil applies the NotNil predicate on the "resolved_at" field.
 func ResolvedAtNotNil() predicate.Incident {
 	return predicate.Incident(sql.FieldNotNull(FieldResolvedAt))
+}
+
+// AckedAtEQ applies the EQ predicate on the "acked_at" field.
+func AckedAtEQ(v time.Time) predicate.Incident {
+	return predicate.Incident(sql.FieldEQ(FieldAckedAt, v))
+}
+
+// AckedAtNEQ applies the NEQ predicate on the "acked_at" field.
+func AckedAtNEQ(v time.Time) predicate.Incident {
+	return predicate.Incident(sql.FieldNEQ(FieldAckedAt, v))
+}
+
+// AckedAtIn applies the In predicate on the "acked_at" field.
+func AckedAtIn(vs ...time.Time) predicate.Incident {
+	return predicate.Incident(sql.FieldIn(FieldAckedAt, vs...))
+}
+
+// AckedAtNotIn applies the NotIn predicate on the "acked_at" field.
+func AckedAtNotIn(vs ...time.Time) predicate.Incident {
+	return predicate.Incident(sql.FieldNotIn(FieldAckedAt, vs...))
+}
+
+// AckedAtGT applies the GT predicate on the "acked_at" field.
+func AckedAtGT(v time.Time) predicate.Incident {
+	return predicate.Incident(sql.FieldGT(FieldAckedAt, v))
+}
+
+// AckedAtGTE applies the GTE predicate on the "acked_at" field.
+func AckedAtGTE(v time.Time) predicate.Incident {
+	return predicate.Incident(sql.FieldGTE(FieldAckedAt, v))
+}
+
+// AckedAtLT applies the LT predicate on the "acked_at" field.
+func AckedAtLT(v time.Time) predicate.Incident {
+	return predicate.Incident(sql.FieldLT(FieldAckedAt, v))
+}
+
+// AckedAtLTE applies the LTE predicate on the "acked_at" field.
+func AckedAtLTE(v time.Time) predicate.Incident {
+	return predicate.Incident(sql.FieldLTE(FieldAckedAt, v))
+}
+
+// AckedAtIsNil applies the IsNil predicate on the "acked_at" field.
+func AckedAtIsNil() predicate.Incident {
+	return predicate.Incident(sql.FieldIsNull(FieldAckedAt))
+}
+
+// AckedAtNotNil applies the NotNil predicate on the "acked_at" field.
+func AckedAtNotNil() predicate.Incident {
+	return predicate.Incident(sql.FieldNotNull(FieldAckedAt))
 }
 
 // ClosedAtEQ applies the EQ predicate on the "closed_at" field.

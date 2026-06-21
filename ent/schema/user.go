@@ -22,7 +22,8 @@ func (User) Fields() []ent.Field {
 		field.String("email").Unique().Comment("邮箱"),
 		field.String("phone").Optional().Comment("电话，用于 SMS/语音"),
 		// im_accounts 以 JSON 存多 IM 平台账号绑定（钉钉/飞书/企微）
-		field.JSON("im_accounts", []IMAccount{}).Optional().Comment("IM 账号绑定，支持多平台"),
+		// 注：向后兼容保留；新绑定会同时写入 IMAccountBinding 独立表（可索引查询）。
+		field.JSON("im_accounts", []IMAccount{}).Optional().Comment("IM 账号绑定（JSON，兼容字段；新数据见 im_bindings 表）"),
 		field.Enum("status").Values("active", "disabled").Default("active"),
 		field.String("timezone").Default("Asia/Shanghai"),
 		field.Time("created_at").Default(time.Now).Immutable(),
@@ -43,6 +44,8 @@ func (User) Edges() []ent.Edge {
 		edge.From("teams", Team.Type).Ref("users"),
 		// User -> RoleBinding（被授权的角色绑定）
 		edge.To("role_bindings", RoleBinding.Type),
+		// User -> IMAccountBinding（IM 平台账号绑定，可索引查询的独立表）
+		edge.To("im_bindings", IMAccountBinding.Type),
 		// User <- Incident（作为当前责任人，Incident.assignee 的反向）
 		edge.From("assigned_incidents", Incident.Type).Ref("assignee"),
 		// User <- Incident（作为响应者，Incident.responders 的反向）

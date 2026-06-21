@@ -200,30 +200,44 @@ func (e *Engine) aggregate(ctx context.Context, evt *ent.Event, svc *ent.Service
 }
 
 // createIncident 创建新 Incident，并把 Event 关联进去。
+// 编号生成并发安全：Redis INCR 原子分配；无 Redis 时 Count+1 并在 number 唯一冲突时重试。
 func (e *Engine) createIncident(ctx context.Context, evt *ent.Event, svc *ent.Service) (*ent.Incident, error) {
-	num, err := e.nextIncidentNumber(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("alloc incident number: %w", err)
-	}
 	// 查 Service 归属的 Team（team 是 edge，非字段）
 	team, err := svc.QueryTeam().Only(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("query service team: %w", err)
 	}
 	priority := severityToPriority(evt.Severity)
-	inc, err := e.db.Incident.Create().
-		SetNumber(num).
-		SetTitle(evt.Summary).
-		SetSeverity(incident.Severity(evt.Severity)).
-		SetStatus(incident.StatusTriggered).
-		SetPriority(incident.Priority(priority)).
-		SetSummary(evt.Summary).
-		SetTriggerType(incident.TriggerTypeAuto).
-		SetTriggerSourceEventID(evt.SourceEventID).
-		SetService(svc).
-		SetTeamID(team.ID).
-		Save(ctx)
-	if err != nil {
+
+	// 编号分配 + 唯一冲突重试。
+	// Redis 在线时 INCR 强一致，几乎不冲突；无 Redis 时 Count+1 可能冲突，
+	// 靠 incident.number Unique 约束兜底，捕获 ConstraintError 换号重试。
+	const maxRetries = 5
+	var inc *ent.Incident
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		num, err := e.nextIncidentNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("alloc incident number: %w", err)
+		}
+		inc, err = e.db.Incident.Create().
+			SetNumber(num).
+			SetTitle(evt.Summary).
+			SetSeverity(incident.Severity(evt.Severity)).
+			SetStatus(incident.StatusTriggered).
+			SetPriority(incident.Priority(priority)).
+			SetSummary(evt.Summary).
+			SetTriggerType(incident.TriggerTypeAuto).
+			SetTriggerSourceEventID(evt.SourceEventID).
+			SetService(svc).
+			SetTeamID(team.ID).
+			Save(ctx)
+		if err == nil {
+			break
+		}
+		// number 唯一冲突（并发分配到同号）→ 换号重试
+		if ent.IsConstraintError(err) && attempt < maxRetries-1 {
+			continue
+		}
 		return nil, fmt.Errorf("create incident: %w", err)
 	}
 	// 埋点：事件创建数（按 severity）
@@ -263,14 +277,26 @@ func (e *Engine) handleResolved(ctx context.Context, evt *ent.Event, svc *ent.Se
 }
 
 // nextIncidentNumber 生成人类可读编号 INC-XXXXXX。
-// 简化实现：用当前 Incident 总数 +1（生产可用 DB 序列/原子计数器保证并发安全）。
+// 优先用 Redis INCR 原子分配（全局单调计数器，并发安全）；
+// 无 Redis 时降级为 Incident 总数+1（可能并发撞号，靠 createIncident 的重试兜底）。
 func (e *Engine) nextIncidentNumber(ctx context.Context) (string, error) {
+	if e.redis != nil {
+		// Redis INCR 原子自增，key 首次访问时自动初始化为 1
+		seq, err := e.redis.Incr(ctx, incidentNumberKey).Result()
+		if err == nil {
+			return fmt.Sprintf("INC-%04d", seq), nil
+		}
+		// Redis 出错不阻断，降级到 DB 计数（仍由 createIncident 重试兜底）
+	}
 	count, err := e.db.Incident.Query().Count(ctx)
 	if err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("INC-%04d", count+1), nil
 }
+
+// incidentNumberKey Redis 上 incident 编号计数器的 key。
+const incidentNumberKey = "vigil:incident:number_seq"
 
 // severityToPriority 把 severity 映射到 priority。
 func severityToPriority(s event.Severity) incident.Priority {

@@ -18,6 +18,9 @@ type EscalationPolicy func(*sql.Selector)
 // Event is the predicate function for event builders.
 type Event func(*sql.Selector)
 
+// IMAccountBinding is the predicate function for imaccountbinding builders.
+type IMAccountBinding func(*sql.Selector)
+
 // Incident is the predicate function for incident builders.
 type Incident func(*sql.Selector)
 

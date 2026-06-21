@@ -196,3 +196,88 @@ func TestRecord_TimelineWritten(t *testing.T) {
 		t.Error("no im ack timeline item found")
 	}
 }
+
+// TestEscalate_FromResolved 已 resolved 再手动升级应被状态机拒绝。
+func TestEscalate_FromResolved(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusResolved)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+
+	_, err := svc.Escalate(context.Background(), inc.ID, 1, SourceWeb)
+	if err == nil {
+		t.Fatal("expected ErrInvalidTransition, got nil")
+	}
+	if !errors.Is(err, ErrInvalidTransition) {
+		t.Errorf("expected ErrInvalidTransition, got %v", err)
+	}
+}
+
+// TestEscalate_TimelineRecordsCorrectLevel 手动升级后时间线记录正确的 level，
+// 且 level 来自更新后的 incident（修复前变量作用域 bug 会导致记录旧值）。
+func TestEscalate_TimelineRecordsCorrectLevel(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusTriggered)
+	// 预设 current_level=2，升级后应为 3
+	if err := c.Incident.UpdateOneID(inc.ID).SetCurrentLevel(2).Exec(context.Background()); err != nil {
+		t.Fatalf("preset current_level: %v", err)
+	}
+	rec := timeline.NewRecorder(c)
+	svc := NewService(c, rec, nil) // 无 escEngine，仅记时间线
+
+	updated, err := svc.Escalate(context.Background(), inc.ID, 1, SourceWeb)
+	if err != nil {
+		t.Fatalf("Escalate: %v", err)
+	}
+	if updated.CurrentLevel != 3 {
+		t.Fatalf("current_level: got %d, want 3", updated.CurrentLevel)
+	}
+
+	// 时间线应记录 level=3（更新后的值），而非 2（旧值）
+	items, err := rec.Query(context.Background(), inc.ID, "escalated", "", 10, 0)
+	if err != nil {
+		t.Fatalf("query timeline: %v", err)
+	}
+	if len(items) == 0 {
+		t.Fatal("no escalated timeline item")
+	}
+	// 至少有一条 detail.level=3
+	var foundLevel3 bool
+	for _, it := range items {
+		if lv, ok := it.Detail["level"]; ok && lv != nil {
+			if levelNum, ok2 := toInt(lv); ok2 && levelNum == 3 {
+				foundLevel3 = true
+			}
+		}
+	}
+	if !foundLevel3 {
+		t.Error("no timeline item with level=3 (updated value); 旧作用域 bug 残留?")
+	}
+}
+
+// TestEscalate_NoPolicyWithoutEscEngine 无策略 + 无 escEngine 时不报错，仅记时间线。
+func TestEscalate_NoPolicyWithoutEscEngine(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusTriggered)
+	svc := NewService(c, timeline.NewRecorder(c), nil) // 无策略无引擎
+
+	updated, err := svc.Escalate(context.Background(), inc.ID, 0, SourceWeb)
+	if err != nil {
+		t.Fatalf("Escalate without policy/engine: %v", err)
+	}
+	if updated.Status != incident.StatusEscalated {
+		t.Errorf("status: got %s, want escalated", updated.Status)
+	}
+}
+
+// toInt 把 interface{} 转 int（json detail 里数字可能是 float64）。
+func toInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	}
+	return 0, false
+}

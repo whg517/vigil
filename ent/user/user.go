@@ -37,6 +37,8 @@ const (
 	EdgeTeams = "teams"
 	// EdgeRoleBindings holds the string denoting the role_bindings edge name in mutations.
 	EdgeRoleBindings = "role_bindings"
+	// EdgeImBindings holds the string denoting the im_bindings edge name in mutations.
+	EdgeImBindings = "im_bindings"
 	// EdgeAssignedIncidents holds the string denoting the assigned_incidents edge name in mutations.
 	EdgeAssignedIncidents = "assigned_incidents"
 	// EdgeRespondingIncidents holds the string denoting the responding_incidents edge name in mutations.
@@ -57,6 +59,13 @@ const (
 	RoleBindingsInverseTable = "role_bindings"
 	// RoleBindingsColumn is the table column denoting the role_bindings relation/edge.
 	RoleBindingsColumn = "user_role_bindings"
+	// ImBindingsTable is the table that holds the im_bindings relation/edge.
+	ImBindingsTable = "im_account_bindings"
+	// ImBindingsInverseTable is the table name for the IMAccountBinding entity.
+	// It exists in this package in order to avoid circular dependency with the "imaccountbinding" package.
+	ImBindingsInverseTable = "im_account_bindings"
+	// ImBindingsColumn is the table column denoting the im_bindings relation/edge.
+	ImBindingsColumn = "user_im_bindings"
 	// AssignedIncidentsTable is the table that holds the assigned_incidents relation/edge.
 	AssignedIncidentsTable = "incidents"
 	// AssignedIncidentsInverseTable is the table name for the Incident entity.
@@ -227,6 +236,20 @@ func ByRoleBindings(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByImBindingsCount orders the results by im_bindings count.
+func ByImBindingsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newImBindingsStep(), opts...)
+	}
+}
+
+// ByImBindings orders the results by im_bindings terms.
+func ByImBindings(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newImBindingsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByAssignedIncidentsCount orders the results by assigned_incidents count.
 func ByAssignedIncidentsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -280,6 +303,13 @@ func newRoleBindingsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(RoleBindingsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, RoleBindingsTable, RoleBindingsColumn),
+	)
+}
+func newImBindingsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ImBindingsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ImBindingsTable, ImBindingsColumn),
 	)
 }
 func newAssignedIncidentsStep() *sqlgraph.Step {

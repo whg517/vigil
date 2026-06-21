@@ -7,6 +7,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/enttest"
+	"github.com/kevin/vigil/ent/imaccountbinding"
 	"github.com/kevin/vigil/ent/schema"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -101,5 +102,65 @@ func TestBindAccount_Idempotent(t *testing.T) {
 	reloaded, _ := c.User.Get(ctx, u.ID)
 	if len(reloaded.ImAccounts) != 2 {
 		t.Errorf("accounts count: got %d, want 2", len(reloaded.ImAccounts))
+	}
+}
+
+// TestBindAccount_DoubleWrite 验证 BindAccount 双写：独立表 + JSON 字段都有记录，
+// 且独立表查询命中（ResolveUser 优先走表，O(1)）。
+func TestBindAccount_DoubleWrite(t *testing.T) {
+	c := newMapperClient(t)
+	ctx := context.Background()
+	u, err := c.User.Create().SetUsername("db").SetEmail("db@x.com").Save(ctx)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	m := NewMapper(c)
+	if err := m.BindAccount(ctx, u.ID, "feishu", "ou_db"); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+
+	// 独立表应有 1 条
+	cnt, err := c.IMAccountBinding.Query().Count(ctx)
+	if err != nil {
+		t.Fatalf("count bindings: %v", err)
+	}
+	if cnt != 1 {
+		t.Errorf("im_account_bindings count: got %d, want 1", cnt)
+	}
+
+	// ResolveUser 应通过独立表命中（而非 JSON 回退）
+	got, err := m.ResolveUser(ctx, "feishu", "ou_db")
+	if err != nil {
+		t.Fatalf("ResolveUser after bind: %v", err)
+	}
+	if got.ID != u.ID {
+		t.Errorf("resolved user id: got %d, want %d", got.ID, u.ID)
+	}
+}
+
+// TestResolveUser_PrefersTableOverJSON 独立表与 JSON 同时存在时，表结果应被采用。
+// 构造一个仅在独立表有记录（JSON 字段为空）的用户，验证 ResolveUser 命中。
+func TestResolveUser_PrefersTableOverJSON(t *testing.T) {
+	c := newMapperClient(t)
+	ctx := context.Background()
+	u, err := c.User.Create().SetUsername("tableonly").SetEmail("to@x.com").Save(ctx)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	// 仅写独立表（不写 JSON），模拟「新绑定走新表」场景
+	if _, err := c.IMAccountBinding.Create().
+		SetPlatform(imaccountbinding.Platform("feishu")).
+		SetAccountID("ou_table").
+		SetUserID(u.ID).
+		Save(ctx); err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+	m := NewMapper(c)
+	got, err := m.ResolveUser(ctx, "feishu", "ou_table")
+	if err != nil {
+		t.Fatalf("ResolveUser via table only: %v", err)
+	}
+	if got.ID != u.ID {
+		t.Errorf("resolved user id: got %d, want %d", got.ID, u.ID)
 	}
 }

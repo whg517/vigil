@@ -179,6 +179,20 @@ func (_c *IncidentCreate) SetNillableResolvedAt(v *time.Time) *IncidentCreate {
 	return _c
 }
 
+// SetAckedAt sets the "acked_at" field.
+func (_c *IncidentCreate) SetAckedAt(v time.Time) *IncidentCreate {
+	_c.mutation.SetAckedAt(v)
+	return _c
+}
+
+// SetNillableAckedAt sets the "acked_at" field if the given value is not nil.
+func (_c *IncidentCreate) SetNillableAckedAt(v *time.Time) *IncidentCreate {
+	if v != nil {
+		_c.SetAckedAt(*v)
+	}
+	return _c
+}
+
 // SetClosedAt sets the "closed_at" field.
 func (_c *IncidentCreate) SetClosedAt(v time.Time) *IncidentCreate {
 	_c.mutation.SetClosedAt(v)
@@ -590,6 +604,10 @@ func (_c *IncidentCreate) createSpec() (*Incident, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ResolvedAt(); ok {
 		_spec.SetField(incident.FieldResolvedAt, field.TypeTime, value)
 		_node.ResolvedAt = &value
+	}
+	if value, ok := _c.mutation.AckedAt(); ok {
+		_spec.SetField(incident.FieldAckedAt, field.TypeTime, value)
+		_node.AckedAt = &value
 	}
 	if value, ok := _c.mutation.ClosedAt(); ok {
 		_spec.SetField(incident.FieldClosedAt, field.TypeTime, value)

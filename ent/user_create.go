@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/kevin/vigil/ent/imaccountbinding"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/rotation"
@@ -155,6 +156,21 @@ func (_c *UserCreate) AddRoleBindings(v ...*RoleBinding) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddRoleBindingIDs(ids...)
+}
+
+// AddImBindingIDs adds the "im_bindings" edge to the IMAccountBinding entity by IDs.
+func (_c *UserCreate) AddImBindingIDs(ids ...int) *UserCreate {
+	_c.mutation.AddImBindingIDs(ids...)
+	return _c
+}
+
+// AddImBindings adds the "im_bindings" edges to the IMAccountBinding entity.
+func (_c *UserCreate) AddImBindings(v ...*IMAccountBinding) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddImBindingIDs(ids...)
 }
 
 // AddAssignedIncidentIDs adds the "assigned_incidents" edge to the Incident entity by IDs.
@@ -372,6 +388,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(rolebinding.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ImBindingsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ImBindingsTable,
+			Columns: []string{user.ImBindingsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(imaccountbinding.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

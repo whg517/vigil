@@ -17,7 +17,8 @@ type Role struct {
 
 func (Role) Fields() []ent.Field {
 	return []ent.Field{
-		field.String("name").NotEmpty(),
+		// name 唯一：种子幂等 + 业务自定义角色防重名
+		field.String("name").Unique().NotEmpty(),
 		field.Text("description").Optional(),
 		// builtin 是否系统内置（内置可复制不可删）
 		field.Bool("builtin").Default(false),

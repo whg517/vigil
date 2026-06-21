@@ -20,6 +20,8 @@ type Tx struct {
 	EscalationPolicy *EscalationPolicyClient
 	// Event is the client for interacting with the Event builders.
 	Event *EventClient
+	// IMAccountBinding is the client for interacting with the IMAccountBinding builders.
+	IMAccountBinding *IMAccountBindingClient
 	// Incident is the client for interacting with the Incident builders.
 	Incident *IncidentClient
 	// IncidentAction is the client for interacting with the IncidentAction builders.
@@ -185,6 +187,7 @@ func (tx *Tx) init() {
 	tx.ActionItem = NewActionItemClient(tx.config)
 	tx.EscalationPolicy = NewEscalationPolicyClient(tx.config)
 	tx.Event = NewEventClient(tx.config)
+	tx.IMAccountBinding = NewIMAccountBindingClient(tx.config)
 	tx.Incident = NewIncidentClient(tx.config)
 	tx.IncidentAction = NewIncidentActionClient(tx.config)
 	tx.Integration = NewIntegrationClient(tx.config)

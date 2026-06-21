@@ -27,7 +27,7 @@ type User struct {
 	Email string `json:"email,omitempty"`
 	// 电话，用于 SMS/语音
 	Phone string `json:"phone,omitempty"`
-	// IM 账号绑定，支持多平台
+	// IM 账号绑定（JSON，兼容字段；新数据见 im_bindings 表）
 	ImAccounts []schema.IMAccount `json:"im_accounts,omitempty"`
 	// Status holds the value of the "status" field.
 	Status user.Status `json:"status,omitempty"`
@@ -49,6 +49,8 @@ type UserEdges struct {
 	Teams []*Team `json:"teams,omitempty"`
 	// RoleBindings holds the value of the role_bindings edge.
 	RoleBindings []*RoleBinding `json:"role_bindings,omitempty"`
+	// ImBindings holds the value of the im_bindings edge.
+	ImBindings []*IMAccountBinding `json:"im_bindings,omitempty"`
 	// AssignedIncidents holds the value of the assigned_incidents edge.
 	AssignedIncidents []*Incident `json:"assigned_incidents,omitempty"`
 	// RespondingIncidents holds the value of the responding_incidents edge.
@@ -57,7 +59,7 @@ type UserEdges struct {
 	Rotations []*Rotation `json:"rotations,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [5]bool
+	loadedTypes [6]bool
 }
 
 // TeamsOrErr returns the Teams value or an error if the edge
@@ -78,10 +80,19 @@ func (e UserEdges) RoleBindingsOrErr() ([]*RoleBinding, error) {
 	return nil, &NotLoadedError{edge: "role_bindings"}
 }
 
+// ImBindingsOrErr returns the ImBindings value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ImBindingsOrErr() ([]*IMAccountBinding, error) {
+	if e.loadedTypes[2] {
+		return e.ImBindings, nil
+	}
+	return nil, &NotLoadedError{edge: "im_bindings"}
+}
+
 // AssignedIncidentsOrErr returns the AssignedIncidents value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) AssignedIncidentsOrErr() ([]*Incident, error) {
-	if e.loadedTypes[2] {
+	if e.loadedTypes[3] {
 		return e.AssignedIncidents, nil
 	}
 	return nil, &NotLoadedError{edge: "assigned_incidents"}
@@ -90,7 +101,7 @@ func (e UserEdges) AssignedIncidentsOrErr() ([]*Incident, error) {
 // RespondingIncidentsOrErr returns the RespondingIncidents value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) RespondingIncidentsOrErr() ([]*Incident, error) {
-	if e.loadedTypes[3] {
+	if e.loadedTypes[4] {
 		return e.RespondingIncidents, nil
 	}
 	return nil, &NotLoadedError{edge: "responding_incidents"}
@@ -99,7 +110,7 @@ func (e UserEdges) RespondingIncidentsOrErr() ([]*Incident, error) {
 // RotationsOrErr returns the Rotations value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) RotationsOrErr() ([]*Rotation, error) {
-	if e.loadedTypes[4] {
+	if e.loadedTypes[5] {
 		return e.Rotations, nil
 	}
 	return nil, &NotLoadedError{edge: "rotations"}
@@ -216,6 +227,11 @@ func (_m *User) QueryTeams() *TeamQuery {
 // QueryRoleBindings queries the "role_bindings" edge of the User entity.
 func (_m *User) QueryRoleBindings() *RoleBindingQuery {
 	return NewUserClient(_m.config).QueryRoleBindings(_m)
+}
+
+// QueryImBindings queries the "im_bindings" edge of the User entity.
+func (_m *User) QueryImBindings() *IMAccountBindingQuery {
+	return NewUserClient(_m.config).QueryImBindings(_m)
 }
 
 // QueryAssignedIncidents queries the "assigned_incidents" edge of the User entity.

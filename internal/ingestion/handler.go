@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/event"
@@ -235,6 +234,3 @@ type normalizePayload struct {
 	IntegrationID int    `json:"integration_id"`
 	SourceType    string `json:"source_type"`
 }
-
-// 保留 time 引用（后续扩展超时控制用）。
-var _ = time.Now

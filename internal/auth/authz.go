@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/ent/predicate"
 	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/user"
 )
@@ -40,69 +41,79 @@ type AuthzRequest struct {
 }
 
 // Check 检查用户是否拥有某权限。
-// 合并该用户在 org 级 + team 级（指定团队）的所有 RoleBinding 的权限点，
-// 任一授予即通过。考虑 expires_at（过期的不计）。
+// 单次查询该用户所有有效 RoleBinding（SQL 端过滤 user + 过期 + scope），
+// 合并权限集后内存判定，避免对每个权限点重复查询。
 func (a *Authorizer) Check(ctx context.Context, req AuthzRequest) (bool, error) {
-	// 查该用户所有有效（未过期）的 RoleBinding，带 Role
-	q := a.db.RoleBinding.Query().
-		Where(rolebinding.HasUserWith(user.IDEQ(req.UserID))).
-		WithRole()
-
-	// 过滤过期的（expires_at 为 null 或在未来）
-	// ent 的 nillable time 过滤：用 HasExpiresAt + GTE，或用 SQL。
-	// 简化：查全部后在内存过滤（数据量小，可接受）
-	bindings, err := q.All(ctx)
+	permSet, err := a.effectivePermissions(ctx, req.UserID, req.TeamScope)
 	if err != nil {
-		return false, fmt.Errorf("query role bindings: %w", err)
+		return false, err
 	}
-
-	for _, b := range bindings {
-		// 过期检查
-		if b.ExpiresAt != nil && b.ExpiresAt.Before(time.Now()) {
-			continue
-		}
-		// scope 检查：org 级始终生效；team 级仅当与 req.TeamScope 匹配
-		if b.ScopeLevel == rolebinding.ScopeLevelTeam {
-			if req.TeamScope == nil {
-				continue // 请求无团队 scope，team 级绑定不生效
-			}
-			// b.TeamID 是字符串，req.TeamScope 是 *int，比较需转换
-			teamIDStr := fmt.Sprintf("%d", *req.TeamScope)
-			if b.TeamID != teamIDStr {
-				continue // 不同团队，不生效
-			}
-		}
-		// 检查该 Role 的权限点是否包含 req.Permission
-		rl := b.Edges.Role
-		if rl == nil {
-			continue
-		}
-		if hasPermission(rl.Permissions, req.Permission) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return permSet[req.Permission], nil
 }
 
 // CheckAny 批量检查：返回用户在该 scope 下拥有的权限子集（供卡片按权限渲染按钮）。
+// 单次查询合并权限集后内存判定全部 perm，不再对每个 perm 各查一次（消除 N 次全表扫描）。
 func (a *Authorizer) CheckAny(ctx context.Context, userID int, teamScope *int, perms []Permission) (map[Permission]bool, error) {
+	permSet, err := a.effectivePermissions(ctx, userID, teamScope)
+	if err != nil {
+		return nil, err
+	}
 	result := make(map[Permission]bool, len(perms))
 	for _, p := range perms {
-		ok, err := a.Check(ctx, AuthzRequest{UserID: userID, Permission: p, TeamScope: teamScope})
-		if err != nil {
-			return nil, err
-		}
-		result[p] = ok
+		result[p] = permSet[p]
 	}
 	return result, nil
 }
 
-// hasPermission 检查权限点列表是否包含某权限。
-func hasPermission(perms []string, want Permission) bool {
-	for _, p := range perms {
-		if Permission(p) == want {
-			return true
+// effectivePermissions 一次性查询用户在指定 scope 下所有有效 RoleBinding，
+// 合并它们的权限点为集合返回。
+//
+// SQL 端过滤（减少传输与内存遍历）：
+//   - user 匹配；
+//   - 未过期：expires_at 为 nil 或 >= now；
+//   - scope 生效：org 级始终生效；team 级需匹配 teamScope。
+//
+// 返回的 map 作为 Check/CheckAny 的内存判定基础，O(1) 命中。
+func (a *Authorizer) effectivePermissions(ctx context.Context, userID int, teamScope *int) (map[Permission]bool, error) {
+	now := time.Now()
+	preds := []predicate.RoleBinding{
+		rolebinding.HasUserWith(user.IDEQ(userID)),
+		// 未过期：expires_at 为 nil 或在未来
+		rolebinding.Or(rolebinding.ExpiresAtIsNil(), rolebinding.ExpiresAtGTE(now)),
+	}
+
+	// scope 过滤：org 级始终生效，team 级仅当与 teamScope 匹配。
+	// 无 teamScope 时只取 org 级（team 级 binding 不生效）。
+	scopePreds := []predicate.RoleBinding{
+		rolebinding.ScopeLevelEQ(rolebinding.ScopeLevelOrg),
+	}
+	if teamScope != nil {
+		teamIDStr := fmt.Sprintf("%d", *teamScope)
+		scopePreds = append(scopePreds, rolebinding.And(
+			rolebinding.ScopeLevelEQ(rolebinding.ScopeLevelTeam),
+			rolebinding.TeamIDEQ(teamIDStr),
+		))
+	}
+	preds = append(preds, rolebinding.Or(scopePreds...))
+
+	bindings, err := a.db.RoleBinding.Query().
+		Where(preds...).
+		WithRole().
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query role bindings: %w", err)
+	}
+
+	// 合并所有有效 binding 的 Role 权限点（并集）
+	permSet := make(map[Permission]bool)
+	for _, b := range bindings {
+		rl := b.Edges.Role
+		if rl == nil {
+			continue
+		}
+		for _, p := range rl.Permissions {
+			permSet[Permission(p)] = true
 		}
 	}
-	return false
+	return permSet, nil
 }

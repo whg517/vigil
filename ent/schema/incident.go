@@ -40,6 +40,8 @@ func (Incident) Fields() []ent.Field {
 		// war_room 作战室信息
 		field.JSON("war_room", map[string]any{}).Optional().Comment("作战室：im_platform/im_channel_id/created_at"),
 		field.Time("resolved_at").Optional().Nillable(),
+		// acked_at 确认时间（真实 MTTA = acked_at - created_at）。Nullable 表示未确认。
+		field.Time("acked_at").Optional().Nillable().Comment("确认时间，MTTA 计算"),
 		field.Time("closed_at").Optional().Nillable(),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),

@@ -57,6 +57,18 @@ func (f EventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EventMutation", m)
 }
 
+// The IMAccountBindingFunc type is an adapter to allow the use of ordinary
+// function as IMAccountBinding mutator.
+type IMAccountBindingFunc func(context.Context, *ent.IMAccountBindingMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IMAccountBindingFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IMAccountBindingMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IMAccountBindingMutation", m)
+}
+
 // The IncidentFunc type is an adapter to allow the use of ordinary
 // function as Incident mutator.
 type IncidentFunc func(context.Context, *ent.IncidentMutation) (ent.Value, error)

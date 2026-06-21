@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
+	"github.com/kevin/vigil/ent/imaccountbinding"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/predicate"
 	"github.com/kevin/vigil/ent/rolebinding"
@@ -184,6 +185,21 @@ func (_u *UserUpdate) AddRoleBindings(v ...*RoleBinding) *UserUpdate {
 	return _u.AddRoleBindingIDs(ids...)
 }
 
+// AddImBindingIDs adds the "im_bindings" edge to the IMAccountBinding entity by IDs.
+func (_u *UserUpdate) AddImBindingIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddImBindingIDs(ids...)
+	return _u
+}
+
+// AddImBindings adds the "im_bindings" edges to the IMAccountBinding entity.
+func (_u *UserUpdate) AddImBindings(v ...*IMAccountBinding) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddImBindingIDs(ids...)
+}
+
 // AddAssignedIncidentIDs adds the "assigned_incidents" edge to the Incident entity by IDs.
 func (_u *UserUpdate) AddAssignedIncidentIDs(ids ...int) *UserUpdate {
 	_u.mutation.AddAssignedIncidentIDs(ids...)
@@ -274,6 +290,27 @@ func (_u *UserUpdate) RemoveRoleBindings(v ...*RoleBinding) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveRoleBindingIDs(ids...)
+}
+
+// ClearImBindings clears all "im_bindings" edges to the IMAccountBinding entity.
+func (_u *UserUpdate) ClearImBindings() *UserUpdate {
+	_u.mutation.ClearImBindings()
+	return _u
+}
+
+// RemoveImBindingIDs removes the "im_bindings" edge to IMAccountBinding entities by IDs.
+func (_u *UserUpdate) RemoveImBindingIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemoveImBindingIDs(ids...)
+	return _u
+}
+
+// RemoveImBindings removes "im_bindings" edges to IMAccountBinding entities.
+func (_u *UserUpdate) RemoveImBindings(v ...*IMAccountBinding) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveImBindingIDs(ids...)
 }
 
 // ClearAssignedIncidents clears all "assigned_incidents" edges to the Incident entity.
@@ -523,6 +560,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(rolebinding.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ImBindingsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ImBindingsTable,
+			Columns: []string{user.ImBindingsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(imaccountbinding.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedImBindingsIDs(); len(nodes) > 0 && !_u.mutation.ImBindingsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ImBindingsTable,
+			Columns: []string{user.ImBindingsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(imaccountbinding.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ImBindingsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ImBindingsTable,
+			Columns: []string{user.ImBindingsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(imaccountbinding.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -835,6 +917,21 @@ func (_u *UserUpdateOne) AddRoleBindings(v ...*RoleBinding) *UserUpdateOne {
 	return _u.AddRoleBindingIDs(ids...)
 }
 
+// AddImBindingIDs adds the "im_bindings" edge to the IMAccountBinding entity by IDs.
+func (_u *UserUpdateOne) AddImBindingIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddImBindingIDs(ids...)
+	return _u
+}
+
+// AddImBindings adds the "im_bindings" edges to the IMAccountBinding entity.
+func (_u *UserUpdateOne) AddImBindings(v ...*IMAccountBinding) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddImBindingIDs(ids...)
+}
+
 // AddAssignedIncidentIDs adds the "assigned_incidents" edge to the Incident entity by IDs.
 func (_u *UserUpdateOne) AddAssignedIncidentIDs(ids ...int) *UserUpdateOne {
 	_u.mutation.AddAssignedIncidentIDs(ids...)
@@ -925,6 +1022,27 @@ func (_u *UserUpdateOne) RemoveRoleBindings(v ...*RoleBinding) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveRoleBindingIDs(ids...)
+}
+
+// ClearImBindings clears all "im_bindings" edges to the IMAccountBinding entity.
+func (_u *UserUpdateOne) ClearImBindings() *UserUpdateOne {
+	_u.mutation.ClearImBindings()
+	return _u
+}
+
+// RemoveImBindingIDs removes the "im_bindings" edge to IMAccountBinding entities by IDs.
+func (_u *UserUpdateOne) RemoveImBindingIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemoveImBindingIDs(ids...)
+	return _u
+}
+
+// RemoveImBindings removes "im_bindings" edges to IMAccountBinding entities.
+func (_u *UserUpdateOne) RemoveImBindings(v ...*IMAccountBinding) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveImBindingIDs(ids...)
 }
 
 // ClearAssignedIncidents clears all "assigned_incidents" edges to the Incident entity.
@@ -1204,6 +1322,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(rolebinding.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ImBindingsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ImBindingsTable,
+			Columns: []string{user.ImBindingsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(imaccountbinding.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedImBindingsIDs(); len(nodes) > 0 && !_u.mutation.ImBindingsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ImBindingsTable,
+			Columns: []string{user.ImBindingsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(imaccountbinding.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ImBindingsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ImBindingsTable,
+			Columns: []string{user.ImBindingsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(imaccountbinding.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

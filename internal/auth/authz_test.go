@@ -200,3 +200,54 @@ func TestPermission_IsValid(t *testing.T) {
 		}
 	}
 }
+
+// TestCheckAny_BatchSingleQuery 验证 CheckAny 一次查询批量返回权限子集，
+// 且多角色权限并集正确（org + team 合并）。
+// 这是性能优化的核心：原实现对每个 perm 各查一次（N 次全表扫描），
+// 现在合并为一次查询。
+func TestCheckAny_BatchSingleQuery(t *testing.T) {
+	c := newTestClient(t)
+	u := seedUser(t, c)
+	// org 级：view + create
+	rlOrg := createRoleWithPerms(t, c, "org2", role.ScopeLevelOrg, []string{
+		string(PermIncidentView), string(PermIncidentCreate),
+	})
+	bind(t, c, u.ID, rlOrg.ID, rolebinding.ScopeLevelOrg, "", nil)
+	// team 级：ack
+	rlTeam := createRoleWithPerms(t, c, "team2", role.ScopeLevelTeam, []string{string(PermIncidentAck)})
+	bind(t, c, u.ID, rlTeam.ID, rolebinding.ScopeLevelTeam, "7", nil)
+
+	authz := NewAuthorizer(c)
+	team7 := 7
+	// 批量查询 4 个权限：3 个应通过（并集），1 个拒绝
+	perms := []Permission{PermIncidentView, PermIncidentCreate, PermIncidentAck, PermIncidentDelete}
+	got, err := authz.CheckAny(context.Background(), u.ID, &team7, perms)
+	if err != nil {
+		t.Fatalf("CheckAny: %v", err)
+	}
+	want := map[Permission]bool{
+		PermIncidentView:   true,
+		PermIncidentCreate: true,
+		PermIncidentAck:    true,
+		PermIncidentDelete: false, // 无角色授予
+	}
+	for p, w := range want {
+		if got[p] != w {
+			t.Errorf("CheckAny[%s]: got %v, want %v", p, got[p], w)
+		}
+	}
+}
+
+// TestCheckAny_EmptyPerms 空权限列表不报错，返回空 map。
+func TestCheckAny_EmptyPerms(t *testing.T) {
+	c := newTestClient(t)
+	u := seedUser(t, c)
+	authz := NewAuthorizer(c)
+	got, err := authz.CheckAny(context.Background(), u.ID, nil, nil)
+	if err != nil {
+		t.Fatalf("CheckAny empty: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("empty perms should return empty map, got %d", len(got))
+	}
+}

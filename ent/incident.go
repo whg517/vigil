@@ -49,6 +49,8 @@ type Incident struct {
 	WarRoom map[string]interface{} `json:"war_room,omitempty"`
 	// ResolvedAt holds the value of the "resolved_at" field.
 	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
+	// 确认时间，MTTA 计算
+	AckedAt *time.Time `json:"acked_at,omitempty"`
 	// ClosedAt holds the value of the "closed_at" field.
 	ClosedAt *time.Time `json:"closed_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -203,7 +205,7 @@ func (*Incident) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case incident.FieldNumber, incident.FieldTitle, incident.FieldSeverity, incident.FieldStatus, incident.FieldPriority, incident.FieldSummary, incident.FieldMergedInto, incident.FieldTriggerType, incident.FieldTriggerSourceEventID:
 			values[i] = new(sql.NullString)
-		case incident.FieldResolvedAt, incident.FieldClosedAt, incident.FieldCreatedAt, incident.FieldUpdatedAt:
+		case incident.FieldResolvedAt, incident.FieldAckedAt, incident.FieldClosedAt, incident.FieldCreatedAt, incident.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		case incident.ForeignKeys[0]: // escalation_policy_incidents
 			values[i] = new(sql.NullInt64)
@@ -314,6 +316,13 @@ func (_m *Incident) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ResolvedAt = new(time.Time)
 				*_m.ResolvedAt = value.Time
+			}
+		case incident.FieldAckedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field acked_at", values[i])
+			} else if value.Valid {
+				_m.AckedAt = new(time.Time)
+				*_m.AckedAt = value.Time
 			}
 		case incident.FieldClosedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -486,6 +495,11 @@ func (_m *Incident) String() string {
 	builder.WriteString(", ")
 	if v := _m.ResolvedAt; v != nil {
 		builder.WriteString("resolved_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.AckedAt; v != nil {
+		builder.WriteString("acked_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
 	builder.WriteString(", ")

@@ -1,6 +1,11 @@
 package feishu
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -221,5 +226,69 @@ func TestVerifyCallback_Plaintext(t *testing.T) {
 	}
 	if string(out) != string(body) {
 		t.Error("plaintext body should pass through unchanged")
+	}
+}
+
+// encryptForTest 镜像 decrypt 的加密过程，供测试构造合法/篡改密文。
+// 输出 base64 编码的 [prefix(16)] + [AES-CBC(key,iv=0,plain+pkcs7)] + [sig(32)]。
+func encryptForTest(plain []byte, encryptKey string) string {
+	keyHash := sha256.Sum256([]byte(encryptKey))
+	block, _ := aes.NewCipher(keyHash[:])
+	// PKCS7 填充
+	bs := block.BlockSize()
+	pad := bs - len(plain)%bs
+	padded := append(plain, bytes.Repeat([]byte{byte(pad)}, pad)...)
+	// IV 全零
+	iv := make([]byte, bs)
+	enc := cipher.NewCBCEncrypter(block, iv)
+	ct := make([]byte, len(padded))
+	enc.CryptBlocks(ct, padded)
+	// 随机前缀 16 字节（测试用固定值，飞书本身用随机）
+	prefix := bytes.Repeat([]byte{0xAA}, 16)
+	// 签名 = sha256(key + prefix + cipher)
+	sigBuf := sha256.Sum256(append(append(keyHash[:], prefix...), ct...))
+	full := append(append(prefix, ct...), sigBuf[:]...)
+	return base64.StdEncoding.EncodeToString(full)
+}
+
+// TestDecrypt_ValidSignature 合法密文 + 签名正确 → 解密成功。
+func TestDecrypt_ValidSignature(t *testing.T) {
+	key := "test_encrypt_key_123"
+	plain := []byte(`{"challenge":"abc","token":"t"}`)
+	enc := encryptForTest(plain, key)
+
+	got, err := decrypt(enc, key)
+	if err != nil {
+		t.Fatalf("decrypt: %v", err)
+	}
+	if string(got) != string(plain) {
+		t.Errorf("decrypted: got %q, want %q", got, plain)
+	}
+}
+
+// TestDecrypt_TamperedSignature 篡改密文后签名不匹配 → 拒绝（防伪造）。
+func TestDecrypt_TamperedSignature(t *testing.T) {
+	key := "test_encrypt_key_123"
+	enc := encryptForTest([]byte(`{"x":1}`), key)
+
+	raw, _ := base64.StdEncoding.DecodeString(enc)
+	// 翻转最后签名区一字节
+	raw[len(raw)-1] ^= 0xFF
+	tampered := base64.StdEncoding.EncodeToString(raw)
+
+	_, err := decrypt(tampered, key)
+	if err == nil {
+		t.Fatal("tampered signature should be rejected")
+	}
+	if !strings.Contains(err.Error(), "signature mismatch") {
+		t.Errorf("error should mention signature mismatch, got: %v", err)
+	}
+}
+
+// TestDecrypt_WrongKey 用错误 key 解密 → 签名不匹配拒绝。
+func TestDecrypt_WrongKey(t *testing.T) {
+	enc := encryptForTest([]byte(`{"x":1}`), "right_key")
+	if _, err := decrypt(enc, "wrong_key"); err == nil {
+		t.Fatal("wrong key should fail signature verification")
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
+	"github.com/kevin/vigil/ent/imaccountbinding"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
@@ -47,6 +48,7 @@ const (
 	TypeActionItem       = "ActionItem"
 	TypeEscalationPolicy = "EscalationPolicy"
 	TypeEvent            = "Event"
+	TypeIMAccountBinding = "IMAccountBinding"
 	TypeIncident         = "Incident"
 	TypeIncidentAction   = "IncidentAction"
 	TypeIntegration      = "Integration"
@@ -3691,6 +3693,507 @@ func (m *EventMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Event edge %s", name)
 }
 
+// IMAccountBindingMutation represents an operation that mutates the IMAccountBinding nodes in the graph.
+type IMAccountBindingMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	platform      *imaccountbinding.Platform
+	account_id    *string
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	user          *int
+	cleareduser   bool
+	done          bool
+	oldValue      func(context.Context) (*IMAccountBinding, error)
+	predicates    []predicate.IMAccountBinding
+}
+
+var _ ent.Mutation = (*IMAccountBindingMutation)(nil)
+
+// imaccountbindingOption allows management of the mutation configuration using functional options.
+type imaccountbindingOption func(*IMAccountBindingMutation)
+
+// newIMAccountBindingMutation creates new mutation for the IMAccountBinding entity.
+func newIMAccountBindingMutation(c config, op Op, opts ...imaccountbindingOption) *IMAccountBindingMutation {
+	m := &IMAccountBindingMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeIMAccountBinding,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withIMAccountBindingID sets the ID field of the mutation.
+func withIMAccountBindingID(id int) imaccountbindingOption {
+	return func(m *IMAccountBindingMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *IMAccountBinding
+		)
+		m.oldValue = func(ctx context.Context) (*IMAccountBinding, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().IMAccountBinding.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withIMAccountBinding sets the old IMAccountBinding of the mutation.
+func withIMAccountBinding(node *IMAccountBinding) imaccountbindingOption {
+	return func(m *IMAccountBindingMutation) {
+		m.oldValue = func(context.Context) (*IMAccountBinding, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m IMAccountBindingMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m IMAccountBindingMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *IMAccountBindingMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *IMAccountBindingMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().IMAccountBinding.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetPlatform sets the "platform" field.
+func (m *IMAccountBindingMutation) SetPlatform(i imaccountbinding.Platform) {
+	m.platform = &i
+}
+
+// Platform returns the value of the "platform" field in the mutation.
+func (m *IMAccountBindingMutation) Platform() (r imaccountbinding.Platform, exists bool) {
+	v := m.platform
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPlatform returns the old "platform" field's value of the IMAccountBinding entity.
+// If the IMAccountBinding object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMAccountBindingMutation) OldPlatform(ctx context.Context) (v imaccountbinding.Platform, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPlatform is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPlatform requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPlatform: %w", err)
+	}
+	return oldValue.Platform, nil
+}
+
+// ResetPlatform resets all changes to the "platform" field.
+func (m *IMAccountBindingMutation) ResetPlatform() {
+	m.platform = nil
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *IMAccountBindingMutation) SetAccountID(s string) {
+	m.account_id = &s
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *IMAccountBindingMutation) AccountID() (r string, exists bool) {
+	v := m.account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountID returns the old "account_id" field's value of the IMAccountBinding entity.
+// If the IMAccountBinding object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMAccountBindingMutation) OldAccountID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountID: %w", err)
+	}
+	return oldValue.AccountID, nil
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *IMAccountBindingMutation) ResetAccountID() {
+	m.account_id = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *IMAccountBindingMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *IMAccountBindingMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the IMAccountBinding entity.
+// If the IMAccountBinding object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IMAccountBindingMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *IMAccountBindingMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUserID sets the "user" edge to the User entity by id.
+func (m *IMAccountBindingMutation) SetUserID(id int) {
+	m.user = &id
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *IMAccountBindingMutation) ClearUser() {
+	m.cleareduser = true
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *IMAccountBindingMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserID returns the "user" edge ID in the mutation.
+func (m *IMAccountBindingMutation) UserID() (id int, exists bool) {
+	if m.user != nil {
+		return *m.user, true
+	}
+	return
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *IMAccountBindingMutation) UserIDs() (ids []int) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *IMAccountBindingMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the IMAccountBindingMutation builder.
+func (m *IMAccountBindingMutation) Where(ps ...predicate.IMAccountBinding) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the IMAccountBindingMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *IMAccountBindingMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.IMAccountBinding, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *IMAccountBindingMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *IMAccountBindingMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (IMAccountBinding).
+func (m *IMAccountBindingMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *IMAccountBindingMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.platform != nil {
+		fields = append(fields, imaccountbinding.FieldPlatform)
+	}
+	if m.account_id != nil {
+		fields = append(fields, imaccountbinding.FieldAccountID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, imaccountbinding.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *IMAccountBindingMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case imaccountbinding.FieldPlatform:
+		return m.Platform()
+	case imaccountbinding.FieldAccountID:
+		return m.AccountID()
+	case imaccountbinding.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *IMAccountBindingMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case imaccountbinding.FieldPlatform:
+		return m.OldPlatform(ctx)
+	case imaccountbinding.FieldAccountID:
+		return m.OldAccountID(ctx)
+	case imaccountbinding.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown IMAccountBinding field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IMAccountBindingMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case imaccountbinding.FieldPlatform:
+		v, ok := value.(imaccountbinding.Platform)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPlatform(v)
+		return nil
+	case imaccountbinding.FieldAccountID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case imaccountbinding.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IMAccountBinding field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *IMAccountBindingMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *IMAccountBindingMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IMAccountBindingMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown IMAccountBinding numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *IMAccountBindingMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *IMAccountBindingMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *IMAccountBindingMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown IMAccountBinding nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *IMAccountBindingMutation) ResetField(name string) error {
+	switch name {
+	case imaccountbinding.FieldPlatform:
+		m.ResetPlatform()
+		return nil
+	case imaccountbinding.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case imaccountbinding.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown IMAccountBinding field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *IMAccountBindingMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, imaccountbinding.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *IMAccountBindingMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case imaccountbinding.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *IMAccountBindingMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *IMAccountBindingMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *IMAccountBindingMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, imaccountbinding.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *IMAccountBindingMutation) EdgeCleared(name string) bool {
+	switch name {
+	case imaccountbinding.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *IMAccountBindingMutation) ClearEdge(name string) error {
+	switch name {
+	case imaccountbinding.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown IMAccountBinding unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *IMAccountBindingMutation) ResetEdge(name string) error {
+	switch name {
+	case imaccountbinding.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown IMAccountBinding edge %s", name)
+}
+
 // IncidentMutation represents an operation that mutates the Incident nodes in the graph.
 type IncidentMutation struct {
 	config
@@ -3712,6 +4215,7 @@ type IncidentMutation struct {
 	trigger_source_event_id  *string
 	war_room                 *map[string]interface{}
 	resolved_at              *time.Time
+	acked_at                 *time.Time
 	closed_at                *time.Time
 	created_at               *time.Time
 	updated_at               *time.Time
@@ -4417,6 +4921,55 @@ func (m *IncidentMutation) ResetResolvedAt() {
 	delete(m.clearedFields, incident.FieldResolvedAt)
 }
 
+// SetAckedAt sets the "acked_at" field.
+func (m *IncidentMutation) SetAckedAt(t time.Time) {
+	m.acked_at = &t
+}
+
+// AckedAt returns the value of the "acked_at" field in the mutation.
+func (m *IncidentMutation) AckedAt() (r time.Time, exists bool) {
+	v := m.acked_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAckedAt returns the old "acked_at" field's value of the Incident entity.
+// If the Incident object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IncidentMutation) OldAckedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAckedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAckedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAckedAt: %w", err)
+	}
+	return oldValue.AckedAt, nil
+}
+
+// ClearAckedAt clears the value of the "acked_at" field.
+func (m *IncidentMutation) ClearAckedAt() {
+	m.acked_at = nil
+	m.clearedFields[incident.FieldAckedAt] = struct{}{}
+}
+
+// AckedAtCleared returns if the "acked_at" field was cleared in this mutation.
+func (m *IncidentMutation) AckedAtCleared() bool {
+	_, ok := m.clearedFields[incident.FieldAckedAt]
+	return ok
+}
+
+// ResetAckedAt resets all changes to the "acked_at" field.
+func (m *IncidentMutation) ResetAckedAt() {
+	m.acked_at = nil
+	delete(m.clearedFields, incident.FieldAckedAt)
+}
+
 // SetClosedAt sets the "closed_at" field.
 func (m *IncidentMutation) SetClosedAt(t time.Time) {
 	m.closed_at = &t
@@ -5037,7 +5590,7 @@ func (m *IncidentMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *IncidentMutation) Fields() []string {
-	fields := make([]string, 0, 16)
+	fields := make([]string, 0, 17)
 	if m.number != nil {
 		fields = append(fields, incident.FieldNumber)
 	}
@@ -5076,6 +5629,9 @@ func (m *IncidentMutation) Fields() []string {
 	}
 	if m.resolved_at != nil {
 		fields = append(fields, incident.FieldResolvedAt)
+	}
+	if m.acked_at != nil {
+		fields = append(fields, incident.FieldAckedAt)
 	}
 	if m.closed_at != nil {
 		fields = append(fields, incident.FieldClosedAt)
@@ -5120,6 +5676,8 @@ func (m *IncidentMutation) Field(name string) (ent.Value, bool) {
 		return m.WarRoom()
 	case incident.FieldResolvedAt:
 		return m.ResolvedAt()
+	case incident.FieldAckedAt:
+		return m.AckedAt()
 	case incident.FieldClosedAt:
 		return m.ClosedAt()
 	case incident.FieldCreatedAt:
@@ -5161,6 +5719,8 @@ func (m *IncidentMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldWarRoom(ctx)
 	case incident.FieldResolvedAt:
 		return m.OldResolvedAt(ctx)
+	case incident.FieldAckedAt:
+		return m.OldAckedAt(ctx)
 	case incident.FieldClosedAt:
 		return m.OldClosedAt(ctx)
 	case incident.FieldCreatedAt:
@@ -5267,6 +5827,13 @@ func (m *IncidentMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetResolvedAt(v)
 		return nil
+	case incident.FieldAckedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAckedAt(v)
+		return nil
 	case incident.FieldClosedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -5360,6 +5927,9 @@ func (m *IncidentMutation) ClearedFields() []string {
 	if m.FieldCleared(incident.FieldResolvedAt) {
 		fields = append(fields, incident.FieldResolvedAt)
 	}
+	if m.FieldCleared(incident.FieldAckedAt) {
+		fields = append(fields, incident.FieldAckedAt)
+	}
 	if m.FieldCleared(incident.FieldClosedAt) {
 		fields = append(fields, incident.FieldClosedAt)
 	}
@@ -5391,6 +5961,9 @@ func (m *IncidentMutation) ClearField(name string) error {
 		return nil
 	case incident.FieldResolvedAt:
 		m.ClearResolvedAt()
+		return nil
+	case incident.FieldAckedAt:
+		m.ClearAckedAt()
 		return nil
 	case incident.FieldClosedAt:
 		m.ClearClosedAt()
@@ -5441,6 +6014,9 @@ func (m *IncidentMutation) ResetField(name string) error {
 		return nil
 	case incident.FieldResolvedAt:
 		m.ResetResolvedAt()
+		return nil
+	case incident.FieldAckedAt:
+		m.ResetAckedAt()
 		return nil
 	case incident.FieldClosedAt:
 		m.ResetClosedAt()
@@ -17434,6 +18010,9 @@ type UserMutation struct {
 	role_bindings               map[int]struct{}
 	removedrole_bindings        map[int]struct{}
 	clearedrole_bindings        bool
+	im_bindings                 map[int]struct{}
+	removedim_bindings          map[int]struct{}
+	clearedim_bindings          bool
 	assigned_incidents          map[int]struct{}
 	removedassigned_incidents   map[int]struct{}
 	clearedassigned_incidents   bool
@@ -18033,6 +18612,60 @@ func (m *UserMutation) ResetRoleBindings() {
 	m.removedrole_bindings = nil
 }
 
+// AddImBindingIDs adds the "im_bindings" edge to the IMAccountBinding entity by ids.
+func (m *UserMutation) AddImBindingIDs(ids ...int) {
+	if m.im_bindings == nil {
+		m.im_bindings = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.im_bindings[ids[i]] = struct{}{}
+	}
+}
+
+// ClearImBindings clears the "im_bindings" edge to the IMAccountBinding entity.
+func (m *UserMutation) ClearImBindings() {
+	m.clearedim_bindings = true
+}
+
+// ImBindingsCleared reports if the "im_bindings" edge to the IMAccountBinding entity was cleared.
+func (m *UserMutation) ImBindingsCleared() bool {
+	return m.clearedim_bindings
+}
+
+// RemoveImBindingIDs removes the "im_bindings" edge to the IMAccountBinding entity by IDs.
+func (m *UserMutation) RemoveImBindingIDs(ids ...int) {
+	if m.removedim_bindings == nil {
+		m.removedim_bindings = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.im_bindings, ids[i])
+		m.removedim_bindings[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedImBindings returns the removed IDs of the "im_bindings" edge to the IMAccountBinding entity.
+func (m *UserMutation) RemovedImBindingsIDs() (ids []int) {
+	for id := range m.removedim_bindings {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ImBindingsIDs returns the "im_bindings" edge IDs in the mutation.
+func (m *UserMutation) ImBindingsIDs() (ids []int) {
+	for id := range m.im_bindings {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetImBindings resets all changes to the "im_bindings" edge.
+func (m *UserMutation) ResetImBindings() {
+	m.im_bindings = nil
+	m.clearedim_bindings = false
+	m.removedim_bindings = nil
+}
+
 // AddAssignedIncidentIDs adds the "assigned_incidents" edge to the Incident entity by ids.
 func (m *UserMutation) AddAssignedIncidentIDs(ids ...int) {
 	if m.assigned_incidents == nil {
@@ -18485,12 +19118,15 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.teams != nil {
 		edges = append(edges, user.EdgeTeams)
 	}
 	if m.role_bindings != nil {
 		edges = append(edges, user.EdgeRoleBindings)
+	}
+	if m.im_bindings != nil {
+		edges = append(edges, user.EdgeImBindings)
 	}
 	if m.assigned_incidents != nil {
 		edges = append(edges, user.EdgeAssignedIncidents)
@@ -18520,6 +19156,12 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeImBindings:
+		ids := make([]ent.Value, 0, len(m.im_bindings))
+		for id := range m.im_bindings {
+			ids = append(ids, id)
+		}
+		return ids
 	case user.EdgeAssignedIncidents:
 		ids := make([]ent.Value, 0, len(m.assigned_incidents))
 		for id := range m.assigned_incidents {
@@ -18544,12 +19186,15 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.removedteams != nil {
 		edges = append(edges, user.EdgeTeams)
 	}
 	if m.removedrole_bindings != nil {
 		edges = append(edges, user.EdgeRoleBindings)
+	}
+	if m.removedim_bindings != nil {
+		edges = append(edges, user.EdgeImBindings)
 	}
 	if m.removedassigned_incidents != nil {
 		edges = append(edges, user.EdgeAssignedIncidents)
@@ -18579,6 +19224,12 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeImBindings:
+		ids := make([]ent.Value, 0, len(m.removedim_bindings))
+		for id := range m.removedim_bindings {
+			ids = append(ids, id)
+		}
+		return ids
 	case user.EdgeAssignedIncidents:
 		ids := make([]ent.Value, 0, len(m.removedassigned_incidents))
 		for id := range m.removedassigned_incidents {
@@ -18603,12 +19254,15 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.clearedteams {
 		edges = append(edges, user.EdgeTeams)
 	}
 	if m.clearedrole_bindings {
 		edges = append(edges, user.EdgeRoleBindings)
+	}
+	if m.clearedim_bindings {
+		edges = append(edges, user.EdgeImBindings)
 	}
 	if m.clearedassigned_incidents {
 		edges = append(edges, user.EdgeAssignedIncidents)
@@ -18630,6 +19284,8 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearedteams
 	case user.EdgeRoleBindings:
 		return m.clearedrole_bindings
+	case user.EdgeImBindings:
+		return m.clearedim_bindings
 	case user.EdgeAssignedIncidents:
 		return m.clearedassigned_incidents
 	case user.EdgeRespondingIncidents:
@@ -18657,6 +19313,9 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgeRoleBindings:
 		m.ResetRoleBindings()
+		return nil
+	case user.EdgeImBindings:
+		m.ResetImBindings()
 		return nil
 	case user.EdgeAssignedIncidents:
 		m.ResetAssignedIncidents()

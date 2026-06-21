@@ -1,9 +1,10 @@
 module github.com/kevin/vigil
 
-go 1.26.4
+go 1.25.0
 
 require (
 	entgo.io/ent v0.14.6
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/hibiken/asynq v0.26.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/labstack/echo/v4 v4.15.4
@@ -39,6 +40,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/zclconf/go-cty v1.14.4 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect

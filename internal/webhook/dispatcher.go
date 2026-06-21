@@ -6,7 +6,8 @@
 //
 // 实现：Dispatcher 监听 incident.Service 的 OnIncidentChanged 回调，
 // 把变更事件 POST 给所有订阅 URL（配置式，后续可扩展为动态订阅表）。
-// 失败不阻塞主流程（异步推送 + 退避，避免拖慢 ack/resolve）。
+// 推送真异步（独立 goroutine + 独立 context），不阻塞主流程；
+// Close() 等待在途推送完成，供优雅关闭调用。
 package webhook
 
 import (
@@ -27,6 +28,7 @@ import (
 type Dispatcher struct {
 	urls   []string // 订阅 URL 列表（配置式）
 	client *http.Client
+	wg     sync.WaitGroup // 跟踪在途推送 goroutine，供 Close 等待
 }
 
 // NewDispatcher 创建分发器。urls 为订阅 URL 列表（空则不推送）。
@@ -41,12 +43,12 @@ func NewDispatcher(urls []string) *Dispatcher {
 func (d *Dispatcher) HasSubscriptions() bool { return len(d.urls) > 0 }
 
 // OnIncidentChanged 实现 incident 变更回调（供 incident.Service.SetOnIncidentChanged 注入）。
-// 异步推送，不阻塞主流程。
-func (d *Dispatcher) OnIncidentChanged(ctx context.Context, inc *ent.Incident, action incident.Action) {
+// 真异步推送：每个 URL 独立 goroutine，使用独立 context（脱离请求 ctx，
+// 避免请求结束 ctx 取消导致推送中断）。返回不等待推送完成，由 Close() 等待。
+func (d *Dispatcher) OnIncidentChanged(_ context.Context, inc *ent.Incident, action incident.Action) {
 	if !d.HasSubscriptions() {
 		return
 	}
-	// 构造事件 payload
 	payload := map[string]any{
 		"event":       fmt.Sprintf("incident.%s", action),
 		"incident_id": inc.ID,
@@ -59,17 +61,20 @@ func (d *Dispatcher) OnIncidentChanged(ctx context.Context, inc *ent.Incident, a
 	}
 	body, _ := json.Marshal(payload)
 
-	// 异步推送（每个 URL 独立 goroutine，互不阻塞）
-	var wg sync.WaitGroup
+	// 每个 URL 独立 goroutine 推送，wg 跟踪以便 Close 等待
 	for _, u := range d.urls {
-		wg.Add(1)
+		d.wg.Add(1)
 		go func(url string) {
-			defer wg.Done()
-			d.push(ctx, url, body)
+			defer d.wg.Done()
+			// 用独立 context.Background()，不被请求生命周期绑定
+			d.push(context.Background(), url, body)
 		}(u)
 	}
-	// 不等待全部完成即返回（真正异步）；测试时可 Wait
-	wg.Wait()
+}
+
+// Close 等待所有在途推送完成。供优雅关闭调用（main.go shutdown 时）。
+func (d *Dispatcher) Close() {
+	d.wg.Wait()
 }
 
 // push 推送单个 URL（含重试）。
@@ -87,7 +92,10 @@ func (d *Dispatcher) push(ctx context.Context, url string, body []byte) {
 		resp, err := d.client.Do(req)
 		if err != nil {
 			lastErr = err
-			time.Sleep(time.Duration(attempt+1) * time.Second) // 退避
+			// 退避：线性（1s, 2s, 3s），可被 ctx 取消
+			if !sleepWithContext(ctx, time.Duration(attempt+1)*time.Second) {
+				return
+			}
 			continue
 		}
 		_ = resp.Body.Close()
@@ -100,4 +108,16 @@ func (d *Dispatcher) push(ctx context.Context, url string, body []byte) {
 	// 全部失败：记埋点，不阻塞主流程
 	metrics.NotificationsSent.WithLabelValues("webhook_out", "failed").Inc()
 	_ = lastErr
+}
+
+// sleepWithContext 可被 ctx 取消的 sleep，返回 false 表示被取消。
+func sleepWithContext(ctx context.Context, d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }

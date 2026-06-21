@@ -57,7 +57,9 @@ func main() {
 		return
 	}
 	if err := run(); err != nil {
-		panic(err)
+		// 用 os.Exit 而非 panic：避免栈追踪泄露到 stderr，行为可预期
+		fmt.Fprintln(os.Stderr, "vigil run failed:", err)
+		os.Exit(1)
 	}
 }
 
@@ -144,13 +146,37 @@ func run() error {
 
 	// 5.3 通知（能力域 7）：通道注册表 + Webhook/邮件通道 + 分发器
 	notifReg := notification.NewRegistry()
+	// Webhook 通道 URL：复用出口 webhook 配置（VIGIL_WEBHOOK_OUT_URLS），
+	// 两者语义一致（都是把 incident 推给外部订阅者）。
+	// 完整实现后续按 team/service 配置解析（待 schema 加 webhook 配置字段）。
+	notifWebhookURLs := parseWebhookURLs(cfg.Webhook.OutURLs)
 	notifReg.Register(notification.NewWebhookChannel(func(inc *ent.Incident) []string {
-		// TODO: 从团队/事件配置解析 webhook URL；暂返回空（无 URL 时不发送）
-		return nil
+		return notifWebhookURLs
 	}))
 	notifReg.Register(&notification.EmailChannel{})
 	// 默认通道含 im（IMChannel 在 5.6.1 注册，notifier 实时查 registry，晚注册也能生效）
-	notifier := notification.NewNotifier(notifReg, []string{"im", "webhook", "email"})
+	// 无 webhook URL 配置时不把 webhook 放默认通道，避免无效空跑
+	defaultChans := []string{"im", "email"}
+	if len(notifWebhookURLs) > 0 {
+		defaultChans = append([]string{"webhook"}, defaultChans...)
+	}
+	notifier := notification.NewNotifier(notifReg, defaultChans)
+	// 接通送达结果记录：当前用结构化日志（后续加 Notification 记录表后落库）。
+	// 不接的话 SetResultRecorder 永不被调用，送达结果（成功/失败/目标）完全丢失。
+	notifier.SetResultRecorder(func(incID int, r notification.SendResult) {
+		if r.Success {
+			log.Info("notification delivered",
+				zap.Int("incident", incID),
+				zap.String("channel", r.Channel),
+				zap.String("target", r.Target))
+		} else {
+			log.Warn("notification failed",
+				zap.Int("incident", incID),
+				zap.String("channel", r.Channel),
+				zap.String("target", r.Target),
+				zap.String("error", r.Error))
+		}
+	})
 
 	// 5.4 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链，注入通知分发器 + 时间线记录器
 	escRedisOpt := &asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB}
@@ -160,6 +186,7 @@ func run() error {
 	// 5.5 时间线（能力域 10）：统一 Recorder，供 escalation/runbook 写入
 	timelineRecorder := timeline.NewRecorder(st.DB)
 	escEngine.SetRecorder(timelineRecorder)
+	escEngine.SetLogger(log) // 升级 target 解析失败时记告警日志
 
 	// 5.6 RBAC 鉴权器（能力域 13）——提前创建，供 incident.Service 与 IM 层共用（同一鉴权链路）
 	authz := auth.NewAuthorizer(st.DB)
@@ -170,14 +197,7 @@ func run() error {
 
 	// 5.7.1 Webhook 出口（能力域 14）：incident 生命周期事件推给外部订阅者。
 	// 配置 VIGIL_WEBHOOK_OUT_URLS（逗号分隔）后启用。
-	var webhookURLs []string
-	if cfg.Webhook.OutURLs != "" {
-		for _, u := range strings.Split(cfg.Webhook.OutURLs, ",") {
-			if u = strings.TrimSpace(u); u != "" {
-				webhookURLs = append(webhookURLs, u)
-			}
-		}
-	}
+	webhookURLs := parseWebhookURLs(cfg.Webhook.OutURLs)
 	webhookDisp := webhook.NewDispatcher(webhookURLs)
 	if webhookDisp.HasSubscriptions() {
 		log.Info("webhook out enabled", zap.Int("subscriptions", len(webhookURLs)))
@@ -301,20 +321,21 @@ func run() error {
 	// 报表（能力域 15）：告警/事件/团队负载/复盘/趋势 度量
 	analytics.NewHandler(analytics.NewEngine(st.DB)).Register(v1)
 
-	errCh := make(chan error, 1)
+	// errCh 收集 http server 与 queue server 的致命错误，任一出错即触发退出。
+	// 容量 2：两个后台服务各可能上报一次，避免发送阻塞。
+	errCh := make(chan error, 2)
 	go func() {
 		log.Info("http server listening", zap.String("addr", cfg.HTTP.Addr))
 		if err := srv.Start(); err != nil && !errors.Is(err, context.Canceled) {
-			errCh <- err
+			errCh <- fmt.Errorf("http server: %w", err)
 		}
-		close(errCh)
 	}()
 
 	// 7. 启动异步任务消费（goroutine，不阻塞主流程）
 	// 业务 handler 由各能力域在启动时通过 q.Register 注册
 	go func() {
 		if err := q.Start(); err != nil {
-			log.Error("queue server error", zap.Error(err))
+			errCh <- fmt.Errorf("queue server: %w", err)
 		}
 	}()
 
@@ -323,15 +344,20 @@ func run() error {
 	case <-ctx.Done():
 		log.Info("shutdown signal received")
 	case err := <-errCh:
-		if err != nil {
-			log.Error("http server error", zap.Error(err))
-			return err
-		}
+		// http 或 queue 致命错误：记日志后走优雅关闭流程（不再 return err 直接退出，
+		// 让 defer 关闭 store/queue，避免资源泄漏）
+		log.Error("fatal server error, shutting down", zap.Error(err))
 	}
 
-	// 9. 优雅关闭：先停 queue（停止消费新任务），再停 http，store 由 defer 关闭
+	// 9. 优雅关闭：先停 queue（停止消费新任务），等待 webhook 出口在途推送，再停 http
 	q.Shutdown()
 	log.Info("queue stopped")
+
+	// 等待 webhook 出口的异步推送完成（避免进程退出时丢失在途通知）
+	if webhookDisp.HasSubscriptions() {
+		webhookDisp.Close()
+		log.Info("webhook out drained")
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -341,4 +367,19 @@ func run() error {
 	}
 	log.Info("vigil stopped")
 	return nil
+}
+
+// parseWebhookURLs 把逗号分隔的 webhook URL 字符串解析为去空的 URL 切片。
+// 供通知通道与出口分发器共用配置（VIGIL_WEBHOOK_OUT_URLS）。
+func parseWebhookURLs(csv string) []string {
+	if csv == "" {
+		return nil
+	}
+	var urls []string
+	for _, u := range strings.Split(csv, ",") {
+		if u = strings.TrimSpace(u); u != "" {
+			urls = append(urls, u)
+		}
+	}
+	return urls
 }

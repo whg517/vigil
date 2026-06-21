@@ -16,6 +16,7 @@ import (
 	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
+	"github.com/kevin/vigil/ent/imaccountbinding"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
@@ -95,6 +96,7 @@ func checkColumn(t, c string) error {
 			actionitem.Table:       actionitem.ValidColumn,
 			escalationpolicy.Table: escalationpolicy.ValidColumn,
 			event.Table:            event.ValidColumn,
+			imaccountbinding.Table: imaccountbinding.ValidColumn,
 			incident.Table:         incident.ValidColumn,
 			incidentaction.Table:   incidentaction.ValidColumn,
 			integration.Table:      integration.ValidColumn,

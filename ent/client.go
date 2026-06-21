@@ -19,6 +19,7 @@ import (
 	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
+	"github.com/kevin/vigil/ent/imaccountbinding"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
@@ -49,6 +50,8 @@ type Client struct {
 	EscalationPolicy *EscalationPolicyClient
 	// Event is the client for interacting with the Event builders.
 	Event *EventClient
+	// IMAccountBinding is the client for interacting with the IMAccountBinding builders.
+	IMAccountBinding *IMAccountBindingClient
 	// Incident is the client for interacting with the Incident builders.
 	Incident *IncidentClient
 	// IncidentAction is the client for interacting with the IncidentAction builders.
@@ -94,6 +97,7 @@ func (c *Client) init() {
 	c.ActionItem = NewActionItemClient(c.config)
 	c.EscalationPolicy = NewEscalationPolicyClient(c.config)
 	c.Event = NewEventClient(c.config)
+	c.IMAccountBinding = NewIMAccountBindingClient(c.config)
 	c.Incident = NewIncidentClient(c.config)
 	c.IncidentAction = NewIncidentActionClient(c.config)
 	c.Integration = NewIntegrationClient(c.config)
@@ -205,6 +209,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ActionItem:       NewActionItemClient(cfg),
 		EscalationPolicy: NewEscalationPolicyClient(cfg),
 		Event:            NewEventClient(cfg),
+		IMAccountBinding: NewIMAccountBindingClient(cfg),
 		Incident:         NewIncidentClient(cfg),
 		IncidentAction:   NewIncidentActionClient(cfg),
 		Integration:      NewIntegrationClient(cfg),
@@ -243,6 +248,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ActionItem:       NewActionItemClient(cfg),
 		EscalationPolicy: NewEscalationPolicyClient(cfg),
 		Event:            NewEventClient(cfg),
+		IMAccountBinding: NewIMAccountBindingClient(cfg),
 		Incident:         NewIncidentClient(cfg),
 		IncidentAction:   NewIncidentActionClient(cfg),
 		Integration:      NewIntegrationClient(cfg),
@@ -287,10 +293,10 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AIInsight, c.ActionItem, c.EscalationPolicy, c.Event, c.Incident,
-		c.IncidentAction, c.Integration, c.NotificationRule, c.Postmortem, c.RawEvent,
-		c.Role, c.RoleBinding, c.Rotation, c.Runbook, c.Schedule, c.Service, c.Team,
-		c.TimelineItem, c.User,
+		c.AIInsight, c.ActionItem, c.EscalationPolicy, c.Event, c.IMAccountBinding,
+		c.Incident, c.IncidentAction, c.Integration, c.NotificationRule, c.Postmortem,
+		c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook, c.Schedule,
+		c.Service, c.Team, c.TimelineItem, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -300,10 +306,10 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AIInsight, c.ActionItem, c.EscalationPolicy, c.Event, c.Incident,
-		c.IncidentAction, c.Integration, c.NotificationRule, c.Postmortem, c.RawEvent,
-		c.Role, c.RoleBinding, c.Rotation, c.Runbook, c.Schedule, c.Service, c.Team,
-		c.TimelineItem, c.User,
+		c.AIInsight, c.ActionItem, c.EscalationPolicy, c.Event, c.IMAccountBinding,
+		c.Incident, c.IncidentAction, c.Integration, c.NotificationRule, c.Postmortem,
+		c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook, c.Schedule,
+		c.Service, c.Team, c.TimelineItem, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -320,6 +326,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.EscalationPolicy.mutate(ctx, m)
 	case *EventMutation:
 		return c.Event.mutate(ctx, m)
+	case *IMAccountBindingMutation:
+		return c.IMAccountBinding.mutate(ctx, m)
 	case *IncidentMutation:
 		return c.Incident.mutate(ctx, m)
 	case *IncidentActionMutation:
@@ -1028,6 +1036,155 @@ func (c *EventClient) mutate(ctx context.Context, m *EventMutation) (Value, erro
 		return (&EventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Event mutation op: %q", m.Op())
+	}
+}
+
+// IMAccountBindingClient is a client for the IMAccountBinding schema.
+type IMAccountBindingClient struct {
+	config
+}
+
+// NewIMAccountBindingClient returns a client for the IMAccountBinding from the given config.
+func NewIMAccountBindingClient(c config) *IMAccountBindingClient {
+	return &IMAccountBindingClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `imaccountbinding.Hooks(f(g(h())))`.
+func (c *IMAccountBindingClient) Use(hooks ...Hook) {
+	c.hooks.IMAccountBinding = append(c.hooks.IMAccountBinding, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `imaccountbinding.Intercept(f(g(h())))`.
+func (c *IMAccountBindingClient) Intercept(interceptors ...Interceptor) {
+	c.inters.IMAccountBinding = append(c.inters.IMAccountBinding, interceptors...)
+}
+
+// Create returns a builder for creating a IMAccountBinding entity.
+func (c *IMAccountBindingClient) Create() *IMAccountBindingCreate {
+	mutation := newIMAccountBindingMutation(c.config, OpCreate)
+	return &IMAccountBindingCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of IMAccountBinding entities.
+func (c *IMAccountBindingClient) CreateBulk(builders ...*IMAccountBindingCreate) *IMAccountBindingCreateBulk {
+	return &IMAccountBindingCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *IMAccountBindingClient) MapCreateBulk(slice any, setFunc func(*IMAccountBindingCreate, int)) *IMAccountBindingCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &IMAccountBindingCreateBulk{err: fmt.Errorf("calling to IMAccountBindingClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*IMAccountBindingCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &IMAccountBindingCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for IMAccountBinding.
+func (c *IMAccountBindingClient) Update() *IMAccountBindingUpdate {
+	mutation := newIMAccountBindingMutation(c.config, OpUpdate)
+	return &IMAccountBindingUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *IMAccountBindingClient) UpdateOne(_m *IMAccountBinding) *IMAccountBindingUpdateOne {
+	mutation := newIMAccountBindingMutation(c.config, OpUpdateOne, withIMAccountBinding(_m))
+	return &IMAccountBindingUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *IMAccountBindingClient) UpdateOneID(id int) *IMAccountBindingUpdateOne {
+	mutation := newIMAccountBindingMutation(c.config, OpUpdateOne, withIMAccountBindingID(id))
+	return &IMAccountBindingUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for IMAccountBinding.
+func (c *IMAccountBindingClient) Delete() *IMAccountBindingDelete {
+	mutation := newIMAccountBindingMutation(c.config, OpDelete)
+	return &IMAccountBindingDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *IMAccountBindingClient) DeleteOne(_m *IMAccountBinding) *IMAccountBindingDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *IMAccountBindingClient) DeleteOneID(id int) *IMAccountBindingDeleteOne {
+	builder := c.Delete().Where(imaccountbinding.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &IMAccountBindingDeleteOne{builder}
+}
+
+// Query returns a query builder for IMAccountBinding.
+func (c *IMAccountBindingClient) Query() *IMAccountBindingQuery {
+	return &IMAccountBindingQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeIMAccountBinding},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a IMAccountBinding entity by its id.
+func (c *IMAccountBindingClient) Get(ctx context.Context, id int) (*IMAccountBinding, error) {
+	return c.Query().Where(imaccountbinding.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *IMAccountBindingClient) GetX(ctx context.Context, id int) *IMAccountBinding {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a IMAccountBinding.
+func (c *IMAccountBindingClient) QueryUser(_m *IMAccountBinding) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(imaccountbinding.Table, imaccountbinding.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, imaccountbinding.UserTable, imaccountbinding.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *IMAccountBindingClient) Hooks() []Hook {
+	return c.hooks.IMAccountBinding
+}
+
+// Interceptors returns the client interceptors.
+func (c *IMAccountBindingClient) Interceptors() []Interceptor {
+	return c.inters.IMAccountBinding
+}
+
+func (c *IMAccountBindingClient) mutate(ctx context.Context, m *IMAccountBindingMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&IMAccountBindingCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&IMAccountBindingUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&IMAccountBindingUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&IMAccountBindingDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown IMAccountBinding mutation op: %q", m.Op())
 	}
 }
 
@@ -3801,6 +3958,22 @@ func (c *UserClient) QueryRoleBindings(_m *User) *RoleBindingQuery {
 	return query
 }
 
+// QueryImBindings queries the im_bindings edge of a User.
+func (c *UserClient) QueryImBindings(_m *User) *IMAccountBindingQuery {
+	query := (&IMAccountBindingClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(imaccountbinding.Table, imaccountbinding.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ImBindingsTable, user.ImBindingsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryAssignedIncidents queries the assigned_incidents edge of a User.
 func (c *UserClient) QueryAssignedIncidents(_m *User) *IncidentQuery {
 	query := (&IncidentClient{config: c.config}).Query()
@@ -3877,14 +4050,15 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AIInsight, ActionItem, EscalationPolicy, Event, Incident, IncidentAction,
-		Integration, NotificationRule, Postmortem, RawEvent, Role, RoleBinding,
-		Rotation, Runbook, Schedule, Service, Team, TimelineItem, User []ent.Hook
+		AIInsight, ActionItem, EscalationPolicy, Event, IMAccountBinding, Incident,
+		IncidentAction, Integration, NotificationRule, Postmortem, RawEvent, Role,
+		RoleBinding, Rotation, Runbook, Schedule, Service, Team, TimelineItem,
+		User []ent.Hook
 	}
 	inters struct {
-		AIInsight, ActionItem, EscalationPolicy, Event, Incident, IncidentAction,
-		Integration, NotificationRule, Postmortem, RawEvent, Role, RoleBinding,
-		Rotation, Runbook, Schedule, Service, Team, TimelineItem,
+		AIInsight, ActionItem, EscalationPolicy, Event, IMAccountBinding, Incident,
+		IncidentAction, Integration, NotificationRule, Postmortem, RawEvent, Role,
+		RoleBinding, Rotation, Runbook, Schedule, Service, Team, TimelineItem,
 		User []ent.Interceptor
 	}
 )

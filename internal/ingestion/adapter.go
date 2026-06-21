@@ -68,8 +68,3 @@ func (r *AdapterRegistry) Get(sourceType string) (Adapter, bool) {
 func dedupKey(source, sourceEventID string) string {
 	return fmt.Sprintf("%s:%s", source, sourceEventID)
 }
-
-// 保留 ent 引用（Normalize 签名用到）。
-var _ = (*ent.Integration)(nil)
-var _ = (*ent.RawEvent)(nil)
-var _ = context.Background

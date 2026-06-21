@@ -40,7 +40,8 @@ func (h *Handler) Register(g *echo.Group) {
 	g.POST("/incidents/:id/escalate", h.escalate)
 }
 
-// list 查询事件列表。
+// list 查询事件列表（?status=&severity=&limit=&offset=）。
+// total 与筛选条件一致（用 clone 在加 limit/offset 前统计）。
 func (h *Handler) list(c echo.Context) error {
 	ctx := c.Request().Context()
 	q := h.db.Incident.Query()
@@ -49,6 +50,11 @@ func (h *Handler) list(c echo.Context) error {
 	}
 	if s := c.QueryParam("severity"); s != "" {
 		q = q.Where(incident.SeverityEQ(incident.Severity(s)))
+	}
+	// 在加 limit/offset 前 clone 出计数 query，保证 total 与列表筛选条件一致
+	total, err := q.Clone().Count(ctx)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	offset, _ := strconv.Atoi(c.QueryParam("offset"))
@@ -63,7 +69,6 @@ func (h *Handler) list(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-	total, _ := h.db.Incident.Query().Count(ctx)
 	return c.JSON(http.StatusOK, map[string]any{"items": items, "total": total, "limit": limit, "offset": offset})
 }
 

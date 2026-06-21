@@ -105,19 +105,15 @@ var builtinRoles = []struct {
 	},
 }
 
-// SeedBuiltinRoles 写入内置角色（幂等：已存在则跳过）。
+// SeedBuiltinRoles 写入内置角色（幂等）。
 // 在服务启动时调用，保证鉴权生效后有可用角色。
+//
+// 幂等策略：依赖 Role.name 唯一约束（schema 已加）。
+// 直接 Create，遇到 ConstraintError（name 冲突）视为「已存在」跳过，
+// 避免旧的「Count 判重 → Create」两步操作在多实例并发启动时产生竞态。
 func SeedBuiltinRoles(ctx context.Context, db *ent.Client) error {
 	for _, br := range builtinRoles {
-		// 查是否已存在（按 name）
-		exists, err := db.Role.Query().Where(role.NameEQ(br.Name)).Count(ctx)
-		if err != nil {
-			return err
-		}
-		if exists > 0 {
-			continue // 已存在，跳过（幂等）
-		}
-		_, err = db.Role.Create().
+		_, err := db.Role.Create().
 			SetName(br.Name).
 			SetDescription(br.Description).
 			SetBuiltin(true).
@@ -125,6 +121,10 @@ func SeedBuiltinRoles(ctx context.Context, db *ent.Client) error {
 			SetPermissions(br.Permissions).
 			Save(ctx)
 		if err != nil {
+			// 唯一约束冲突 = 已存在（并发或重复启动），幂等跳过
+			if ent.IsConstraintError(err) {
+				continue
+			}
 			return err
 		}
 	}

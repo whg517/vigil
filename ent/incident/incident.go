@@ -41,6 +41,8 @@ const (
 	FieldWarRoom = "war_room"
 	// FieldResolvedAt holds the string denoting the resolved_at field in the database.
 	FieldResolvedAt = "resolved_at"
+	// FieldAckedAt holds the string denoting the acked_at field in the database.
+	FieldAckedAt = "acked_at"
 	// FieldClosedAt holds the string denoting the closed_at field in the database.
 	FieldClosedAt = "closed_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -155,6 +157,7 @@ var Columns = []string{
 	FieldTriggerSourceEventID,
 	FieldWarRoom,
 	FieldResolvedAt,
+	FieldAckedAt,
 	FieldClosedAt,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -379,6 +382,11 @@ func ByTriggerSourceEventID(opts ...sql.OrderTermOption) OrderOption {
 // ByResolvedAt orders the results by the resolved_at field.
 func ByResolvedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldResolvedAt, opts...).ToFunc()
+}
+
+// ByAckedAt orders the results by the acked_at field.
+func ByAckedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAckedAt, opts...).ToFunc()
 }
 
 // ByClosedAt orders the results by the closed_at field.

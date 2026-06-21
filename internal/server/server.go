@@ -83,10 +83,14 @@ func (s *Server) health(c echo.Context) error {
 		checks["redis"] = "up"
 	}
 
-	// PostgreSQL 连通性（Redis 之外，DB 用轻量 select）
-	// 注：ent client 本身无 ping 方法，用 SELECT 1 via redis 之外的途径
-	// 此处简化为依赖 store 初始化已验证；生产可加更细检查
-	checks["postgres"] = "up" // 初始化时已 ping 通
+	// PostgreSQL 连通性：轻量查询验证（运行时探活，非依赖初始化）。
+	// DB 挂了健康检查必须能反映出来，供 K8s liveness/readiness 判断。
+	if _, err := s.store.DB.User.Query().Limit(1).Count(ctx); err != nil {
+		checks["postgres"] = "down: " + err.Error()
+		status = http.StatusServiceUnavailable
+	} else {
+		checks["postgres"] = "up"
+	}
 
 	resp := map[string]any{
 		"status":  http.StatusText(status),
@@ -96,7 +100,6 @@ func (s *Server) health(c echo.Context) error {
 	return c.JSON(status, resp)
 }
 
-// metrics Prometheus 指标占位（后续接入 prometheus client）。
 // metrics Prometheus 指标端点（Go runtime + 业务 + HTTP 指标）。
 func (s *Server) metrics(c echo.Context) error {
 	promhttp.Handler().ServeHTTP(c.Response().Writer, c.Request())

@@ -2,13 +2,17 @@ package triage
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/enttest"
 	"github.com/kevin/vigil/ent/event"
+	"github.com/kevin/vigil/ent/incident"
 
+	"github.com/alicebob/miniredis/v2"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/redis/go-redis/v9"
 )
 
 // newTestClient 用 sqlite 内存库创建 ent client（含自动迁移）。
@@ -206,5 +210,90 @@ func TestSeverityToPriority(t *testing.T) {
 		if got := string(severityToPriority(sev)); got != want {
 			t.Errorf("severityToPriority(%v): got %q, want %q", sev, got, want)
 		}
+	}
+}
+
+// newIsolatedClient 用独立 DSN 的 sqlite 内存库，避免 cache=shared 的交叉污染。
+// 用于需要精确控制初始状态的编号测试。
+func newIsolatedClient(t *testing.T, dsn string) *ent.Client {
+	t.Helper()
+	c := enttest.Open(t, "sqlite3", dsn)
+	t.Cleanup(func() { _ = c.Close() })
+	return c
+}
+
+// TestCreateIncident_ConsecutiveNumbers 验证有 Redis 时连续创建多个 Incident
+// 得到不重复的递增编号（Redis INCR 原子分配，并发安全）。
+func TestCreateIncident_ConsecutiveNumbers(t *testing.T) {
+	// 独立库，避免其他测试的 incident 污染编号断言
+	c := newIsolatedClient(t, "file:triage_num_test?mode=memory&cache=shared&_fk=1")
+	seedServiceAndTeam(t, c)
+
+	mr := miniredis.RunT(t)
+	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rc.Close() })
+
+	eng := NewEngine(c, rc)
+
+	var numbers []string
+	// 用不同 severity 避免 aggregate 把多条事件并入同一 incident（aggregate 按 service+severity）
+	sevs := []event.Severity{event.SeverityCritical, event.SeverityWarning, event.SeverityInfo}
+	for i := 0; i < 3; i++ {
+		evt := createEvent(t, c, sevs[i], fmt.Sprintf("kn%d", i))
+		res, err := eng.Process(context.Background(), evt.ID)
+		if err != nil {
+			t.Fatalf("Process %d: %v", i, err)
+		}
+		if res.Action != ActionIncidentCreated {
+			t.Fatalf("event %d should create incident, got action %s", i, res.Action)
+		}
+		numbers = append(numbers, res.IncidentNum)
+	}
+
+	// Redis INCR 保证编号严格递增且不重复
+	want := []string{"INC-0001", "INC-0002", "INC-0003"}
+	for i, n := range numbers {
+		if n != want[i] {
+			t.Errorf("number[%d]: got %s, want %s", i, n, want[i])
+		}
+	}
+}
+
+// TestNextIncidentNumber_RedisIncr 验证 Redis INCR 路径：连续调用返回递增编号。
+func TestNextIncidentNumber_RedisIncr(t *testing.T) {
+	c := newIsolatedClient(t, "file:triage_incr_test?mode=memory&cache=shared&_fk=1")
+	mr := miniredis.RunT(t)
+	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rc.Close() })
+
+	eng := NewEngine(c, rc)
+	n1, _ := eng.nextIncidentNumber(context.Background())
+	n2, _ := eng.nextIncidentNumber(context.Background())
+	n3, _ := eng.nextIncidentNumber(context.Background())
+	if n1 != "INC-0001" || n2 != "INC-0002" || n3 != "INC-0003" {
+		t.Errorf("sequence: got %s,%s,%s want INC-0001,INC-0002,INC-0003", n1, n2, n3)
+	}
+}
+
+// TestNextIncidentNumber_NoRedisFallback 无 Redis 时降级 Count+1。
+// Count+1 基于当前记录数，建 1 条后 next = INC-0002（基于计数，非最大编号）。
+func TestNextIncidentNumber_NoRedisFallback(t *testing.T) {
+	c := newIsolatedClient(t, "file:triage_noredis_test?mode=memory&cache=shared&_fk=1")
+	eng := NewEngine(c, nil)
+	if _, err := c.Incident.Create().
+		SetNumber("INC-0042").
+		SetTitle("x").
+		SetSeverity(incident.SeverityInfo).
+		SetStatus(incident.StatusTriggered).
+		Save(context.Background()); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	n, err := eng.nextIncidentNumber(context.Background())
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	// Count=1 → Count+1 = INC-0002（基于记录数，不解析现有最大编号）
+	if n != "INC-0002" {
+		t.Errorf("Count+1 fallback: got %s, want INC-0002", n)
 	}
 }

@@ -62,9 +62,13 @@ func (e *Engine) AlertMetrics(ctx context.Context, r Range) (*AlertMetrics, erro
 	if err != nil {
 		return nil, err
 	}
-	// unrouted = service edge 为空（未命中路由）。简化：用 is_noise=false 但无法直接判定 unrouted，
-	// 真实 unrouted 需查 service edge。此处用 total - 命中服务的近似（保留字段，精确实现后续）。
-	m := &AlertMetrics{Total: total, Notified: notified}
+	// unrouted = service edge 为空（未命中路由，等待人工分诊）。
+	// 用 event.Not(event.HasService()) 判定「无关联 service」。
+	unrouted, err := q.Clone().Where(event.Not(event.HasService())).Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m := &AlertMetrics{Total: total, Notified: notified, Unrouted: unrouted}
 	if total > 0 {
 		m.NoiseRate = 1 - float64(notified)/float64(total)
 	}
@@ -81,7 +85,7 @@ type IncidentMetrics struct {
 	ResolvedCount int     // 已解决数（用于 MTTR 计算）
 }
 
-// IncidentMetrics 计算事件度量。MTTA/MTTR 需时间线数据，当前用 Incident 元数据近似。
+// IncidentMetrics 计算事件度量。MTTA = acked_at - created_at，MTTR = resolved_at - created_at。
 func (e *Engine) IncidentMetrics(ctx context.Context, r Range) (*IncidentMetrics, error) {
 	q := e.db.Incident.Query()
 	if !r.Start.IsZero() {
@@ -94,20 +98,29 @@ func (e *Engine) IncidentMetrics(ctx context.Context, r Range) (*IncidentMetrics
 	if err != nil {
 		return nil, err
 	}
-	m := &IncidentMetrics{Total: len(all), BySeverity: map[string]int{}, ByStatus: map[string]int{}}
+	m := &IncidentMetrics{
+		Total:      len(all),
+		BySeverity: map[string]int{},
+		ByStatus:   map[string]int{},
+	}
 	var ackSum, resolveSum float64
 	ackCount := 0
 	for _, inc := range all {
 		m.BySeverity[string(inc.Severity)]++
 		m.ByStatus[string(inc.Status)]++
+		// MTTA: 已确认的 acked_at - created_at
+		if inc.AckedAt != nil {
+			ackCount++
+			ackSum += inc.AckedAt.Sub(inc.CreatedAt).Seconds()
+		}
 		// MTTR: resolved 的 resolved_at - created_at
 		if inc.ResolvedAt != nil {
 			m.ResolvedCount++
 			resolveSum += inc.ResolvedAt.Sub(inc.CreatedAt).Seconds()
 		}
-		// MTTA 近似：用 escalated_count>0 或 acked 态推算（无精确 ack 时间字段，留 TODO）
-		_ = ackSum
-		_ = ackCount
+	}
+	if ackCount > 0 {
+		m.MTTARatio = ackSum / float64(ackCount)
 	}
 	if m.ResolvedCount > 0 {
 		m.MTTRatio = resolveSum / float64(m.ResolvedCount)

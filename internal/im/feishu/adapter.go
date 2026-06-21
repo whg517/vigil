@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -214,21 +215,32 @@ func parseSlashCommand(text string) (string, string, bool) {
 	return cmd, arg, true
 }
 
-// decrypt 飞书 AES-256-CBC 解密。
+// decrypt 飞书 AES-256-CBC 解密 + 签名校验。
 // 飞书规则：key = SHA256(EncryptKey)；密文 = base64decode(encrypt)；
-// 前 16 字节为 AES IV 的随机前缀，后 32 字节为签名（SHA256(key+前缀+密文)，用于校验，
-// 解密时跳过），中间为 AES-256-CBC(PKCS7) 密文。
+// 前 16 字节为随机前缀，中间为 AES-256-CBC(PKCS7) 密文，后 32 字节为签名
+// SHA256(key + 前缀 + 密文)。
+// 解密前先校验签名，不匹配拒绝（防伪造），IV 用 16 字节 0。
 func decrypt(encryptB64, encryptKey string) ([]byte, error) {
 	cipherText, err := base64.StdEncoding.DecodeString(encryptB64)
 	if err != nil {
 		return nil, err
 	}
 	keyHash := sha256.Sum256([]byte(encryptKey))
-	if len(cipherText) < 50 {
+	if len(cipherText) < 50 { // 16 前缀 + 至少 16 密文 + 32 签名
 		return nil, fmt.Errorf("feishu: ciphertext too short")
 	}
 	// 前 16 字节随机前缀 + 密文 + 后 32 字节签名
+	prefix := cipherText[:16]
 	actualCipher := cipherText[16 : len(cipherText)-32]
+	sig := cipherText[len(cipherText)-32:]
+
+	// 签名校验：SHA256(key + prefix + cipher)，防伪造。
+	// 用 hmac 等价常量比较避免时序攻击。
+	sigBuf := sha256.Sum256(append(append(keyHash[:], prefix...), actualCipher...))
+	if !hmac.Equal(sigBuf[:], sig) {
+		return nil, fmt.Errorf("feishu: signature mismatch (possible forgery)")
+	}
+
 	block, err := aes.NewCipher(keyHash[:])
 	if err != nil {
 		return nil, err

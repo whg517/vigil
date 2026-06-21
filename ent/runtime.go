@@ -9,6 +9,7 @@ import (
 	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
+	"github.com/kevin/vigil/ent/imaccountbinding"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
@@ -97,6 +98,16 @@ func init() {
 	eventDescCreatedAt := eventFields[10].Descriptor()
 	// event.DefaultCreatedAt holds the default value on creation for the created_at field.
 	event.DefaultCreatedAt = eventDescCreatedAt.Default.(func() time.Time)
+	imaccountbindingFields := schema.IMAccountBinding{}.Fields()
+	_ = imaccountbindingFields
+	// imaccountbindingDescAccountID is the schema descriptor for account_id field.
+	imaccountbindingDescAccountID := imaccountbindingFields[1].Descriptor()
+	// imaccountbinding.AccountIDValidator is a validator for the "account_id" field. It is called by the builders before save.
+	imaccountbinding.AccountIDValidator = imaccountbindingDescAccountID.Validators[0].(func(string) error)
+	// imaccountbindingDescCreatedAt is the schema descriptor for created_at field.
+	imaccountbindingDescCreatedAt := imaccountbindingFields[2].Descriptor()
+	// imaccountbinding.DefaultCreatedAt holds the default value on creation for the created_at field.
+	imaccountbinding.DefaultCreatedAt = imaccountbindingDescCreatedAt.Default.(func() time.Time)
 	incidentFields := schema.Incident{}.Fields()
 	_ = incidentFields
 	// incidentDescTitle is the schema descriptor for title field.
@@ -112,11 +123,11 @@ func init() {
 	// incident.DefaultCurrentLevel holds the default value on creation for the current_level field.
 	incident.DefaultCurrentLevel = incidentDescCurrentLevel.Default.(int)
 	// incidentDescCreatedAt is the schema descriptor for created_at field.
-	incidentDescCreatedAt := incidentFields[14].Descriptor()
+	incidentDescCreatedAt := incidentFields[15].Descriptor()
 	// incident.DefaultCreatedAt holds the default value on creation for the created_at field.
 	incident.DefaultCreatedAt = incidentDescCreatedAt.Default.(func() time.Time)
 	// incidentDescUpdatedAt is the schema descriptor for updated_at field.
-	incidentDescUpdatedAt := incidentFields[15].Descriptor()
+	incidentDescUpdatedAt := incidentFields[16].Descriptor()
 	// incident.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	incident.DefaultUpdatedAt = incidentDescUpdatedAt.Default.(func() time.Time)
 	// incident.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

@@ -255,6 +255,26 @@ func (_u *IncidentUpdate) ClearResolvedAt() *IncidentUpdate {
 	return _u
 }
 
+// SetAckedAt sets the "acked_at" field.
+func (_u *IncidentUpdate) SetAckedAt(v time.Time) *IncidentUpdate {
+	_u.mutation.SetAckedAt(v)
+	return _u
+}
+
+// SetNillableAckedAt sets the "acked_at" field if the given value is not nil.
+func (_u *IncidentUpdate) SetNillableAckedAt(v *time.Time) *IncidentUpdate {
+	if v != nil {
+		_u.SetAckedAt(*v)
+	}
+	return _u
+}
+
+// ClearAckedAt clears the value of the "acked_at" field.
+func (_u *IncidentUpdate) ClearAckedAt() *IncidentUpdate {
+	_u.mutation.ClearAckedAt()
+	return _u
+}
+
 // SetClosedAt sets the "closed_at" field.
 func (_u *IncidentUpdate) SetClosedAt(v time.Time) *IncidentUpdate {
 	_u.mutation.SetClosedAt(v)
@@ -728,6 +748,12 @@ func (_u *IncidentUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.ResolvedAtCleared() {
 		_spec.ClearField(incident.FieldResolvedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.AckedAt(); ok {
+		_spec.SetField(incident.FieldAckedAt, field.TypeTime, value)
+	}
+	if _u.mutation.AckedAtCleared() {
+		_spec.ClearField(incident.FieldAckedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.ClosedAt(); ok {
 		_spec.SetField(incident.FieldClosedAt, field.TypeTime, value)
@@ -1346,6 +1372,26 @@ func (_u *IncidentUpdateOne) ClearResolvedAt() *IncidentUpdateOne {
 	return _u
 }
 
+// SetAckedAt sets the "acked_at" field.
+func (_u *IncidentUpdateOne) SetAckedAt(v time.Time) *IncidentUpdateOne {
+	_u.mutation.SetAckedAt(v)
+	return _u
+}
+
+// SetNillableAckedAt sets the "acked_at" field if the given value is not nil.
+func (_u *IncidentUpdateOne) SetNillableAckedAt(v *time.Time) *IncidentUpdateOne {
+	if v != nil {
+		_u.SetAckedAt(*v)
+	}
+	return _u
+}
+
+// ClearAckedAt clears the value of the "acked_at" field.
+func (_u *IncidentUpdateOne) ClearAckedAt() *IncidentUpdateOne {
+	_u.mutation.ClearAckedAt()
+	return _u
+}
+
 // SetClosedAt sets the "closed_at" field.
 func (_u *IncidentUpdateOne) SetClosedAt(v time.Time) *IncidentUpdateOne {
 	_u.mutation.SetClosedAt(v)
@@ -1849,6 +1895,12 @@ func (_u *IncidentUpdateOne) sqlSave(ctx context.Context) (_node *Incident, err 
 	}
 	if _u.mutation.ResolvedAtCleared() {
 		_spec.ClearField(incident.FieldResolvedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.AckedAt(); ok {
+		_spec.SetField(incident.FieldAckedAt, field.TypeTime, value)
+	}
+	if _u.mutation.AckedAtCleared() {
+		_spec.ClearField(incident.FieldAckedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.ClosedAt(); ok {
 		_spec.SetField(incident.FieldClosedAt, field.TypeTime, value)

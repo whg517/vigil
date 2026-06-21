@@ -591,6 +591,29 @@ func HasRoleBindingsWith(preds ...predicate.RoleBinding) predicate.User {
 	})
 }
 
+// HasImBindings applies the HasEdge predicate on the "im_bindings" edge.
+func HasImBindings() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ImBindingsTable, ImBindingsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasImBindingsWith applies the HasEdge predicate on the "im_bindings" edge with a given conditions (other predicates).
+func HasImBindingsWith(preds ...predicate.IMAccountBinding) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newImBindingsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasAssignedIncidents applies the HasEdge predicate on the "assigned_incidents" edge.
 func HasAssignedIncidents() predicate.User {
 	return predicate.User(func(s *sql.Selector) {

@@ -22,7 +22,7 @@ func newTestClient(t *testing.T) *ent.Client {
 	return c
 }
 
-// seedData 灌入：3 个 event（1 噪音）+ 2 个 incident（1 resolved）+ 1 复盘（published）。
+// seedData 灌入：3 个 event（1 噪音，2 个绑 service 1 个不绑）+ 2 个 incident（1 resolved 1 acked）+ 1 复盘。
 func seedData(t *testing.T, c *ent.Client) {
 	t.Helper()
 	ctx := context.Background()
@@ -30,10 +30,12 @@ func seedData(t *testing.T, c *ent.Client) {
 
 	// team + service
 	team, _ := c.Team.Create().SetName("支付").SetSlug("pay").Save(ctx)
+	svc, _ := c.Service.Create().
+		SetName("payment-api").SetSlug("payment").SetTeamID(team.ID).Save(ctx)
 
-	// events: 2 非噪音 + 1 噪音
+	// events: 2 非噪音（绑 service）+ 1 噪音（不绑 service，模拟 unrouted）
 	for i, noise := range []bool{false, false, true} {
-		_, err := c.Event.Create().
+		ec := c.Event.Create().
 			SetSourceEventID("e" + itoa(i)).
 			SetSource("prometheus").
 			SetSeverity(event.SeverityCritical).
@@ -42,14 +44,17 @@ func seedData(t *testing.T, c *ent.Client) {
 			SetLabels(map[string]string{"service": "payment"}).
 			SetDedupKey("d" + itoa(i)).
 			SetIsNoise(noise).
-			SetReceivedAt(now).
-			Save(ctx)
-		if err != nil {
+			SetReceivedAt(now)
+		if !noise {
+			ec.SetService(svc) // 非噪音的命中路由；噪音的 unrouted
+		}
+		if _, err := ec.Save(ctx); err != nil {
 			t.Fatalf("create event: %v", err)
 		}
 	}
 
-	// incidents: 1 critical resolved + 1 warning acked
+	// incidents: 1 critical resolved + 1 warning acked（带 acked_at 验证 MTTA）
+	ackTime := now.Add(-5 * time.Minute)
 	_, _ = c.Incident.Create().
 		SetNumber("INC-1").SetTitle("a").SetSeverity(incident.SeverityCritical).
 		SetStatus(incident.StatusResolved).SetPriority(incident.PriorityP1).
@@ -64,6 +69,7 @@ func seedData(t *testing.T, c *ent.Client) {
 		SetSummary("b").SetTriggerType(incident.TriggerTypeAuto).
 		SetTeamID(team.ID).
 		SetCreatedAt(now.Add(-10 * time.Minute)).
+		SetAckedAt(ackTime).
 		Save(ctx)
 
 	// postmortem: 1 published，挂在第一个 incident
@@ -101,6 +107,10 @@ func TestAlertMetrics(t *testing.T) {
 	if m.NoiseRate < 0.3 || m.NoiseRate > 0.4 {
 		t.Errorf("NoiseRate: got %f, want ~0.33", m.NoiseRate)
 	}
+	// unrouted = 未命中 service 的 event（噪音那条未绑 service）
+	if m.Unrouted != 1 {
+		t.Errorf("Unrouted: got %d, want 1", m.Unrouted)
+	}
 }
 
 func TestIncidentMetrics(t *testing.T) {
@@ -124,6 +134,10 @@ func TestIncidentMetrics(t *testing.T) {
 	// MTTR ≈ 1800 秒（30 分钟）
 	if m.MTTRatio < 1700 || m.MTTRatio > 1900 {
 		t.Errorf("MTTRatio: got %f, want ~1800", m.MTTRatio)
+	}
+	// MTTA = INC-2 的 acked_at(-5min) - created_at(-10min) ≈ 300 秒（5 分钟）
+	if m.MTTARatio < 290 || m.MTTARatio > 310 {
+		t.Errorf("MTTARatio: got %f, want ~300", m.MTTARatio)
 	}
 }
 

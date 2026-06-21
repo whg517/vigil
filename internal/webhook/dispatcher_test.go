@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/kevin/vigil/ent"
@@ -42,16 +43,24 @@ func TestDispatcher_NoSubscriptions(t *testing.T) {
 // TestDispatcher_PushSuccess 验证推送成功。
 func TestDispatcher_PushSuccess(t *testing.T) {
 	var received map[string]any
+	var mu sync.Mutex
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &received)
+		var m map[string]any
+		_ = json.Unmarshal(body, &m)
+		mu.Lock()
+		received = m
+		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 
 	d := NewDispatcher([]string{srv.URL})
 	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("ack"))
+	d.Close() // 等待异步推送完成
 
+	mu.Lock()
+	defer mu.Unlock()
 	if received == nil {
 		t.Fatal("未收到推送")
 	}
@@ -68,10 +77,14 @@ func TestDispatcher_PushSuccess(t *testing.T) {
 
 // TestDispatcher_RetryOnFailure 验证失败重试（最终成功）。
 func TestDispatcher_RetryOnFailure(t *testing.T) {
+	var mu sync.Mutex
 	callCount := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		callCount++
-		if callCount < 3 {
+		cc := callCount
+		mu.Unlock()
+		if cc < 3 {
 			w.WriteHeader(http.StatusInternalServerError) // 前两次失败
 			return
 		}
@@ -81,7 +94,10 @@ func TestDispatcher_RetryOnFailure(t *testing.T) {
 
 	d := NewDispatcher([]string{srv.URL})
 	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("resolve"))
+	d.Close()
 
+	mu.Lock()
+	defer mu.Unlock()
 	if callCount != 3 {
 		t.Errorf("应重试到第 3 次成功，实际调用 %d 次", callCount)
 	}
@@ -89,13 +105,18 @@ func TestDispatcher_RetryOnFailure(t *testing.T) {
 
 // TestDispatcher_MultipleURLs 验证推送给多个订阅者。
 func TestDispatcher_MultipleURLs(t *testing.T) {
+	var mu sync.Mutex
 	count1, count2 := 0, 0
 	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		count1++
+		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
 	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		count2++
+		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv1.Close()
@@ -103,7 +124,10 @@ func TestDispatcher_MultipleURLs(t *testing.T) {
 
 	d := NewDispatcher([]string{srv1.URL, srv2.URL})
 	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("ack"))
+	d.Close()
 
+	mu.Lock()
+	defer mu.Unlock()
 	if count1 != 1 || count2 != 1 {
 		t.Errorf("每个订阅者应各收 1 次: count1=%d count2=%d", count1, count2)
 	}
