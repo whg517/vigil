@@ -163,7 +163,7 @@ main ──┬─ feat-A ── feat-B ── feat-C  （越叠越深，main 一
 合入 main 前（**在 worktree 内完成验证，绿了再合并**）：
 - 如有 schema 变更：`go generate ./ent/...` 已重新生成。
 - **三道质量门禁，按顺序，缺一不可**（见 §3.4）：
-  1. **lint 通过**：`go vet` + `golangci-lint run`（后端）/ `pnpm --dir web lint`（前端）
+  1. **lint 通过**：`golangci-lint run ./...`（后端，默认含 govet）/ `pnpm --dir web lint`（前端）
   2. **test 通过**：`go test ./...`（后端）/ `pnpm --dir web build`（前端构建即类型检查）
   3. **build 通过**：`go build ./...`（后端）+ `pnpm --dir web build`（前端）
 - 验证顺序：开发 → worktree 内 lint/test/build 全绿 → 合并。**不要先合并再在 main 上验证**——main 必须只接收已验证通过的改动。
@@ -359,7 +359,7 @@ git worktree remove .worktree/<type>-<name>
 git branch -D <type>-<name>            # squash 后用 -D（git 不认为已合并）
 
 # main 复验（合并后确认 main 仍可编译 + 测试通过，闭环收尾）
-go vet ./... && go test ./... && go build ./... && pnpm --dir web build
+golangci-lint run ./... && go test ./... && go build ./... && pnpm --dir web build
 ```
 
 ---
