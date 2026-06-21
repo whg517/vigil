@@ -111,13 +111,14 @@ type LLM struct {
 // IM 能力域 8 IM 协同配置。按平台分组，凭证缺失时对应适配器 Available()==false（降级）。
 // ⚠️ AppSecret 等仅从环境变量读取，绝不硬编码/提交 git。
 type IM struct {
-	Feishu Feishu `envconfig:"feishu"`
-	// OncallChannel 值班群 channel 标识（飞书 chat_id / 钉钉 conversationId）。
+	Feishu   Feishu   `envconfig:"feishu"`
+	Dingtalk Dingtalk `envconfig:"dingtalk"`
+	// OncallChannel 值班群 channel 标识（飞书 chat_id / 钉钉 openConversationId）。
 	// 告警卡片发送到此群。为空则 IM 通知不发送（待私聊解析完整实现）。
 	OncallChannel string `envconfig:"oncall_channel"`
 }
 
-// Feishu 飞书应用凭证（能力域 8 唯一真实接入平台）。
+// Feishu 飞书应用凭证（能力域 8 真实接入平台之一）。
 // 四要素均配置后适配器才 Available()，否则降级为不发送（设计基线第 7 条）。
 type Feishu struct {
 	AppID             string `envconfig:"app_id"`                                              // 应用 App ID（VIGIL_IM_FEISHU_APP_ID）
@@ -125,6 +126,19 @@ type Feishu struct {
 	VerificationToken string `envconfig:"verification_token"`                                  // 事件订阅校验 token
 	EncryptKey        string `envconfig:"encrypt_key"`                                         // 事件订阅加密密钥（AES-256-CBC），空=不加密
 	BaseURL           string `envconfig:"base_url" default:"https://open.feishu.cn/open-apis"` // OpenAPI 根（可换国际版域名）
+}
+
+// Dingtalk 钉钉企业内部应用凭证（能力域 8 真实接入平台之一，与飞书并列 P0）。
+// AppKey+AppSecret 均配置后适配器 Available()，否则降级。
+// ⚠️ AesKey/Token 仅事件订阅（回调）需要；不配事件订阅只发消息时可留空。
+type Dingtalk struct {
+	AppKey    string `envconfig:"app_key"`    // 企业内部应用 AppKey（VIGIL_IM_DINGTALK_APP_KEY）
+	AppSecret string `envconfig:"app_secret"` // 企业内部应用 AppSecret
+	RobotCode string `envconfig:"robot_code"` // 机器人编码，缺省等于 AppKey
+	Token     string `envconfig:"token"`      // 事件订阅校验 token（明文校验，对应飞书 VerificationToken）
+	AesKey    string `envconfig:"aes_key"`    // 事件订阅加密密钥（AES-256-CBC，base64 43 字符），空=不加密
+	OapiBase  string `envconfig:"oapi_base"`  // 旧版域名，默认 https://oapi.dingtalk.com（测试可换）
+	APIBase   string `envconfig:"api_base"`   // 新版域名，默认 https://api.dingtalk.com（测试可换）
 }
 
 // Load 从环境变量加载配置（前缀 VIGIL）。

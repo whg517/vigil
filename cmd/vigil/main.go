@@ -25,6 +25,7 @@ import (
 	"github.com/kevin/vigil/internal/config"
 	"github.com/kevin/vigil/internal/escalation"
 	"github.com/kevin/vigil/internal/im"
+	"github.com/kevin/vigil/internal/im/dingtalk"
 	"github.com/kevin/vigil/internal/im/feishu"
 	"github.com/kevin/vigil/internal/incident"
 	"github.com/kevin/vigil/internal/ingestion"
@@ -204,7 +205,7 @@ func run() error {
 	}
 
 	// 5.8 IM 协同（能力域 8 ★）：平台适配器注册表 + 账号映射 + 卡片渲染 + 回调 handler。
-	// 飞书为唯一真实接入平台；钉钉/企微留 NoopBot 待 PoC。凭证未配置时 Available()==false（降级）。
+	// 飞书/钉钉为真实接入平台（P0）；企微留 NoopBot 待 PoC。凭证未配置时 Available()==false（降级）。
 	imRegistry := im.NewRegistry()
 	feishuBot := feishu.New(feishu.Config{
 		AppID:             cfg.IM.Feishu.AppID,
@@ -213,8 +214,17 @@ func run() error {
 		EncryptKey:        cfg.IM.Feishu.EncryptKey,
 		BaseURL:           cfg.IM.Feishu.BaseURL,
 	})
+	dingtalkBot := dingtalk.New(dingtalk.Config{
+		AppKey:    cfg.IM.Dingtalk.AppKey,
+		AppSecret: cfg.IM.Dingtalk.AppSecret,
+		RobotCode: cfg.IM.Dingtalk.RobotCode,
+		Token:     cfg.IM.Dingtalk.Token,
+		AesKey:    cfg.IM.Dingtalk.AesKey,
+		OapiBase:  cfg.IM.Dingtalk.OapiBase,
+		APIBase:   cfg.IM.Dingtalk.APIBase,
+	})
 	imRegistry.Register(feishuBot)
-	imRegistry.Register(im.NewNoopBot("dingtalk"))
+	imRegistry.Register(dingtalkBot)
 	imRegistry.Register(im.NewNoopBot("wecom"))
 
 	imMapper := im.NewMapper(st.DB)
@@ -253,6 +263,11 @@ func run() error {
 		log.Info("im ready (feishu bot online)")
 	} else {
 		log.Info("im disabled (feishu credentials not configured)")
+	}
+	if dingtalkBot.Available() {
+		log.Info("im ready (dingtalk bot online)")
+	} else {
+		log.Info("im disabled (dingtalk credentials not configured)")
 	}
 
 	// 5.6.1 集成缺口补全：把 IM 适配成 notification 通道，

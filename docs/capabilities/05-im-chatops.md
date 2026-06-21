@@ -210,13 +210,13 @@ type IMBot interface {
 
 | 能力 | 钉钉 | 飞书 | 企微 | 降级方案 |
 |------|:--:|:--:|:--:|---------|
-| 交互卡片 | ⏳ | ✅ 已接入 | ⏳ | 降级为纯文本+链接 |
-| 卡片更新 | ⏳ | ✅ 已接入 | ⏳ | 降级为发新消息标注最新状态 |
-| 建临时群 | ⏳ | ✅ 已接入 | ⏳ | — |
-| @人 API | ⏳ | ✅ 已接入 | ⏳ | 降级为手动@ |
-| 命令机器人 | ⏳ | ✅ 已接入 | ⏳ | — |
+| 交互卡片 | ✅ 已接入 | ✅ 已接入 | ⏳ | 降级为纯文本+链接 |
+| 卡片更新 | ⚠️ 降级 | ✅ 已接入 | ⏳ | 降级为发新消息标注最新状态 |
+| 建临时群 | ✅ 已接入 | ✅ 已接入 | ⏳ | — |
+| @人 API | ✅ 已接入 | ✅ 已接入 | ⏳ | 降级为手动@ |
+| 命令机器人 | ✅ 已接入 | ✅ 已接入 | ⏳ | — |
 
-> **实现现状**：飞书为本期唯一真实接入平台（`internal/im/feishu`），卡片下发/更新/建群/回调签名校验均已实现，凭证缺失时 `Available()==false` 自动降级。钉钉/企微为 `NoopBot` 占位，待 PoC 后补真实适配器。
+> **实现现状**：飞书与钉钉为真实接入平台（`internal/im/feishu`、`internal/im/dingtalk`），卡片下发/建群/@人/回调签名校验均已实现，凭证缺失时 `Available()==false` 自动降级。钉钉卡片更新能力平台不支持原地刷新，按 §10 Q1 降级为发新消息；企微仍为 `NoopBot` 占位，待 PoC。
 > ✅ =已接入　⏳ =占位待 PoC　⚠️ =平台部分支持　❌ =平台不支持
 
 ---
@@ -246,10 +246,11 @@ type IMBot interface {
 
 | 文档章节 | 代码位置 |
 |---------|---------|
-| §3 交互卡片 / §3.1 按权限渲染 | `internal/im/card.go`（`BuildCard` + `Renderer.WithPermittedButtons`） |
-| §3.2 卡片实时更新 | `internal/im/handler.go`（`refreshCard`）+ `internal/incident/service.go`（`OnIncidentChanged` 回调） |
+| §3 交互卡片 / §3.1 按权限渲染 | `internal/im/card.go`（`BuildCard` + `Renderer.WithPermittedButtons`）；平台卡片 JSON：`feishu.CardToFeishu` / `dingtalk.CardToActionCard` |
+| §3.2 卡片实时更新 | `internal/im/handler.go`（`refreshCard`）+ `internal/incident/service.go`（`OnIncidentChanged` 回调）。飞书原地更新；钉钉降级为发新消息（`dingtalk.UpdateCard`） |
 | §5 拉人协同 | `internal/im/handler.go`（`handleMention` → `incident.Service.AddResponder`） |
-| §6 斜杠命令 | `internal/im/handler.go`（`handleCommand`）+ `feishu.parseSlashCommand` |
+| §6 斜杠命令 | `internal/im/handler.go`（`handleCommand`）+ `feishu.parseSlashCommand` / `dingtalk.parseSlashCommand` |
 | §6 IM 账号映射与鉴权 | `internal/im/mapper.go`（`ResolveUser`）+ `handler.go`（`resolveAndCheck` → `authz.Check`） |
-| §9 IMBot 接口 | `internal/im/bot.go`（`IMBot`）+ `feishu.Adapter`（真实）+ `im.NoopBot`（占位） |
+| §9 IMBot 接口 | `internal/im/bot.go`（`IMBot`）+ `feishu.Adapter` / `dingtalk.Adapter`（真实）+ `im.NoopBot`（企微占位） |
+| 钉钉回调校验（AES+HMAC） | `internal/im/dingtalk/adapter.go`（`VerifyCallback` / `dingtalkSign` / `decryptAES`） |
 | 复用层（IM/Web 共用动作） | `internal/incident/service.go`（`Ack`/`Resolve`/`Escalate`/`AddResponder`） |
