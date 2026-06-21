@@ -1,0 +1,68 @@
+# Vigil CI —— 对应 development.md §3.4 lint→test→build 门禁。
+# 每个 PR/push 自动执行三道门禁，红则阻断合并。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ===== 后端：Go lint + test + build =====
+  backend:
+    name: Backend (lint → test → build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      # ① Lint（golangci-lint）
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.0.2
+          args: --timeout 5m
+
+      # ② Test
+      - name: go test
+        run: go test -race -cover ./internal/... ./cmd/...
+
+      # ③ Build
+      - name: go build
+        run: go build ./...
+
+  # ===== 前端：lint + build =====
+  frontend:
+    name: Frontend (lint → build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: install
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      # ① Lint
+      - name: eslint
+        working-directory: web
+        run: pnpm lint
+
+      # ② Build（含 tsc 类型检查）
+      - name: build
+        working-directory: web
+        run: pnpm build
