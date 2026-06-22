@@ -94,6 +94,16 @@ export type Service = Required<
   labels?: Record<string, string>;
 };
 
+// —— Integration（ent/schema/service.go，能力域 1 接入点）——
+export type IntegrationType = Schemas["github_com_kevin_vigil_ent_integration.Type"];
+export type Integration = Required<
+  Omit<Schemas["ent.Integration"], "edges">
+>;
+/** 创建接入点响应（含一次性 webhook 鉴权 token） */
+export interface IntegrationCreated extends Integration {
+  token: string;
+}
+
 // —— Schedule（ent/schema/schedule.go，能力域 5）——
 export type ScheduleType = Schemas["github_com_kevin_vigil_ent_schedule.Type"];
 export interface ScheduleLayer {

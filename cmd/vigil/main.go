@@ -45,6 +45,7 @@ import (
 	"github.com/kevin/vigil/internal/im/feishu"
 	"github.com/kevin/vigil/internal/incident"
 	"github.com/kevin/vigil/internal/ingestion"
+	"github.com/kevin/vigil/internal/integration"
 	"github.com/kevin/vigil/internal/logger"
 	"github.com/kevin/vigil/internal/middleware"
 	"github.com/kevin/vigil/internal/migrate"
@@ -446,6 +447,8 @@ func run() error {
 	schedule.NewHandler(schedEngine, st.DB).Register(v1)
 	// 服务目录（能力域 4/13）：Service CRUD（此前仅 schema 无 handler）
 	service.NewHandler(st.DB).Register(v1)
+	// 接入点管理（能力域 1）：Integration CRUD，创建返回 webhook 鉴权 token 一次
+	integration.NewHandler(st.DB).Register(v1)
 	// Incident API（能力域 14 集成入口 + 8 IM/Web 操作）：list/get/ack/resolve/escalate
 	incident.NewHandler(st.DB, incService).Register(v1)
 	// RBAC（能力域 13）：角色/绑定管理；记审计（角色变更/授权是敏感操作）

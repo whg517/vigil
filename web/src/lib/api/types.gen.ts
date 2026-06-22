@@ -1556,6 +1556,218 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 接入点列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Integration"][];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 创建接入点（返回 token 仅一次） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 接入点配置 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["internal_integration.createReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_integration.createResp"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 接入点详情 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 接入点 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Integration"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** 删除接入点 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 接入点 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** 更新接入点 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 接入点 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 更新字段 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["internal_integration.updateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Integration"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/notification-rules": {
         parameters: {
             query?: never;
@@ -5163,6 +5375,41 @@ export interface components {
         };
         "internal_auth.refreshReq": {
             refresh_token?: string;
+        };
+        "internal_integration.createReq": {
+            /** @description 类型相关配置（URL/过滤/限流等） */
+            config?: {
+                [key: string]: unknown;
+            };
+            name?: string;
+            service_id?: number;
+            team_id?: number;
+            /** @description webhook|email|prometheus|zabbix|grafana|cloud|api */
+            type?: string;
+        };
+        "internal_integration.createResp": {
+            /** @description 类型相关配置 */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            edges?: components["schemas"]["ent.IntegrationEdges"];
+            /** @description Enabled holds the value of the "enabled" field. */
+            enabled?: boolean;
+            /** @description ID of the ent. */
+            id?: number;
+            /** @description Name holds the value of the "name" field. */
+            name?: string;
+            /** @description ★ 明文 token，仅创建时返回一次 */
+            token?: string;
+            type?: components["schemas"]["github_com_kevin_vigil_ent_integration.Type"];
+            /** @description UpdatedAt holds the value of the "updated_at" field. */
+            updated_at?: string;
+        };
+        "internal_integration.updateReq": {
+            enabled?: boolean;
+            name?: string;
         };
         "internal_notification.createRuleReq": {
             channels?: string[];

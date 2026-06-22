@@ -21,6 +21,8 @@ import type {
   AuditLogListResponse,
   DashboardMetrics,
   Incident,
+  Integration,
+  IntegrationCreated,
   ListResponse,
   NotificationRule,
   NotificationTemplate,
@@ -103,6 +105,22 @@ export const api = {
   },
   deleteService(id: number) {
     return http.delete(`/services/${id}`).then((r) => r.data);
+  },
+  // ===== Integration 接入点（能力域 1）=====
+  listIntegrations() {
+    return http.get<Integration[]>("/integrations").then((r) => r.data);
+  },
+  createIntegration(body: { name: string; type: string; config?: Record<string, unknown>; team_id?: number; service_id?: number }) {
+    return http.post<IntegrationCreated>("/integrations", body).then((r) => r.data);
+  },
+  getIntegration(id: number) {
+    return http.get<Integration>(`/integrations/${id}`).then((r) => r.data);
+  },
+  updateIntegration(id: number, body: { name?: string; enabled?: boolean }) {
+    return http.patch<Integration>(`/integrations/${id}`, body).then((r) => r.data);
+  },
+  deleteIntegration(id: number) {
+    return http.delete(`/integrations/${id}`).then((r) => r.data);
   },
 
   // —— Schedule（能力域 5）——
