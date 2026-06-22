@@ -154,8 +154,8 @@ README 第 44-50 行：
 | 需求 | 状态 |
 |------|------|
 | H1.1 Docker Compose | ✅ |
-| **H1.2 Kubernetes Helm Chart** | ❌ `deploy/helm/` 不存在，doc §7「后续补全」 |
-| **H1.5 备份恢复** | ❌ 无脚本，doc D2「后续」 |
+| **H1.2 Kubernetes Helm Chart** | ✅ 已实现（feat-deploy-artifacts：Chart + values + Deployment/Service/Ingress，existingSecret 引用敏感值） |
+| **H1.5 备份恢复** | ✅ 已实现（feat-deploy-artifacts：backup.sh + restore.sh，cron 定时 + 7 天保留） |
 | H1.3 配置加密 | ❌ 见安全 |
 | H1.4 版本化迁移 | ✅ |
 

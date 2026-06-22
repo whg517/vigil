@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: vigil
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vigil
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vigil
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: vigil
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            # 数据库（密码从 Secret 读）
+            - name: VIGIL_DB_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: VIGIL_DB_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: VIGIL_DB_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: VIGIL_DB_USER
+              value: {{ .Values.database.user | quote }}
+            - name: VIGIL_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: db-password
+            # Redis
+            - name: VIGIL_REDIS_ADDR
+              value: "{{ .Values.redis.host }}:{{ .Values.redis.port }}"
+            {{- if .Values.redis.password }}
+            - name: VIGIL_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.existingSecret }}
+                  key: redis-password
+            {{- end }}
+            # JWT（生产必配）
+            - name: VIGIL_AUTH_ENABLED
+              value: {{ .Values.config.authEnabled | quote }}
+            - name: VIGIL_AUTH_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: jwt-secret
+            # 限流/背压
+            - name: VIGIL_INGESTION_RATE_LIMIT_PER_MIN
+              value: {{ .Values.config.ingestionRateLimitPerMin | quote }}
+            - name: VIGIL_INGESTION_BACKPRESSURE_DEPTH
+              value: {{ .Values.config.ingestionBackpressureDepth | quote }}
+            # 通知通道（按需）
+            {{- if .Values.config.smtpHost }}
+            - name: VIGIL_NOTIFICATION_SMTP_HOST
+              value: {{ .Values.config.smtpHost | quote }}
+            {{- end }}
+            {{- if .Values.config.phoneWebhookUrl }}
+            - name: VIGIL_NOTIFICATION_PHONE_WEBHOOK_URL
+              value: {{ .Values.config.phoneWebhookUrl | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

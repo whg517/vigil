@@ -1,0 +1,13 @@
+apiVersion: v2
+name: vigil
+description: Vigil 开源告警处置平台 —— 接入·分诊·升级·协同·复盘
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - alerting
+  - oncall
+  - incident-management
+  - observability
+maintainers:
+  - name: Vigil Maintainers

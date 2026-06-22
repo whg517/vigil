@@ -1,0 +1,83 @@
+# Vigil Helm Chart 默认配置（生产部署参考）。
+# 敏感值（DB 密码、JWT Secret、IM AppSecret）用 existingSecret 引用，不硬编码明文。
+#
+# 生产部署步骤：
+#   1. kubectl create secret generic vigil-secrets \
+#        --from-literal=db-password=<...> \
+#        --from-literal=redis-password=<...> \
+#        --from-literal=jwt-secret=<...>
+#   2. helm install vigil ./deploy/helm -f values-prod.yaml
+
+# 镜像配置
+image:
+  repository: ghcr.io/kevin/vigil
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# 副本数（单实例起步；多实例需 Redis pub/sub 支持 WebSocket 广播，见架构 §6.4）
+replicaCount: 1
+
+# 数据库（生产用外部托管 PG，开发可设 deploySubchart=true 用内置 PG）
+database:
+  host: ""              # 外部 PG 地址（如 pg-ha.svc.cluster.local）；空则用内置 subchart
+  port: 5432
+  name: vigil
+  user: vigil
+  existingSecret: vigil-secrets  # Secret 名，含 db-password 键
+  deploySubchart: false          # true 则部署内置 PG（仅开发/测试）
+
+# Redis（同上）
+redis:
+  host: ""
+  port: 6379
+  existingSecret: vigil-secrets  # 含 redis-password 键（无密码留空）
+  deploySubchart: false
+
+# Vigil 应用配置（对应 config.Config，非敏感项）
+config:
+  authEnabled: "true"            # 生产必须开鉴权
+  # jwtSecret 从 existingSecret 的 jwt-secret 键读，不在此配置
+  ingestionRateLimitPerMin: "600"
+  ingestionBackpressureDepth: "10000"
+  # 各通道配置（按需启用）
+  smtpHost: ""
+  phoneWebhookUrl: ""
+
+# 服务暴露
+service:
+  type: ClusterIP
+  port: 8080
+
+# Ingress
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: vigil.example.com
+  tls:
+    enabled: false
+    secretName: vigil-tls
+
+# 资源限制（生产按负载调整）
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# 健康检查（server.go 的 /health 端点）
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 30
+  readiness:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# Asynq 监控 UI（可选，部署单独 Deployment）
+asynqmon:
+  enabled: false
