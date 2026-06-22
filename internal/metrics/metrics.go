@@ -7,6 +7,9 @@
 package metrics
 
 import (
+	"bufio"
+	"errors"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,11 +22,20 @@ import (
 // statusRecorder 包装 http.ResponseWriter 以捕获最终状态码。
 // Echo v5 的 Context.Response() 返回标准 http.ResponseWriter（不再是 *echo.Response），
 // 丢失了 .Status 字段；这里通过拦截 WriteHeader 在中间件层记录。
+//
+// 透明转发契约：statusRecorder 仅拦截 WriteHeader/Write，对其它能力（Hijacker 用于
+// WebSocket 升级、Flusher 用于 SSE、Pusher 用于 HTTP/2 server push）必须原样透传——
+// 靠 Go 的匿名字段方法提升 + Unwrap 链。下面的编译期断言把"底层 ResponseWriter 实现
+// 这些接口"的隐式假设变成显式契约：若未来某个运行时 ResponseWriter 不满足，编译即失败。
 type statusRecorder struct {
 	http.ResponseWriter
 	status      int
 	wroteHeader bool
 }
+
+// Unwrap 暴露底层 ResponseWriter，供 Go 1.20+ 的 http.ResponseController 及
+// errors.As/errors.Is 走 unwrap 链发现真实 writer（含 Hijacker/Flusher 能力）。
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
 // WriteHeader 记录状态码后委托给底层 ResponseWriter。
 func (r *statusRecorder) WriteHeader(code int) {
@@ -32,6 +44,28 @@ func (r *statusRecorder) WriteHeader(code int) {
 		r.wroteHeader = true
 	}
 	r.ResponseWriter.WriteHeader(code)
+}
+
+// Hijack 透传 http.Hijacker（WebSocket 升级、连接接管所需）。
+//
+// 为什么不能靠嵌入字段的方法提升：statusRecorder 嵌入的是 http.ResponseWriter「接口」，
+// Go 只提升接口声明的方法（Write/WriteHeader/Header），不提升底层具体类型的额外方法
+// （Hijack/Flush/Push）。而 gorilla/websocket Upgrader.Upgrade 用 w.(http.Hijacker) 直接
+// 断言、不走 Unwrap 链——若不显式声明 Hijack，WS 握手会 500。
+// 这里对底层 writer 二次断言，不支持 Hijack 的 writer 返回错误（与标准库行为一致）。
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("metrics: underlying ResponseWriter does not implement http.Hijacker")
+	}
+	return hj.Hijack()
+}
+
+// Flush 透传 http.Flusher（SSE/流式响应所需），不支持则 no-op。
+func (r *statusRecorder) Flush() {
+	if fl, ok := r.ResponseWriter.(http.Flusher); ok {
+		fl.Flush()
+	}
 }
 
 // Write 兜底：handler 未显式调用 WriteHeader 时，Go 的 net/http 会在首次 Write 前

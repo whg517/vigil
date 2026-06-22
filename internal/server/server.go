@@ -133,7 +133,12 @@ func (s *Server) Start() error {
 }
 
 // Shutdown 优雅关闭：取消 Start 的生命周期 ctx，触发 v5 内建优雅关闭并等待 Serve 退出。
-// 传入的 ctx 仅作为等待超时（超时返回其 Err）；真正的关闭宽限由 StartConfig.GracefulTimeout 控制。
+//
+// 传入的 ctx 仅作为等待 Serve 退出的超时上限（超时返回其 Err，如 DeadlineExceeded）；
+// 真正的关闭宽限由 StartConfig.GracefulTimeout（当前 10s）控制。
+//
+// 边界：若 Start 从未被调用（startDone==nil），本方法为安全 no-op——直接返回 nil，
+// 既不等待也不消费 ctx。这使得构造后未启动的 Server 也能安全 Shutdown。
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.startCancel != nil {
 		s.startCancel()

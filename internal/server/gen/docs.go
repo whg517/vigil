@@ -5,7 +5,6 @@ package gen
 import "github.com/swaggo/swag/v2"
 
 const docTemplate = `{
-    "schemes": "{{ marshal .Schemes }}",
     "components": {
         "schemas": {
             "ent.AIInsight": {
@@ -3477,6 +3476,10 @@ const docTemplate = `{
             }
         }
     },
+    "externalDocs": {
+        "description": "",
+        "url": ""
+    },
     "info": {
         "description": "{{escape .Description}}",
         "license": {
@@ -3485,10 +3488,7 @@ const docTemplate = `{
         "title": "{{.Title}}",
         "version": "{{.Version}}"
     },
-    "externalDocs": {
-        "description": "",
-        "url": ""
-    },
+    "openapi": "3.1.0",
     "paths": {
         "/action-items/{id}": {
             "patch": {
@@ -3513,8 +3513,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_postmortem.updateActionItemReq",
-                                        "summary": "body",
-                                        "description": "更新字段（全部可选）"
+                                        "description": "更新字段（全部可选）",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -3590,8 +3590,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_ai.resolveReq",
-                                        "summary": "request",
-                                        "description": "accepted=true 接受，false 拒绝"
+                                        "description": "accepted=true 接受，false 拒绝",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -4033,8 +4033,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_auth.apiKeyCreateReq",
-                                        "summary": "body",
-                                        "description": "创建参数"
+                                        "description": "创建参数",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -4266,8 +4266,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_auth.loginReq",
-                                        "summary": "body",
-                                        "description": "登录凭证"
+                                        "description": "登录凭证",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -4391,8 +4391,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_auth.refreshReq",
-                                        "summary": "body",
-                                        "description": "refresh token"
+                                        "description": "refresh token",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -4500,8 +4500,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_escalation.createReq",
-                                        "summary": "body",
-                                        "description": "策略配置"
+                                        "description": "策略配置",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -4657,8 +4657,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_escalation.updateReq",
-                                        "summary": "body",
-                                        "description": "更新字段"
+                                        "description": "更新字段",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -5383,8 +5383,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_timeline.addReq",
-                                        "summary": "request",
-                                        "description": "条目内容（content 必填）"
+                                        "description": "条目内容（content 必填）",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -5487,8 +5487,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_integration.createReq",
-                                        "summary": "body",
-                                        "description": "接入点配置"
+                                        "description": "接入点配置",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -5644,8 +5644,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_integration.updateReq",
-                                        "summary": "body",
-                                        "description": "更新字段"
+                                        "description": "更新字段",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -5747,8 +5747,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_notification.createRuleReq",
-                                        "summary": "request",
-                                        "description": "通知规则定义"
+                                        "description": "通知规则定义",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -5947,8 +5947,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_notification.updateRuleReq",
-                                        "summary": "request",
-                                        "description": "待更新字段"
+                                        "description": "待更新字段",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -6126,8 +6126,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_notification.createTemplateReq",
-                                        "summary": "request",
-                                        "description": "模板定义"
+                                        "description": "模板定义",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -6336,8 +6336,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_notification.updateTemplateReq",
-                                        "summary": "request",
-                                        "description": "待更新字段"
+                                        "description": "待更新字段",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -6613,8 +6613,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_postmortem.addActionItemReq",
-                                        "summary": "body",
-                                        "description": "改进项参数"
+                                        "description": "改进项参数",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -6689,8 +6689,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_postmortem.transitionReq",
-                                        "summary": "body",
-                                        "description": "目标状态"
+                                        "description": "目标状态",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -6780,8 +6780,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_auth.createBindingReq",
-                                        "summary": "body",
-                                        "description": "绑定参数"
+                                        "description": "绑定参数",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -6930,8 +6930,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_auth.createRoleReq",
-                                        "summary": "body",
-                                        "description": "角色创建参数"
+                                        "description": "角色创建参数",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -7092,8 +7092,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_runbook.createReq",
-                                        "summary": "request",
-                                        "description": "Runbook 定义"
+                                        "description": "Runbook 定义",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -7274,8 +7274,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_runbook.executeReq",
-                                        "summary": "request",
-                                        "description": "执行参数（incident_id + approved）"
+                                        "description": "执行参数（incident_id + approved）",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -7375,8 +7375,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_schedule.createScheduleReq",
-                                        "summary": "body",
-                                        "description": "排班创建参数"
+                                        "description": "排班创建参数",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -7562,8 +7562,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_schedule.updateScheduleReq",
-                                        "summary": "body",
-                                        "description": "排班更新参数"
+                                        "description": "排班更新参数",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -7815,8 +7815,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_service.createReq",
-                                        "summary": "body",
-                                        "description": "服务创建参数"
+                                        "description": "服务创建参数",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -8002,8 +8002,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_service.updateReq",
-                                        "summary": "body",
-                                        "description": "服务更新参数"
+                                        "description": "服务更新参数",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -8105,8 +8105,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_notification.createSuppressionReq",
-                                        "summary": "request",
-                                        "description": "抑制规则定义"
+                                        "description": "抑制规则定义",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -8305,8 +8305,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_notification.updateSuppressionReq",
-                                        "summary": "request",
-                                        "description": "待更新字段"
+                                        "description": "待更新字段",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -8406,8 +8406,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_auth.createTeamReq",
-                                        "summary": "body",
-                                        "description": "团队配置"
+                                        "description": "团队配置",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -8519,8 +8519,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_auth.updateTeamReq",
-                                        "summary": "body",
-                                        "description": "更新字段"
+                                        "description": "更新字段",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -8633,8 +8633,8 @@ const docTemplate = `{
                                     },
                                     {
                                         "$ref": "#/components/schemas/internal_auth.updateUserReq",
-                                        "summary": "body",
-                                        "description": "更新字段"
+                                        "description": "更新字段",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -8778,7 +8778,7 @@ const docTemplate = `{
             }
         }
     },
-    "openapi": "3.1.0",
+    "schemes": "{{ marshal .Schemes }}",
     "servers": [
         {
             "url": "/api/v1"

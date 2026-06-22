@@ -1,9 +1,11 @@
 package metrics
 
 import (
-	"strings"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
@@ -112,5 +114,70 @@ func TestMetricsRegistered(t *testing.T) {
 	}
 }
 
-// 确保引用 strings（避免未使用 import，后续扩展用）。
-var _ = strings.Contains
+// TestEchoMiddlewareCapturesStatus 验证 v5 迁移的核心行为：
+// statusRecorder 拦截 WriteHeader/隐式 200，把状态码正确写入 vigil_http_requests_total。
+// 覆盖显式状态码（2xx/4xx/5xx）与隐式 200（handler 只 Write 不 WriteHeader）两条路径。
+func TestEchoMiddlewareCapturesStatus(t *testing.T) {
+	e := echo.New()
+	e.Use(EchoMiddleware())
+
+	// 显式状态码路由。
+	e.GET("/ok", func(c *echo.Context) error { return c.String(http.StatusOK, "ok") })
+	e.GET("/notfound", func(c *echo.Context) error { return c.String(http.StatusNotFound, "nope") })
+	e.GET("/boom", func(c *echo.Context) error { return c.String(http.StatusInternalServerError, "boom") })
+	// 隐式 200：只写 body，不调 WriteHeader（触发 statusRecorder.Write 的兜底）。
+	e.GET("/implicit", func(c *echo.Context) error {
+		_, _ = c.Response().Write([]byte("implicit"))
+		return nil
+	})
+
+	// 记录基线，避免其它测试累积计数干扰断言。
+	// 注意：中间件把状态码经 statusLabel→statusLabelToInt 归一为桶基准值（200/400/500）。
+	base := map[string]float64{
+		"2xx":         testutil.ToFloat64(httpRequests.WithLabelValues("GET", "/ok", "200")),
+		"4xx":         testutil.ToFloat64(httpRequests.WithLabelValues("GET", "/notfound", "400")),
+		"5xx":         testutil.ToFloat64(httpRequests.WithLabelValues("GET", "/boom", "500")),
+		"implicit2xx": testutil.ToFloat64(httpRequests.WithLabelValues("GET", "/implicit", "200")),
+	}
+
+	serve := func(target string) {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+	}
+	serve("/ok")
+	serve("/notfound")
+	serve("/boom")
+	serve("/implicit")
+
+	cases := map[string]string{
+		"2xx":         "GET /ok 显式 200 应归到 2xx 桶(标签 200)",
+		"4xx":         "GET /notfound 显式 404 应归到 4xx 桶(标签 400)",
+		"5xx":         "GET /boom 显式 500 应归到 5xx 桶(标签 500)",
+		"implicit2xx": "GET /implicit 隐式 200 应归到 2xx 桶(标签 200，statusRecorder.Write 兜底)",
+	}
+	for key, msg := range cases {
+		path, label := pathAndLabel(key)
+		got := testutil.ToFloat64(httpRequests.WithLabelValues("GET", path, label))
+		if got-base[key] != 1 {
+			t.Errorf("%s: vigil_http_requests_total{path=%q,status=%q} 应 +1, before=%v after=%v",
+				msg, path, label, base[key], got)
+		}
+	}
+}
+
+// pathAndLabel 是 TestEchoMiddlewareCapturesStatus 的 label→(path,statusLabel) 映射，
+// 拆出来仅为避免 map value 是 struct 带来的可读性下降。
+func pathAndLabel(key string) (path, label string) {
+	switch key {
+	case "2xx":
+		return "/ok", "200"
+	case "4xx":
+		return "/notfound", "400"
+	case "5xx":
+		return "/boom", "500"
+	case "implicit2xx":
+		return "/implicit", "200"
+	}
+	return "", ""
+}
