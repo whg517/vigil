@@ -1,25 +1,23 @@
-# Vigil 开发命令
-# 用法：make <target>
-#
-# 常用：
-#   make dev-setup    — 一键启动依赖服务 + 迁移
-#   make dev-backend  — 启动后端（前台）
-#   make dev-frontend — 启动前端（前台）
-#   make check        — 提交前验证（lint + build）
+##@ General
+
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help: ## Display this help.
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 COMPOSE_PROJECT_NAME := vigil
 ENV_FILE := .env
+GO_LINT  := golangci-lint run ./...
 
-# ============================================================
-# 依赖服务（PostgreSQL + Redis）
-# ============================================================
+##@ Dependencies
 
 # 确保 .env 存在
 $(ENV_FILE):
 	cp .env.example $(ENV_FILE)
 
-# 启动依赖服务（postgres + redis）
-dev-up: $(ENV_FILE)
+.PHONY: dev-up dev-down
+dev-up: $(ENV_FILE) ## 启动依赖服务（postgres + redis）并等待就绪
 	COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME) docker compose up -d postgres redis
 	@echo "Waiting for postgres to be ready..."
 	@until docker compose exec -T postgres pg_isready -U vigil > /dev/null 2>&1; do sleep 1; done
@@ -27,23 +25,33 @@ dev-up: $(ENV_FILE)
 	@until docker compose exec -T redis redis-cli ping > /dev/null 2>&1; do sleep 1; done
 	@echo "✅ postgres + redis ready"
 
-# 停止依赖服务
-dev-down:
+dev-down: ## 停止依赖服务
 	COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME) docker compose down
 
-# ============================================================
-# 数据库迁移
-# ============================================================
+##@ Database
 
-migrate: dev-up
+.PHONY: migrate
+migrate: dev-up ## 执行数据库迁移
 	go run ./cmd/vigil/ migrate
 
-# ============================================================
-# 开发服务器
-# ============================================================
+##@ Code Generation
 
-# 一键启动：依赖服务 + 迁移（前后端需在两个终端分别启动）
-dev-setup: migrate
+.PHONY: gen gen-ent gen-openapi gen-types
+gen: gen-ent gen-openapi gen-types ## 一键代码生成（ent + OpenAPI + 前端 types）
+
+gen-ent: ## 重新生成 ent 代码（改了 ent/schema/*.go 后必须执行）
+	go generate ./ent/...
+
+gen-openapi: ## 重新生成 OpenAPI spec（改了 handler 注解后必须执行）
+	go generate ./cmd/vigil/...
+
+gen-types: ## 根据最新 OpenAPI spec 生成前端 types.gen.ts
+	pnpm --dir web gen:types
+
+##@ Development
+
+.PHONY: dev-setup dev-backend dev-frontend
+dev-setup: migrate ## 一键启动：依赖服务 + 迁移
 	@echo ""
 	@echo "✅ All services ready!"
 	@echo ""
@@ -54,43 +62,46 @@ dev-setup: migrate
 	@echo "   前端:  http://localhost:5173"
 	@echo "   登录:  admin / changeme"
 
-# 启动后端（前台，自动运行迁移）
-dev-backend:
+dev-backend: ## 启动后端（前台，自动运行迁移）
 	go run ./cmd/vigil/
 
-# 启动前端（前台，Vite dev server）
-dev-frontend:
+dev-frontend: ## 启动前端（前台，Vite dev server）
 	pnpm --dir web dev
 
-# ============================================================
-# 代码质量
-# ============================================================
+##@ Quality
 
-# 后端 lint
-lint:
-	golangci-lint run ./...
+.PHONY: lint lint-backend lint-frontend build build-frontend
+lint: lint-backend lint-frontend ## 全量 lint（后端 golangci-lint + 前端 eslint）
 
-# 后端构建
-build:
+lint-backend: ## 后端 lint（golangci-lint）
+	$(GO_LINT)
+
+lint-frontend: ## 前端 lint（eslint）
+	pnpm --dir web lint
+
+build: ## 后端构建
 	go build ./...
 
-# 前端构建
-build-frontend:
+build-frontend: ## 前端构建（含 tsc 类型检查）
 	pnpm --dir web build
 
-# 提交前验证（对应 docs/development.md §3.4 门禁）
-check: build build-frontend
-	@echo "✅ All checks passed"
+##@ Testing
 
-# ============================================================
-# 测试
-# ============================================================
-
-test:
+.PHONY: test
+test: ## 运行后端测试
 	go test ./...
 
-# ============================================================
-# 清理
-# ============================================================
+##@ Verification
 
-clean: dev-down
+.PHONY: check verify
+check: lint test build build-frontend ## 提交前三道门禁（lint→test→build，对应 docs/development.md §3.4）
+	@echo "✅ Pre-commit checks passed (lint → test → build)"
+
+verify: lint test build build-frontend ## main 复验（合入 main 后的最终校验，对应 AGENTS.md 闭环第 6 步）
+	@echo "✅ main verification passed"
+
+##@ Cleanup
+
+.PHONY: clean
+clean: dev-down ## 停止依赖服务并清理（容器 + 前端产物）
+	rm -rf web/dist web/node_modules/.vite
