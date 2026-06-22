@@ -895,6 +895,218 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/escalation-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 升级策略列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.EscalationPolicy"][];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 创建升级策略 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 策略配置 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["internal_escalation.createReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.EscalationPolicy"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/escalation-policies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 升级策略详情 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 策略 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.EscalationPolicy"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** 删除升级策略 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 策略 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** 更新升级策略 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 策略 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 更新字段 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["internal_escalation.updateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.EscalationPolicy"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/im/{platform}/callback": {
         parameters: {
             query?: never;
@@ -5375,6 +5587,16 @@ export interface components {
         };
         "internal_auth.refreshReq": {
             refresh_token?: string;
+        };
+        "internal_escalation.createReq": {
+            levels?: components["schemas"]["github_com_kevin_vigil_ent_schema.EscalationLevel"][];
+            name?: string;
+            repeat_times?: number;
+        };
+        "internal_escalation.updateReq": {
+            levels?: components["schemas"]["github_com_kevin_vigil_ent_schema.EscalationLevel"][];
+            name?: string;
+            repeat_times?: number;
         };
         "internal_integration.createReq": {
             /** @description 类型相关配置（URL/过滤/限流等） */

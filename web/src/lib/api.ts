@@ -20,6 +20,7 @@ import type {
   APIKeyCreated,
   AuditLogListResponse,
   DashboardMetrics,
+  EscalationPolicy,
   Incident,
   Integration,
   IntegrationCreated,
@@ -121,6 +122,22 @@ export const api = {
   },
   deleteIntegration(id: number) {
     return http.delete(`/integrations/${id}`).then((r) => r.data);
+  },
+  // ===== EscalationPolicy 升级策略（能力域 6）=====
+  listEscalationPolicies() {
+    return http.get<EscalationPolicy[]>("/escalation-policies").then((r) => r.data);
+  },
+  createEscalationPolicy(body: { name: string; repeat_times?: number; levels?: EscalationPolicy["levels"] }) {
+    return http.post<EscalationPolicy>("/escalation-policies", body).then((r) => r.data);
+  },
+  getEscalationPolicy(id: number) {
+    return http.get<EscalationPolicy>(`/escalation-policies/${id}`).then((r) => r.data);
+  },
+  updateEscalationPolicy(id: number, body: Partial<{ name: string; repeat_times: number; levels: EscalationPolicy["levels"] }>) {
+    return http.patch<EscalationPolicy>(`/escalation-policies/${id}`, body).then((r) => r.data);
+  },
+  deleteEscalationPolicy(id: number) {
+    return http.delete(`/escalation-policies/${id}`).then((r) => r.data);
   },
 
   // —— Schedule（能力域 5）——

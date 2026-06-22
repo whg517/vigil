@@ -104,6 +104,19 @@ export interface IntegrationCreated extends Integration {
   token: string;
 }
 
+// —— EscalationPolicy（ent/schema/escalation_policy.go，能力域 6）——
+export interface EscalationLevel {
+  level: number;
+  delay_minutes: number;
+  targets: { type: string; id: number; name?: string }[];
+  notify_channels: string[];
+}
+export type EscalationPolicy = Required<
+  Omit<Schemas["ent.EscalationPolicy"], "edges">
+> & {
+  levels?: EscalationLevel[];
+};
+
 // —— Schedule（ent/schema/schedule.go，能力域 5）——
 export type ScheduleType = Schemas["github_com_kevin_vigil_ent_schedule.Type"];
 export interface ScheduleLayer {

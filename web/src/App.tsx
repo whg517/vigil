@@ -7,6 +7,7 @@ import { IncidentDetail } from "@/pages/incident-detail";
 import { Oncall } from "@/pages/oncall";
 import { Services } from "@/pages/services";
 import { Integrations } from "@/pages/integrations";
+import { EscalationPolicies } from "@/pages/escalation-policies";
 import { Runbooks } from "@/pages/runbooks";
 import { Postmortems } from "@/pages/postmortems";
 import { Settings } from "@/pages/settings";
@@ -45,6 +46,7 @@ function App() {
         <Route path="oncall" element={<Oncall />} />
         <Route path="services" element={<Services />} />
         <Route path="integrations" element={<Integrations />} />
+        <Route path="escalation-policies" element={<EscalationPolicies />} />
         <Route path="runbooks" element={<Runbooks />} />
         <Route path="postmortems" element={<Postmortems />} />
         <Route path="settings" element={<Settings />} />

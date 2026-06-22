@@ -449,6 +449,8 @@ func run() error {
 	service.NewHandler(st.DB).Register(v1)
 	// 接入点管理（能力域 1）：Integration CRUD，创建返回 webhook 鉴权 token 一次
 	integration.NewHandler(st.DB).Register(v1)
+	// 升级策略管理（能力域 6）：EscalationPolicy CRUD（engine 已有，此处补管理 API）
+	escalation.NewPolicyHandler(st.DB).Register(v1)
 	// Incident API（能力域 14 集成入口 + 8 IM/Web 操作）：list/get/ack/resolve/escalate
 	incident.NewHandler(st.DB, incService).Register(v1)
 	// RBAC（能力域 13）：角色/绑定管理；记审计（角色变更/授权是敏感操作）

@@ -2752,6 +2752,42 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "internal_escalation.createReq": {
+                "properties": {
+                    "levels": {
+                        "items": {
+                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.EscalationLevel"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "repeat_times": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_escalation.updateReq": {
+                "properties": {
+                    "levels": {
+                        "items": {
+                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.EscalationLevel"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "repeat_times": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "internal_integration.createReq": {
                 "properties": {
                     "config": {
@@ -4387,6 +4423,264 @@ const docTemplate = `{
                 "summary": "刷新 token",
                 "tags": [
                     "auth"
+                ]
+            }
+        },
+        "/escalation-policies": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ent.EscalationPolicy"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "升级策略列表",
+                "tags": [
+                    "escalation"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/internal_escalation.createReq",
+                                        "summary": "body",
+                                        "description": "策略配置"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "策略配置",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.EscalationPolicy"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "创建升级策略",
+                "tags": [
+                    "escalation"
+                ]
+            }
+        },
+        "/escalation-policies/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "策略 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "删除升级策略",
+                "tags": [
+                    "escalation"
+                ]
+            },
+            "get": {
+                "parameters": [
+                    {
+                        "description": "策略 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.EscalationPolicy"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "升级策略详情",
+                "tags": [
+                    "escalation"
+                ]
+            },
+            "patch": {
+                "parameters": [
+                    {
+                        "description": "策略 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/internal_escalation.updateReq",
+                                        "summary": "body",
+                                        "description": "更新字段"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "更新字段",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.EscalationPolicy"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "更新升级策略",
+                "tags": [
+                    "escalation"
                 ]
             }
         },
