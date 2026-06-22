@@ -465,6 +465,8 @@ func run() error {
 	// Runbook（能力域 9）：处置手册 + 受控执行，注入时间线记录器
 	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
 	runbookEngine.SetTimelineRecorder(timelineRecorder)
+	// on_failure=escalate 触发器：包装 incident.Service.Escalate（系统触发，actorID=0）
+	runbookEngine.SetEscalationTrigger(runbookEscalator{inc: incService})
 	runbook.NewHandler(st.DB, runbookEngine).Register(v1)
 	// 时间线（能力域 10）：查询 + 手动追加 API
 	timeline.NewHandler(timelineRecorder).Register(v1)
@@ -631,4 +633,15 @@ func resolvePhones(ctx context.Context, db *ent.Client, targets []notification.T
 		}
 	}
 	return phones
+}
+
+// runbookEscalator 实现 runbook.EscalationTrigger，包装 incident.Service.Escalate。
+// on_failure=escalate 时触发该 incident 的立即升级（系统触发，actorID=0，source=runbook）。
+type runbookEscalator struct {
+	inc *incident.Service
+}
+
+func (r runbookEscalator) Trigger(ctx context.Context, incID int, reason string) error {
+	_, err := r.inc.Escalate(ctx, incID, 0, incident.SourceRunbook)
+	return err
 }

@@ -27,8 +27,9 @@
 
 ## 处置执行（能力域 9）
 
-- [ ] **InternalExecutor 真实诊断查询**（M9.4）：`internal/runbook/executor.go:94` 当前返回模拟结果，待对接指标/日志/拓扑只读查询。
+- [x] ~~InternalExecutor 真实诊断查询（M9.4）~~ ✅ 已完成（feat-runbook-closure：check_http 真实探活）
 - [ ] **执行器凭证管理**：Ansible/Jenkins token 加密存储（Q1）。
+- [ ] InternalExecutor 扩展：query_metrics（查 Prometheus）/ query_logs（查 Loki）等更多只读诊断。
 
 ## AI 智能（能力域 11）
 

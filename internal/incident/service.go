@@ -41,9 +41,10 @@ var ErrNotFound = errors.New("incident not found")
 type Source string
 
 const (
-	SourceWeb Source = "web"
-	SourceIM  Source = "im"
-	SourceAPI Source = "api"
+	SourceWeb     Source = "web"
+	SourceIM      Source = "im"
+	SourceAPI     Source = "api"
+	SourceRunbook Source = "runbook" // Runbook on_failure=escalate 自动触发
 )
 
 // Service 事件动作领域服务。

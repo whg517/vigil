@@ -20,14 +20,22 @@ import (
 
 // Engine Runbook 执行引擎。
 type Engine struct {
-	db       *ent.Client
-	registry *Registry
-	timeline TimelineRecorder // 时间线记录接口，由 main 注入；nil 则不记录
+	db        *ent.Client
+	registry  *Registry
+	timeline  TimelineRecorder  // 时间线记录接口，由 main 注入；nil 则不记录
+	escalator EscalationTrigger // 升级触发器，on_failure=escalate 时调用；nil 则仅中止不升级
 }
 
 // TimelineRecorder 时间线记录接口（解耦 runbook 与 incident 包）。
 type TimelineRecorder interface {
 	RecordRunbook(ctx context.Context, incID int, stepName, output string, success bool) error
+}
+
+// EscalationTrigger 升级触发接口（解耦 runbook 与 escalation/incident 包）。
+// on_failure=escalate 时调用，触发该 incident 的立即升级。
+// 由 main 注入（实际实现调 incident.Service.Escalate 或 escalation.Engine）。
+type EscalationTrigger interface {
+	Trigger(ctx context.Context, incID int, reason string) error
 }
 
 // NewEngine 创建执行引擎。
@@ -38,6 +46,11 @@ func NewEngine(db *ent.Client, reg *Registry) *Engine {
 // SetTimelineRecorder 注入时间线记录器。
 func (e *Engine) SetTimelineRecorder(r TimelineRecorder) {
 	e.timeline = r
+}
+
+// SetEscalationTrigger 注入升级触发器（on_failure=escalate 用）。
+func (e *Engine) SetEscalationTrigger(t EscalationTrigger) {
+	e.escalator = t
 }
 
 // ExecuteResult 整个 Runbook 的执行结果。
@@ -63,7 +76,13 @@ func (e *Engine) Execute(ctx context.Context, runbookID, incID int, approved boo
 	}
 
 	res := &ExecuteResult{RunbookID: runbookID, IncidentID: incID}
-	for _, step := range rb.Steps {
+	return e.executeSteps(ctx, incID, rb.Steps, approved, res), nil
+}
+
+// executeSteps 执行步骤列表，处理 on_failure（continue/abort/escalate）+ 时间线记录。
+// 抽成独立方法便于测试 on_failure 逻辑（无需构造完整 runbook 实体）。
+func (e *Engine) executeSteps(ctx context.Context, incID int, steps []schema.RunbookStep, approved bool, res *ExecuteResult) *ExecuteResult {
+	for _, step := range steps {
 		sr := e.executeStep(ctx, step, approved)
 		res.Steps = append(res.Steps, sr)
 
@@ -82,17 +101,21 @@ func (e *Engine) Execute(ctx context.Context, runbookID, incID int, approved boo
 			case "abort":
 				res.Aborted = true
 				res.Reason = fmt.Sprintf("step %q failed: %s", step.Name, sr.Error)
-				return res, nil
+				return res
 			case "escalate":
 				res.Aborted = true
 				res.Reason = fmt.Sprintf("step %q failed, escalate: %s", step.Name, sr.Error)
-				return res, nil // TODO: 触发升级（交 escalation 包）
+				// 触发立即升级（escalator 未配置时仅中止，不升级——降级）
+				if e.escalator != nil && incID > 0 {
+					_ = e.escalator.Trigger(ctx, incID, res.Reason)
+				}
+				return res
 			default: // continue
 				continue
 			}
 		}
 	}
-	return res, nil
+	return res
 }
 
 // executeStep 执行单步。

@@ -84,16 +84,58 @@ func (h *HTTPExecutor) Execute(ctx context.Context, target schema.StepTarget, pa
 	return buf.String(), nil
 }
 
-// InternalExecutor 内置诊断执行器（只读安全动作）。
-// 当前为占位：返回模拟的诊断结果。后续可对接指标/日志/拓扑查询。
-type InternalExecutor struct{}
+// InternalExecutor 内置诊断执行器（只读安全动作，能力域 9 M9.4）。
+//
+// 根据 params.action 执行不同诊断：
+//   - check_http：对 target.endpoint 做 HTTP GET 探活，返回状态码（验证服务可达性）
+//   - info（默认）：返回 target 元信息（kind/endpoint/readonly）
+//
+// 全部只读，不修改外部状态。后续可扩展 query_metrics（查 Prometheus）等。
+type InternalExecutor struct {
+	client *http.Client
+}
 
-func (InternalExecutor) Kind() string { return "internal" }
+// NewInternalExecutor 创建内置执行器。
+func NewInternalExecutor() *InternalExecutor {
+	return &InternalExecutor{client: &http.Client{Timeout: 10 * time.Second}}
+}
 
-func (InternalExecutor) Execute(ctx context.Context, target schema.StepTarget, params map[string]any) (string, error) {
-	// TODO: 接入只读查询（查指标/日志/拓扑）
-	// 当前返回模拟诊断结果，保证链路通畅
-	return fmt.Sprintf(`{"status":"ok","diagnose":"internal check for %s"}`, target.Endpoint), nil
+func (*InternalExecutor) Kind() string { return "internal" }
+
+func (e *InternalExecutor) Execute(ctx context.Context, target schema.StepTarget, params map[string]any) (string, error) {
+	action, _ := params["action"].(string)
+	if action == "" {
+		action = "info"
+	}
+
+	switch action {
+	case "check_http":
+		return e.checkHTTP(ctx, target.Endpoint)
+	default:
+		// info：返回 target 元信息（结构化，非纯模拟）
+		return fmt.Sprintf(`{"action":"info","target":{"kind":%q,"endpoint":%q,"readonly":%t}}`,
+			target.Kind, target.Endpoint, target.Readonly), nil
+	}
+}
+
+// checkHTTP 对 endpoint 做 GET 探活，返回状态码与耗时。
+func (e *InternalExecutor) checkHTTP(ctx context.Context, endpoint string) (string, error) {
+	if endpoint == "" {
+		return "", fmt.Errorf("check_http requires endpoint")
+	}
+	start := time.Now()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("build request: %w", err)
+	}
+	resp, err := e.client.Do(req)
+	if err != nil {
+		return fmt.Sprintf(`{"action":"check_http","endpoint":%q,"status":"unreachable","error":%q}`, endpoint, err.Error()), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+	elapsed := time.Since(start).Milliseconds()
+	return fmt.Sprintf(`{"action":"check_http","endpoint":%q,"status_code":%d,"latency_ms":%d}`,
+		endpoint, resp.StatusCode, elapsed), nil
 }
 
 // Registry 执行器注册表。
@@ -105,7 +147,7 @@ type Registry struct {
 func NewRegistry() *Registry {
 	r := &Registry{executors: make(map[string]Executor)}
 	r.Register(NewHTTPExecutor())
-	r.Register(InternalExecutor{})
+	r.Register(NewInternalExecutor())
 	return r
 }
 

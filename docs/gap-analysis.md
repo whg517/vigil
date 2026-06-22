@@ -92,8 +92,8 @@ r.Register(&GenericJSONAdapter{})
 |------|-----|------|
 | 智能降噪（AI 学模式） | M11.5 | ❌ 仅规则式 |
 | 知识沉淀（published 复盘进知识库，反哺相似检索） | M12.6 | ✅ 已实现（feat-knowledge：复用 Postmortem + pgvector，published 时计算 embedding 入库，FindSimilarPostmortems 反哺相似检索） |
-| Runbook on_failure=escalate | M9.7 | ❌ `engine.go:89` `// TODO: 触发升级`，处置失败不升级 |
-| InternalExecutor 真实诊断（查指标/日志/拓扑） | M9.4 | ❌ `executor.go:94` `// TODO`，返回模拟结果 |
+| Runbook on_failure=escalate | M9.7 | ✅ 已实现（feat-runbook-closure：EscalationTrigger 接口接通 incident.Escalate） |
+| InternalExecutor 真实诊断（查指标/日志/拓扑） | M9.4 | ✅ 已实现（feat-runbook-closure：check_http 真实探活 + info 结构化输出） |
 
 ---
 
