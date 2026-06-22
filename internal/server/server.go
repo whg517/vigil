@@ -17,7 +17,7 @@ import (
 	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/store"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -28,13 +28,17 @@ type Server struct {
 	store  *store.Store
 	v1     *echo.Group // /api/v1 业务路由组（需鉴权）
 	public *echo.Group // /api/v1 公开路由组（webhook 接入/IM 回调，自带鉴权，不走 RBAC）
+
+	// v5 优雅关闭：Start 创建独立 startCtx 并在返回时关闭 startDone；
+	// Shutdown 取消 startCtx 触发框架内建关闭，并等待 startDone 确认 Serve 真正退出。
+	startCtx    context.Context
+	startCancel context.CancelFunc
+	startDone   chan struct{}
 }
 
 // New 创建 Server 并注册基础路由（health 等）。
 func New(cfg *config.Config, st *store.Store) *Server {
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
 
 	s := &Server{echo: e, cfg: cfg, store: st}
 
@@ -69,7 +73,7 @@ func (s *Server) registerBase() {
 }
 
 // health 健康检查：检查 PostgreSQL + Redis 连通性。
-func (s *Server) health(c echo.Context) error {
+func (s *Server) health(c *echo.Context) error {
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 3*time.Second)
 	defer cancel()
 
@@ -102,17 +106,44 @@ func (s *Server) health(c echo.Context) error {
 }
 
 // metrics Prometheus 指标端点（Go runtime + 业务 + HTTP 指标）。
-func (s *Server) metrics(c echo.Context) error {
-	promhttp.Handler().ServeHTTP(c.Response().Writer, c.Request())
+func (s *Server) metrics(c *echo.Context) error {
+	promhttp.Handler().ServeHTTP(c.Response(), c.Request())
 	return nil
 }
 
 // Start 启动 HTTP 服务（阻塞）。
+//
+// Echo v5 通过 StartConfig.Start(ctx, e) 内建优雅关闭：ctx 取消时框架自动等待
+// GracefulTimeout 后关闭 listener。这里用一个独立于信号的 startCtx，让调用方
+// （cmd/vigil）能在 Shutdown 中按"queue→webhook→http"的顺序主动触发关闭，而不是
+// 收到信号立即停 http（破坏多组件有序关闭）。返回时关闭 startDone 通知 Shutdown。
 func (s *Server) Start() error {
-	return s.echo.Start(s.cfg.HTTP.Addr)
+	s.startCtx, s.startCancel = context.WithCancel(context.Background())
+	s.startDone = make(chan struct{})
+	defer close(s.startDone)
+	defer s.startCancel()
+
+	sc := echo.StartConfig{
+		Address:         s.cfg.HTTP.Addr,
+		HideBanner:      true,
+		HidePort:        true,
+		GracefulTimeout: 10 * time.Second,
+	}
+	return sc.Start(s.startCtx, s.echo)
 }
 
-// Shutdown 优雅关闭。
+// Shutdown 优雅关闭：取消 Start 的生命周期 ctx，触发 v5 内建优雅关闭并等待 Serve 退出。
+// 传入的 ctx 仅作为等待超时（超时返回其 Err）；真正的关闭宽限由 StartConfig.GracefulTimeout 控制。
 func (s *Server) Shutdown(ctx context.Context) error {
-	return s.echo.Shutdown(ctx)
+	if s.startCancel != nil {
+		s.startCancel()
+	}
+	if s.startDone != nil {
+		select {
+		case <-s.startDone:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }

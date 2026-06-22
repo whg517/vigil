@@ -13,7 +13,7 @@ import (
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler Incident API。
@@ -56,7 +56,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Failure      500       {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents [get]
-func (h *Handler) list(c echo.Context) error {
+func (h *Handler) list(c *echo.Context) error {
 	ctx := c.Request().Context()
 	q := h.db.Incident.Query()
 	if s := c.QueryParam("status"); s != "" {
@@ -100,7 +100,7 @@ func (h *Handler) list(c echo.Context) error {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id} [get]
-func (h *Handler) get(c echo.Context) error {
+func (h *Handler) get(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -120,7 +120,7 @@ func (h *Handler) get(c echo.Context) error {
 // 来自鉴权中间件注入的 ctxUser（auth.UserIDFromContext）。
 // 渐进式鉴权阶段：中间件可能未注入（匿名放行），此时返回 0（视为系统/匿名操作）。
 // 对应 CLAUDE.md 边界：不绕过 RBAC，actor 不再来自请求 body（防伪造）。
-func (h *Handler) actorFromContext(c echo.Context) int {
+func (h *Handler) actorFromContext(c *echo.Context) int {
 	if uid, ok := auth.UserIDFromContext(c.Request().Context()); ok {
 		return uid
 	}
@@ -137,7 +137,7 @@ func (h *Handler) actorFromContext(c echo.Context) int {
 // @Failure      400  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id}/ack [post]
-func (h *Handler) ack(c echo.Context) error {
+func (h *Handler) ack(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -159,7 +159,7 @@ func (h *Handler) ack(c echo.Context) error {
 // @Failure      400  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id}/resolve [post]
-func (h *Handler) resolve(c echo.Context) error {
+func (h *Handler) resolve(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -181,7 +181,7 @@ func (h *Handler) resolve(c echo.Context) error {
 // @Failure      400  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id}/escalate [post]
-func (h *Handler) escalate(c echo.Context) error {
+func (h *Handler) escalate(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

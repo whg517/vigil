@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ctxKey context 键类型（避免冲突）。
@@ -29,7 +29,7 @@ const (
 // resolver 为身份解析器（JWT/APIKey/header 三轨）；为 nil 时仅 header。
 func Middleware(authz *Authorizer, perm Permission, resolver *IdentityResolver) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			// 1. 解析用户 ID（三轨）
 			uid, ok := resolver.Resolve(c.Request().Context(), c.Request().Header)
 			if !ok {
@@ -63,7 +63,7 @@ func Middleware(authz *Authorizer, perm Permission, resolver *IdentityResolver) 
 }
 
 // parseTeamScope 从 :team_id path param 解析团队作用域。
-func parseTeamScope(c echo.Context) *int {
+func parseTeamScope(c *echo.Context) *int {
 	s := c.Param("team_id")
 	if s == "" {
 		return nil
@@ -79,7 +79,7 @@ func parseTeamScope(c echo.Context) *int {
 // 无任何有效身份时按 enforce 决定：enforce=true 返回 401；enforce=false 放行（匿名，渐进启用）。
 func RequireUser(enforce bool, resolver *IdentityResolver) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			uid, ok := resolver.Resolve(c.Request().Context(), c.Request().Header)
 			if !ok {
 				if enforce {

@@ -14,7 +14,7 @@ import (
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // PolicyHandler 升级策略管理 API（与处理升级任务的 Engine 区分）。
@@ -58,7 +58,7 @@ type createReq struct {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /escalation-policies [get]
-func (h *PolicyHandler) list(c echo.Context) error {
+func (h *PolicyHandler) list(c *echo.Context) error {
 	policies, err := h.db.EscalationPolicy.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -78,7 +78,7 @@ func (h *PolicyHandler) list(c echo.Context) error {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /escalation-policies [post]
-func (h *PolicyHandler) create(c echo.Context) error {
+func (h *PolicyHandler) create(c *echo.Context) error {
 	var req createReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -107,7 +107,7 @@ func (h *PolicyHandler) create(c echo.Context) error {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /escalation-policies/{id} [get]
-func (h *PolicyHandler) get(c echo.Context) error {
+func (h *PolicyHandler) get(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -139,7 +139,7 @@ type updateReq struct {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /escalation-policies/{id} [patch]
-func (h *PolicyHandler) update(c echo.Context) error {
+func (h *PolicyHandler) update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -174,7 +174,7 @@ func (h *PolicyHandler) update(c echo.Context) error {
 // @Failure      400  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /escalation-policies/{id} [delete]
-func (h *PolicyHandler) delete(c echo.Context) error {
+func (h *PolicyHandler) delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

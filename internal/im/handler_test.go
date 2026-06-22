@@ -20,7 +20,7 @@ import (
 	imincident "github.com/kevin/vigil/internal/incident"
 	"github.com/kevin/vigil/internal/timeline"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	_ "github.com/mattn/go-sqlite3"
 )
 

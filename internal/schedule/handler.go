@@ -11,7 +11,7 @@ import (
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler 排班 API。
@@ -52,7 +52,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /schedules [get]
-func (h *Handler) list(c echo.Context) error {
+func (h *Handler) list(c *echo.Context) error {
 	schedules, err := h.db.Schedule.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -81,7 +81,7 @@ type createScheduleReq struct {
 // @Failure      500   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /schedules [post]
-func (h *Handler) create(c echo.Context) error {
+func (h *Handler) create(c *echo.Context) error {
 	var req createScheduleReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -126,7 +126,7 @@ func (h *Handler) create(c echo.Context) error {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /schedules/{id} [get]
-func (h *Handler) get(c echo.Context) error {
+func (h *Handler) get(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -162,7 +162,7 @@ type updateScheduleReq struct {
 // @Failure      500   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /schedules/{id} [patch]
-func (h *Handler) update(c echo.Context) error {
+func (h *Handler) update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -201,7 +201,7 @@ func (h *Handler) update(c echo.Context) error {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /schedules/{id} [delete]
-func (h *Handler) delete(c echo.Context) error {
+func (h *Handler) delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -230,7 +230,7 @@ func (h *Handler) delete(c echo.Context) error {
 // @Failure      500   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /schedules/{id}/oncall [get]
-func (h *Handler) oncall(c echo.Context) error {
+func (h *Handler) oncall(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -270,7 +270,7 @@ func (h *Handler) oncall(c echo.Context) error {
 // @Failure      500   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /schedules/{id}/preview [get]
-func (h *Handler) preview(c echo.Context) error {
+func (h *Handler) preview(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

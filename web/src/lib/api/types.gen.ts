@@ -5482,7 +5482,7 @@ export interface components {
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_actionitem.Status": "open" | "open" | "in_progress" | "done";
+        "github_com_kevin_vigil_ent_actionitem.Status": "open" | "in_progress" | "done";
         /**
          * @description Stage holds the value of the "stage" field.
          * @enum {string}
@@ -5492,7 +5492,7 @@ export interface components {
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_aiinsight.Status": "suggested" | "suggested" | "accepted" | "rejected" | "applied";
+        "github_com_kevin_vigil_ent_aiinsight.Status": "suggested" | "accepted" | "rejected" | "applied";
         /**
          * @description Type holds the value of the "type" field.
          * @enum {string}
@@ -5502,12 +5502,12 @@ export interface components {
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_apikey.Status": "active" | "active" | "disabled";
+        "github_com_kevin_vigil_ent_apikey.Status": "active" | "disabled";
         /**
          * @description Result holds the value of the "result" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_auditlog.Result": "success" | "success" | "failed" | "denied";
+        "github_com_kevin_vigil_ent_auditlog.Result": "success" | "failed" | "denied";
         /**
          * @description Severity holds the value of the "severity" field.
          * @enum {string}
@@ -5527,7 +5527,7 @@ export interface components {
          * @description Priority holds the value of the "priority" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_incident.Priority": "p3" | "p1" | "p2" | "p3" | "p4";
+        "github_com_kevin_vigil_ent_incident.Priority": "p3" | "p1" | "p2" | "p4";
         /**
          * @description Severity holds the value of the "severity" field.
          * @enum {string}
@@ -5537,17 +5537,17 @@ export interface components {
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_incident.Status": "triggered" | "triggered" | "escalated" | "acked" | "resolved" | "closed";
+        "github_com_kevin_vigil_ent_incident.Status": "triggered" | "escalated" | "acked" | "resolved" | "closed";
         /**
          * @description TriggerType holds the value of the "trigger_type" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_incident.TriggerType": "auto" | "auto" | "manual" | "merged";
+        "github_com_kevin_vigil_ent_incident.TriggerType": "auto" | "manual" | "merged";
         /**
          * @description Result holds the value of the "result" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_incidentaction.Result": "success" | "success" | "failed" | "pending";
+        "github_com_kevin_vigil_ent_incidentaction.Result": "success" | "failed" | "pending";
         /**
          * @description Type holds the value of the "type" field.
          * @enum {string}
@@ -5577,17 +5577,17 @@ export interface components {
          * @description GeneratedBy holds the value of the "generated_by" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_postmortem.GeneratedBy": "mixed" | "ai" | "human" | "mixed";
+        "github_com_kevin_vigil_ent_postmortem.GeneratedBy": "mixed" | "ai" | "human";
         /**
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_postmortem.Status": "draft" | "draft" | "in_review" | "published" | "archived";
+        "github_com_kevin_vigil_ent_postmortem.Status": "draft" | "in_review" | "published" | "archived";
         /**
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_rawevent.Status": "received" | "received" | "normalized" | "parse_failed" | "requeued";
+        "github_com_kevin_vigil_ent_rawevent.Status": "received" | "normalized" | "parse_failed" | "requeued";
         /**
          * @description ScopeLevel holds the value of the "scope_level" field.
          * @enum {string}
@@ -5681,12 +5681,12 @@ export interface components {
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_service.Status": "active" | "active" | "disabled";
+        "github_com_kevin_vigil_ent_service.Status": "active" | "disabled";
         /**
          * @description Action holds the value of the "action" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_suppressionrule.Action": "suppress" | "suppress" | "reduce_severity";
+        "github_com_kevin_vigil_ent_suppressionrule.Action": "suppress" | "reduce_severity";
         /**
          * @description Source holds the value of the "source" field.
          * @enum {string}
@@ -5701,7 +5701,7 @@ export interface components {
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_user.Status": "active" | "active" | "disabled";
+        "github_com_kevin_vigil_ent_user.Status": "active" | "disabled";
         "github_com_kevin_vigil_internal_httputil.AckResponse": {
             /**
              * @description RawEventID ingestion 落库的 RawEvent ID（限接入 webhook）。

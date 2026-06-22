@@ -8,7 +8,7 @@ import (
 
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler 报表 API。
@@ -38,7 +38,7 @@ func (h *Handler) Register(g *echo.Group) {
 }
 
 // parseRange 从 query 解析时间范围。start/end 为 RFC3339。
-func parseRange(c echo.Context) Range {
+func parseRange(c *echo.Context) Range {
 	var r Range
 	if s := c.QueryParam("start"); s != "" {
 		if t, err := time.Parse(time.RFC3339, s); err == nil {
@@ -64,7 +64,7 @@ func parseRange(c echo.Context) Range {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /analytics/dashboard [get]
 // @Security     bearerAuth
-func (h *Handler) dashboard(c echo.Context) error {
+func (h *Handler) dashboard(c *echo.Context) error {
 	days, _ := strconv.Atoi(c.QueryParam("days"))
 	d, err := h.engine.Dashboard(c.Request().Context(), days)
 	if err != nil {
@@ -85,7 +85,7 @@ func (h *Handler) dashboard(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /analytics/alerts [get]
 // @Security     bearerAuth
-func (h *Handler) alerts(c echo.Context) error {
+func (h *Handler) alerts(c *echo.Context) error {
 	m, err := h.engine.AlertMetrics(c.Request().Context(), parseRange(c))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -105,7 +105,7 @@ func (h *Handler) alerts(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /analytics/incidents [get]
 // @Security     bearerAuth
-func (h *Handler) incidents(c echo.Context) error {
+func (h *Handler) incidents(c *echo.Context) error {
 	m, err := h.engine.IncidentMetrics(c.Request().Context(), parseRange(c))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -125,7 +125,7 @@ func (h *Handler) incidents(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /analytics/team-load [get]
 // @Security     bearerAuth
-func (h *Handler) teamLoad(c echo.Context) error {
+func (h *Handler) teamLoad(c *echo.Context) error {
 	m, err := h.engine.TeamLoad(c.Request().Context(), parseRange(c))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -145,7 +145,7 @@ func (h *Handler) teamLoad(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /analytics/postmortems [get]
 // @Security     bearerAuth
-func (h *Handler) postmortems(c echo.Context) error {
+func (h *Handler) postmortems(c *echo.Context) error {
 	m, err := h.engine.PostmortemMetrics(c.Request().Context(), parseRange(c))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -166,7 +166,7 @@ func (h *Handler) postmortems(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /analytics/trend [get]
 // @Security     bearerAuth
-func (h *Handler) trend(c echo.Context) error {
+func (h *Handler) trend(c *echo.Context) error {
 	days, _ := strconv.Atoi(c.QueryParam("days"))
 	points, err := h.engine.Trend(c.Request().Context(), days, parseRange(c))
 	if err != nil {

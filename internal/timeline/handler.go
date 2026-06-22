@@ -9,7 +9,7 @@ import (
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler 时间线 API。
@@ -46,7 +46,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /incidents/{id}/timeline [get]
 // @Security     bearerAuth
-func (h *Handler) list(c echo.Context) error {
+func (h *Handler) list(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -91,7 +91,7 @@ type addReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /incidents/{id}/timeline [post]
 // @Security     bearerAuth
-func (h *Handler) add(c echo.Context) error {
+func (h *Handler) add(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

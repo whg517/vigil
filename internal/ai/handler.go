@@ -7,7 +7,7 @@ import (
 
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler AI 诊断 API。
@@ -45,7 +45,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /incidents/{id}/diagnose [post]
 // @Security     bearerAuth
-func (h *Handler) diagnose(c echo.Context) error {
+func (h *Handler) diagnose(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -73,7 +73,7 @@ func (h *Handler) diagnose(c echo.Context) error {
 // @Failure      500    {object}  httputil.ErrorResponse
 // @Router       /incidents/{id}/similar [get]
 // @Security     bearerAuth
-func (h *Handler) similar(c echo.Context) error {
+func (h *Handler) similar(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -88,7 +88,7 @@ func (h *Handler) similar(c echo.Context) error {
 
 // similarPostmortems 查询相似的已发布复盘（知识沉淀 M12.6）。
 // "上次类似故障是怎么处理的"——published 复盘反哺新事件诊断。
-func (h *Handler) similarPostmortems(c echo.Context) error {
+func (h *Handler) similarPostmortems(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
@@ -120,7 +120,7 @@ type resolveReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /ai-insights/{id}/resolve [post]
 // @Security     bearerAuth
-func (h *Handler) resolve(c echo.Context) error {
+func (h *Handler) resolve(c *echo.Context) error {
 	insightID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

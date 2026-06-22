@@ -7,13 +7,42 @@
 package metrics
 
 import (
+	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+// statusRecorder 包装 http.ResponseWriter 以捕获最终状态码。
+// Echo v5 的 Context.Response() 返回标准 http.ResponseWriter（不再是 *echo.Response），
+// 丢失了 .Status 字段；这里通过拦截 WriteHeader 在中间件层记录。
+type statusRecorder struct {
+	http.ResponseWriter
+	status      int
+	wroteHeader bool
+}
+
+// WriteHeader 记录状态码后委托给底层 ResponseWriter。
+func (r *statusRecorder) WriteHeader(code int) {
+	if !r.wroteHeader {
+		r.status = code
+		r.wroteHeader = true
+	}
+	r.ResponseWriter.WriteHeader(code)
+}
+
+// Write 兜底：handler 未显式调用 WriteHeader 时，Go 的 net/http 会在首次 Write 前
+// 隐式写入 200；此处同步捕获以避免 status==0 的标签。
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	if !r.wroteHeader {
+		r.status = http.StatusOK
+		r.wroteHeader = true
+	}
+	return r.ResponseWriter.Write(b)
+}
 
 // 业务指标（各域埋点用）
 var (
@@ -163,14 +192,19 @@ func isNumeric(s string) bool {
 // 自动记录请求计数（method/path/status）+ 延迟直方图。
 func EchoMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			start := time.Now()
+
+			// 包裹 ResponseWriter 以捕获状态码（v5 Response() 不再暴露 .Status 字段）。
+			rec := &statusRecorder{ResponseWriter: c.Response(), status: http.StatusOK}
+			c.SetResponse(rec)
+
 			err := next(c)
 			elapsed := time.Since(start).Seconds()
 
 			method := c.Request().Method
 			path := normalizePath(c.Path())
-			status := strconv.Itoa(statusLabelToInt(statusLabel(c.Response().Status)))
+			status := strconv.Itoa(statusLabelToInt(statusLabel(rec.status)))
 
 			httpRequests.WithLabelValues(method, path, status).Inc()
 			httpDuration.WithLabelValues(method, path).Observe(elapsed)

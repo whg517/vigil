@@ -5,7 +5,7 @@ package gen
 import "github.com/swaggo/swag/v2"
 
 const docTemplate = `{
-    "schemes": {{ marshal .Schemes }},
+    "schemes": "{{ marshal .Schemes }}",
     "components": {
         "schemas": {
             "ent.AIInsight": {
@@ -1639,7 +1639,6 @@ const docTemplate = `{
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "open",
-                    "open",
                     "in_progress",
                     "done"
                 ],
@@ -1670,7 +1669,6 @@ const docTemplate = `{
             "github_com_kevin_vigil_ent_aiinsight.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
-                    "suggested",
                     "suggested",
                     "accepted",
                     "rejected",
@@ -1709,7 +1707,6 @@ const docTemplate = `{
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "active",
-                    "active",
                     "disabled"
                 ],
                 "type": "string",
@@ -1722,7 +1719,6 @@ const docTemplate = `{
             "github_com_kevin_vigil_ent_auditlog.Result": {
                 "description": "Result holds the value of the \"result\" field.",
                 "enum": [
-                    "success",
                     "success",
                     "failed",
                     "denied"
@@ -1781,7 +1777,6 @@ const docTemplate = `{
                     "p3",
                     "p1",
                     "p2",
-                    "p3",
                     "p4"
                 ],
                 "type": "string",
@@ -1811,7 +1806,6 @@ const docTemplate = `{
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "triggered",
-                    "triggered",
                     "escalated",
                     "acked",
                     "resolved",
@@ -1831,7 +1825,6 @@ const docTemplate = `{
                 "description": "TriggerType holds the value of the \"trigger_type\" field.",
                 "enum": [
                     "auto",
-                    "auto",
                     "manual",
                     "merged"
                 ],
@@ -1846,7 +1839,6 @@ const docTemplate = `{
             "github_com_kevin_vigil_ent_incidentaction.Result": {
                 "description": "Result holds the value of the \"result\" field.",
                 "enum": [
-                    "success",
                     "success",
                     "failed",
                     "pending"
@@ -1958,8 +1950,7 @@ const docTemplate = `{
                 "enum": [
                     "mixed",
                     "ai",
-                    "human",
-                    "mixed"
+                    "human"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
@@ -1972,7 +1963,6 @@ const docTemplate = `{
             "github_com_kevin_vigil_ent_postmortem.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
-                    "draft",
                     "draft",
                     "in_review",
                     "published",
@@ -1990,7 +1980,6 @@ const docTemplate = `{
             "github_com_kevin_vigil_ent_rawevent.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
-                    "received",
                     "received",
                     "normalized",
                     "parse_failed",
@@ -2223,7 +2212,6 @@ const docTemplate = `{
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "active",
-                    "active",
                     "disabled"
                 ],
                 "type": "string",
@@ -2236,7 +2224,6 @@ const docTemplate = `{
             "github_com_kevin_vigil_ent_suppressionrule.Action": {
                 "description": "Action holds the value of the \"action\" field.",
                 "enum": [
-                    "suppress",
                     "suppress",
                     "reduce_severity"
                 ],
@@ -2300,7 +2287,6 @@ const docTemplate = `{
             "github_com_kevin_vigil_ent_user.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
-                    "active",
                     "active",
                     "disabled"
                 ],

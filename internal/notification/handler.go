@@ -20,7 +20,7 @@ import (
 	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler 通知配置 API（规则 + 抑制 + 模板）。
@@ -79,7 +79,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Router       /notification-rules [get]
 // @Security     bearerAuth
-func (h *Handler) listRules(c echo.Context) error {
+func (h *Handler) listRules(c *echo.Context) error {
 	rules, err := h.db.NotificationRule.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -110,7 +110,7 @@ type createRuleReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /notification-rules [post]
 // @Security     bearerAuth
-func (h *Handler) createRule(c echo.Context) error {
+func (h *Handler) createRule(c *echo.Context) error {
 	var req createRuleReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -155,7 +155,7 @@ func (h *Handler) createRule(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /notification-rules/{id} [get]
 // @Security     bearerAuth
-func (h *Handler) getRule(c echo.Context) error {
+func (h *Handler) getRule(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -193,7 +193,7 @@ type updateRuleReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /notification-rules/{id} [patch]
 // @Security     bearerAuth
-func (h *Handler) updateRule(c echo.Context) error {
+func (h *Handler) updateRule(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -240,7 +240,7 @@ func (h *Handler) updateRule(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /notification-rules/{id} [delete]
 // @Security     bearerAuth
-func (h *Handler) deleteRule(c echo.Context) error {
+func (h *Handler) deleteRule(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -269,7 +269,7 @@ func (h *Handler) deleteRule(c echo.Context) error {
 // @Failure      500          {object}  httputil.ErrorResponse
 // @Router       /notification-rules/{id}/test [post]
 // @Security     bearerAuth
-func (h *Handler) testRule(c echo.Context) error {
+func (h *Handler) testRule(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -352,7 +352,7 @@ func ParseQuietHoursPublic(m map[string]any) *QuietHours {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /suppression-rules [get]
 // @Security     bearerAuth
-func (h *Handler) listSuppressions(c echo.Context) error {
+func (h *Handler) listSuppressions(c *echo.Context) error {
 	rules, err := h.db.SuppressionRule.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -386,7 +386,7 @@ type createSuppressionReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /suppression-rules [post]
 // @Security     bearerAuth
-func (h *Handler) createSuppression(c echo.Context) error {
+func (h *Handler) createSuppression(c *echo.Context) error {
 	var req createSuppressionReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -440,7 +440,7 @@ func (h *Handler) createSuppression(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /suppression-rules/{id} [get]
 // @Security     bearerAuth
-func (h *Handler) getSuppression(c echo.Context) error {
+func (h *Handler) getSuppression(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -480,7 +480,7 @@ type updateSuppressionReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /suppression-rules/{id} [patch]
 // @Security     bearerAuth
-func (h *Handler) updateSuppression(c echo.Context) error {
+func (h *Handler) updateSuppression(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -538,7 +538,7 @@ func (h *Handler) updateSuppression(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /suppression-rules/{id} [delete]
 // @Security     bearerAuth
-func (h *Handler) deleteSuppression(c echo.Context) error {
+func (h *Handler) deleteSuppression(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -564,7 +564,7 @@ func (h *Handler) deleteSuppression(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /notification-templates [get]
 // @Security     bearerAuth
-func (h *Handler) listTemplates(c echo.Context) error {
+func (h *Handler) listTemplates(c *echo.Context) error {
 	templates, err := h.db.NotificationTemplate.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -596,7 +596,7 @@ type createTemplateReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /notification-templates [post]
 // @Security     bearerAuth
-func (h *Handler) createTemplate(c echo.Context) error {
+func (h *Handler) createTemplate(c *echo.Context) error {
 	var req createTemplateReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -642,7 +642,7 @@ func (h *Handler) createTemplate(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /notification-templates/{id} [get]
 // @Security     bearerAuth
-func (h *Handler) getTemplate(c echo.Context) error {
+func (h *Handler) getTemplate(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -682,7 +682,7 @@ type updateTemplateReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /notification-templates/{id} [patch]
 // @Security     bearerAuth
-func (h *Handler) updateTemplate(c echo.Context) error {
+func (h *Handler) updateTemplate(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -744,7 +744,7 @@ func (h *Handler) updateTemplate(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /notification-templates/{id} [delete]
 // @Security     bearerAuth
-func (h *Handler) deleteTemplate(c echo.Context) error {
+func (h *Handler) deleteTemplate(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -784,7 +784,7 @@ func (h *Handler) deleteTemplate(c echo.Context) error {
 // @Failure      503          {object}  httputil.ErrorResponse
 // @Router       /notification-templates/{id}/preview [post]
 // @Security     bearerAuth
-func (h *Handler) previewTemplate(c echo.Context) error {
+func (h *Handler) previewTemplate(c *echo.Context) error {
 	if h.templates == nil {
 		return c.JSON(http.StatusServiceUnavailable, httputil.ErrorResponse{Error: "template engine not configured"})
 	}

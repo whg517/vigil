@@ -16,7 +16,7 @@ import (
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // tokenPrefix 接入 token 前缀（防与 API Key 混淆）。
@@ -78,7 +78,7 @@ type createResp struct {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /integrations [get]
-func (h *Handler) list(c echo.Context) error {
+func (h *Handler) list(c *echo.Context) error {
 	ints, err := h.db.Integration.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -98,7 +98,7 @@ func (h *Handler) list(c echo.Context) error {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /integrations [post]
-func (h *Handler) create(c echo.Context) error {
+func (h *Handler) create(c *echo.Context) error {
 	var req createReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -138,7 +138,7 @@ func (h *Handler) create(c echo.Context) error {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /integrations/{id} [get]
-func (h *Handler) get(c echo.Context) error {
+func (h *Handler) get(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -169,7 +169,7 @@ type updateReq struct {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /integrations/{id} [patch]
-func (h *Handler) update(c echo.Context) error {
+func (h *Handler) update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -201,7 +201,7 @@ func (h *Handler) update(c echo.Context) error {
 // @Failure      400  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /integrations/{id} [delete]
-func (h *Handler) delete(c echo.Context) error {
+func (h *Handler) delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

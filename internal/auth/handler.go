@@ -15,7 +15,7 @@ import (
 	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler RBAC 管理 API。
@@ -35,7 +35,7 @@ func (h *Handler) SetAuditRecorder(r *AuditRecorder) {
 }
 
 // auditFrom 从请求构造审计条目（提取 actor + IP/UA）。
-func (h *Handler) auditFrom(c echo.Context, action, resType string, resID int, resName string) AuditEntry {
+func (h *Handler) auditFrom(c *echo.Context, action, resType string, resID int, resName string) AuditEntry {
 	uid, _ := UserIDFromContext(c.Request().Context())
 	e := AuditEntryFromRequest(c.Request(), uid, "")
 	e.Action = action
@@ -76,7 +76,7 @@ type createRoleReq struct {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /roles [get]
-func (h *Handler) listRoles(c echo.Context) error {
+func (h *Handler) listRoles(c *echo.Context) error {
 	rls, err := h.db.Role.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -96,7 +96,7 @@ func (h *Handler) listRoles(c echo.Context) error {
 // @Failure      500   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /roles [post]
-func (h *Handler) createRole(c echo.Context) error {
+func (h *Handler) createRole(c *echo.Context) error {
 	var req createRoleReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -140,7 +140,7 @@ func (h *Handler) createRole(c echo.Context) error {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /roles/{id} [delete]
-func (h *Handler) deleteRole(c echo.Context) error {
+func (h *Handler) deleteRole(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -181,7 +181,7 @@ type createBindingReq struct {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /role-bindings [get]
-func (h *Handler) listBindings(c echo.Context) error {
+func (h *Handler) listBindings(c *echo.Context) error {
 	bs, err := h.db.RoleBinding.Query().WithRole().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -201,7 +201,7 @@ func (h *Handler) listBindings(c echo.Context) error {
 // @Failure      500   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /role-bindings [post]
-func (h *Handler) createBinding(c echo.Context) error {
+func (h *Handler) createBinding(c *echo.Context) error {
 	var req createBindingReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -249,7 +249,7 @@ func (h *Handler) createBinding(c echo.Context) error {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /role-bindings/{id} [delete]
-func (h *Handler) deleteBinding(c echo.Context) error {
+func (h *Handler) deleteBinding(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

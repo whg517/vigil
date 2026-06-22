@@ -21,7 +21,7 @@ import (
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // APIKeyHandler API Key 管理 handler。
@@ -83,7 +83,7 @@ type apiKeyCreateResp struct {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /api-keys [get]
-func (h *APIKeyHandler) list(c echo.Context) error {
+func (h *APIKeyHandler) list(c *echo.Context) error {
 	uid, ok := UserIDFromContext(c.Request().Context())
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "not authenticated"})
@@ -117,7 +117,7 @@ func (h *APIKeyHandler) list(c echo.Context) error {
 // @Failure      500   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /api-keys [post]
-func (h *APIKeyHandler) create(c echo.Context) error {
+func (h *APIKeyHandler) create(c *echo.Context) error {
 	uid, ok := UserIDFromContext(c.Request().Context())
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "not authenticated"})
@@ -174,7 +174,7 @@ func (h *APIKeyHandler) create(c echo.Context) error {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /api-keys/{id} [delete]
-func (h *APIKeyHandler) delete(c echo.Context) error {
+func (h *APIKeyHandler) delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

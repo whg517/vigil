@@ -27,7 +27,7 @@ import (
 	"github.com/kevin/vigil/internal/triage"
 
 	"github.com/hibiken/asynq"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler 处理告警 webhook 接入。
@@ -75,7 +75,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Failure      500     {object} httputil.ErrorResponse
 // @Failure      503     {object} httputil.AckResponse
 // @Router       /webhook/{token} [post]
-func (h *Handler) receiveWebhook(c echo.Context) error {
+func (h *Handler) receiveWebhook(c *echo.Context) error {
 	token := c.Param("token")
 	if token == "" {
 		return c.JSON(http.StatusUnauthorized, errMsg("missing token"))

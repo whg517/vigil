@@ -12,7 +12,7 @@ import (
 	_ "embed"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 //go:embed gen/swagger.yaml
@@ -40,10 +40,10 @@ const swaggerUI = `<!DOCTYPE html>
 
 // registerOpenAPI 注册 OpenAPI spec + Swagger UI 路由（无需鉴权，文档公开）。
 func (s *Server) registerOpenAPI() {
-	s.echo.GET("/openapi.yaml", func(c echo.Context) error {
+	s.echo.GET("/openapi.yaml", func(c *echo.Context) error {
 		return c.Blob(http.StatusOK, "application/yaml", []byte(openapiYAML))
 	})
-	s.echo.GET("/docs", func(c echo.Context) error {
+	s.echo.GET("/docs", func(c *echo.Context) error {
 		return c.HTML(http.StatusOK, swaggerUI)
 	})
 }

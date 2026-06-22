@@ -14,7 +14,7 @@ import (
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // === User 管理 ===
@@ -44,7 +44,7 @@ func (h *UserHandler) Register(g *echo.Group) {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /users [get]
-func (h *UserHandler) listUsers(c echo.Context) error {
+func (h *UserHandler) listUsers(c *echo.Context) error {
 	users, err := h.db.User.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -72,7 +72,7 @@ type updateUserReq struct {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /users/{id} [patch]
-func (h *UserHandler) updateUser(c echo.Context) error {
+func (h *UserHandler) updateUser(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -134,7 +134,7 @@ type createTeamReq struct {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /teams [get]
-func (h *TeamHandler) listTeams(c echo.Context) error {
+func (h *TeamHandler) listTeams(c *echo.Context) error {
 	teams, err := h.db.Team.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -154,7 +154,7 @@ func (h *TeamHandler) listTeams(c echo.Context) error {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /teams [post]
-func (h *TeamHandler) createTeam(c echo.Context) error {
+func (h *TeamHandler) createTeam(c *echo.Context) error {
 	var req createTeamReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -192,7 +192,7 @@ type updateTeamReq struct {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /teams/{id} [patch]
-func (h *TeamHandler) updateTeam(c echo.Context) error {
+func (h *TeamHandler) updateTeam(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -224,7 +224,7 @@ func (h *TeamHandler) updateTeam(c echo.Context) error {
 // @Failure      400  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /teams/{id} [delete]
-func (h *TeamHandler) deleteTeam(c echo.Context) error {
+func (h *TeamHandler) deleteTeam(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

@@ -11,7 +11,7 @@ import (
 	"github.com/kevin/vigil/internal/store"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	_ "github.com/mattn/go-sqlite3"
 )
 

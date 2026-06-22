@@ -12,7 +12,7 @@ import (
 	"github.com/kevin/vigil/ent/auditlog"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // AuditHandler 审计日志查询 handler。
@@ -46,7 +46,7 @@ func (h *AuditHandler) Register(g *echo.Group) {
 // @Failure      500             {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /audit-logs [get]
-func (h *AuditHandler) list(c echo.Context) error {
+func (h *AuditHandler) list(c *echo.Context) error {
 	ctx := c.Request().Context()
 	q := h.db.AuditLog.Query().Order(ent.Desc(auditlog.FieldCreatedAt))
 

@@ -16,7 +16,7 @@ import (
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // AuthHandler 登录态 API handler（与 RBAC 的 Handler 区分）。
@@ -90,7 +90,7 @@ func toLoginUser(u *ent.User) loginUser {
 // @Failure      403   {object} httputil.ErrorResponse
 // @Failure      500   {object} httputil.ErrorResponse
 // @Router       /auth/login [post]
-func (h *AuthHandler) login(c echo.Context) error {
+func (h *AuthHandler) login(c *echo.Context) error {
 	var req loginReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -131,7 +131,7 @@ func (h *AuthHandler) login(c echo.Context) error {
 }
 
 // auditLogin 记录登录审计（actor_user_id 可能 0=用户不存在，actor_name 记 username 用于溯源）。
-func (h *AuthHandler) auditLogin(c echo.Context, uid int, username string, result AuditResult, detail map[string]any) {
+func (h *AuthHandler) auditLogin(c *echo.Context, uid int, username string, result AuditResult, detail map[string]any) {
 	if h.audit == nil {
 		return
 	}
@@ -163,7 +163,7 @@ type refreshReq struct {
 // @Failure      401   {object} httputil.ErrorResponse
 // @Failure      500   {object} httputil.ErrorResponse
 // @Router       /auth/refresh [post]
-func (h *AuthHandler) refresh(c echo.Context) error {
+func (h *AuthHandler) refresh(c *echo.Context) error {
 	var req refreshReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -195,7 +195,7 @@ func (h *AuthHandler) refresh(c echo.Context) error {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /auth/me [get]
-func (h *AuthHandler) me(c echo.Context) error {
+func (h *AuthHandler) me(c *echo.Context) error {
 	uid, ok := UserIDFromContext(c.Request().Context())
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "not authenticated"})

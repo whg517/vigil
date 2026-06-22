@@ -1632,7 +1632,6 @@
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "open",
-                    "open",
                     "in_progress",
                     "done"
                 ],
@@ -1663,7 +1662,6 @@
             "github_com_kevin_vigil_ent_aiinsight.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
-                    "suggested",
                     "suggested",
                     "accepted",
                     "rejected",
@@ -1702,7 +1700,6 @@
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "active",
-                    "active",
                     "disabled"
                 ],
                 "type": "string",
@@ -1715,7 +1712,6 @@
             "github_com_kevin_vigil_ent_auditlog.Result": {
                 "description": "Result holds the value of the \"result\" field.",
                 "enum": [
-                    "success",
                     "success",
                     "failed",
                     "denied"
@@ -1774,7 +1770,6 @@
                     "p3",
                     "p1",
                     "p2",
-                    "p3",
                     "p4"
                 ],
                 "type": "string",
@@ -1804,7 +1799,6 @@
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "triggered",
-                    "triggered",
                     "escalated",
                     "acked",
                     "resolved",
@@ -1824,7 +1818,6 @@
                 "description": "TriggerType holds the value of the \"trigger_type\" field.",
                 "enum": [
                     "auto",
-                    "auto",
                     "manual",
                     "merged"
                 ],
@@ -1839,7 +1832,6 @@
             "github_com_kevin_vigil_ent_incidentaction.Result": {
                 "description": "Result holds the value of the \"result\" field.",
                 "enum": [
-                    "success",
                     "success",
                     "failed",
                     "pending"
@@ -1951,8 +1943,7 @@
                 "enum": [
                     "mixed",
                     "ai",
-                    "human",
-                    "mixed"
+                    "human"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
@@ -1965,7 +1956,6 @@
             "github_com_kevin_vigil_ent_postmortem.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
-                    "draft",
                     "draft",
                     "in_review",
                     "published",
@@ -1983,7 +1973,6 @@
             "github_com_kevin_vigil_ent_rawevent.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
-                    "received",
                     "received",
                     "normalized",
                     "parse_failed",
@@ -2216,7 +2205,6 @@
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "active",
-                    "active",
                     "disabled"
                 ],
                 "type": "string",
@@ -2229,7 +2217,6 @@
             "github_com_kevin_vigil_ent_suppressionrule.Action": {
                 "description": "Action holds the value of the \"action\" field.",
                 "enum": [
-                    "suppress",
                     "suppress",
                     "reduce_severity"
                 ],
@@ -2293,7 +2280,6 @@
             "github_com_kevin_vigil_ent_user.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
-                    "active",
                     "active",
                     "disabled"
                 ],

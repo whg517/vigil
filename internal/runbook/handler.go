@@ -10,7 +10,7 @@ import (
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler Runbook API。
@@ -43,7 +43,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /runbooks [get]
 // @Security     bearerAuth
-func (h *Handler) list(c echo.Context) error {
+func (h *Handler) list(c *echo.Context) error {
 	rbs, err := h.db.Runbook.Query().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -72,7 +72,7 @@ type createReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /runbooks [post]
 // @Security     bearerAuth
-func (h *Handler) create(c echo.Context) error {
+func (h *Handler) create(c *echo.Context) error {
 	var req createReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
@@ -109,7 +109,7 @@ func (h *Handler) create(c echo.Context) error {
 // @Failure      404  {object}  httputil.ErrorResponse
 // @Router       /runbooks/{id} [get]
 // @Security     bearerAuth
-func (h *Handler) get(c echo.Context) error {
+func (h *Handler) get(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -132,7 +132,7 @@ func (h *Handler) get(c echo.Context) error {
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /runbooks/{id} [delete]
 // @Security     bearerAuth
-func (h *Handler) delete(c echo.Context) error {
+func (h *Handler) delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -163,7 +163,7 @@ type executeReq struct {
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /runbooks/{id}/execute [post]
 // @Security     bearerAuth
-func (h *Handler) execute(c echo.Context) error {
+func (h *Handler) execute(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})

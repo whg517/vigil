@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler WebSocket 连接 handler。
@@ -38,7 +38,7 @@ func (h *Handler) Register(g *echo.Group) {
 
 // handleIncident 处理 incident 订阅连接。
 // 客户端连接后持续接收该 incident 的状态变更推送，直到断开。
-func (h *Handler) handleIncident(c echo.Context) error {
+func (h *Handler) handleIncident(c *echo.Context) error {
 	incidentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil || incidentID <= 0 {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid incident id"})

@@ -9,7 +9,7 @@ import (
 
 	"github.com/kevin/vigil/ent/enttest"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -17,7 +17,7 @@ import (
 
 func TestRequireUser_EnforceTrue(t *testing.T) {
 	e := echo.New()
-	e.GET("/x", func(c echo.Context) error { return c.String(200, "ok") }, RequireUser(true, nil))
+	e.GET("/x", func(c *echo.Context) error { return c.String(200, "ok") }, RequireUser(true, nil))
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -28,7 +28,7 @@ func TestRequireUser_EnforceTrue(t *testing.T) {
 
 func TestRequireUser_EnforceFalse(t *testing.T) {
 	e := echo.New()
-	e.GET("/x", func(c echo.Context) error { return c.String(200, "ok") }, RequireUser(false, nil))
+	e.GET("/x", func(c *echo.Context) error { return c.String(200, "ok") }, RequireUser(false, nil))
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -41,7 +41,7 @@ func TestRequireUser_ValidHeader(t *testing.T) {
 	e := echo.New()
 	var gotUID int
 	var hasUID bool
-	e.GET("/x", func(c echo.Context) error {
+	e.GET("/x", func(c *echo.Context) error {
 		gotUID, hasUID = UserIDFromContext(c.Request().Context())
 		return c.String(200, "ok")
 	}, RequireUser(false, nil))
@@ -59,7 +59,7 @@ func TestRequireUser_ValidHeader(t *testing.T) {
 
 func TestRequireUser_InvalidHeader_EnforceTrue(t *testing.T) {
 	e := echo.New()
-	e.GET("/x", func(c echo.Context) error { return c.String(200, "ok") }, RequireUser(true, nil))
+	e.GET("/x", func(c *echo.Context) error { return c.String(200, "ok") }, RequireUser(true, nil))
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.Header.Set("X-Vigil-User-ID", "abc")
 	rec := httptest.NewRecorder()
@@ -77,7 +77,7 @@ func doReq(t *testing.T, mw echo.MiddlewareFunc, setHeader func(*http.Request), 
 	e := echo.New()
 	var uid int
 	var hasUID bool
-	e.GET("/x", func(c echo.Context) error {
+	e.GET("/x", func(c *echo.Context) error {
 		uid, hasUID = UserIDFromContext(c.Request().Context())
 		return c.String(200, "ok")
 	}, mw)

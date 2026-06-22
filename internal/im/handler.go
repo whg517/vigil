@@ -31,7 +31,7 @@ import (
 	"github.com/kevin/vigil/internal/httputil"
 	imincident "github.com/kevin/vigil/internal/incident"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // CardStore 记录 incident → 已发卡片 ID 的映射，供状态变更后 UpdateCard。
@@ -119,7 +119,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Failure      403       {object} httputil.ErrorResponse
 // @Failure      404       {object} httputil.ErrorResponse
 // @Router       /im/{platform}/callback [post]
-func (h *Handler) callback(c echo.Context) error {
+func (h *Handler) callback(c *echo.Context) error {
 	platform := c.Param("platform")
 	bot, ok := h.registry.Get(platform)
 	if !ok {
@@ -166,7 +166,7 @@ func (h *Handler) callback(c echo.Context) error {
 }
 
 // handleCardAction 卡片按钮点击：鉴权 → 执行动作 → 刷新卡片。
-func (h *Handler) handleCardAction(c echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
+func (h *Handler) handleCardAction(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
 	user, err := h.resolveAndCheck(c, ctx, evt, evt.Action)
 	if err != nil {
 		return replyErr(c, err, bot, evt.ChannelID)
@@ -201,7 +201,7 @@ func (h *Handler) handleCardAction(c echo.Context, ctx context.Context, bot IMBo
 
 // handleCommand 斜杠命令：/vigil ack INC-0042 等。
 // 命令格式：<command> <incident_id|number> [args]
-func (h *Handler) handleCommand(c echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
+func (h *Handler) handleCommand(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
 	cmd := evt.Command
 	// 权限点按命令映射
 	action := commandToAction(cmd)
@@ -241,7 +241,7 @@ func (h *Handler) handleCommand(c echo.Context, ctx context.Context, bot IMBot, 
 
 // handleMention @人协同：把被 @的人加入 responders（拉人即授权）。
 // 操作者需有 add_responder 权限；被拉的人无需在群里预先绑定。
-func (h *Handler) handleMention(c echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
+func (h *Handler) handleMention(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
 	user, err := h.resolveAndCheck(c, ctx, evt, ActionAddResponder)
 	if err != nil {
 		return replyErr(c, err, bot, evt.ChannelID)
@@ -266,7 +266,7 @@ func (h *Handler) handleMention(c echo.Context, ctx context.Context, bot IMBot, 
 
 // resolveAndCheck 账号映射 + 权限校验（IM 鉴权铁律 §6）。
 // action 为按钮/命令对应的动作（ack/escalate/resolve/detail/add_responder），用于映射权限点。
-func (h *Handler) resolveAndCheck(c echo.Context, ctx context.Context, evt *IMEvent, action string) (*ent.User, error) {
+func (h *Handler) resolveAndCheck(c *echo.Context, ctx context.Context, evt *IMEvent, action string) (*ent.User, error) {
 	// 1. im_unionid → User（未绑定拒绝）
 	user, err := h.mapper.ResolveUser(ctx, evt.Platform, evt.UnionID)
 	if err != nil {
@@ -381,7 +381,7 @@ func commandToAction(cmd string) string {
 var _ = ActionAddResponder // 保留引用（commandToAction 与 handleMention 使用）
 
 // replyErr 把鉴权/解析错误通过 IM 消息反馈给用户（而非仅 HTTP 错误码）。
-func replyErr(c echo.Context, err error, bot IMBot, channel string) error {
+func replyErr(c *echo.Context, err error, bot IMBot, channel string) error {
 	// 鉴权失败统一返回 403（IM 端可由机器人另行友好提示）
 	if errors.Is(err, ErrNotBound) {
 		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "im account not bound, please bind in web"})
@@ -390,7 +390,7 @@ func replyErr(c echo.Context, err error, bot IMBot, channel string) error {
 }
 
 // readBody 读取并复制请求 body（保留原 body 供后续 echo 绑定）。
-func readBody(c echo.Context) ([]byte, error) {
+func readBody(c *echo.Context) ([]byte, error) {
 	raw, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		return nil, err

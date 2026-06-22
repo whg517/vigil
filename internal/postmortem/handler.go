@@ -10,7 +10,7 @@ import (
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/internal/httputil"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler 复盘 API。
@@ -44,7 +44,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /postmortems [get]
-func (h *Handler) list(c echo.Context) error {
+func (h *Handler) list(c *echo.Context) error {
 	pms, err := h.db.Postmortem.Query().WithIncident().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
@@ -63,7 +63,7 @@ func (h *Handler) list(c echo.Context) error {
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /postmortems/{id} [get]
-func (h *Handler) get(c echo.Context) error {
+func (h *Handler) get(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -91,7 +91,7 @@ func (h *Handler) get(c echo.Context) error {
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id}/postmortem/draft [post]
-func (h *Handler) generateDraft(c echo.Context) error {
+func (h *Handler) generateDraft(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid incident id"})
@@ -120,7 +120,7 @@ type transitionReq struct {
 // @Failure      400   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /postmortems/{id}/transition [patch]
-func (h *Handler) transition(c echo.Context) error {
+func (h *Handler) transition(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -156,7 +156,7 @@ type addActionItemReq struct {
 // @Failure      500   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /postmortems/{id}/action-items [post]
-func (h *Handler) addActionItem(c echo.Context) error {
+func (h *Handler) addActionItem(c *echo.Context) error {
 	pmID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
@@ -197,7 +197,7 @@ type updateActionItemReq struct {
 // @Failure      500   {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /action-items/{id} [patch]
-func (h *Handler) updateActionItem(c echo.Context) error {
+func (h *Handler) updateActionItem(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
