@@ -54,7 +54,7 @@ open http://localhost:8080/docs # Swagger API 文档
 >
 > **`AUTH_ENABLED=false`（默认）时切勿将 API 暴露到公网或不受信网络**。仍应通过反向代理 + 网络策略（防火墙/VPN/内网）限制访问。
 >
-> **API Key（程序化接入）已就绪**：设置页创建后，请求带 `X-Vigil-Key: <token>` 头即可鉴权，明文仅创建时展示一次。审计日志为后续特性（见 [`docs/gap-analysis.md`](docs/gap-analysis.md)）。
+> **API Key（程序化接入）已就绪**：设置页创建后，请求带 `X-Vigil-Key: <token>` 头即可鉴权，明文仅创建时展示一次。审计日志同样已就绪（设置页可查看敏感操作留痕）。
 
 ## 文档导航
 
