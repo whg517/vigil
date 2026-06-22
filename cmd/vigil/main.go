@@ -457,6 +457,9 @@ func run() error {
 	rbacHandler := auth.NewHandler(st.DB)
 	rbacHandler.SetAuditRecorder(auditRecorder)
 	rbacHandler.Register(v1)
+	// 用户/团队管理（能力域 13）：User/Team CRUD（RBAC 角色绑定的 user_id/team_id 依赖这些列表）
+	auth.NewUserHandler(st.DB).Register(v1)
+	auth.NewTeamHandler(st.DB).Register(v1)
 	// 审计日志查询（能力域 13 M13.5）：只读 + 筛选（权限点 admin.audit.view）
 	auth.NewAuditHandler(st.DB).Register(v1)
 	// Runbook（能力域 9）：处置手册 + 受控执行，注入时间线记录器

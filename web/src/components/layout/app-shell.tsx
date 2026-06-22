@@ -14,6 +14,7 @@ const navItems = [
   { to: "/services", label: "服务" },
   { to: "/integrations", label: "接入管理" },
   { to: "/escalation-policies", label: "升级策略" },
+  { to: "/users-teams", label: "用户与团队" },
   { to: "/runbooks", label: "Runbook" },
   { to: "/postmortems", label: "复盘" },
   { to: "/settings", label: "设置" },

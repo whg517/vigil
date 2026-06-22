@@ -57,12 +57,17 @@ export interface ListResponse<T> {
   offset: number;
 }
 
-// —— 引用实体（最小字段）——
+// —— 引用实体（User 完整字段，登录态与管理页共用）——
 export interface User {
   id: number;
-  name: string;
   username?: string;
+  name?: string;
   email?: string;
+  phone?: string;
+  status?: "active" | "disabled";
+  timezone?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type Event = Required<
@@ -116,6 +121,17 @@ export type EscalationPolicy = Required<
 > & {
   levels?: EscalationLevel[];
 };
+
+// —— Team（能力域 13 团队管理）——
+export interface Team {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  parent_team_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 // —— Schedule（ent/schema/schedule.go，能力域 5）——
 export type ScheduleType = Schemas["github_com_kevin_vigil_ent_schedule.Type"];

@@ -24,6 +24,8 @@ import type {
   Incident,
   Integration,
   IntegrationCreated,
+  Team,
+  User,
   ListResponse,
   NotificationRule,
   NotificationTemplate,
@@ -138,6 +140,25 @@ export const api = {
   },
   deleteEscalationPolicy(id: number) {
     return http.delete(`/escalation-policies/${id}`).then((r) => r.data);
+  },
+  // ===== User / Team（能力域 13）=====
+  listUsers() {
+    return http.get<User[]>("/users").then((r) => r.data);
+  },
+  updateUser(id: number, body: { name?: string; status?: string; timezone?: string }) {
+    return http.patch<User>(`/users/${id}`, body).then((r) => r.data);
+  },
+  listTeams() {
+    return http.get<Team[]>("/teams").then((r) => r.data);
+  },
+  createTeam(body: { name: string; slug: string; description?: string }) {
+    return http.post<Team>("/teams", body).then((r) => r.data);
+  },
+  updateTeam(id: number, body: { name?: string; description?: string }) {
+    return http.patch<Team>(`/teams/${id}`, body).then((r) => r.data);
+  },
+  deleteTeam(id: number) {
+    return http.delete(`/teams/${id}`).then((r) => r.data);
   },
 
   // —— Schedule（能力域 5）——
