@@ -173,8 +173,12 @@ README 第 44-50 行：
 
 ## 四、测试覆盖盲点
 
-23 个 internal 包中 **5 个零测试**：`logger`、`migrate`、`queue`、`server`、`store`。
-其中 `server`（接入层/health/openapi）和 `migrate`（版本迁移）是生产关键路径，缺测试有风险。
+✅ 已补全（feat-test-coverage）：5 个原零测试包（`logger`、`migrate`、`queue`、`server`、`store`）均已补关键路径测试。
+- logger：New 各环境/parseLevel/Into-From context
+- queue：Register 路由 + 多 task type
+- store：Close 多客户端/nil SQL/错误保留
+- server：health 端点（all up/redis down）+ APIGroup/PublicGroup + metrics
+- migrate：嵌入文件加载/排序/非空校验
 
 ---
 
