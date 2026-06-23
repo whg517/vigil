@@ -273,3 +273,18 @@ export interface AuditLogListResponse {
   limit: number;
   offset: number;
 }
+
+// —— AI 诊断（能力域 11）——
+// DiagnoseResult 字段为 snake_case json tag，与后端 ai.DiagnoseResult 一致。
+export type DiagnoseResult = Required<
+  Schemas["internal_ai.DiagnoseResult"]
+> & {
+  // evidence 是数组，Required 会保留其 optional 性，这里显式标注。
+  evidence?: Record<string, unknown>[];
+};
+
+/** AI 诊断未启用时后端返回的降级响应（200，{status:"disabled"}）。 */
+export interface DiagnoseDisabled {
+  status: "disabled";
+  message: string;
+}

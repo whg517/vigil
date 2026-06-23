@@ -88,15 +88,27 @@ func (h *Handler) similar(c *echo.Context) error {
 
 // similarPostmortems 查询相似的已发布复盘（知识沉淀 M12.6）。
 // "上次类似故障是怎么处理的"——published 复盘反哺新事件诊断。
+//
+// @Summary      Find similar postmortems
+// @Description  按相似度查询与给定 incident 相似的已发布复盘（知识反哺诊断）。
+// @Tags         ai
+// @Produce      json
+// @Param        id     path   int  true   "Incident ID"
+// @Param        limit  query  int  false  "返回条数上限"
+// @Success      200    {object}  map[string]any  "{similar_postmortems: []*ent.Postmortem}"
+// @Failure      400    {object}  httputil.ErrorResponse
+// @Failure      500    {object}  httputil.ErrorResponse
+// @Router       /incidents/{id}/similar-postmortems [get]
+// @Security     bearerAuth
 func (h *Handler) similarPostmortems(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	pms, err := h.engine.FindSimilarPostmortems(c.Request().Context(), incID, limit)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, map[string]any{"similar_postmortems": pms})
 }

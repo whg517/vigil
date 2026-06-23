@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/kevin/vigil/ent"
@@ -182,4 +183,44 @@ func indexOf(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+// TestDiagnoseResultJSONTags 防止 DiagnoseResult 的 json tag 被回退删除。
+// Go 默认序列化为 PascalCase（InsightID/RootCause），而 OpenAPI spec 期望
+// snake_case（insight_id/root_cause）；前端按 spec 取值，tag 缺失会导致取不到字段。
+func TestDiagnoseResultJSONTags(t *testing.T) {
+	res := DiagnoseResult{
+		InsightID:  7,
+		RootCause:  "DB 连接池耗尽",
+		Confidence: 0.92,
+		Evidence:   []map[string]any{{"type": "log", "content": "timeout"}},
+	}
+	b, err := json.Marshal(res)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, key := range []string{"insight_id", "root_cause", "confidence", "evidence"} {
+		if _, ok := m[key]; !ok {
+			t.Fatalf("DiagnoseResult JSON 缺少 snake_case 字段 %q（got keys: %v）；"+
+				"检查 json tag 是否被删除，前端按 spec 取值会失败", key, keysOf(m))
+		}
+	}
+	// 反向校验：不应出现 PascalCase（Go 默认行为，无 tag 时会泄露）。
+	for _, bad := range []string{"InsightID", "RootCause", "Confidence", "Evidence"} {
+		if _, ok := m[bad]; ok {
+			t.Fatalf("DiagnoseResult JSON 出现 PascalCase 字段 %q，说明 json tag 未生效", bad)
+		}
+	}
+}
+
+func keysOf(m map[string]any) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	return ks
 }

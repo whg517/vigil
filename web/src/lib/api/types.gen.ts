@@ -1780,6 +1780,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/incidents/{id}/similar-postmortems": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find similar postmortems
+         * @description 按相似度查询与给定 incident 相似的已发布复盘（知识反哺诊断）。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 返回条数上限 */
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    /** @description Incident ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description {similar_postmortems: []*ent.Postmortem} */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/incidents/{id}/timeline": {
         parameters: {
             query?: never;
@@ -5976,9 +6041,9 @@ export interface components {
                 [key: string]: unknown;
             }[];
             /** @description AIInsight ID */
-            insightID?: number;
+            insight_id?: number;
             /** @description 根因线索文本 */
-            rootCause?: string;
+            root_cause?: string;
         };
         "internal_ai.resolveReq": {
             accepted?: boolean;

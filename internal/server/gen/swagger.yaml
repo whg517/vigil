@@ -1824,10 +1824,11 @@ components:
             additionalProperties: {}
             type: object
           type: array
-        insightID:
+          uniqueItems: false
+        insight_id:
           description: AIInsight ID
           type: integer
-        rootCause:
+        root_cause:
           description: 根因线索文本
           type: string
       type: object
@@ -3724,6 +3725,46 @@ paths:
       security:
       - bearerAuth: []
       summary: Find similar incidents
+      tags:
+      - ai
+  /incidents/{id}/similar-postmortems:
+    get:
+      description: 按相似度查询与给定 incident 相似的已发布复盘（知识反哺诊断）。
+      parameters:
+      - description: Incident ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      - description: 返回条数上限
+        in: query
+        name: limit
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: {}
+                type: object
+          description: '{similar_postmortems: []*ent.Postmortem}'
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: Find similar postmortems
       tags:
       - ai
   /incidents/{id}/timeline:

@@ -47,11 +47,14 @@ func NewDiagnoseEngine(db *ent.Client, p Provider) *DiagnoseEngine {
 func (e *DiagnoseEngine) SetSQLRunner(r SQLRunner) { e.runSQL = r }
 
 // DiagnoseResult 诊断结果。
+// json tag 必填：Go 默认序列化为 PascalCase（InsightID/RootCause），
+// 而 OpenAPI spec 经 swag 生成的 schema 期望 snake_case（insight_id/root_cause），
+// 不加 tag 会导致前端按 spec 取不到字段。
 type DiagnoseResult struct {
-	InsightID  int              // AIInsight ID
-	RootCause  string           // 根因线索文本
-	Confidence float32          // 置信度
-	Evidence   []map[string]any // 依据
+	InsightID  int              `json:"insight_id"` // AIInsight ID
+	RootCause  string           `json:"root_cause"` // 根因线索文本
+	Confidence float32          `json:"confidence"` // 置信度
+	Evidence   []map[string]any `json:"evidence"`   // 依据
 }
 
 // Diagnose 对某事件做根因诊断，落 AIInsight（status=suggested）。

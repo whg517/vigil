@@ -20,6 +20,7 @@ import type {
   APIKeyCreated,
   AuditLogListResponse,
   DashboardMetrics,
+  DiagnoseResult,
   EscalationPolicy,
   Incident,
   Integration,
@@ -90,6 +91,30 @@ export const api = {
   listTimeline(incidentId: number) {
     return http
       .get<ListResponse<TimelineItem>>(`/incidents/${incidentId}/timeline`)
+      .then((r) => r.data);
+  },
+
+  // —— AI 诊断（能力域 11）——
+  // diagnoseIncident 触发根因诊断。后端未启用 LLM 时返回 200 + {status:"disabled"}，
+  // 否则返回 201 + DiagnoseResult。两种形态以联合类型表达，由调用方按 status 字段区分。
+  diagnoseIncident(id: number) {
+    return http
+      .post<DiagnoseResult | { status: "disabled"; message: string }>(
+        `/incidents/${id}/diagnose`,
+        {},
+      )
+      .then((r) => r.data);
+  },
+  findSimilarIncidents(id: number, limit?: number) {
+    return http
+      .get<{ similar: Incident[] }>(`/incidents/${id}/similar`, {
+        params: limit ? { limit } : undefined,
+      })
+      .then((r) => r.data.similar);
+  },
+  resolveAiInsight(id: number, accepted: boolean) {
+    return http
+      .post<{ status: string; accepted: boolean }>(`/ai-insights/${id}/resolve`, { accepted })
       .then((r) => r.data);
   },
 
