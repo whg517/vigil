@@ -182,7 +182,7 @@ type createBindingReq struct {
 // @Security     bearerAuth
 // @Router       /role-bindings [get]
 func (h *Handler) listBindings(c *echo.Context) error {
-	bs, err := h.db.RoleBinding.Query().WithRole().All(c.Request().Context())
+	bs, err := h.db.RoleBinding.Query().WithRole().WithUser().All(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}

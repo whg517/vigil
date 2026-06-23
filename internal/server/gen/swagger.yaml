@@ -2094,6 +2094,18 @@ components:
         repeat_times:
           type: integer
       type: object
+    internal_im.imPlatformStatus:
+      properties:
+        available:
+          description: 凭证已配置且客户端就绪
+          type: boolean
+        impl:
+          description: 适配器类型：real | noop（占位）
+          type: string
+        platform:
+          description: feishu | dingtalk | wecom
+          type: string
+      type: object
     internal_integration.createReq:
       properties:
         config:
@@ -3334,6 +3346,23 @@ paths:
                 $ref: '#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse'
           description: Not Found
       summary: IM 平台回调
+      tags:
+      - im
+  /im/platforms:
+    get:
+      description: 返回各 IM 平台适配器是否就绪（凭证已配置）。凭证敏感，不回显。
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/internal_im.imPlatformStatus'
+                type: array
+          description: OK
+      security:
+      - bearerAuth: []
+      summary: IM 平台状态
       tags:
       - im
   /incidents:

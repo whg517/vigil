@@ -45,6 +45,27 @@ export function useCreateSchedule() {
       toast.success("排班已创建");
       qc.invalidateQueries({ queryKey: ["schedules"] });
     },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "创建失败";
+      toast.error(`排班创建失败：${msg}`);
+    },
+  });
+}
+
+/** useUpdateSchedule 更新排班（名称/时区/分层）。 */
+export function useUpdateSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { id: number; body: Parameters<typeof api.updateSchedule>[1] }) =>
+      api.updateSchedule(args.id, args.body),
+    onSuccess: () => {
+      toast.success("排班已更新");
+      qc.invalidateQueries({ queryKey: ["schedules"] });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "更新失败";
+      toast.error(`排班更新失败：${msg}`);
+    },
   });
 }
 
@@ -56,6 +77,10 @@ export function useDeleteSchedule() {
     onSuccess: () => {
       toast.success("排班已删除");
       qc.invalidateQueries({ queryKey: ["schedules"] });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "删除失败";
+      toast.error(`排班删除失败：${msg}`);
     },
   });
 }

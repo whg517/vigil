@@ -105,6 +105,50 @@ func (h *Handler) Register(g *echo.Group) {
 	g.POST("/im/:platform/callback", h.callback)
 }
 
+// RegisterStatus 挂载 IM 平台状态查询路由（业务只读，挂到鉴权 group）。
+//
+//	GET /api/v1/im/platforms
+//
+// 返回各 IM 平台适配器是否就绪（凭证已配置）。凭证敏感，仅返回 available 布尔，不回显。
+func (h *Handler) RegisterStatus(g *echo.Group) {
+	g.GET("/im/platforms", h.platforms)
+}
+
+// imPlatformStatus 单个平台状态。
+type imPlatformStatus struct {
+	Platform  string `json:"platform"`  // feishu | dingtalk | wecom
+	Available bool   `json:"available"` // 凭证已配置且客户端就绪
+	Impl      string `json:"impl"`      // 适配器类型：real | noop（占位）
+}
+
+// platforms 返回所有已注册 IM 平台的可用性。
+//
+// @Summary      IM 平台状态
+// @Description  返回各 IM 平台适配器是否就绪（凭证已配置）。凭证敏感，不回显。
+// @Tags         im
+// @Produce      json
+// @Success      200  {array}   im.imPlatformStatus
+// @Security     bearerAuth
+// @Router       /im/platforms [get]
+func (h *Handler) platforms(c *echo.Context) error {
+	if h.registry == nil {
+		return c.JSON(http.StatusOK, []imPlatformStatus{})
+	}
+	out := make([]imPlatformStatus, 0, 3)
+	for _, b := range h.registry.All() {
+		impl := "real"
+		if _, ok := b.(*NoopBot); ok {
+			impl = "noop"
+		}
+		out = append(out, imPlatformStatus{
+			Platform:  b.Platform(),
+			Available: b.Available(),
+			Impl:      impl,
+		})
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
 // callback 统一回调入口。
 //
 // @Summary      IM 平台回调

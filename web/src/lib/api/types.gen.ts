@@ -1107,6 +1107,45 @@ export interface paths {
         };
         trace?: never;
     };
+    "/im/platforms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * IM 平台状态
+         * @description 返回各 IM 平台适配器是否就绪（凭证已配置）。凭证敏感，不回显。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_im.imPlatformStatus"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/im/{platform}/callback": {
         parameters: {
             query?: never;
@@ -5899,6 +5938,14 @@ export interface components {
             levels?: components["schemas"]["github_com_kevin_vigil_ent_schema.EscalationLevel"][];
             name?: string;
             repeat_times?: number;
+        };
+        "internal_im.imPlatformStatus": {
+            /** @description 凭证已配置且客户端就绪 */
+            available?: boolean;
+            /** @description 适配器类型：real | noop（占位） */
+            impl?: string;
+            /** @description feishu | dingtalk | wecom */
+            platform?: string;
         };
         "internal_integration.createReq": {
             /** @description 类型相关配置（URL/过滤/限流等） */

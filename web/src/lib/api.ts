@@ -300,11 +300,17 @@ export const api = {
   listRoleBindings() {
     return http.get<RoleBinding[]>("/role-bindings").then((r) => r.data);
   },
-  createRoleBinding(body: { user_id: number; role_id: number; scope_level?: "org" | "team"; team_id?: number; expires_in?: number }) {
+  createRoleBinding(body: { user_id: number; role_id: number; scope_level?: "org" | "team"; team_id?: number; expires_in_hours?: number }) {
     return http.post<RoleBinding>("/role-bindings", body).then((r) => r.data);
   },
   deleteRoleBinding(id: number) {
     return http.delete(`/role-bindings/${id}`).then((r) => r.data);
+  },
+  // ===== IM 平台状态（能力域 8，只读）=====
+  listIMPlatforms() {
+    return http
+      .get<{ platform: string; available: boolean; impl: string }[]>("/im/platforms")
+      .then((r) => r.data);
   },
   // ===== API Key（能力域 13 §API Key 管理）=====
   listAPIKeys() {

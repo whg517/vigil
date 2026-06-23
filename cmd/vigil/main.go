@@ -440,6 +440,8 @@ func run() error {
 	v1.Use(auth.RequireUser(cfg.Auth.Enabled, identityResolver))
 	// me 走 v1（RequireUser 保护，需已登录）
 	authHandler.RegisterProtected(v1)
+	// IM 平台状态（只读，业务侧）：GET /im/platforms
+	imHandler.RegisterStatus(v1)
 	// API Key 管理（能力域 13 M13.7）：CRUD + 创建时返回明文仅一次；记审计
 	apiKeyHandler := auth.NewAPIKeyHandler(st.DB)
 	apiKeyHandler.SetAuditRecorder(auditRecorder)

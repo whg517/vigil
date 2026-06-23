@@ -24,6 +24,7 @@ import {
   useUpdateActionItem,
 } from "@/hooks/postmortems";
 import { formatTime } from "@/lib/format";
+import { extractError } from "@/lib/http";
 import type { ActionItem, PostmortemStatus } from "@/lib/types";
 
 const STATUS_LABEL: Record<PostmortemStatus, string> = {
@@ -99,7 +100,15 @@ export function Postmortems() {
         </div>
       )}
 
-      {drafting && <DraftDialog onClose={() => setDrafting(false)} />}
+      {drafting && (
+        <DraftDialog
+          onClose={() => setDrafting(false)}
+          onCreated={(pmId) => {
+            setDrafting(false);
+            setSelected(pmId);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -227,28 +236,57 @@ function ActionItemRow({
 }
 
 /** DraftDialog 从事件 ID 生成复盘草稿。 */
-function DraftDialog({ onClose }: { onClose: () => void }) {
+function DraftDialog({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (pmId: number) => void;
+}) {
   const gen = useGenerateDraft();
   const [incidentId, setIncidentId] = useState("");
+  const parsedId = Number(incidentId);
+  // 合法性：非空、是数字、且为正整数（0 不是有效事件 ID）
+  const valid = incidentId !== "" && Number.isInteger(parsedId) && parsedId > 0;
+  const errMsg = gen.error ? extractError(gen.error) : null;
+
   return (
     <Dialog open onClose={onClose} title="从事件起草复盘" description="基于事件时间线 + AI 起草结构化复盘（人校对）。">
       <form
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          gen.mutate(Number(incidentId), { onSuccess: onClose });
+          if (!valid) return;
+          gen.mutate(parsedId, { onSuccess: (pm) => onCreated(pm.id) });
         }}
       >
         <label className="block space-y-1">
           <span className="text-xs font-medium text-muted-foreground">事件 ID</span>
-          <Input type="number" value={incidentId} onChange={(e) => setIncidentId(e.target.value)} required />
+          <Input
+            type="number"
+            min={1}
+            value={incidentId}
+            onChange={(e) => setIncidentId(e.target.value)}
+            placeholder="例如 1"
+            required
+            autoFocus
+          />
         </label>
         <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
-          无 LLM key 时降级为规则草稿（设计基线第 7 条）。
+          事件 ID 可在「事件」列表的编号列查看。无 LLM key 时降级为规则草稿（设计基线第 7 条）。
         </p>
+        {errMsg && (
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+            {errMsg}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
-          <Button type="submit" disabled={gen.isPending || !incidentId}>起草</Button>
+          <Button type="button" variant="outline" onClick={onClose}>
+            取消
+          </Button>
+          <Button type="submit" disabled={gen.isPending || !valid}>
+            {gen.isPending ? "起草中..." : "起草"}
+          </Button>
         </div>
       </form>
     </Dialog>

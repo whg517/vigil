@@ -2813,6 +2813,23 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "internal_im.imPlatformStatus": {
+                "properties": {
+                    "available": {
+                        "description": "凭证已配置且客户端就绪",
+                        "type": "boolean"
+                    },
+                    "impl": {
+                        "description": "适配器类型：real | noop（占位）",
+                        "type": "string"
+                    },
+                    "platform": {
+                        "description": "feishu | dingtalk | wecom",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_integration.createReq": {
                 "properties": {
                     "config": {
@@ -4707,6 +4724,35 @@ const docTemplate = `{
                 "summary": "更新升级策略",
                 "tags": [
                     "escalation"
+                ]
+            }
+        },
+        "/im/platforms": {
+            "get": {
+                "description": "返回各 IM 平台适配器是否就绪（凭证已配置）。凭证敏感，不回显。",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/internal_im.imPlatformStatus"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "IM 平台状态",
+                "tags": [
+                    "im"
                 ]
             }
         },

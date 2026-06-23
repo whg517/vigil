@@ -30,6 +30,13 @@ export function useCreateTeam() {
     onSuccess: () => { toast.success("团队已创建"); qc.invalidateQueries({ queryKey: ["teams"] }); },
   });
 }
+export function useUpdateTeam() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { id: number; body: Parameters<typeof api.updateTeam>[1] }) => api.updateTeam(args.id, args.body),
+    onSuccess: () => { toast.success("团队已更新"); qc.invalidateQueries({ queryKey: ["teams"] }); },
+  });
+}
 export function useDeleteTeam() {
   const qc = useQueryClient();
   return useMutation({
