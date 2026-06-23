@@ -110,10 +110,11 @@ export interface IntegrationCreated extends Integration {
 }
 
 // —— EscalationPolicy（ent/schema/escalation_policy.go，能力域 6）——
+// target_id 为 string：后端存 schedule_id/user_id/team_id（schema.Target.target_id）。
 export interface EscalationLevel {
   level: number;
   delay_minutes: number;
-  targets: { type: string; id: number; name?: string }[];
+  targets: { type: string; target_id: string }[];
   notify_channels: string[];
 }
 export type EscalationPolicy = Required<

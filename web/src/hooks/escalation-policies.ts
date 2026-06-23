@@ -21,6 +21,15 @@ export function useCreateEscalationPolicy() {
   });
 }
 
+export function useUpdateEscalationPolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { id: number; body: Parameters<typeof api.updateEscalationPolicy>[1] }) =>
+      api.updateEscalationPolicy(args.id, args.body),
+    onSuccess: () => { toast.success("升级策略已更新"); qc.invalidateQueries({ queryKey: ["escalation-policies"] }); },
+  });
+}
+
 export function useDeleteEscalationPolicy() {
   const qc = useQueryClient();
   return useMutation({

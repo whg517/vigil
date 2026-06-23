@@ -1,29 +1,48 @@
 /**
  * 升级策略管理页（能力域 6）。
- * 列出升级策略，创建时配置 name + levels（层级/延迟/通道）。
+ * 列出升级策略，创建/编辑时配置 name + repeat_times + 多层级（延迟/通道/目标）。
  */
 import { useState } from "react";
-import { ChevronUp, Plus, Trash2 } from "lucide-react";
+import { ChevronUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCreateEscalationPolicy, useDeleteEscalationPolicy, useEscalationPolicies } from "@/hooks/escalation-policies";
+import {
+  useCreateEscalationPolicy,
+  useDeleteEscalationPolicy,
+  useEscalationPolicies,
+  useUpdateEscalationPolicy,
+} from "@/hooks/escalation-policies";
 import { formatTime } from "@/lib/format";
-import type { EscalationLevel } from "@/lib/types";
+import type { EscalationPolicy } from "@/lib/types";
+
+const CHANNELS = ["im", "phone", "sms", "email", "webhook"] as const;
+type Channel = (typeof CHANNELS)[number];
+
+/**
+ * 表单内的升级层级类型（字段全必填，便于受控 state）。
+ * target_id 用 string（与后端 schema 的 schedule_id/user_id/team_id 一致）。
+ */
+interface FormLevel {
+  level: number;
+  delay_minutes: number;
+  targets: { type: string; target_id: string }[];
+  notify_channels: string[];
+}
 
 export function EscalationPolicies() {
   const { data, isLoading } = useEscalationPolicies();
   const del = useDeleteEscalationPolicy();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<EscalationPolicy | undefined>(undefined);
 
-  const levelSummary = (levels?: EscalationLevel[]) => {
+  const levelSummary = (levels?: { level?: number; delay_minutes?: number }[]) => {
     if (!levels || levels.length === 0) return "—";
-    return levels.map((l) => `L${l.level}·${l.delay_minutes}min`).join(" → ");
+    return levels.map((l) => `L${l.level ?? "?"}·${l.delay_minutes ?? 0}min`).join(" → ");
   };
 
   return (
@@ -67,9 +86,14 @@ export function EscalationPolicies() {
                     <td className="p-3"><Badge variant="secondary">{p.repeat_times}</Badge></td>
                     <td className="p-3 text-muted-foreground">{formatTime(p.created_at)}</td>
                     <td className="p-3 text-right">
-                      <Button size="icon" variant="ghost" disabled={del.isPending} onClick={() => del.mutate(p.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button size="icon" variant="ghost" title="编辑" onClick={() => setEditing(p)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" disabled={del.isPending} onClick={() => del.mutate(p.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -79,56 +103,220 @@ export function EscalationPolicies() {
         </CardContent>
       </Card>
 
-      {creating && <CreateEscalationPolicyDialog onClose={() => setCreating(false)} />}
+      {creating && <EscalationPolicyFormDialog onClose={() => setCreating(false)} />}
+      {editing && <EscalationPolicyFormDialog policy={editing} onClose={() => setEditing(undefined)} />}
     </div>
   );
 }
 
-/** CreateEscalationPolicyDialog 创建升级策略。简化：name + 单层级配置。 */
-function CreateEscalationPolicyDialog({ onClose }: { onClose: () => void }) {
-  const create = useCreateEscalationPolicy();
-  const [name, setName] = useState("");
-  const [delayMinutes, setDelayMinutes] = useState("5");
-  const [channel, setChannel] = useState<"im" | "phone" | "sms" | "email" | "webhook">("im");
-
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // 简化版：创建一个单层升级策略（L1，配置延迟和通道）
-    const levels: EscalationLevel[] = [{
-      level: 1,
-      delay_minutes: parseInt(delayMinutes, 10) || 5,
-      targets: [],
-      notify_channels: [channel],
-    }];
-    create.mutate({ name, levels }, { onSuccess: onClose });
+/** 单个升级层级行编辑：level 序号只读，delay_minutes / notify_channels / targets 可改。 */
+function LevelRow({
+  level,
+  onChange,
+  onRemove,
+}: {
+  level: FormLevel;
+  onChange: (patch: Partial<FormLevel>) => void;
+  onRemove: () => void;
+}) {
+  const toggleChannel = (ch: Channel) => {
+    const has = level.notify_channels.includes(ch);
+    const next = has
+      ? level.notify_channels.filter((c) => c !== ch)
+      : [...level.notify_channels, ch];
+    onChange({ notify_channels: next });
   };
 
   return (
-    <Dialog open onClose={onClose} title="创建升级策略" description="配置未响应时的升级层级（简化版：单层，创建后可编辑细化）。">
-      <form className="space-y-3" onSubmit={onSubmit}>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="默认升级（5min→IM）" required autoFocus />
+    <div className="rounded-md border p-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <Badge variant="outline">L{level.level}</Badge>
+        <div className="flex-1" />
+        <Button type="button" size="icon" variant="ghost" title="删除该层" onClick={onRemove}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">延迟（分钟）</label>
+          <Input
+            type="number"
+            min={0}
+            value={level.delay_minutes}
+            onChange={(e) => onChange({ delay_minutes: Number(e.target.value) || 0 })}
+            className="h-8"
+          />
         </div>
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">通知通道（多选）</label>
+        <div className="flex flex-wrap gap-1">
+          {CHANNELS.map((ch) => {
+            const on = level.notify_channels.includes(ch);
+            return (
+              <button
+                key={ch}
+                type="button"
+                onClick={() => toggleChannel(ch)}
+                className={`rounded border px-2 py-0.5 text-xs transition-colors ${
+                  on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent"
+                }`}
+              >
+                {ch}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">升级目标（可选，type:id 形式，逗号分隔）</label>
+        <Input
+          value={level.targets.map((t) => `${t.type}:${t.target_id}`).join(",")}
+          onChange={(e) => onChange({ targets: parseTargets(e.target.value) })}
+          placeholder="schedule:1, user:3"
+          className="h-8 text-xs"
+        />
+      </div>
+    </div>
+  );
+}
+
+/** 把 "schedule:1, user:3" 解析为 targets 数组（target_id 与后端一致用 string）。 */
+function parseTargets(text: string): FormLevel["targets"] {
+  return text
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const [type, idStr] = s.split(":");
+      return { type: (type || "").trim(), target_id: (idStr || "").trim() };
+    });
+}
+
+/**
+ * EscalationPolicyFormDialog 创建/编辑复用：传 policy 则编辑。
+ * levels 为有序数组，level 序号自动递增；支持增删层。
+ */
+function EscalationPolicyFormDialog({
+  policy,
+  onClose,
+}: {
+  policy?: EscalationPolicy;
+  onClose: () => void;
+}) {
+  const isEdit = !!policy;
+  const create = useCreateEscalationPolicy();
+  const update = useUpdateEscalationPolicy();
+
+  const [name, setName] = useState(policy?.name ?? "");
+  const [repeatTimes, setRepeatTimes] = useState(String(policy?.repeat_times ?? 1));
+  const [levels, setLevels] = useState<FormLevel[]>(() =>
+    policy?.levels && policy.levels.length > 0
+      ? policy.levels.map((l) => ({
+          level: l.level ?? 1,
+          delay_minutes: l.delay_minutes ?? 5,
+          targets: (l.targets ?? []).map((t) => ({
+            type: String(t.type ?? ""),
+            target_id: String(t.target_id ?? (t as { id?: number }).id ?? ""),
+          })),
+          notify_channels: [...(l.notify_channels ?? [])],
+        }))
+      : [{ level: 1, delay_minutes: 5, targets: [], notify_channels: ["im"] }],
+  );
+
+  const addLevel = () =>
+    setLevels((prev) => [
+      ...prev,
+      {
+        level: prev.length + 1,
+        delay_minutes: 5,
+        targets: [],
+        notify_channels: ["im"],
+      },
+    ]);
+
+  const patchLevel = (idx: number, patch: Partial<FormLevel>) =>
+    setLevels((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+
+  const removeLevel = (idx: number) =>
+    setLevels((prev) =>
+      prev.filter((_, i) => i !== idx).map((l, i) => ({ ...l, level: i + 1 })),
+    );
+
+  const pending = create.isPending || update.isPending;
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const body = {
+      name,
+      repeat_times: Number(repeatTimes) || 1,
+      levels: levels.map((l, i) => ({ ...l, level: i + 1 })),
+    };
+    if (isEdit && policy) {
+      update.mutate({ id: policy.id, body }, { onSuccess: onClose });
+    } else {
+      create.mutate(body, { onSuccess: onClose });
+    }
+  };
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={isEdit ? `编辑升级策略 · ${policy?.name}` : "创建升级策略"}
+      description="配置未响应时的升级层级（可多层，延迟与通道逐层配置）。"
+    >
+      <form className="space-y-3" onSubmit={onSubmit}>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">L1 延迟（分钟）</label>
-            <Input type="number" min={1} value={delayMinutes} onChange={(e) => setDelayMinutes(e.target.value)} />
+            <label className="text-sm font-medium">名称</label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="默认升级（5min→IM）"
+              required
+              autoFocus
+            />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">L1 通道</label>
-            <Select value={channel} onChange={(e) => setChannel(e.target.value as "im" | "phone" | "sms" | "email" | "webhook")}>
-              <option value="im">im</option>
-              <option value="phone">phone</option>
-              <option value="sms">sms</option>
-              <option value="email">email</option>
-              <option value="webhook">webhook</option>
-            </Select>
+            <label className="text-sm font-medium">重复次数</label>
+            <Input
+              type="number"
+              min={1}
+              value={repeatTimes}
+              onChange={(e) => setRepeatTimes(e.target.value)}
+            />
           </div>
         </div>
-        <Button type="submit" className="w-full" disabled={create.isPending || !name}>
-          {create.isPending ? "创建中..." : "创建"}
-        </Button>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">升级层级</label>
+            <Button type="button" size="sm" variant="outline" onClick={addLevel}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> 添加层
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {levels.map((l, i) => (
+              <LevelRow
+                key={i}
+                level={l}
+                onChange={(patch) => patchLevel(i, patch)}
+                onRemove={() => removeLevel(i)}
+              />
+            ))}
+            {levels.length === 0 && (
+              <p className="text-xs text-muted-foreground">未配置层级，点击"添加层"开始。</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="submit" disabled={pending || !name}>
+            {pending ? "保存中..." : isEdit ? "保存" : "创建"}
+          </Button>
+        </div>
       </form>
     </Dialog>
   );
