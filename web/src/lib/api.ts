@@ -207,6 +207,9 @@ export const api = {
   createRunbook(body: Partial<Runbook> & { name: string; type: Runbook["type"] }) {
     return http.post<Runbook>("/runbooks", body).then((r) => r.data);
   },
+  updateRunbook(id: number, body: Partial<Runbook>) {
+    return http.patch<Runbook>(`/runbooks/${id}`, body).then((r) => r.data);
+  },
   deleteRunbook(id: number) {
     return http.delete(`/runbooks/${id}`).then((r) => r.data);
   },
@@ -240,6 +243,12 @@ export const api = {
   },
   updateActionItem(id: number, body: Partial<ActionItem>) {
     return http.patch<ActionItem>(`/action-items/${id}`, body).then((r) => r.data);
+  },
+  deletePostmortem(id: number) {
+    return http.delete(`/postmortems/${id}`).then((r) => r.data);
+  },
+  deleteActionItem(id: number) {
+    return http.delete(`/action-items/${id}`).then((r) => r.data);
   },
 
   // —— 通知规则（能力域 7）——

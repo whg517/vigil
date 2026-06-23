@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, BookOpen, Play, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import {
   useExecuteRunbook,
   useRunbook,
   useRunbooks,
+  useUpdateRunbook,
 } from "@/hooks/runbooks";
 import { formatTime } from "@/lib/format";
 import type { Runbook } from "@/lib/types";
@@ -93,17 +94,18 @@ export function Runbooks() {
         </div>
       )}
 
-      {creating && <CreateRunbookDialog onClose={() => setCreating(false)} />}
+      {creating && <RunbookFormDialog onClose={() => setCreating(false)} />}
     </div>
   );
 }
 
-/** RunbookDetail 详情：markdown 渲染 + 执行（human-in-the-loop）+ 删除。 */
+/** RunbookDetail 详情：markdown 渲染 + 执行（human-in-the-loop）+ 编辑 + 删除。 */
 function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const { data: rb, isLoading, isError } = useRunbook(id);
   const del = useDeleteRunbook();
   const exec = useExecuteRunbook();
   const [executing, setExecuting] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [incidentId, setIncidentId] = useState("");
 
   if (isLoading) return <div className="p-6"><Skeleton className="h-40 w-full" /></div>;
@@ -125,6 +127,9 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
         <div className="flex gap-2">
           <Button onClick={() => setExecuting(true)}>
             <Play className="mr-1 h-4 w-4" /> 执行
+          </Button>
+          <Button variant="outline" onClick={() => setEditing(true)}>
+            <Pencil className="mr-1 h-4 w-4" /> 编辑
           </Button>
           <Button
             variant="outline"
@@ -192,32 +197,49 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
           </form>
         </Dialog>
       )}
+
+      {editing && (
+        <RunbookFormDialog runbook={rb} onClose={() => setEditing(false)} />
+      )}
     </div>
   );
 }
 
-/** CreateRunbookDialog 创建文档式 Runbook。 */
-function CreateRunbookDialog({ onClose }: { onClose: () => void }) {
+/**
+ * RunbookFormDialog 创建/编辑复用：传 runbook 则编辑。
+ * 可编辑 name / type / content_markdown（后端 PATCH 支持这些字段）。
+ */
+function RunbookFormDialog({ runbook, onClose }: { runbook?: Runbook; onClose: () => void }) {
+  const isEdit = !!runbook;
   const create = useCreateRunbook();
-  const [name, setName] = useState("");
-  const [type, setType] = useState<Runbook["type"]>("document");
-  const [content, setContent] = useState("");
+  const update = useUpdateRunbook();
+  const [name, setName] = useState(runbook?.name ?? "");
+  const [type, setType] = useState<Runbook["type"]>(runbook?.type ?? "document");
+  const [content, setContent] = useState(runbook?.content_markdown ?? "");
+
+  const pending = create.isPending || update.isPending;
 
   return (
-    <Dialog open onClose={onClose} title="创建 Runbook" description="文档式（Markdown）或可执行式。">
+    <Dialog
+      open
+      onClose={onClose}
+      title={isEdit ? `编辑 Runbook · ${runbook?.name}` : "创建 Runbook"}
+      description="文档式（Markdown）或可执行式。"
+    >
       <form
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate(
-            { name, type, content_markdown: content },
-            { onSuccess: onClose },
-          );
+          if (isEdit && runbook) {
+            update.mutate({ id: runbook.id, body: { name, type, content_markdown: content } }, { onSuccess: onClose });
+          } else {
+            create.mutate({ name, type, content_markdown: content }, { onSuccess: onClose });
+          }
         }}
       >
         <label className="block space-y-1">
           <span className="text-xs font-medium text-muted-foreground">名称</span>
-          <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         </label>
         <label className="block space-y-1">
           <span className="text-xs font-medium text-muted-foreground">类型</span>
@@ -237,7 +259,9 @@ function CreateRunbookDialog({ onClose }: { onClose: () => void }) {
         </label>
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>取消</Button>
-          <Button type="submit" disabled={create.isPending || !name}>创建</Button>
+          <Button type="submit" disabled={pending || !name}>
+            {pending ? "保存中..." : isEdit ? "保存" : "创建"}
+          </Button>
         </div>
       </form>
     </Dialog>

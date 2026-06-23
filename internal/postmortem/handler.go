@@ -30,9 +30,11 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/postmortems/:id", h.get)
 	g.POST("/incidents/:id/postmortem/draft", h.generateDraft) // 为事件生成草稿
 	g.PATCH("/postmortems/:id/transition", h.transition)       // 状态流转
+	g.DELETE("/postmortems/:id", h.delete)                     // 删除复盘
 	// ActionItem
 	g.POST("/postmortems/:id/action-items", h.addActionItem)
 	g.PATCH("/action-items/:id", h.updateActionItem)
+	g.DELETE("/action-items/:id", h.deleteActionItem) // 删除改进项
 }
 
 // list 复盘列表（含 incident 关联）。
@@ -220,4 +222,53 @@ func (h *Handler) updateActionItem(c *echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, ai)
+}
+
+// delete 删除复盘（连同其改进项一起删除，避免孤儿/外键冲突）。
+//
+// @Summary      删除复盘
+// @Description  按 ID 删除复盘，并级联删除其关联的改进项。
+// @Tags         postmortem
+// @Param        id   path  int  true  "复盘 ID"
+// @Success      204
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /postmortems/{id} [delete]
+func (h *Handler) delete(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+	}
+	ctx := c.Request().Context()
+	// 先删关联改进项，再删复盘（无 OnDelete 声明，避免外键约束/孤儿）。
+	if _, derr := h.db.ActionItem.Delete().Where(actionitem.HasPostmortemWith(postmortem.ID(id))).Exec(ctx); derr != nil {
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: derr.Error()})
+	}
+	if err := h.db.Postmortem.DeleteOneID(id).Exec(ctx); err != nil {
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+// deleteActionItem 删除单个改进项。
+//
+// @Summary      删除改进项
+// @Description  按 ID 删除改进项。
+// @Tags         postmortem
+// @Param        id   path  int  true  "改进项 ID"
+// @Success      204
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /action-items/{id} [delete]
+func (h *Handler) deleteActionItem(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+	}
+	if err := h.db.ActionItem.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+	}
+	return c.NoContent(http.StatusNoContent)
 }

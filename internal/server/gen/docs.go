@@ -3242,6 +3242,32 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "internal_runbook.updateReq": {
+                "properties": {
+                    "content_markdown": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "steps": {
+                        "items": {
+                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.RunbookStep"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "trigger": {
+                        "additionalProperties": {},
+                        "type": "object"
+                    },
+                    "type": {
+                        "description": "document | executable",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_schedule.DayOncall": {
                 "properties": {
                     "date": {
@@ -3508,6 +3534,54 @@ const docTemplate = `{
     "openapi": "3.1.0",
     "paths": {
         "/action-items/{id}": {
+            "delete": {
+                "description": "按 ID 删除改进项。",
+                "parameters": [
+                    {
+                        "description": "改进项 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "删除改进项",
+                "tags": [
+                    "postmortem"
+                ]
+            },
             "patch": {
                 "parameters": [
                     {
@@ -6628,6 +6702,54 @@ const docTemplate = `{
             }
         },
         "/postmortems/{id}": {
+            "delete": {
+                "description": "按 ID 删除复盘，并级联删除其关联的改进项。",
+                "parameters": [
+                    {
+                        "description": "复盘 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "删除复盘",
+                "tags": [
+                    "postmortem"
+                ]
+            },
             "get": {
                 "parameters": [
                     {
@@ -7338,6 +7460,81 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "Get runbook",
+                "tags": [
+                    "runbook"
+                ]
+            },
+            "patch": {
+                "description": "按 ID 更新 Runbook（部分字段，PATCH 语义）。",
+                "parameters": [
+                    {
+                        "description": "Runbook ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/internal_runbook.updateReq",
+                                        "description": "更新字段（全可选）",
+                                        "summary": "request"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "更新字段（全可选）",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Runbook"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "Update runbook",
                 "tags": [
                     "runbook"
                 ]

@@ -14,7 +14,49 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * 删除改进项
+         * @description 按 ID 删除改进项。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 改进项 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         /** 更新改进项 */
@@ -2876,7 +2918,49 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * 删除复盘
+         * @description 按 ID 删除复盘，并级联删除其关联的改进项。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 复盘 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -3485,7 +3569,56 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update runbook
+         * @description 按 ID 更新 Runbook（部分字段，PATCH 语义）。
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Runbook ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 更新字段（全可选） */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["internal_runbook.updateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Runbook"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/runbooks/{id}/execute": {
@@ -6163,6 +6296,16 @@ export interface components {
             /** @description 写动作是否已确认（human-in-the-loop） */
             approved?: boolean;
             incident_id?: number;
+        };
+        "internal_runbook.updateReq": {
+            content_markdown?: string;
+            name?: string;
+            steps?: components["schemas"]["github_com_kevin_vigil_ent_schema.RunbookStep"][];
+            trigger?: {
+                [key: string]: unknown;
+            };
+            /** @description document | executable */
+            type?: string;
         };
         "internal_schedule.DayOncall": {
             date?: string;

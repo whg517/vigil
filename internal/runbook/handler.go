@@ -29,6 +29,7 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/runbooks", h.list)
 	g.POST("/runbooks", h.create)
 	g.GET("/runbooks/:id", h.get)
+	g.PATCH("/runbooks/:id", h.update)
 	g.DELETE("/runbooks/:id", h.delete)
 	g.POST("/runbooks/:id/execute", h.execute)
 }
@@ -117,6 +118,61 @@ func (h *Handler) get(c *echo.Context) error {
 	rb, err := h.db.Runbook.Get(c.Request().Context(), id)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
+	}
+	return c.JSON(http.StatusOK, rb)
+}
+
+// updateReq 更新 Runbook 请求（全可选指针，PATCH 部分更新语义）。
+type updateReq struct {
+	Name            *string               `json:"name"`
+	Type            *string               `json:"type"` // document | executable
+	ContentMarkdown *string               `json:"content_markdown"`
+	Trigger         map[string]any        `json:"trigger"`
+	Steps           *[]schema.RunbookStep `json:"steps"`
+}
+
+// update 更新 Runbook。
+//
+// @Summary      Update runbook
+// @Description  按 ID 更新 Runbook（部分字段，PATCH 语义）。
+// @Tags         runbook
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int          true  "Runbook ID"
+// @Param        request  body      updateReq    true  "更新字段（全可选）"
+// @Success      200      {object}  ent.Runbook
+// @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      404      {object}  httputil.ErrorResponse
+// @Router       /runbooks/{id} [patch]
+// @Security     bearerAuth
+func (h *Handler) update(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+	}
+	var req updateReq
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
+	}
+	u := h.db.Runbook.UpdateOneID(id)
+	if req.Name != nil {
+		u.SetName(*req.Name)
+	}
+	if req.Type != nil {
+		u.SetType(entrunbook.Type(*req.Type))
+	}
+	if req.ContentMarkdown != nil {
+		u.SetContentMarkdown(*req.ContentMarkdown)
+	}
+	if req.Trigger != nil {
+		u.SetTrigger(req.Trigger)
+	}
+	if req.Steps != nil {
+		u.SetSteps(*req.Steps)
+	}
+	rb, err := u.Save(c.Request().Context())
+	if err != nil {
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, rb)
 }

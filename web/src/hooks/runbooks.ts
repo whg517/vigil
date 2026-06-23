@@ -33,6 +33,18 @@ export function useCreateRunbook() {
   });
 }
 
+export function useUpdateRunbook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { id: number; body: Parameters<typeof api.updateRunbook>[1] }) =>
+      api.updateRunbook(args.id, args.body),
+    onSuccess: () => {
+      toast.success("Runbook 已更新");
+      qc.invalidateQueries({ queryKey: ["runbooks"] });
+    },
+  });
+}
+
 export function useDeleteRunbook() {
   const qc = useQueryClient();
   return useMutation({

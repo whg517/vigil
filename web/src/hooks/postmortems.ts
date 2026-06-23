@@ -70,3 +70,27 @@ export function useUpdateActionItem(pmId: number) {
     },
   });
 }
+
+/** useDeletePostmortem 删除复盘（后端会级联删除其改进项）。onSuccess 回调用于导航回列表。 */
+export function useDeletePostmortem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deletePostmortem(id),
+    onSuccess: () => {
+      toast.success("复盘已删除");
+      qc.invalidateQueries({ queryKey: ["postmortems"] });
+    },
+  });
+}
+
+/** useDeleteActionItem 删除单个改进项。 */
+export function useDeleteActionItem(pmId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteActionItem(id),
+    onSuccess: () => {
+      toast.success("改进项已删除");
+      qc.invalidateQueries({ queryKey: postmortemQk.postmortem(pmId) });
+    },
+  });
+}

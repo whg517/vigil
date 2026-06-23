@@ -6,7 +6,7 @@
  *       POST /incidents/:id/postmortem/draft。
  */
 import { useState } from "react";
-import { ArrowLeft, ClipboardList, Plus, FileText } from "lucide-react";
+import { ArrowLeft, ClipboardList, Plus, FileText, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,8 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useAddActionItem,
+  useDeleteActionItem,
+  useDeletePostmortem,
   useGenerateDraft,
   usePostmortem,
   usePostmortems,
@@ -113,12 +115,14 @@ export function Postmortems() {
   );
 }
 
-/** PostmortemDetail 详情：章节 + 改进项 + 状态流转。 */
+/** PostmortemDetail 详情：章节 + 改进项 + 状态流转 + 删除。 */
 function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const { data: pm, isLoading, isError } = usePostmortem(id);
   const transition = useTransitionPostmortem(id);
   const addAction = useAddActionItem(id);
   const updateAction = useUpdateActionItem(id);
+  const deleteAction = useDeleteActionItem(id);
+  const del = useDeletePostmortem();
   const [newItem, setNewItem] = useState("");
 
   if (isLoading) return <div className="p-6"><Skeleton className="h-40 w-full" /></div>;
@@ -149,6 +153,18 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
               <option key={s} value={s}>{STATUS_LABEL[s]}</option>
             ))}
           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={del.isPending}
+            onClick={() => {
+              if (window.confirm(`确定删除复盘 #${pm.id}？其改进项将一并删除，且不可恢复。`)) {
+                del.mutate(pm.id, { onSuccess: onBack });
+              }
+            }}
+          >
+            <Trash2 className="mr-1 h-4 w-4" /> 删除复盘
+          </Button>
         </div>
       </div>
 
@@ -183,7 +199,13 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
         <CardContent className="space-y-2">
           {pm.action_items && pm.action_items.length > 0 ? (
             pm.action_items.map((ai) => (
-              <ActionItemRow key={ai.id} ai={ai} onUpdate={(body) => updateAction.mutate({ id: ai.id, body })} />
+              <ActionItemRow
+                key={ai.id}
+                ai={ai}
+                onUpdate={(body) => updateAction.mutate({ id: ai.id, body })}
+                onDelete={() => deleteAction.mutate(ai.id)}
+                deleting={deleteAction.isPending}
+              />
             ))
           ) : (
             <p className="text-sm text-muted-foreground">暂无改进项。</p>
@@ -205,13 +227,17 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
   );
 }
 
-/** ActionItemRow 单个改进项 + 状态切换。 */
+/** ActionItemRow 单个改进项 + 状态切换 + 删除。 */
 function ActionItemRow({
   ai,
   onUpdate,
+  onDelete,
+  deleting,
 }: {
   ai: ActionItem;
   onUpdate: (body: Partial<ActionItem>) => void;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
   const STATUS: ActionItem["status"][] = ["open", "in_progress", "done"];
   return (
@@ -231,6 +257,9 @@ function ActionItemRow({
           工单
         </a>
       )}
+      <Button variant="ghost" size="icon" title="删除" disabled={deleting} onClick={onDelete}>
+        <Trash2 className="h-4 w-4" />
+      </Button>
     </div>
   );
 }
