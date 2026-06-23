@@ -80,3 +80,43 @@ jobs:
       - name: build
         working-directory: web
         run: pnpm build
+
+  # ===== E2E：真实 PG(pgvector) + Redis + Asynq 端到端闭环 =====
+  # 与 backend/frontend job 并行；用 build tag 隔离，不拖慢默认单测。
+  # 对应 docs/development.md §八 e2e 测试。
+  e2e:
+    name: E2E (postgres pgvector + redis)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: vigil
+          POSTGRES_PASSWORD: vigil
+          POSTGRES_DB: vigil
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U vigil"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: e2e tests
+        run: go test -tags=integration -v -timeout 10m ./internal/e2e/...

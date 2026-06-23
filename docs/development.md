@@ -386,3 +386,92 @@ A: `git worktree prune` 清理失效记录，分支本身仍在，可重新 `git
 
 **Q: chore 真的一个都不能用吗？**
 A: 是的，本项目禁用 chore。CI/钩子可配置为拒绝含 chore 的提交。
+
+---
+
+## 八、端到端（e2e）集成测试
+
+### 8.1 为什么单独搞 e2e
+
+各包的单元测试（`*_test.go`）用 **sqlite 内存库 + miniredis** mock 依赖，秒级跑完，适合快速回归。但它们触及不到真实依赖的盲点：
+
+- pgvector 相似检索（sqlite 无向量扩展）
+- Asynq 真实任务调度时序（升级链延迟触发）
+- 完整流水线串联（ingest → normalize → triage → escalate → notify）
+- 鉴权三轨切换（JWT / API Key / X-Vigil-User-ID）
+- HTTP 端到端契约（路由 → 中间件 → handler → ent → PG）
+
+e2e 测试用**真实 PG(pgvector) + Redis + Asynq worker**起完整 app 实例，覆盖这些盲点。
+
+### 8.2 Build tag 隔离（★ 重要）
+
+e2e 测试带 `//go:build integration` 标记，**不参与默认 `go test ./...`**，保持单测秒级。需显式启用：
+
+```bash
+go test -tags=integration ./internal/e2e/...
+# 或
+make test-e2e    # 会先 dev-up 起依赖
+```
+
+三道门禁（lint/test/build）默认**不含** e2e；e2e 在独立 CI job 验证。
+
+### 8.3 前置依赖
+
+e2e 需要真实的 PG + Redis。本地用现有 docker-compose：
+
+```bash
+make dev-up          # 起 postgres(pgvector) + redis
+make test-e2e        # 跑测试
+```
+
+CI 里用 GitHub Actions service container 自动起（见 `.github/workflows/ci.yml` 的 `e2e` job）。
+
+连不上依赖时测试自动 `t.Skip`，不会让单测 CI 误红。
+
+### 8.4 测试结构（internal/e2e/）
+
+```
+internal/e2e/
+├── doc.go          # 包文档 + build tag 说明
+├── testenv.go      # Setup：进程内起完整实例（Bootstrap + migrate + server/worker）
+├── fixture.go      # ResetDB(TRUNCATE) + Seed 团队/用户/服务/接入点/升级策略 + Login/SendWebhook
+├── assert.go       # Eventually 轮询 + WaitForIncidentCount/Status/EscalationLevel/TimelineEntry
+├── smoke_test.go   # 冒烟：/health 通 + admin 登录
+├── pipeline_test.go     # 完整告警闭环
+├── escalation_test.go   # 升级链 + ack 守卫
+├── incident_action_test.go  # ack/resolve/reopen + RBAC
+├── auth_test.go     # 鉴权三轨
+└── health_test.go   # 依赖连通性
+```
+
+### 8.5 加新 e2e 用例的范式
+
+```go
+//go:build integration
+
+package e2e
+
+func TestXxx(t *testing.T) {
+    env := Setup(t)              // 起实例（连不上依赖自动 skip）
+    token := env.Login(t)        // admin 登录拿 JWT
+    t.Cleanup(func() { env.ResetDB(t) })  // 测试间清空数据
+
+    // 用 SeedXxx 构造前置数据，用 HTTP API 驱动业务
+    team := env.SeedTeam(t, "团队")
+    svc := env.SeedService(t, "svc", team.ID)
+    _, integToken := env.SeedIntegration(t, token, "prometheus", team.ID, svc.ID)
+
+    // 触发异步流水线后用 Eventually/WaitForXxx 轮询等待结果
+    env.SendWebhook(t, integToken, payload)
+    incs := env.WaitForIncidentCount(t, 1)
+
+    // 断言库状态/HTTP 响应
+    if incs[0].Status != "triggered" { t.Errorf(...) }
+}
+```
+
+关键约定：
+- 每个 e2e 用例**独立调用 Setup**（自带实例隔离 + Redis FlushDB + ResetDB）。
+- 异步结果用**轮询**（`Eventually`/`WaitForXxx`），不要 sleep 固定时长。
+- 数据隔离靠 `ResetDB`（TRUNCATE CASCADE）+ `Redis FlushDB`（清 dedup key/聚合器/asynq 残留）。
+

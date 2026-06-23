@@ -56,7 +56,9 @@ vigil/
 
 ```bash
 go build ./...              # 编译
-go test ./...               # 测试
+go test ./...               # 测试（默认不含 e2e）
+go test -tags=integration ./internal/e2e/...  # ★ e2e 集成测试（需 docker 依赖，见 §测试）
+make test-e2e               # e2e 一键（自动 dev-up 起依赖）
 go run ./cmd/vigil/         # 运行
 go generate ./ent/...       # ★ 改了 ent/schema 后必须重新生成
 go generate ./cmd/vigil/... # ★ 改了 handler 注解后必须重新生成 OpenAPI spec
@@ -104,7 +106,7 @@ go build ./... && pnpm --dir web build
 
 1. **从最新 main 拉分支**（`git worktree add ... -b <type>-<name>`）。**严禁在特性分支上叠特性分支**——有依赖时先把被依赖特性合并进 main，再从更新后的 main 拉下一个（见 §3.2.1）。
 2. **worktree 内开发 + 提交**。
-3. **worktree 内三道门禁全绿**（lint→test→build，见 docs/development.md §3.4）：`golangci-lint run ./... && go test ./... && go build ./...` + `pnpm --dir web lint && pnpm --dir web build`。改了 schema 必须 `go generate ./ent/...` 且生成代码一起提交。
+3. **worktree 内三道门禁全绿**（lint→test→build，见 docs/development.md §3.4）：`golangci-lint run ./... && go test ./... && go build ./...` + `pnpm --dir web lint && pnpm --dir web build`。改了 schema 必须 `go generate ./ent/...` 且生成代码一起提交。注：默认 `go test ./...` **不含 e2e**（用 `//go:build integration` 隔离）；e2e 在独立 CI job / `make test-e2e` 跑，改动涉及核心流水线（ingestion/triage/escalation/auth）时应本地 `make test-e2e` 验证。
 4. **回主仓库 squash 合并**：先 `git branch --show-current` 确认在 **main**（不是则 `git checkout main`），再 `git merge --squash <type>-<name>` → `git commit` → `git log --oneline -1` 确认新提交落在 main。**合并防呆见 docs/development.md §3.3。**
 5. **删 worktree + 分支**：`git worktree remove` + `git branch -D`。
 6. **main 复验**：`golangci-lint run ./... && go test ./... && go build ./... && pnpm --dir web build`。
@@ -152,6 +154,7 @@ go build ./... && pnpm --dir web build
 | UI/UX 设计 | [`docs/ui-ux.md`](./docs/ui-ux.md) |
 | 某能力域怎么做 | [`docs/capabilities/`](./docs/capabilities/) |
 | 怎么开发/提交 | [`docs/development.md`](./docs/development.md) |
+| e2e 测试怎么写/跑 | [`docs/development.md`](./docs/development.md) §八 + `internal/e2e/` |
 | 权限点清单 | `internal/auth/permission.go` |
 
 ---
