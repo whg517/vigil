@@ -68,6 +68,13 @@ linters:
       - path: "internal/im/handler\\.go"
         linters: [revive]
         text: "context-as-argument"
+      # e2e 集成测试（Ginkgo）：dot-import 是 Ginkgo/Gomega 官方推荐写法
+      #（Describe/It/Expect 裸用），全局豁免；os.Setenv 是测试环境注入的正常手段（gosec 误报）。
+      - path: "test/e2e/"
+        linters: [revive]
+        text: "dot-imports"
+      - path: "test/e2e/"
+        linters: [gosec]
 
 # formatter 单独配置（v2 中 gofmt/goimports 是 formatter 不是 linter）
 formatters:

@@ -91,8 +91,8 @@ build-frontend: ## 前端构建（含 tsc 类型检查）
 test: ## 运行后端测试（默认不含 e2e，e2e 用 build tag 隔离）
 	go test ./...
 
-test-e2e: dev-up ## 运行端到端集成测试（需 docker 依赖，会自动 dev-up）
-	go test -tags=integration -timeout 5m ./internal/e2e/...
+test-e2e: dev-up ## 运行端到端集成测试（需 docker 依赖，会自动 dev-up；基于 Ginkgo）
+	go test -tags=integration -timeout 5m ./test/e2e/...
 
 ##@ Verification
 

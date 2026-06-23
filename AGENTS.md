@@ -57,7 +57,7 @@ vigil/
 ```bash
 go build ./...              # 编译
 go test ./...               # 测试（默认不含 e2e）
-go test -tags=integration ./internal/e2e/...  # ★ e2e 集成测试（需 docker 依赖，见 §测试）
+go test -tags=integration ./test/e2e/...  # ★ e2e 集成测试（Ginkgo，需 docker 依赖，见 §测试）
 make test-e2e               # e2e 一键（自动 dev-up 起依赖）
 go run ./cmd/vigil/         # 运行
 go generate ./ent/...       # ★ 改了 ent/schema 后必须重新生成
@@ -154,7 +154,7 @@ go build ./... && pnpm --dir web build
 | UI/UX 设计 | [`docs/ui-ux.md`](./docs/ui-ux.md) |
 | 某能力域怎么做 | [`docs/capabilities/`](./docs/capabilities/) |
 | 怎么开发/提交 | [`docs/development.md`](./docs/development.md) |
-| e2e 测试怎么写/跑 | [`docs/development.md`](./docs/development.md) §八 + `internal/e2e/` |
+| e2e 测试怎么写/跑 | [`docs/development.md`](./docs/development.md) §八 + `test/e2e/` |
 | 权限点清单 | `internal/auth/permission.go` |
 
 ---
