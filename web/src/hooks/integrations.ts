@@ -30,3 +30,17 @@ export function useDeleteIntegration() {
     onSuccess: () => { toast.success("接入点已删除"); qc.invalidateQueries({ queryKey: ["integrations"] }); },
   });
 }
+
+/** useUpdateIntegration 更新接入点（改名/启停）。 */
+export function useUpdateIntegration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { id: number; body: Parameters<typeof api.updateIntegration>[1] }) =>
+      api.updateIntegration(args.id, args.body),
+    onSuccess: () => { toast.success("接入点已更新"); qc.invalidateQueries({ queryKey: ["integrations"] }); },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "更新失败";
+      toast.error(`接入点更新失败：${msg}`);
+    },
+  });
+}

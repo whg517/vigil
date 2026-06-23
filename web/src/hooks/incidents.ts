@@ -58,12 +58,13 @@ export function useDashboard(days = 7) {
 
 // —— 变更（写操作）——
 
-type ActionKind = "ack" | "resolve" | "escalate";
+type ActionKind = "ack" | "resolve" | "escalate" | "reopen";
 
 const actionMeta: Record<ActionKind, { fn: (id: number) => Promise<Incident>; verb: string }> = {
   ack: { fn: api.ackIncident, verb: "确认" },
   resolve: { fn: api.resolveIncident, verb: "解决" },
   escalate: { fn: api.escalateIncident, verb: "升级" },
+  reopen: { fn: api.reopenIncident, verb: "重新打开" },
 };
 
 /**

@@ -68,6 +68,7 @@ type Action string
 const (
 	ActionAck          Action = "ack"
 	ActionResolve      Action = "resolve"
+	ActionReopen       Action = "reopen"
 	ActionEscalate     Action = "escalate"
 	ActionAddResponder Action = "add_responder"
 )
@@ -146,6 +147,37 @@ func (s *Service) Resolve(ctx context.Context, incID int, actorID int, src Sourc
 	s.record(ctx, inc, timelineitem.TypeResolved, actorID, src,
 		fmt.Sprintf("%s 解决了事件", actorLabel(actorID)), map[string]any{"status": "resolved"})
 	s.fire(ctx, inc, ActionResolve)
+	return inc, nil
+}
+
+// Reopen 重新打开已解决/已关闭的事件。
+// 状态回退为 triggered（待响应），清空 resolved_at；记 reopened 时间线并触发事件。
+// 设计：误解决或问题复现时使用，与 resolve 对称。权限点 incident.reopen。
+func (s *Service) Reopen(ctx context.Context, incID int, actorID int, src Source) (*ent.Incident, error) {
+	inc, err := s.db.Incident.Get(ctx, incID)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get incident: %w", err)
+	}
+	st := incident.Status(inc.Status)
+	// 仅 resolved/closed 可重新打开；其它状态已是活跃态，重开无意义。
+	if st != incident.StatusResolved && st != incident.StatusClosed {
+		return nil, fmt.Errorf("%w: reopen from %s", ErrInvalidTransition, st)
+	}
+
+	inc, err = s.db.Incident.UpdateOneID(inc.ID).
+		SetStatus(incident.StatusTriggered).
+		ClearResolvedAt().
+		Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("update incident: %w", err)
+	}
+
+	s.record(ctx, inc, timelineitem.TypeReopened, actorID, src,
+		fmt.Sprintf("%s 重新打开了事件", actorLabel(actorID)), map[string]any{"status": "triggered"})
+	s.fire(ctx, inc, ActionReopen)
 	return inc, nil
 }
 

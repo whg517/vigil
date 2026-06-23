@@ -4,7 +4,7 @@
  * 仿 services.tsx 模式。
  */
 import { useState } from "react";
-import { Cable, Copy, Plus, Trash2 } from "lucide-react";
+import { Cable, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,17 +13,17 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCreateIntegration, useDeleteIntegration, useIntegrations } from "@/hooks/integrations";
+import { useCreateIntegration, useDeleteIntegration, useIntegrations, useUpdateIntegration } from "@/hooks/integrations";
 import { formatTime } from "@/lib/format";
 import { toast } from "sonner";
-import type { IntegrationType } from "@/lib/types";
+import type { Integration, IntegrationType } from "@/lib/types";
 
 const TYPE_OPTIONS: IntegrationType[] = ["prometheus", "grafana", "webhook", "email", "zabbix", "cloud", "api"];
 
 export function Integrations() {
   const { data, isLoading } = useIntegrations();
-  const del = useDeleteIntegration();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Integration | undefined>(undefined);
 
   return (
     <div className="space-y-4 p-6">
@@ -60,23 +60,7 @@ export function Integrations() {
               </thead>
               <tbody>
                 {data.map((integ) => (
-                  <tr key={integ.id} className="border-b last:border-0">
-                    <td className="p-3 font-medium">{integ.name}</td>
-                    <td className="p-3">
-                      <Badge variant="secondary">{integ.type}</Badge>
-                    </td>
-                    <td className="p-3">
-                      <Badge variant={integ.enabled ? "default" : "secondary"}>
-                        {integ.enabled ? "启用" : "停用"}
-                      </Badge>
-                    </td>
-                    <td className="p-3 text-muted-foreground">{formatTime(integ.created_at)}</td>
-                    <td className="p-3 text-right">
-                      <Button size="icon" variant="ghost" disabled={del.isPending} onClick={() => del.mutate(integ.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
+                  <IntegrationRow key={integ.id} integ={integ} onEdit={() => setEditing(integ)} />
                 ))}
               </tbody>
             </table>
@@ -85,7 +69,84 @@ export function Integrations() {
       </Card>
 
       {creating && <CreateIntegrationDialog onClose={() => setCreating(false)} />}
+      {editing && <EditIntegrationDialog integ={editing} onClose={() => setEditing(undefined)} />}
     </div>
+  );
+}
+
+/** IntegrationRow 单行 + 启停/编辑/删除。 */
+function IntegrationRow({ integ, onEdit }: { integ: Integration; onEdit: () => void }) {
+  const del = useDeleteIntegration();
+  const update = useUpdateIntegration();
+  return (
+    <tr className="border-b last:border-0">
+      <td className="p-3 font-medium">{integ.name}</td>
+      <td className="p-3">
+        <Badge variant="secondary">{integ.type}</Badge>
+      </td>
+      <td className="p-3">
+        <Badge variant={integ.enabled ? "default" : "secondary"}>
+          {integ.enabled ? "启用" : "停用"}
+        </Badge>
+      </td>
+      <td className="p-3 text-muted-foreground">{formatTime(integ.created_at)}</td>
+      <td className="p-3 text-right">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            title={integ.enabled ? "停用" : "启用"}
+            disabled={update.isPending}
+            onClick={() => update.mutate({ id: integ.id, body: { enabled: !integ.enabled } })}
+          >
+            {integ.enabled ? "停用" : "启用"}
+          </Button>
+          <Button size="icon" variant="ghost" title="编辑" onClick={onEdit}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" title="删除" disabled={del.isPending} onClick={() => del.mutate(integ.id)}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+/** EditIntegrationDialog 改名 + 启停（type 创建后不可改）。 */
+function EditIntegrationDialog({ integ, onClose }: { integ: Integration; onClose: () => void }) {
+  const update = useUpdateIntegration();
+  const [name, setName] = useState(integ.name);
+  const [enabled, setEnabled] = useState(!!integ.enabled);
+
+  return (
+    <Dialog open onClose={onClose} title={`编辑接入点 · ${integ.type}`} description="类型创建后不可修改。">
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          update.mutate({ id: integ.id, body: { name, enabled } }, { onSuccess: onClose });
+        }}
+      >
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">名称</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+            className="h-4 w-4"
+          />
+          <span>启用（停用后告警源推送将被拒绝）</span>
+        </label>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="submit" disabled={update.isPending || !name}>保存</Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

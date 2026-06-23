@@ -39,6 +39,7 @@ func (h *Handler) Register(g *echo.Group) {
 	g.POST("/incidents/:id/ack", h.ack)
 	g.POST("/incidents/:id/resolve", h.resolve)
 	g.POST("/incidents/:id/escalate", h.escalate)
+	g.POST("/incidents/:id/reopen", h.reopen)
 }
 
 // list 查询事件列表（?status=&severity=&limit=&offset=）。
@@ -187,6 +188,29 @@ func (h *Handler) escalate(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	inc, err := h.svc.Escalate(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
+	}
+	return c.JSON(http.StatusOK, inc)
+}
+
+// reopen 重新打开已解决/已关闭的事件。
+//
+// @Summary      重新打开事件（reopen）
+// @Description  把 resolved/closed 事件回退为 triggered（待响应），清空 resolved_at。
+// @Tags         incident
+// @Produce      json
+// @Param        id   path     int  true  "事件 ID"
+// @Success      200  {object} ent.Incident
+// @Failure      400  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id}/reopen [post]
+func (h *Handler) reopen(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+	}
+	inc, err := h.svc.Reopen(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
 	}

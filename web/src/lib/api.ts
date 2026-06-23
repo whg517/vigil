@@ -79,6 +79,13 @@ export const api = {
       .then((r) => r.data);
   },
 
+  reopenIncident(id: number) {
+    // 重新打开已解决/已关闭事件，回退为 triggered
+    return http
+      .post<Incident>(`/incidents/${id}/reopen`, {})
+      .then((r) => r.data);
+  },
+
   // —— Timeline ——
   listTimeline(incidentId: number) {
     return http

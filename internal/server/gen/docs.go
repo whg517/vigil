@@ -5206,6 +5206,53 @@ const docTemplate = `{
                 ]
             }
         },
+        "/incidents/{id}/reopen": {
+            "post": {
+                "description": "把 resolved/closed 事件回退为 triggered（待响应），清空 resolved_at。",
+                "parameters": [
+                    {
+                        "description": "事件 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Incident"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "重新打开事件（reopen）",
+                "tags": [
+                    "incident"
+                ]
+            }
+        },
         "/incidents/{id}/resolve": {
             "post": {
                 "parameters": [

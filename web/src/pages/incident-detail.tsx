@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, ChevronUp, Hand } from "lucide-react";
+import { ArrowLeft, Check, ChevronUp, Hand, RotateCcw } from "lucide-react";
 import { useIncident, useIncidentAction, useTimeline } from "@/hooks/incidents";
 import { useIncidentWS } from "@/hooks/use-incident-ws";
 import { Button } from "@/components/ui/button";
@@ -80,30 +80,44 @@ export function IncidentDetail() {
 
         {/* 操作区：按当前状态启用/禁用 */}
         <div className="flex shrink-0 gap-2">
-          <Button
-            variant="default"
-            size="sm"
-            disabled={isAcked || isClosed || action.isPending}
-            onClick={() => action.mutate("ack")}
-          >
-            <Hand className="h-4 w-4" /> 确认
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={isClosed || action.isPending}
-            onClick={() => action.mutate("escalate")}
-          >
-            <ChevronUp className="h-4 w-4" /> 升级
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={isClosed || action.isPending}
-            onClick={() => action.mutate("resolve")}
-          >
-            <Check className="h-4 w-4" /> 解决
-          </Button>
+          {isClosed ? (
+            // 已解决/已关闭：显示重新打开（对称于 resolve）
+            <Button
+              variant="default"
+              size="sm"
+              disabled={action.isPending}
+              onClick={() => action.mutate("reopen")}
+            >
+              <RotateCcw className="h-4 w-4" /> 重新打开
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="default"
+                size="sm"
+                disabled={isAcked || action.isPending}
+                onClick={() => action.mutate("ack")}
+              >
+                <Hand className="h-4 w-4" /> 确认
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={action.isPending}
+                onClick={() => action.mutate("escalate")}
+              >
+                <ChevronUp className="h-4 w-4" /> 升级
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={action.isPending}
+                onClick={() => action.mutate("resolve")}
+              >
+                <Check className="h-4 w-4" /> 解决
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
