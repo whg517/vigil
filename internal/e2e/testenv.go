@@ -87,6 +87,12 @@ func Setup(t *testing.T) *Env {
 		t.Fatalf("migrate: %v", err)
 	}
 
+	// 4.1 清空 Redis：保证 dedup key / 聚合器 / asynq 残留任务不污染本测试。
+	// 必须在 worker 启动前做（避免清掉运行中的任务）。
+	if err := a.Store.Redis.FlushDB(ctx).Err(); err != nil {
+		t.Fatalf("flush redis: %v", err)
+	}
+
 	// 5. 启动 queue worker（非阻塞，asynq 内建 goroutine）
 	if err := a.Queue.Start(); err != nil {
 		t.Fatalf("start queue: %v", err)
