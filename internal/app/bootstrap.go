@@ -447,11 +447,6 @@ func Bootstrap(ctx context.Context, cfg *config.Config, log *zap.Logger) (*App, 
 		Store:             st,
 		Queue:             q,
 		Server:            srv,
-		TriageEngine:      triageEngine,
-		EscalationEngine:  escEngine,
-		IncidentService:   incService,
-		RunbookEngine:     runbookEngine,
-		AIDiagnoseEngine:  aiDiagEngine,
 		WebhookDispatcher: webhookDisp,
 	}, nil
 }
