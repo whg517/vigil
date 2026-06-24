@@ -8,6 +8,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/enttest"
 	"github.com/kevin/vigil/ent/incident"
+	"github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/timeline"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -42,7 +43,7 @@ func seedIncident(t *testing.T, c *ent.Client, status incident.Status) *ent.Inci
 	return inc
 }
 
-// TestAck_FromTriggered triggered → acked，assignee 设置，回调触发。
+// TestAck_FromTriggered triggered → acked，assignee 设置，事件发布。
 func TestAck_FromTriggered(t *testing.T) {
 	c := newClient(t)
 	inc := seedIncident(t, c, incident.StatusTriggered)
@@ -51,11 +52,16 @@ func TestAck_FromTriggered(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 	rec := timeline.NewRecorder(c)
-	svc := NewService(c, rec, nil)
+	bus := event.New()
+	svc := NewService(c, rec, bus)
 
-	var changedAction Action
-	svc.SetOnIncidentChanged(func(_ context.Context, _ *ent.Incident, a Action) {
-		changedAction = a
+	// 订阅 IncidentAcked，断言事件被发布（替代旧的 onIncidentChanged 回调）。
+	var gotAction Action
+	var gotActorID int
+	bus.Subscribe(event.IncidentAcked, func(_ context.Context, e event.Event) error {
+		gotAction = Action(e.Action)
+		gotActorID = e.ActorID
+		return nil
 	})
 
 	updated, err := svc.Ack(context.Background(), inc.ID, user.ID, SourceIM)
@@ -65,8 +71,11 @@ func TestAck_FromTriggered(t *testing.T) {
 	if updated.Status != incident.StatusAcked {
 		t.Errorf("status: got %s, want acked", updated.Status)
 	}
-	if changedAction != ActionAck {
-		t.Errorf("callback action: got %s, want %s", changedAction, ActionAck)
+	if gotAction != ActionAck {
+		t.Errorf("event action: got %s, want %s", gotAction, ActionAck)
+	}
+	if gotActorID != user.ID {
+		t.Errorf("event actor id: got %d, want %d", gotActorID, user.ID)
 	}
 	// assignee 应设置
 	a, _ := updated.QueryAssignee().Only(context.Background())

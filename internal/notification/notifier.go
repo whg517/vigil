@@ -37,6 +37,9 @@ func NewNotifier(reg *Registry, defaultChannels []string) *Notifier {
 	return &Notifier{registry: reg, defaultChans: defaultChannels}
 }
 
+// Registry 返回底层通道注册表（供装配方晚注册通道，如 IMChannel）。
+func (n *Notifier) Registry() *Registry { return n.registry }
+
 // SetResultRecorder 设置送达记录回调（由 main 注入，写 Notification 记录）。
 func (n *Notifier) SetResultRecorder(fn func(incID int, r SendResult)) {
 	n.recordResult = fn

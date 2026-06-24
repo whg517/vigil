@@ -4,7 +4,7 @@
 // 用户订阅 incident 生命周期事件（created/acked/resolved/escalated），
 // Vigil 在事件发生时推送到订阅 URL。
 //
-// 实现：Dispatcher 监听 incident.Service 的 OnIncidentChanged 回调，
+// 实现：Dispatcher 订阅领域事件总线（event.Bus）的 incident 变更事件，
 // 把变更事件 POST 给所有订阅 URL（配置式，后续可扩展为动态订阅表）。
 // 推送真异步（独立 goroutine + 独立 context），不阻塞主流程；
 // Close() 等待在途推送完成，供优雅关闭调用。
@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/incident"
 	"github.com/kevin/vigil/internal/metrics"
 )
@@ -70,6 +71,16 @@ func (d *Dispatcher) OnIncidentChanged(_ context.Context, inc *ent.Incident, act
 			d.push(context.Background(), url, body)
 		}(u)
 	}
+}
+
+// OnIncidentEvent 领域事件适配：收到 incident 变更事件时转发给 OnIncidentChanged。
+// 实现 event.Handler，供装配时 bus.Subscribe 挂载（替代旧的 SetOnIncidentChanged 回调注入）。
+func (d *Dispatcher) OnIncidentEvent(ctx context.Context, e domainevent.Event) error {
+	if e.Incident == nil {
+		return nil
+	}
+	d.OnIncidentChanged(ctx, e.Incident, incident.Action(e.Action))
+	return nil
 }
 
 // Close 等待所有在途推送完成。供优雅关闭调用（main.go shutdown 时）。

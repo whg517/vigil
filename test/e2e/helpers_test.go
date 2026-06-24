@@ -72,7 +72,7 @@ var _ = ginkgo.BeforeEach(func() {
 // SeedDefaultAdmin 幂等：resetDB 清空后调它会重建。
 func reseedAdmin() {
 	ctx := context.Background()
-	_, err := auth.SeedDefaultAdmin(ctx, testEnv.App.Store.DB)
+	_, err := auth.SeedDefaultAdmin(ctx, testEnv.Store.DB)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "reseed admin")
 	adminToken = loginAdmin(testEnv)
 }
@@ -89,14 +89,14 @@ func resetDB() {
 		stmt += tbl
 	}
 	stmt += " RESTART IDENTITY CASCADE"
-	_, err := testEnv.App.Store.SQL.ExecContext(context.Background(), stmt)
+	_, err := testEnv.Store.SQL.ExecContext(context.Background(), stmt)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "ResetDB TRUNCATE")
 }
 
 // flushRedis 清空 Redis（dedup key / 聚合器 / asynq 残留任务）。
 // worker 在运行，但 Ginkgo 串行跑单节点，flush 不会清掉正在处理的任务。
 func flushRedis() {
-	gomega.Expect(testEnv.App.Store.Redis.FlushDB(context.Background()).Err()).
+	gomega.Expect(testEnv.Store.Redis.FlushDB(context.Background()).Err()).
 		To(gomega.Succeed(), "flush redis")
 }
 
@@ -111,7 +111,7 @@ func (e *envState) apiURL(path string) string {
 }
 
 // db 返回 ent 客户端，供直接查库断言。
-func (e *envState) db() *ent.Client { return e.App.Store.DB }
+func (e *envState) db() *ent.Client { return e.Store.DB }
 
 // ===== HTTP 辅助 =====
 

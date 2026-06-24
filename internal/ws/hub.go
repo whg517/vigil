@@ -8,8 +8,11 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
+
+	domainevent "github.com/kevin/vigil/internal/event"
 )
 
 // MessageType 推送消息类型。
@@ -100,6 +103,17 @@ func (h *Hub) BroadcastIncident(incidentID int, action string, snapshot any) {
 		Action:     action,
 		Data:       snapshot,
 	})
+}
+
+// OnIncidentEvent 领域事件适配：收到 incident 变更事件时广播给订阅者。
+// 实现 event.Handler，供装配时 bus.Subscribe 挂载。
+// 所有 incident 动作事件（ack/resolve/escalate/reopen/add_responder）统一走此入口。
+func (h *Hub) OnIncidentEvent(ctx context.Context, e domainevent.Event) error {
+	if e.Incident == nil {
+		return nil
+	}
+	h.BroadcastIncident(e.Incident.ID, string(e.Action), e.Incident)
+	return nil
 }
 
 // newClient 创建客户端（send 带缓冲避免阻塞广播）。

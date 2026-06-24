@@ -1,11 +1,12 @@
 // Command vigil 是 Vigil 告警处置平台的入口。
 //
-// 启动流程：load config → init logger → app.Bootstrap（装配 store/queue/各引擎/路由）→
+// 启动流程：load config → init logger → 构造叶子依赖（store/queue/bus）→
 //
-//	start queue worker + http server → 等待退出信号 → 优雅关闭（queue→http→store）。
+//	server.Wire（装配各引擎/handler + 注册路由）→ start queue worker + http server →
+//	等待退出信号 → 优雅关闭（queue→webhook drain→http→store）。
 //
-// 装配逻辑抽到 internal/app，供生产入口与进程内集成测试共用同一套装配；
-// 本文件只负责生命周期编排（信号监听、后台服务启动、多组件有序关闭）。
+// 装配逻辑收敛在 internal/server.Wire，供生产入口与进程内集成测试共用同一套装配；
+// 本文件只负责叶子构造、生命周期编排（信号监听、后台服务启动、多组件有序关闭）。
 //
 // 优雅退出：捕获 SIGINT/SIGTERM，按序关闭 queue → server → store。
 //
@@ -35,10 +36,13 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
-	"github.com/kevin/vigil/internal/app"
 	"github.com/kevin/vigil/internal/config"
+	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/logger"
 	"github.com/kevin/vigil/internal/migrate"
+	"github.com/kevin/vigil/internal/queue"
+	"github.com/kevin/vigil/internal/server"
+	"github.com/kevin/vigil/internal/store"
 
 	_ "github.com/lib/pq" // 注册 postgres 驱动（ent dialect "postgres" 用）
 	"go.uber.org/zap"
@@ -89,13 +93,11 @@ func runMigrate() error {
 }
 
 func run() error {
-	// 1. 加载配置
+	// 1. 加载配置 + 日志
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-
-	// 2. 初始化日志
 	log, err := logger.New(cfg.App.Env, cfg.App.LogLevel)
 	if err != nil {
 		return err
@@ -107,60 +109,66 @@ func run() error {
 		zap.String("addr", cfg.HTTP.Addr),
 	)
 
-	// 3. 捕获退出信号（装配期间持有的 ctx 生命周期需覆盖 App 全程）
+	// 2. 捕获退出信号（ctx 生命周期覆盖 App 全程）
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// 4. 装配全部组件（store/queue/各引擎/HTTP 路由），不启动阻塞服务
-	a, err := app.Bootstrap(ctx, cfg, log)
+	// 3. 构造叶子依赖（store/queue/bus），交给 server.Wire 装配全部组件 + 路由。
+	st, err := store.New(ctx, cfg)
+	if err != nil {
+		log.Error("open store failed", zap.Error(err))
+		return err
+	}
+	defer func() { _ = st.Close() }()
+	log.Info("store ready (postgres + redis)")
+
+	q := queue.New(cfg)
+	defer func() { _ = q.Close() }()
+	log.Info("queue ready (asynq)")
+
+	bus := domainevent.New()
+
+	wired, err := server.Wire(ctx, cfg, log, st, q, bus)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = a.Store.Close() }()
-	defer func() { _ = a.Queue.Close() }()
 
-	// 5. 启动 HTTP server 与 queue worker（各自 goroutine，致命错误汇总到 errCh）
-	// errCh 收集 http server 与 queue server 的致命错误，任一出错即触发退出。
-	// 容量 2：两个后台服务各可能上报一次，避免发送阻塞。
+	// 4. 启动 HTTP server 与 queue worker（各自 goroutine，致命错误汇总到 errCh）
 	errCh := make(chan error, 2)
 	go func() {
 		log.Info("http server listening", zap.String("addr", cfg.HTTP.Addr))
-		if err := a.Server.Start(); err != nil && !errors.Is(err, context.Canceled) {
+		if err := wired.Server.Start(); err != nil && !errors.Is(err, context.Canceled) {
 			errCh <- fmt.Errorf("http server: %w", err)
 		}
 	}()
-
-	// queue.Start 非阻塞（asynq 内建 goroutine），但仍放 goroutine 保持与 http 启动对称、
-	// 便于失败上报统一走 errCh。
 	go func() {
-		if err := a.Queue.Start(); err != nil {
+		if err := q.Start(); err != nil {
 			errCh <- fmt.Errorf("queue server: %w", err)
 		}
 	}()
 
-	// 6. 等待退出信号或启动错误
+	// 5. 等待退出信号或启动错误
 	select {
 	case <-ctx.Done():
 		log.Info("shutdown signal received")
 	case err := <-errCh:
-		// http 或 queue 致命错误：记日志后走优雅关闭流程（不再 return err 直接退出，
-		// 让 defer 关闭 store/queue，避免资源泄漏）
+		// http 或 queue 致命错误：记日志后走优雅关闭流程（让 defer 关闭 store/queue）
 		log.Error("fatal server error, shutting down", zap.Error(err))
 	}
 
-	// 7. 优雅关闭：先停 queue（停止消费新任务），等待 webhook 出口在途推送，再停 http
-	a.Queue.Shutdown()
+	// 6. 优雅关闭：先停 queue（停止消费新任务），drain webhook 出口在途推送，再停 http
+	q.Shutdown()
 	log.Info("queue stopped")
 
 	// 等待 webhook 出口的异步推送完成（避免进程退出时丢失在途通知）
-	if a.WebhookDispatcher.HasSubscriptions() {
-		a.WebhookDispatcher.Close()
+	if wired.WebhookDispatcher.HasSubscriptions() {
+		wired.WebhookDispatcher.Close()
 		log.Info("webhook out drained")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := a.Server.Shutdown(shutdownCtx); err != nil {
+	if err := wired.Server.Shutdown(shutdownCtx); err != nil {
 		log.Error("graceful shutdown failed", zap.Error(err))
 		return err
 	}

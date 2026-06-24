@@ -11,9 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kevin/vigil/internal/app"
 	"github.com/kevin/vigil/internal/config"
+	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/migrate"
+	"github.com/kevin/vigil/internal/queue"
+	"github.com/kevin/vigil/internal/server"
+	"github.com/kevin/vigil/internal/store"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -22,16 +25,18 @@ import (
 	"go.uber.org/zap"
 )
 
-// 全局测试环境：BeforeSuite 起一次，所有 Spec 共用同一个 app 实例。
-// 这样 13 个用例只 bootstrap 一次（之前每用例各起一次，大半时间耗在重复装配）。
+// 全局测试环境：BeforeSuite 起一次，所有 Spec 共用同一个实例。
 var (
 	testEnv    *envState
 	adminToken string
 )
 
 // envState 持有进程内启动的完整 Vigil 实例的访问入口。
+// 直接持有 server/store/queue（生命周期管理 + DB 断言），不再经 app.App 聚合。
 type envState struct {
-	App        *app.App
+	Server     *server.Server
+	Store      *store.Store
+	Queue      *queue.Queue
 	baseURLStr string
 	cancel     context.CancelFunc
 }
@@ -50,9 +55,9 @@ func TestE2E(t *testing.T) {
 
 // BeforeSuite：在整个 suite 运行前起一个完整的 Vigil 实例。
 //
-// 流程：预分配端口 → 覆盖配置 → Bootstrap 装配 → migrate 建表 →
-// FlushDB 清 Redis → 启动 queue worker + http server → 轮询 /health 就绪。
-// 默认管理员种子（admin/changeme）由 Bootstrap 内 SeedDefaultAdmin 创建。
+// 流程：预分配端口 → 覆盖配置 → 构造叶子依赖(store/queue/bus) → server.Wire 装配 →
+// migrate 建表 → FlushDB 清 Redis → 启动 queue worker + http server → 轮询 /health 就绪。
+// 默认管理员种子（admin/changeme）由 server.Wire 内 SeedDefaultAdmin 创建。
 var _ = ginkgo.BeforeSuite(func() {
 	ginkgo.By("启动 Vigil 实例（BeforeSuite）")
 
@@ -78,38 +83,44 @@ var _ = ginkgo.BeforeSuite(func() {
 	cfg, err := config.Load()
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "load config")
 
-	// 3. 装配（贯穿 suite 生命周期的 ctx）
+	// 3. 构造叶子依赖（store/queue/bus），贯穿 suite 生命周期的 ctx
 	ctx, cancel := context.WithCancel(context.Background())
 	log, _ := zap.NewDevelopment()
 
-	a, err := app.Bootstrap(ctx, cfg, log)
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "bootstrap app")
+	st, err := store.New(ctx, cfg)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "open store")
+	q := queue.New(cfg)
+	bus := domainevent.New()
 
-	// 4. 建表（幂等：已迁移会跳过；pre_0001_pgvector.sql 建 vector 扩展）
-	gomega.Expect(migrate.Run(ctx, a.Store.SQL, a.Store.DB)).To(gomega.Succeed(), "migrate schema")
+	// 4. 装配全部组件 + 路由（与生产同一套装配逻辑）
+	wired, err := server.Wire(ctx, cfg, log, st, q, bus)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "wire app")
 
-	// 5. 清空 Redis：保证 dedup key / 聚合器 / asynq 残留任务不污染 suite。
-	gomega.Expect(a.Store.Redis.FlushDB(ctx).Err()).To(gomega.Succeed(), "flush redis")
+	// 5. 建表（幂等：已迁移会跳过；pre_0001_pgvector.sql 建 vector 扩展）
+	gomega.Expect(migrate.Run(ctx, st.SQL, st.DB)).To(gomega.Succeed(), "migrate schema")
 
-	// 6. 启动 queue worker（非阻塞，asynq 内建 goroutine）
-	gomega.Expect(a.Queue.Start()).To(gomega.Succeed(), "start asynq worker")
+	// 6. 清空 Redis：保证 dedup key / 聚合器 / asynq 残留任务不污染 suite。
+	gomega.Expect(st.Redis.FlushDB(ctx).Err()).To(gomega.Succeed(), "flush redis")
 
-	// 7. 启动 http server（goroutine）
+	// 7. 启动 queue worker（非阻塞，asynq 内建 goroutine）
+	gomega.Expect(q.Start()).To(gomega.Succeed(), "start asynq worker")
+
+	// 8. 启动 http server（goroutine）
 	go func() {
 		defer ginkgo.GinkgoRecover()
-		if err := a.Server.Start(); err != nil {
+		if err := wired.Server.Start(); err != nil {
 			// server 异常退出属致命，直接 Fail
 			ginkgo.Fail("http server stopped: " + err.Error())
 		}
 	}()
 
-	// 8. 轮询 /health 就绪
-	env := &envState{App: a, baseURLStr: baseURL, cancel: cancel}
+	// 9. 轮询 /health 就绪
+	env := &envState{Server: wired.Server, Store: st, Queue: q, baseURLStr: baseURL, cancel: cancel}
 	waitHealthy(env)
 
 	testEnv = env
 
-	// 9. 登录默认管理员，缓存 token 供各 Spec 复用
+	// 10. 登录默认管理员，缓存 token 供各 Spec 复用
 	adminToken = loginAdmin(env)
 })
 
@@ -120,12 +131,12 @@ var _ = ginkgo.AfterSuite(func() {
 		return
 	}
 	testEnv.cancel()
-	testEnv.App.Queue.Shutdown()
+	testEnv.Queue.Shutdown()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = testEnv.App.Server.Shutdown(shutdownCtx)
-	_ = testEnv.App.Store.Close()
-	_ = testEnv.App.Queue.Close()
+	_ = testEnv.Server.Shutdown(shutdownCtx)
+	_ = testEnv.Store.Close()
+	_ = testEnv.Queue.Close()
 })
 
 // allocateAddr 预分配一个空闲 TCP 端口，返回 (监听地址, baseURL)。

@@ -18,6 +18,7 @@ import (
 	"github.com/kevin/vigil/internal/store"
 
 	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -42,7 +43,12 @@ func New(cfg *config.Config, st *store.Store) *Server {
 
 	s := &Server{echo: e, cfg: cfg, store: st}
 
-	// 中间件：HTTP 指标采集（所有路由）
+	// 中间件链（顺序：兜底类最外 → 观测类 → 业务类最内）。
+	// Recover 最外：任何 handler panic 都能恢复，防进程崩溃（v5 不再默认注册）。
+	e.Use(middleware.Recover())
+	// RequestID：生成 X-Request-ID，串联错误日志/排障。
+	e.Use(middleware.RequestID())
+	// HTTP 指标采集（所有路由）。
 	e.Use(metrics.EchoMiddleware())
 
 	// 基础路由（无需鉴权）
@@ -50,7 +56,7 @@ func New(cfg *config.Config, st *store.Store) *Server {
 	s.registerOpenAPI() // OpenAPI spec + Swagger UI（/openapi.yaml, /docs）
 
 	// API v1 路由组
-	s.v1 = e.Group("/api/v1")     // 业务路由（鉴权中间件由 main 挂载）
+	s.v1 = e.Group("/api/v1")     // 业务路由（鉴权中间件由 Wire 挂载）
 	s.public = e.Group("/api/v1") // 公开路由（webhook 接入/IM 回调，用各自 token/签名鉴权）
 
 	return s

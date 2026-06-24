@@ -9,12 +9,16 @@
 //  1. 状态机守卫（非法状态转移直接报错，不写库）
 //  2. 推进 Incident 状态 + 更新字段（assignee / resolved_at 等）
 //  3. 经 timeline.Recorder 记时间线（source 区分 web / im）
-//  4. 触发 OnIncidentChanged 回调（供 IM 层刷新卡片、Web 层 WebSocket 推送等）
+//  4. 发布领域事件（event.Bus），由 escalation/ws/webhook/im 各自订阅
 //
 // 设计动机（对应 capabilities/05-im-chatops.md §6 鉴权铁律 + §8 状态同步）：
 // IM 操作走与 Web 完全相同的链路——同一入口、同一状态机、同一时间线。
-// 升级取消（escalation.Engine.CancelOnAck）也收敛到这里，
-// 避免 IM / triage 各自重复实现 ack 副作用。
+//
+// 事件解耦（架构基线）：本服务不再持有 escalation.Engine 指针，改为发布事件：
+//   - Ack → IncidentAcked（escalation 订阅后取消后续升级）
+//   - Escalate → IncidentEscalated（escalation 订阅后触发目标 level 通知）
+//
+// 这样 incident 包不反向依赖 escalation，消除构建期依赖环。
 package incident
 
 import (
@@ -26,7 +30,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/timelineitem"
-	"github.com/kevin/vigil/internal/escalation"
+	"github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/timeline"
 )
 
@@ -50,19 +54,16 @@ const (
 // Service 事件动作领域服务。
 //
 // 依赖：
-//   - db         ent client
-//   - recorder   时间线记录器（统一写入，nil 时跳过记录）
-//   - escEngine  升级引擎（ack 时取消后续升级，nil 时跳过取消——状态守卫兜底）
-//   - onIncidentChanged  Incident 状态变更后的回调（nil 时跳过）
-//     典型用途：IM 层在回调里刷新已发卡片；Web 层 WebSocket 推送。
+//   - db        ent client
+//   - recorder  时间线记录器（统一写入，nil 时跳过记录）
+//   - bus       领域事件总线（nil 时跳过事件发布——降级/测试用）
 type Service struct {
-	db                *ent.Client
-	recorder          *timeline.Recorder
-	escEngine         *escalation.Engine
-	onIncidentChanged func(ctx context.Context, inc *ent.Incident, action Action)
+	db       *ent.Client
+	recorder *timeline.Recorder
+	bus      *event.Bus
 }
 
-// Action 动作类型，传给 OnIncidentChanged 回调供订阅方区分语义。
+// Action 动作类型，随事件发布供订阅方区分语义。
 type Action string
 
 const (
@@ -74,17 +75,18 @@ const (
 )
 
 // NewService 创建事件动作服务。
-func NewService(db *ent.Client, recorder *timeline.Recorder, esc *escalation.Engine) *Service {
-	return &Service{db: db, recorder: recorder, escEngine: esc}
-}
-
-// SetOnIncidentChanged 注入 Incident 变更回调（由 main 装配时注入 IM/Web 订阅方）。
-func (s *Service) SetOnIncidentChanged(fn func(ctx context.Context, inc *ent.Incident, action Action)) {
-	s.onIncidentChanged = fn
+//
+// bus 为 nil 时跳过事件发布（降级：escalation 取消/通知、ws/webhook/im 推送都不会发生）。
+// 生产装配时必须注入非 nil bus；测试可传 nil 仅验证状态机/时间线。
+func NewService(db *ent.Client, recorder *timeline.Recorder, bus *event.Bus) *Service {
+	return &Service{db: db, recorder: recorder, bus: bus}
 }
 
 // Ack 确认事件：触发态/升级态 → acked，设当前责任人，取消后续升级。
 // actorID 为执行者 User ID（0 表示系统动作）。
+//
+// 「取消后续升级」通过发布 IncidentAcked 事件实现：escalation 订阅后调用 CancelOnAck。
+// 本服务不直接依赖 escalation，消除构建期依赖环。
 func (s *Service) Ack(ctx context.Context, incID int, actorID int, src Source) (*ent.Incident, error) {
 	inc, err := s.db.Incident.Get(ctx, incID)
 	if err != nil {
@@ -109,16 +111,9 @@ func (s *Service) Ack(ctx context.Context, incID int, actorID int, src Source) (
 		return nil, fmt.Errorf("update incident: %w", err)
 	}
 
-	// 取消后续升级任务（无 escEngine / 无 Redis 时状态守卫兜底，安全跳过）
-	if s.escEngine != nil {
-		if policy, perr := inc.QueryEscalationPolicy().Only(ctx); perr == nil && len(policy.Levels) > 0 {
-			_ = s.escEngine.CancelOnAck(ctx, inc.ID, policy.Levels, policy.RepeatTimes)
-		}
-	}
-
 	s.record(ctx, inc, timelineitem.TypeAck, actorID, src,
 		fmt.Sprintf("%s 确认了事件", actorLabel(actorID)), map[string]any{"status": "acked"})
-	s.fire(ctx, inc, ActionAck)
+	s.publish(ctx, event.IncidentAcked, inc, ActionAck, actorID, src)
 	return inc, nil
 }
 
@@ -146,7 +141,7 @@ func (s *Service) Resolve(ctx context.Context, incID int, actorID int, src Sourc
 
 	s.record(ctx, inc, timelineitem.TypeResolved, actorID, src,
 		fmt.Sprintf("%s 解决了事件", actorLabel(actorID)), map[string]any{"status": "resolved"})
-	s.fire(ctx, inc, ActionResolve)
+	s.publish(ctx, event.IncidentResolved, inc, ActionResolve, actorID, src)
 	return inc, nil
 }
 
@@ -177,7 +172,7 @@ func (s *Service) Reopen(ctx context.Context, incID int, actorID int, src Source
 
 	s.record(ctx, inc, timelineitem.TypeReopened, actorID, src,
 		fmt.Sprintf("%s 重新打开了事件", actorLabel(actorID)), map[string]any{"status": "triggered"})
-	s.fire(ctx, inc, ActionReopen)
+	s.publish(ctx, event.IncidentReopened, inc, ActionReopen, actorID, src)
 	return inc, nil
 }
 
@@ -220,23 +215,19 @@ func (s *Service) Escalate(ctx context.Context, incID int, actorID int, src Sour
 		if err != nil {
 			return nil, fmt.Errorf("update incident: %w", err)
 		}
-
-		// 接通升级链通知：有策略且有 escEngine 时，立即触发目标 level 的升级任务，
-		// 让更高层级的人真正收到通知（修复前只改数字不通知）。
-		if policyLevels > 0 && s.escEngine != nil {
-			if terr := s.escEngine.TriggerLevelNow(ctx, inc.ID, targetLevelIdx); terr != nil {
-				// 触发失败不阻塞手动升级本身（状态已落库），仅记时间线标注。
-				s.record(ctx, inc, timelineitem.TypeEscalated, actorID, src,
-					fmt.Sprintf("%s 手动升级到 level %d（通知触发失败: %v）", actorLabel(actorID), nextLevel, terr),
-					map[string]any{"level": nextLevel, "manual": true, "notify_error": terr.Error()})
-			}
-		}
 	}
 
 	s.record(ctx, inc, timelineitem.TypeEscalated, actorID, src,
 		fmt.Sprintf("%s 手动升级到 level %d", actorLabel(actorID), nextLevel),
 		map[string]any{"level": nextLevel, "manual": true})
-	s.fire(ctx, inc, ActionEscalate)
+
+	// 有升级策略时发布 IncidentEscalated 事件，escalation 订阅后触发目标 level 通知。
+	// 无策略（policyLevels==0）时不发布——没有更高层级可通知，避免 escalation 做无谓触发。
+	// targetLevelIdx 通过事件载荷传递，escalation 订阅方据此调用 TriggerLevelNow。
+	// 通知触发是否失败由 escalation 订阅方自行处理（best-effort，不回传本服务）。
+	if policyLevels > 0 {
+		s.publishWithLevel(ctx, event.IncidentEscalated, inc, ActionEscalate, actorID, src, targetLevelIdx)
+	}
 	return inc, nil
 }
 
@@ -266,7 +257,7 @@ func (s *Service) AddResponder(ctx context.Context, incID, opUserID, targetUserI
 	s.record(ctx, inc, timelineitem.TypeResponderAdded, opUserID, src,
 		fmt.Sprintf("拉入响应者 %s", target.Name),
 		map[string]any{"responder_id": targetUserID, "responder_name": target.Name})
-	s.fire(ctx, inc, ActionAddResponder)
+	s.publish(ctx, event.IncidentResponderAdded, inc, ActionAddResponder, opUserID, src)
 	return inc, nil
 }
 
@@ -291,11 +282,25 @@ func (s *Service) record(ctx context.Context, inc *ent.Incident, typ timelineite
 	_ = s.recorder.Record(ctx, inc.ID, typ, content, actor, source, detail)
 }
 
-// fire 触发 Incident 变更回调（订阅方刷新卡片 / WebSocket 推送）。
-func (s *Service) fire(ctx context.Context, inc *ent.Incident, action Action) {
-	if s.onIncidentChanged != nil {
-		s.onIncidentChanged(ctx, inc, action)
+// publish 发布领域事件（无 level）。
+// bus 为 nil 时跳过（降级/测试）。ctx 直接透传发布方 ctx（同步派发，在调用栈内完成）。
+func (s *Service) publish(ctx context.Context, typ event.Type, inc *ent.Incident, action Action, actorID int, src Source) {
+	if s.bus == nil {
+		return
 	}
+	s.bus.Publish(ctx, event.Event{
+		Type: typ, Incident: inc, Action: event.Action(action), ActorID: actorID,
+	})
+}
+
+// publishWithLevel 发布携带升级目标 level 的事件（仅 IncidentEscalated 用）。
+func (s *Service) publishWithLevel(ctx context.Context, typ event.Type, inc *ent.Incident, action Action, actorID int, src Source, level int) {
+	if s.bus == nil {
+		return
+	}
+	s.bus.Publish(ctx, event.Event{
+		Type: typ, Incident: inc, Action: event.Action(action), ActorID: actorID, Level: level,
+	})
 }
 
 // actorLabel 把 actorID 转成时间线可读文案。

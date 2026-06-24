@@ -17,6 +17,7 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/service"
+	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/metrics"
 
 	"github.com/redis/go-redis/v9"
@@ -35,9 +36,10 @@ type Engine struct {
 	// suppression 抑制规则评估器（能力域 3 M3.2）。为 nil 时跳过抑制评估（降级）。
 	suppression *SuppressionEngine
 
-	// OnIncidentCreated Incident 创建后的回调（由 main 注入，用于启动升级/通知）。
-	// 为 nil 时不触发。避免 triage 反向依赖 escalation。
-	OnIncidentCreated func(ctx context.Context, inc *ent.Incident, svc *ent.Service)
+	// bus 领域事件总线。创建 Incident 后发布 IncidentCreated 事件，
+	// 由 escalation 等订阅方启动升级链（替代原先的 OnIncidentCreated 回调，解耦）。
+	// 为 nil 时跳过发布（降级/测试）。
+	bus *domainevent.Bus
 }
 
 // NewEngine 创建分诊引擎。window 参数为 0 时用默认值。
@@ -49,6 +51,11 @@ func NewEngine(db *ent.Client, rc *redis.Client) *Engine {
 		aggregateWindow: 5 * time.Minute,
 		suppression:     NewSuppressionEngine(db),
 	}
+}
+
+// SetBus 注入领域事件总线（装配时调用）。为 nil 时跳过事件发布。
+func (e *Engine) SetBus(b *domainevent.Bus) {
+	e.bus = b
 }
 
 // SetSuppressionEngine 注入抑制引擎（测试可替换 now）。
@@ -246,14 +253,32 @@ func (e *Engine) aggregate(ctx context.Context, evt *ent.Event, svc *ent.Service
 	if err != nil {
 		return nil, err
 	}
-	// 触发 Incident 创建回调（启动升级链/通知等，由 main 注入）
-	if e.OnIncidentCreated != nil {
-		e.OnIncidentCreated(ctx, inc, svc)
-	}
+	// 创建后：绑定 Service 的升级策略到 Incident，并发布 IncidentCreated 事件。
+	// 原由 OnIncidentCreated 回调（main 注入 escEngine）完成；现改为事件解耦——
+	// triage 只负责「绑定策略 + 发事件」，升级链启动由 escalation 订阅事件完成。
+	e.bindPolicyAndPublish(ctx, inc, svc)
 	res.Action = ActionIncidentCreated
 	res.IncidentID = inc.ID
 	res.IncidentNum = inc.Number
 	return res, nil
+}
+
+// bindPolicyAndPublish 把 Service 的 EscalationPolicy 绑定到 Incident，
+// 然后发布 IncidentCreated 事件供 escalation 订阅启动升级链。
+//
+// 绑定策略是 Incident 的数据归属（其 escalation_policy_id），发生在 triage 创建后，
+// 这样 escalation 订阅方 OnCreated 重新查 incident 时能拿到已绑定的 policy。
+// 无策略 / 绑定失败时仍发事件（escalation 侧 OnCreated 会再次判断无策略则跳过）。
+func (e *Engine) bindPolicyAndPublish(ctx context.Context, inc *ent.Incident, svc *ent.Service) {
+	if policy, err := svc.QueryEscalationPolicy().Only(ctx); err == nil && policy != nil {
+		_ = e.db.Incident.UpdateOneID(inc.ID).SetEscalationPolicyID(policy.ID).Exec(ctx)
+	}
+	if e.bus != nil {
+		e.bus.Publish(ctx, domainevent.Event{
+			Type:     domainevent.IncidentCreated,
+			Incident: inc,
+		})
+	}
 }
 
 // createIncident 创建新 Incident，并把 Event 关联进去。
