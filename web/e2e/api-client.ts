@@ -100,6 +100,48 @@ export async function bindPolicyToService(token: string, serviceID: number, poli
   });
 }
 
+/** seedSchedule 创建排班（含分层），返回排班对象。 */
+export async function seedSchedule(
+  token: string,
+  name: string,
+  teamID: number,
+  layers: { name: string; priority: number; participants: { user_id: number }[] }[] = [],
+): Promise<any> {
+  return req("/schedules", {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      name,
+      type: "rotation",
+      timezone: "Asia/Shanghai",
+      layers,
+      team_id: teamID,
+    }),
+  });
+}
+
+/** seedRunbook 创建 Runbook（可执行式），返回对象。 */
+export async function seedRunbook(token: string, name: string, type: "executable" | "document" = "executable"): Promise<any> {
+  return req("/runbooks", {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      name,
+      type,
+      content_markdown: "# 处置步骤\n1. 检查服务状态\n2. 重启服务",
+    }),
+  });
+}
+
+/** seedPostmortemDraft 从 incident 起草复盘，返回复盘对象。 */
+export async function seedPostmortemDraft(token: string, incidentId: number): Promise<any> {
+  return req(`/incidents/${incidentId}/postmortem/draft`, {
+    method: "POST",
+    token,
+    body: "{}",
+  });
+}
+
 /** 发送 Prometheus 格式告警到接入点，触发 ingestion→triage 流水线。 */
 export async function sendWebhook(integToken: string, serviceSlug: string, fingerprint: string): Promise<void> {
   const payload = {
