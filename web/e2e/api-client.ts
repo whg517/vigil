@@ -134,12 +134,14 @@ export async function waitForIncidentCount(_count: number): Promise<void> {
 /** 轮询直到 DB 中有 incident，返回其 id（异步流水线建 incident 有延迟）。
  *  供需要进详情页的 spec 使用，避免依赖 DOM 行点击导航（React Router onClick 在
  *  Playwright click 下偶发不触发，改用直接 goto 详情页更稳定）。
+ *
+ *  注意：/incidents 受 RequireUser 保护，必须传 token。
  */
-export async function waitForFirstIncidentID(timeoutMs = 30000): Promise<number> {
+export async function waitForFirstIncidentID(token: string, timeoutMs = 30000): Promise<number> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const data = await req("/incidents?limit=1");
+      const data = await req("/incidents?limit=1", { token });
       const items = data?.items ?? [];
       if (items.length > 0) return items[0].id as number;
     } catch {
@@ -148,6 +150,32 @@ export async function waitForFirstIncidentID(timeoutMs = 30000): Promise<number>
     await sleep(300);
   }
   throw new Error(`等待 incident 创建超时（${timeoutMs}ms）`);
+}
+
+/** waitForNewIncidentID 等待「比 beforeCount 更多」的 incident 出现，返回新增的 id。
+ *  用于隔离场景：reset 后若有残留，用 beforeCount 区分自己造的新 incident。
+ */
+export async function waitForNewIncidentID(
+  token: string,
+  beforeCount: number,
+  timeoutMs = 30000,
+): Promise<number> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const data = await req("/incidents?limit=50", { token });
+      const items = data?.items ?? [];
+      if (items.length > beforeCount) {
+        // 返回 id 最小的「新增」项（items 按 id 降序或升序，取 last 确保是新创建的）。
+        // items[0] 通常是最新的（后端默认按 created_at desc）。
+        return items[0].id as number;
+      }
+    } catch {
+      // 忽略，重试
+    }
+    await sleep(300);
+  }
+  throw new Error(`等待新 incident 创建超时（before=${beforeCount}, ${timeoutMs}ms）`);
 }
 
 function sleep(ms: number) {

@@ -26,9 +26,15 @@ export const test = base.extend<{ authedPage: import("@playwright/test").Page }>
   },
 });
 
-// 每个测试前 resetDB（隔离）。所有 spec 自动生效。
-base.beforeEach(async () => {
+// 每个测试前 resetDB（隔离）+ 等待 asynq worker 收尾。
+// 注意：必须注册在 test（而非 base）上——extend 后的 test 不继承 base 的 beforeEach。
+// login.spec 直接用 @playwright/test，不依赖业务数据，无需 reset。
+// 等待原因：reset 清表 + 清 asynq 任务，但 worker 可能已 pick up 前序测试的
+// in-flight 任务，这些任务在 reset 后落库会污染当前测试（尤其"空数据"类断言）。
+// 1.5s 覆盖 normalize+triage 的处理窗口。
+test.beforeEach(async () => {
   await resetDB();
+  await new Promise((r) => setTimeout(r, 1500));
 });
 
 export { expect };

@@ -15,22 +15,30 @@ import {
   seedIntegration,
   sendWebhook,
   waitForFirstIncidentID,
+  resetDB,
 } from "./api-client";
 
 test.describe("事件列表", () => {
   test("空数据：显示暂无事件提示", async ({ authedPage }) => {
+    // 前序测试的 in-flight asynq 任务可能在 reset 后落库污染，这里显式确保空起点。
+    const token = await login();
+    const check = await fetch("http://localhost:28080/api/v1/incidents?limit=1", {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+    if (check.total > 0) {
+      await resetDB();
+      await new Promise((r) => setTimeout(r, 2000));
+    }
     await authedPage.goto("/incidents");
 
     await expect(authedPage.getByRole("heading", { name: "事件" })).toBeVisible();
-    await expect(authedPage.getByText("暂无事件")).toBeVisible();
+    await expect(authedPage.getByText("暂无事件")).toBeVisible({ timeout: 15000 });
     // 表头渲染正常
     await expect(authedPage.getByRole("columnheader", { name: "编号" })).toBeVisible();
     await expect(authedPage.getByRole("columnheader", { name: "状态" })).toBeVisible();
   });
 
-  test.skip("有数据：列表渲染告警 + 点击进详情", async ({ authedPage }) => {
-    // TODO(local): 本地机器过载未完成验证（依赖异步 incident 创建 + 行点击导航时序），
-    // CI 环境启用。删除 test.skip 即可恢复运行。
+  test("有数据：列表渲染告警 + 点击进详情", async ({ authedPage }) => {
     // 造数据：发一条告警触发流水线建 incident
     const token = await login();
     const team = await seedTeam(token, "支付");
@@ -39,7 +47,7 @@ test.describe("事件列表", () => {
     await sendWebhook(integToken, svc.slug, "fp-incident-list-1");
 
     // 先轮询确认 incident 已落库（异步流水线有延迟），再加载列表
-    await waitForFirstIncidentID();
+    await waitForFirstIncidentID(token);
     await authedPage.goto("/incidents");
 
     // 列表行第一列是 number（font-mono），点击进详情
@@ -56,8 +64,7 @@ test.describe("事件列表", () => {
     await expect(authedPage.locator("h1").first()).toBeVisible();
   });
 
-  test.skip("状态筛选生效", async ({ authedPage }) => {
-    // TODO(local): 本地机器过载未完成验证，CI 环境启用。
+  test("状态筛选生效", async ({ authedPage }) => {
     const token = await login();
     const team = await seedTeam(token, "支付");
     const svc = await seedService(token, "pay-api", team.id);

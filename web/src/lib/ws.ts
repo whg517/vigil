@@ -31,9 +31,10 @@ export function subscribeIncident(incidentId: number, onMessage: MessageHandler)
 
   const connect = () => {
     if (closed) return;
-    // 构造 ws URL：同源（生产同源 / 开发 vite proxy /ws）
+    // 构造 ws URL：同源（生产同源 / 开发 vite proxy /api）。
+    // WS 端点注册在 /api/v1 group（与 HTTP 业务路由同前缀），故需 /api/v1 前缀。
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${proto}//${window.location.host}/ws/incidents/${incidentId}`;
+    const url = `${proto}//${window.location.host}/api/v1/ws/incidents/${incidentId}`;
     ws = new WebSocket(url);
 
     ws.onmessage = (event) => {

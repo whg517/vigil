@@ -3,10 +3,6 @@
  *
  * 验证：配 2 层策略（delay=0）→ 发告警 → 详情页 current_level 推进 1→2。
  * 详情页头部显示"当前升级层级 L{n}"，轮询该文本捕获推进过程。
- *
- * TODO: 本地因机器过载（load 244）未完成验证。依赖根因 A 的修复
- * （service PATCH escalation_policy_id，已修）+ 流水线时序。
- * CI 环境稳定后启用。mark with test.describe.configure({mode: 'skip'}) 临时跳过。
  */
 import { test, expect } from "./fixtures";
 import {
@@ -17,11 +13,16 @@ import {
   seedEscalationPolicy,
   bindPolicyToService,
   sendWebhook,
-  waitForFirstIncidentID,
+  waitForNewIncidentID,
 } from "./api-client";
 
-// TODO(local): 本地机器过载未完成验证，CI 环境启用。删除下行即可恢复运行。
-test.describe.configure({ mode: "skip" });
+// req 未从 api-client 导出（模块私有），这里内联一个轻量查询。
+async function fetchIncident(token: string, id: number) {
+  const resp = await fetch(`http://localhost:28080/api/v1/incidents/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return resp.json();
+}
 
 test.describe("升级链", () => {
   test("2 层 delay=0 策略 → current_level 推进到 L2", async ({ authedPage }) => {
@@ -45,14 +46,29 @@ test.describe("升级链", () => {
     ]);
     await bindPolicyToService(token, svc.id, policy.id);
 
+    // 造数据前记录现有 incident 数（防 waitForFirstIncidentID 拿到残留）。
+    const beforeList = await fetch(
+      `http://localhost:28080/api/v1/incidents?limit=1`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    ).then((r) => r.json());
+    const beforeCount = beforeList.total ?? 0;
+
     // 发告警触发流水线
     await sendWebhook(integToken, svc.slug, "fp-web-esc-" + Date.now());
 
-    // 轮询 API 拿 incident id 后直接进详情（不依赖 DOM 行点击）
-    const incId = await waitForFirstIncidentID();
+    // 轮询 API 等「新增」的 incident（count > beforeCount），避免拿到残留。
+    const incId = await waitForNewIncidentID(token, beforeCount);
+    // 等升级链推进完成（delay=0，数秒内 0→1→2）。轮询 API 而非 UI，更可靠。
+    await expect.poll(
+      async () => {
+        const inc = await fetchIncident(token, incId);
+        return inc.current_level;
+      },
+      { timeout: 25000, message: "incident current_level 应推进到 2" },
+    ).toBe(2);
     await authedPage.goto(`/incidents/${incId}`);
 
     // 轮询"当前升级层级"，等待推进到 L2（delay=0 应在数秒内完成 1→2）
-    await expect(authedPage.getByText(/当前升级层级 L2/)).toBeVisible({ timeout: 30000 });
+    await expect(authedPage.getByText(/当前升级层级 L2/)).toBeVisible({ timeout: 10000 });
   });
 });

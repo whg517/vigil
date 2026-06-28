@@ -14,28 +14,30 @@ import {
   seedService,
   seedIntegration,
   sendWebhook,
-  waitForFirstIncidentID,
+  waitForNewIncidentID,
 } from "./api-client";
 
 /** 造一个 incident 并打开其详情页，返回 incident ID。 */
 async function setupIncident(page: import("@playwright/test").Page) {
   const token = await login();
+  const before = await fetch("http://localhost:28080/api/v1/incidents?limit=1", {
+    headers: { Authorization: `Bearer ${token}` },
+  }).then((r) => r.json());
+  const beforeCount = before.total ?? 0;
+
   const team = await seedTeam(token, "支付");
   const svc = await seedService(token, "pay-api", team.id);
   const { token: integToken } = await seedIntegration(token, "prometheus", team.id, svc.id);
   await sendWebhook(integToken, svc.slug, "fp-action-" + Date.now());
 
-  // 轮询 API 等 incident 落库，拿 ID 后直接进详情（不依赖 DOM 行点击导航，更稳定）。
-  const id = await waitForFirstIncidentID();
+  // 轮询 API 等新 incident（用 beforeCount 区分残留），拿 ID 后直接进详情。
+  const id = await waitForNewIncidentID(token, beforeCount);
   await page.goto(`/incidents/${id}`);
   await expect(page.locator("h1").first()).toBeVisible();
   return id;
 }
 
 test.describe("事件状态机", () => {
-  // TODO(local): 本地机器过载未完成验证（依赖异步 incident 创建 + 详情页交互），
-  // CI 环境启用。删除下行即可恢复运行。
-  test.describe.configure({ mode: "skip" });
   test("triggered → ack → resolve → reopen 全链路", async ({ authedPage }) => {
     await setupIncident(authedPage);
 

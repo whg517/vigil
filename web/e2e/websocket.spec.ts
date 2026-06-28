@@ -14,23 +14,25 @@ import {
   seedService,
   seedIntegration,
   sendWebhook,
-  waitForFirstIncidentID,
+  waitForNewIncidentID,
   BASE_URL,
 } from "./api-client";
 
 test.describe("WebSocket 实时同步", () => {
-  // TODO(local): 本地机器过载未完成验证，CI 环境启用。删除下行即可恢复运行。
-  test.describe.configure({ mode: "skip" });
   test("A 页打开详情 → B 端 ack → A 页实时刷新状态", async ({ browser }) => {
     // 造 incident
     const token = await login();
+    const before = await fetch(`${BASE_URL}/api/v1/incidents?limit=1`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+    const beforeCount = before.total ?? 0;
     const team = await seedTeam(token, "支付");
     const svc = await seedService(token, "pay-api", team.id);
     const { token: integToken } = await seedIntegration(token, "prometheus", team.id, svc.id);
     await sendWebhook(integToken, svc.slug, "fp-ws-" + Date.now());
 
-    // 轮询 API 拿 incident id（不依赖 DOM 行点击导航）
-    const incId = await waitForFirstIncidentID();
+    // 轮询 API 拿新 incident id（用 beforeCount 区分残留）
+    const incId = await waitForNewIncidentID(token, beforeCount);
 
     // A：浏览器页面打开详情（连 WS 订阅）
     const ctxA = await browser.newContext({ storageState: "./e2e/.auth/admin.json" });

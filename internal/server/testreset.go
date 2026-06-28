@@ -11,9 +11,11 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/kevin/vigil/internal/auth"
 
+	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v5"
 )
 
@@ -58,21 +60,73 @@ var allTestTables = []string{
 func (s *Server) registerTestReset() {
 	// 路径用 __test__ 前缀，明确标识为测试专用，避免与业务路由混淆。
 	s.public.POST("/__test__/reset", func(c *echo.Context) error {
+		ctx := c.Request().Context()
+
+		insp := asynq.NewInspector(asynq.RedisClientOpt{
+			Addr: s.cfg.Redis.Addr, Password: s.cfg.Redis.Password, DB: s.cfg.Redis.DB,
+		})
+		defer func() { _ = insp.Close() }()
+
+		// 1. 暂停队列：阻止 worker 取新任务，让 in-flight 任务尽快完成。
+		for _, q := range []string{"critical", "default"} {
+			_ = insp.PauseQueue(q)
+		}
+		// 短暂等待 in-flight 任务处理完（它们会落库，但随后被 TRUNCATE 清掉）。
+		waitForActiveDrain(ctx, insp, 2*time.Second)
+
+		// 2. 清空所有状态的残留任务。
+		for _, q := range []string{"critical", "default"} {
+			_, _ = insp.DeleteAllPendingTasks(q)
+			_, _ = insp.DeleteAllScheduledTasks(q)
+			_, _ = insp.DeleteAllRetryTasks(q)
+			_, _ = insp.DeleteAllArchivedTasks(q)
+			_, _ = insp.DeleteAllCompletedTasks(q)
+		}
+
+		// 3. TRUNCATE 所有业务表（在 in-flight 落库之后，保证清空）。
 		stmt := "TRUNCATE " + strings.Join(allTestTables, ", ") + " RESTART IDENTITY CASCADE"
-		if _, err := s.store.SQL.ExecContext(c.Request().Context(), stmt); err != nil {
+		if _, err := s.store.SQL.ExecContext(ctx, stmt); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "reset failed: " + err.Error()})
 		}
-		// 同步清 Redis（dedup key / 聚合器 / asynq 残留任务）。
-		if err := s.store.Redis.FlushDB(c.Request().Context()).Err(); err != nil {
-			// Redis 清理失败非致命（DB 已清），仅记录。
+
+		// 4. 清 Redis（dedup key / 聚合器 / asynq 状态）。
+		if err := s.store.Redis.FlushDB(ctx).Err(); err != nil {
 			return c.JSON(http.StatusOK, map[string]any{"status": "ok", "warning": "redis flush: " + err.Error()})
 		}
-		// 重建默认管理员：reset 清空了 users 表（含 server.Wire 时 SeedDefaultAdmin 建的 admin），
-		// 必须重建，否则后续所有 login(admin/changeme) 会 401。
-		// 与后端 e2e（test/e2e/helpers_test.go 的 reseedAdmin）保持一致。
-		if _, err := auth.SeedDefaultAdmin(context.Background(), s.store.DB); err != nil {
+
+		// 5. 恢复队列（PauseQueue 状态存在 Redis，FlushDB 已清，但显式 Unpause 保险）。
+		for _, q := range []string{"critical", "default"} {
+			_ = insp.UnpauseQueue(q)
+		}
+
+		// 6. 重建默认管理员。
+		if _, err := auth.SeedDefaultAdmin(ctx, s.store.DB); err != nil {
 			return c.JSON(http.StatusOK, map[string]any{"status": "ok", "warning": "reseed admin: " + err.Error()})
 		}
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
+}
+
+// waitForActiveDrain 轮询直到所有队列无 active 任务（in-flight 完成）或超时。
+// 用途：reset 前确保 worker 处理完正在执行的任务，避免它们在 TRUNCATE 后落库。
+func waitForActiveDrain(ctx context.Context, insp *asynq.Inspector, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		drained := true
+		for _, q := range []string{"critical", "default"} {
+			active, err := insp.ListActiveTasks(q)
+			if err != nil || len(active) > 0 {
+				drained = false
+				break
+			}
+		}
+		if drained {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }

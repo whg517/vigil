@@ -10,7 +10,14 @@
  *   - 有数据时 KPI 显示真实数字（非 "—" / undefined）
  */
 import { test, expect } from "./fixtures";
-import { login, seedTeam, seedService, seedIntegration, sendWebhook } from "./api-client";
+import {
+  login,
+  seedTeam,
+  seedService,
+  seedIntegration,
+  sendWebhook,
+  waitForFirstIncidentID,
+} from "./api-client";
 
 test.describe("仪表盘", () => {
   test("空数据状态：4 个 KPI 卡正常渲染，不崩溃", async ({ authedPage }) => {
@@ -31,8 +38,7 @@ test.describe("仪表盘", () => {
     await expect(authedPage.getByText("团队负载")).toBeVisible();
   });
 
-  test.skip("有数据状态：告警 KPI 显示真实数字", async ({ authedPage }) => {
-    // TODO(local): 本地机器过载未完成验证（依赖异步 incident 创建），CI 环境启用。
+  test("有数据状态：告警 KPI 显示真实数字", async ({ authedPage }) => {
     // 造数据：team → service → integration → 发一条告警
     const token = await login();
     const team = await seedTeam(token, "支付");
@@ -40,17 +46,11 @@ test.describe("仪表盘", () => {
     const { token: integToken } = await seedIntegration(token, "prometheus", team.id, svc.id);
     await sendWebhook(integToken, svc.slug, "fp-dashboard-1");
 
-    // 等流水线建出 incident（异步，轮询页面）
-    await authedPage.goto("/");
+    // 等流水线建出 incident（异步，轮询 API 确认）
+    await waitForFirstIncidentID(token);
 
     // 「近 7 天告警」KPI 应显示非 "—" 的数字。
-    // KpiCard value 为 null 时显示 "—"；这里至少有 1 条告警，应显示数字。
-    const alertKpi = authedPage.locator("text=近 7 天告警").locator("..");
-    // 等待加载完成（isLoading 时为骨架）
-    await expect(authedPage.getByText("近 7 天告警")).toBeVisible();
-    // 给流水线一些时间，刷新后告警数应 ≥ 1
-    await authedPage.waitForTimeout(2000);
-    await authedPage.reload();
+    await authedPage.goto("/");
     await expect(authedPage.getByText("近 7 天告警")).toBeVisible();
 
     // 页面整体不崩溃（核心断言：契约正确时页面能渲染数据，字段错位时会 undefined）
