@@ -1,0 +1,2 @@
+# 此文件为 embed 占位，保证 //go:embed all:dist 在未构建前端时也能编译。
+# 真实前端产物由 pnpm build 生成（web/dist），经构建脚本复制到本目录后覆盖。

@@ -32,10 +32,14 @@ coverage.txt
 
 # 前端
 node_modules/
-dist/
 build/
 web/node_modules/
 web/dist/
+# 前端 embed 产物：构建时由 web/dist 复制到 internal/web/dist，不入库但保留占位。
+# 用 dist/*（而非 dist/）忽略目录内容，使 !.gitkeep 反忽略能生效
+# （git 对 dir/ 形式不会进入目录，反忽略内部文件无效）。
+internal/web/dist/*
+!internal/web/dist/.gitkeep
 # pnpm
 .pnpm-store/
 

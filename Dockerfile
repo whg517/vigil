@@ -17,8 +17,8 @@ RUN apk add --no-cache git
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-# 前端产物嵌入（如后续用 embed）
-COPY --from=web-builder /web/dist ./web/dist
+# 前端产物嵌入（internal/web 包用 //go:embed all:dist 捕获此目录）
+COPY --from=web-builder /web/dist ./internal/web/dist
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /vigil ./cmd/vigil
 
 # ===== Stage 3: 运行 =====
