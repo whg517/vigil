@@ -91,12 +91,15 @@ build-frontend: ## 前端构建（含 tsc 类型检查）+ 同步到 internal/we
 
 ##@ Testing
 
-.PHONY: test test-e2e
+.PHONY: test test-e2e test-e2e-web
 test: ## 运行后端测试（默认不含 e2e，e2e 用 build tag 隔离）
 	go test ./...
 
 test-e2e: dev-up ## 运行端到端集成测试（需 docker 依赖，会自动 dev-up；基于 Ginkgo）
 	go test -tags=integration -timeout 5m ./test/e2e/...
+
+test-e2e-web: ## 运行前端 Playwright e2e（Docker 全栈，禁 mock；自动起/停 compose）
+	pnpm --dir web e2e
 
 ##@ Verification
 

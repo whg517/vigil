@@ -8,6 +8,8 @@ RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
+# CI=true：让 pnpm 在非 TTY 环境自动确认 modules 目录重建（避免 ERR_PNPM_ABORTED）
+ENV CI=true
 RUN pnpm build
 
 # ===== Stage 2: 后端构建 =====

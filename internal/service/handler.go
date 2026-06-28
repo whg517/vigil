@@ -68,6 +68,7 @@ type createReq struct {
 	AutoCreateIncident *bool             `json:"auto_create_incident"`
 	Status             string            `json:"status"` // active | disabled
 	TeamID             int               `json:"team_id"`
+	EscalationPolicyID int               `json:"escalation_policy_id"` // 可选，关联升级策略
 }
 
 // create 创建服务。
@@ -107,6 +108,9 @@ func (h *Handler) create(c *echo.Context) error {
 	}
 	if req.TeamID > 0 {
 		b.SetTeamID(req.TeamID)
+	}
+	if req.EscalationPolicyID > 0 {
+		b.SetEscalationPolicyID(req.EscalationPolicyID)
 	}
 	s, err := b.Save(c.Request().Context())
 	if err != nil {
@@ -150,6 +154,11 @@ type updateReq struct {
 	Labels             *map[string]string `json:"labels"`
 	AutoCreateIncident *bool              `json:"auto_create_incident"`
 	Status             *string            `json:"status"`
+	// EscalationPolicyID 关联升级策略。指针区分三种语义：
+	//   nil  —— 不修改（请求未带该字段）
+	//   0   —— 解除关联（显式清空）
+	//   >0  —— 关联指定策略
+	EscalationPolicyID *int `json:"escalation_policy_id"`
 }
 
 // update 更新服务。
@@ -192,6 +201,14 @@ func (h *Handler) update(c *echo.Context) error {
 	}
 	if req.Status != nil {
 		upd.SetStatus(entservice.Status(*req.Status))
+	}
+	// 升级策略关联：nil 不改，0 解绑，>0 关联。
+	if req.EscalationPolicyID != nil {
+		if *req.EscalationPolicyID > 0 {
+			upd.SetEscalationPolicyID(*req.EscalationPolicyID)
+		} else {
+			upd.ClearEscalationPolicy()
+		}
 	}
 	s, err := upd.Save(c.Request().Context())
 	if err != nil {

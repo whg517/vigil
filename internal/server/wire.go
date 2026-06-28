@@ -197,6 +197,12 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	authHandler := auth.NewAuthHandler(st.DB, jwtSigner)
 	authHandler.SetAuditRecorder(auditRecorder)
 	authHandler.RegisterPublic(public)
+	// 测试专用 reset 端点：仅 development 环境挂载（生产禁用，零暴露）。
+	// 供前端 Playwright e2e 在每个 spec 前清空数据，保证用例隔离。
+	if !cfg.App.IsProduction() {
+		srv.registerTestReset()
+		log.Info("test reset endpoint enabled (development only) at /api/v1/__test__/reset")
+	}
 
 	// 业务路由（受 RequireUser 保护）
 	authHandler.RegisterProtected(v1)

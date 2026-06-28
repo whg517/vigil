@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // e2e 为 Node 环境 + Playwright 测试代码，不套用前端 browser/react 规则
+  // （含 process/fetch 等全局，类型严格度要求低）。Playwright 自带类型检查。
+  globalIgnores(['dist', 'e2e', 'playwright-report', 'test-results']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

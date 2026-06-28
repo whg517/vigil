@@ -1,0 +1,43 @@
+# Docker 构建上下文排除 —— 避免 node_modules/dist/构建产物打入构建上下文。
+# 显著加速 docker build（context 传输是首次构建的主要瓶颈）。
+
+# 依赖目录（镜像内各自重新 install，不需宿主机的）
+web/node_modules
+**/node_modules
+
+# 构建产物（镜像内重新 build）
+web/dist
+internal/web/dist
+**/dist
+**/build
+
+# Go 测试缓存与产物
+*.out
+coverage.txt
+/vigil
+cmd/vigil/vigil
+
+# 本地环境 / 密钥
+.env
+.env.local
+*.secret
+
+# Git
+.git
+.gitignore
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+
+# 文档与工作目录（构建不需要）
+docs/
+.worktree/
+*.md
+!web/README.md
+
+# Playwright e2e 产物（运行时生成）
+web/test-results
+web/playwright-report
+web/e2e/.auth
