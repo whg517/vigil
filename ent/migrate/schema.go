@@ -246,9 +246,9 @@ var (
 				Columns: []*schema.Column{EventsColumns[8]},
 			},
 			{
-				Name:    "event_source_source_event_id",
+				Name:    "event_source_source_event_id_status",
 				Unique:  true,
-				Columns: []*schema.Column{EventsColumns[2], EventsColumns[1]},
+				Columns: []*schema.Column{EventsColumns[2], EventsColumns[1], EventsColumns[4]},
 			},
 			{
 				Name:    "event_severity_received_at",

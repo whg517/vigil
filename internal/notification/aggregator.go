@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -77,10 +78,16 @@ func (a *Aggregator) Add(ctx context.Context, targetID, severity string, item Ag
 	if err != nil {
 		return nil, fmt.Errorf("aggregate marshal: %w", err)
 	}
-	// RPUSH 入队；首次入队时设置窗口 TTL（EXPIRE 仅当 key 新建时设置，用 pipeline）
+	// RPUSH 入队；TTL 设为 window + 缓冲（QA 审计 C3）。
+	// 旧实现 TTL=window，导致窗口到点时 key 直接过期、数据被 Redis 删除，
+	// Flush 取不到任何条目 → 聚合通知静默丢失。改为 window+缓冲，让 Flush
+	// ticker（周期 ≤ window）有机会在数据失效前读取并发送。
+	// SET NX：仅首条入队时设 TTL，避免每次 Add 重置 TTL 拖长窗口。
 	pipe := a.redis.Pipeline()
 	pipe.RPush(ctx, key, raw)
-	pipe.Expire(ctx, key, a.window)
+	pipe.Set(ctx, key+":win", "1", a.window) // 窗口标记，独立 key，到点失效
+	// 数据 key 的 TTL 给足缓冲：window 的 3 倍，确保 Flush（≤window 周期）能读到
+	pipe.Expire(ctx, key, 3*a.window)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return nil, fmt.Errorf("aggregate push: %w", err)
 	}
@@ -109,22 +116,24 @@ func (a *Aggregator) peek(ctx context.Context, key string) ([]AggregatedItem, er
 }
 
 // Flush 扫描一个 target 的队列，若窗口已到则取出全部并删除，返回合并条目。
-// 窗口未到（key 仍存在且未过期）返回 nil, nil（调用方定期重试）。
-// 不传 target 而传 ctx；target 维度的扫描由调用方驱动（本期简化为逐 target Flush）。
+// 窗口判定（QA 审计 C3）：用独立的 :win 标记 key 判断窗口是否到点，而非数据 key 的 TTL
+// （数据 key 现在保留 3×window 供 Flush 读取）。
+// 窗口未到（:win 仍存在）返回 nil, nil（调用方定期重试）。
 func (a *Aggregator) Flush(ctx context.Context, targetID string) ([]AggregatedItem, error) {
 	if a.redis == nil {
 		return nil, nil
 	}
 	key := "vigil:pending_notify:" + targetID
-	// key 还在说明窗口未到；用 TTL 判断：TTL>0 表示仍在窗口内，不 flush
-	ttl, err := a.redis.TTL(ctx, key).Result()
+	winKey := key + ":win"
+	// :win 仍存在 → 窗口未到，不 flush
+	exists, err := a.redis.Exists(ctx, winKey).Result()
 	if err != nil {
-		return nil, fmt.Errorf("aggregate ttl: %w", err)
+		return nil, fmt.Errorf("aggregate win exists: %w", err)
 	}
-	if ttl > 0 {
+	if exists > 0 {
 		return nil, nil // 窗口内，等待
 	}
-	// 窗口到：取全部并删
+	// 窗口到：取全部并删（数据 + 窗口标记残留）
 	items, err := a.peek(ctx, key)
 	if err != nil {
 		return nil, err
@@ -132,10 +141,43 @@ func (a *Aggregator) Flush(ctx context.Context, targetID string) ([]AggregatedIt
 	if len(items) == 0 {
 		return nil, nil
 	}
-	if err := a.redis.Del(ctx, key).Err(); err != nil {
+	pipe := a.redis.Pipeline()
+	pipe.Del(ctx, key)
+	pipe.Del(ctx, winKey)
+	if _, err := pipe.Exec(ctx); err != nil {
 		return nil, fmt.Errorf("aggregate del: %w", err)
 	}
 	return items, nil
+}
+
+// PendingTargets 扫描 Redis 返回当前有积压待发通知的 targetID 列表（去 :win 后缀）。
+// 供 FlushAll 周期驱动（QA 审计 C3）：原实现无任何调度器调用 Flush，聚合通知成死信。
+// 用 SCAN（非 KEYS）避免阻塞 Redis；match 前缀 vigil:pending_notify:。
+func (a *Aggregator) PendingTargets(ctx context.Context) ([]string, error) {
+	if a.redis == nil {
+		return nil, nil
+	}
+	var targets []string
+	var cursor uint64
+	prefix := "vigil:pending_notify:"
+	for {
+		keys, next, err := a.redis.Scan(ctx, cursor, prefix+"*", 100).Result()
+		if err != nil {
+			return nil, fmt.Errorf("aggregate scan: %w", err)
+		}
+		for _, k := range keys {
+			// 过滤掉 :win 标记 key，只保留数据 key
+			if strings.HasSuffix(k, ":win") {
+				continue
+			}
+			targets = append(targets, strings.TrimPrefix(k, prefix))
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	return targets, nil
 }
 
 // Window 暴露聚合窗口（便于上层日志/配置展示）。

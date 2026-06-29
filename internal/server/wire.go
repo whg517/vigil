@@ -58,10 +58,21 @@ import (
 //
 // 只暴露「需要跨域或被关闭逻辑触达」的对象。各域 handler/引擎在 Wire 内部构造后
 // 即被路由/事件订阅引用，无需外暴露。Server 是 HTTP 入口，WebhookDispatcher 需要
-// 在优雅关闭时 drain 在途推送。
+// 在优雅关闭时 drain 在途推送。Closers 收集需在关闭时停止的后台 goroutine。
 type Wired struct {
 	Server            *Server
 	WebhookDispatcher *webhook.Dispatcher
+	// Closers 在优雅关闭时被调用（QA 审计 C3：通知聚合 flush ticker 等）。
+	Closers []func()
+}
+
+// Close 依次调用所有 closer（幂等，忽略 nil）。
+func (w *Wired) Close() {
+	for _, c := range w.Closers {
+		if c != nil {
+			c()
+		}
+	}
 }
 
 // Wire 装配全部组件并挂载路由，返回生命周期句柄。不启动阻塞服务。
@@ -158,9 +169,13 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	imHandler := im.NewHandler(st.DB, imRegistry, imMapper, authz, incService, imRenderer, imCards)
 	// IM 也作为 notification 通道（升级通知走 IM 卡片送达，IM-first 闭环）。
 	notifReg := notifier.Registry() // 注册 IMChannel 到同一 registry（晚注册也能生效，notifier 实时查）
-	notifReg.Register(im.NewIMChannel(imRegistry, imCards, func(inc *ent.Incident, targets []notification.Target) string {
+	imChannel := im.NewIMChannel(imRegistry, imCards, func(inc *ent.Incident, targets []notification.Target) string {
 		return cfg.IM.OncallChannel // 值班群 channel（空则不发送）
-	}))
+	})
+	// QA 审计 C5：注入渲染器，使通知主路径卡片按接收者权限渲染操作按钮
+	// （旧实现主路径卡片零按钮，值班人收到告警只能看不能点，IM 差异化核心失效）。
+	imChannel.SetRenderer(imRenderer)
+	notifReg.Register(imChannel)
 	logIMStatus(log, feishuBot, dingtalkBot)
 
 	// —— WebSocket hub（能力域 8 状态同步）——
@@ -229,7 +244,12 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	rbacHandler := auth.NewHandler(st.DB)
 	rbacHandler.SetAuditRecorder(auditRecorder)
 	rbacHandler.Register(v1)
-	auth.NewUserHandler(st.DB).Register(v1)
+	// QA 审计 C6：UserHandler 注入 IM 账号绑定器/查询器（imMapper 实现），
+	// 补齐 POST /users/:id/im-accounts 绑定端点（原 Mapper.BindAccount 全仓 0 调用方）。
+	userHandler := auth.NewUserHandler(st.DB)
+	userHandler.SetIMAccountBinder(imMapper)
+	userHandler.SetIMAccountResolver(imMapperResolver{m: imMapper})
+	userHandler.Register(v1)
 	auth.NewTeamHandler(st.DB).Register(v1)
 	auth.NewAuditHandler(st.DB).Register(v1)
 	// Runbook（能力域 9）：注入时间线 + 升级触发器（包装 incService.Escalate）。
@@ -256,7 +276,46 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	notifHandler.SetTemplateEngine(notifTemplates)
 	notifHandler.Register(v1)
 
-	return &Wired{Server: srv, WebhookDispatcher: webhookDisp}, nil
+	// QA 审计 C3：通知聚合 flush ticker。原实现 FlushAggregated 从未被调用 → 非 critical
+	// 聚合通知成死信（永滞 Redis）。周期扫 pending targets 合并发送，间隔 ≤ 聚合窗口。
+	flushCtx, flushCancel := context.WithCancel(ctx)
+	wired := &Wired{Server: srv, WebhookDispatcher: webhookDisp}
+	if notifAggregator != nil && st.Redis != nil {
+		interval := notifAggregator.Window() / 2
+		if interval <= 0 {
+			interval = 15 * time.Second
+		}
+		go runAggregationFlusher(flushCtx, notifier, interval, log)
+		wired.Closers = append(wired.Closers, flushCancel)
+		log.Info("notification aggregation flusher started", zap.Duration("interval", interval))
+	} else {
+		flushCancel()
+	}
+	return wired, nil
+}
+
+// runAggregationFlusher 周期扫描 pending 聚合队列并 flush 合并发送。
+// ctx 取消时退出（纳入优雅关闭）。单次 FlushAll 失败不中断 ticker（仅记日志）。
+func runAggregationFlusher(ctx context.Context, n *notification.Notifier, interval time.Duration, log *zap.Logger) {
+	// 启动后先等一个窗口再首次扫描（让首批通知在窗口内聚合，避免过早 flush 空跑）
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			// 关闭前最后 flush 一次，尽量不丢在途通知
+			_, _ = n.FlushAll(context.Background())
+			return
+		case <-timer.C:
+			flushed, err := n.FlushAll(ctx)
+			if err != nil {
+				log.Warn("aggregation flush error", zap.Error(err))
+			} else if flushed > 0 {
+				log.Info("aggregation flushed", zap.Int("targets", flushed))
+			}
+			timer.Reset(interval)
+		}
+	}
 }
 
 // buildNotifier 构造通知分发器（能力域 7），含通道注册、送达记录、聚合、静默、模板。
@@ -505,6 +564,24 @@ func (r runbookEscalator) Trigger(ctx context.Context, incID int, reason string)
 	return err
 }
 
+// imMapperResolver 把 im.Mapper 适配成 auth.IMAccountResolver（QA 审计 C6）。
+// im.Mapper.ListBindings 返回 []im.IMBindingView，这里转成 []auth.IMAccountInfo。
+type imMapperResolver struct {
+	m *im.Mapper
+}
+
+func (r imMapperResolver) ListBindings(ctx context.Context, userID int) ([]auth.IMAccountInfo, error) {
+	views, err := r.m.ListBindings(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]auth.IMAccountInfo, 0, len(views))
+	for _, v := range views {
+		out = append(out, auth.IMAccountInfo{Platform: v.Platform, AccountID: v.AccountID})
+	}
+	return out, nil
+}
+
 // registerSensitiveRoutePerms 登记敏感写路由的权限点（QA 审计 C1 RBAC 接线）。
 // 按 (method, path) 注册到 RouteGuard，命中则鉴权。路径与各 handler Register 中的定义一致。
 // 未登记的写路由保持现状（渐进启用）；本轮覆盖审计点名的越权风险面：
@@ -553,6 +630,8 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/teams", auth.PermTeamCreate)
 	g.RoutePerm(http.MethodPatch, "/teams/:id", auth.PermTeamUpdate)
 	g.RoutePerm(http.MethodDelete, "/teams/:id", auth.PermTeamDelete)
+	// IM 账号绑定（M8.6 / M13.1，QA 审计 C6）
+	g.RoutePerm(http.MethodPost, "/users/:id/im-accounts", auth.PermUserIMBind)
 	// 通知规则 / 抑制规则 / 模板写
 	g.RoutePerm(http.MethodPost, "/notification-rules", auth.PermNotificationRuleCreate)
 	g.RoutePerm(http.MethodPatch, "/notification-rules/:id", auth.PermNotificationRuleUpdate)

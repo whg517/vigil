@@ -1921,6 +1921,13 @@ components:
         incidents:
           type: integer
       type: object
+    internal_auth.IMAccountInfo:
+      properties:
+        account_id:
+          type: string
+        platform:
+          type: string
+      type: object
     internal_auth.apiKeyCreateReq:
       properties:
         expires_in_hours:
@@ -1979,6 +1986,15 @@ components:
           type: array
           uniqueItems: false
         status:
+          type: string
+      type: object
+    internal_auth.bindIMAccountReq:
+      properties:
+        account_id:
+          description: IM 平台 unionId
+          type: string
+        platform:
+          description: dingtalk | feishu | wecom
           type: string
       type: object
     internal_auth.changePasswordReq:
@@ -5911,6 +5927,79 @@ paths:
       security:
       - bearerAuth: []
       summary: 更新用户
+      tags:
+      - user
+  /users/{id}/im-accounts:
+    get:
+      parameters:
+      - description: 用户 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/internal_auth.IMAccountInfo'
+                type: array
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: 列出 IM 账号
+      tags:
+      - user
+    post:
+      description: 给指定用户绑定一个 IM 平台账号（platform + account_id），幂等。
+      parameters:
+      - description: 用户 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/internal_auth.bindIMAccountReq'
+                description: IM 账号
+                summary: body
+        description: IM 账号
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/internal_auth.bindIMAccountReq'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: 绑定 IM 账号
       tags:
       - user
   /webhook/{token}:

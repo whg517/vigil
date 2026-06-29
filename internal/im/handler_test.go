@@ -32,6 +32,7 @@ type stubBot struct {
 	cardIDs     map[string]string // channel → 生成的 cardID
 	sendCount   int
 	updateCount int
+	sentCards   []*Card // 记录 SendCard 的入参（供断言按钮等，QA 审计 C5）
 }
 
 func newStubBot(platform string, available bool) *stubBot {
@@ -44,6 +45,7 @@ func (b *stubBot) SendCard(_ context.Context, ch string, c *Card) (string, error
 	b.sendCount++
 	id := "card_" + strconv.Itoa(b.sendCount)
 	b.cardIDs[ch] = id
+	b.sentCards = append(b.sentCards, c)
 	return id, nil
 }
 func (b *stubBot) UpdateCard(_ context.Context, _ string, c *Card) error {

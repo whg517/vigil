@@ -164,3 +164,53 @@ func TestResolveUser_PrefersTableOverJSON(t *testing.T) {
 		t.Errorf("resolved user id: got %d, want %d", got.ID, u.ID)
 	}
 }
+
+// TestListBindings_ReturnsAllAccounts QA 审计 C6：ListBindings 返回用户全部 IM 绑定。
+func TestListBindings_ReturnsAllAccounts(t *testing.T) {
+	c := newMapperClient(t)
+	ctx := context.Background()
+	u, err := c.User.Create().SetUsername("lb").SetEmail("lb@x.com").Save(ctx)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	m := NewMapper(c)
+	if err := m.BindAccount(ctx, u.ID, "feishu", "ou_lb1"); err != nil {
+		t.Fatalf("bind feishu: %v", err)
+	}
+	if err := m.BindAccount(ctx, u.ID, "dingtalk", "dt_lb1"); err != nil {
+		t.Fatalf("bind dingtalk: %v", err)
+	}
+	views, err := m.ListBindings(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("ListBindings: %v", err)
+	}
+	if len(views) != 2 {
+		t.Fatalf("expected 2 bindings, got %d: %+v", len(views), views)
+	}
+	// 验证两个平台都在
+	platforms := map[string]bool{}
+	for _, v := range views {
+		platforms[v.Platform] = true
+	}
+	if !platforms["feishu"] || !platforms["dingtalk"] {
+		t.Errorf("missing platform, got %v", platforms)
+	}
+}
+
+// TestListBindings_Empty 无绑定时返回空切片（不报错）。
+func TestListBindings_Empty(t *testing.T) {
+	c := newMapperClient(t)
+	ctx := context.Background()
+	u, _ := c.User.Create().SetUsername("empty").SetEmail("em@x.com").Save(ctx)
+	m := NewMapper(c)
+	views, err := m.ListBindings(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("ListBindings empty: %v", err)
+	}
+	if len(views) != 0 {
+		t.Errorf("expected 0 bindings, got %d", len(views))
+	}
+}
+
+// 确保未使用导入不告警（schema 在 BindAccount_DoubleWrite 用过）
+var _ = schema.IMAccount{}

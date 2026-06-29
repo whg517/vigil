@@ -7,6 +7,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/imaccountbinding"
 	"github.com/kevin/vigil/ent/schema"
+	"github.com/kevin/vigil/ent/user"
 )
 
 // Mapper 把 IM 平台账号（platform + unionID）映射回 Vigil User。
@@ -109,4 +110,35 @@ func (m *Mapper) BindAccount(ctx context.Context, userID int, platform, unionID 
 	}
 	accounts := append(u.ImAccounts, schema.IMAccount{Platform: platform, AccountID: unionID})
 	return m.db.User.UpdateOneID(userID).SetImAccounts(accounts).Exec(ctx)
+}
+
+// ListBindings 列出用户已绑定的全部 IM 账号（QA 审计 C6，供 UserHandler 查询）。
+// 优先查独立表；表无记录时回退 User.im_accounts JSON 字段。
+func (m *Mapper) ListBindings(ctx context.Context, userID int) ([]IMBindingView, error) {
+	bindings, err := m.db.IMAccountBinding.Query().
+		Where(imaccountbinding.HasUserWith(user.IDEQ(userID))).
+		All(ctx)
+	if err == nil && len(bindings) > 0 {
+		out := make([]IMBindingView, 0, len(bindings))
+		for _, b := range bindings {
+			out = append(out, IMBindingView{Platform: string(b.Platform), AccountID: b.AccountID})
+		}
+		return out, nil
+	}
+	// 回退 JSON 字段
+	u, err := m.db.User.Get(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]IMBindingView, 0, len(u.ImAccounts))
+	for _, a := range u.ImAccounts {
+		out = append(out, IMBindingView{Platform: a.Platform, AccountID: a.AccountID})
+	}
+	return out, nil
+}
+
+// IMBindingView IM 账号绑定视图（脱敏，供 handler 返回）。
+type IMBindingView struct {
+	Platform  string
+	AccountID string
 }

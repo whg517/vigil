@@ -235,3 +235,30 @@ func (n *Notifier) FlushAggregated(ctx context.Context, targetID string) (int, e
 	}
 	return sent, nil
 }
+
+// FlushAll 扫描所有有积压待发通知的 target，逐个 FlushAggregated 合并发送。
+// 返回本次实际 flush 的 target 数 + 首个错误（不因单个 target 失败中断其余）。
+//
+// QA 审计 C3：原实现 FlushAggregated 从未被任何调度器调用 → 聚合通知成死信。
+// 此方法供 wire.go 的周期 ticker 驱动（间隔 ≤ 聚合窗口）。
+func (n *Notifier) FlushAll(ctx context.Context) (int, error) {
+	if n.aggregator == nil {
+		return 0, nil
+	}
+	targets, err := n.aggregator.PendingTargets(ctx)
+	if err != nil {
+		return 0, err
+	}
+	flushed := 0
+	var firstErr error
+	for _, t := range targets {
+		n2, err := n.FlushAggregated(ctx, t)
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		if n2 > 0 {
+			flushed++
+		}
+	}
+	return flushed, firstErr
+}

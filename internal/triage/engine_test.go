@@ -167,9 +167,12 @@ func TestEngine_ResolvedResolvesIncident(t *testing.T) {
 		t.Fatalf("setup: evt1 Action=%q", res1.Action)
 	}
 
-	// 再来一个 resolved 事件（同 dedup_key 的恢复，告警源通常用不同 event id）
+	// 再来一个 resolved 事件：用与 firing 相同的 source_event_id（真实场景：
+	// Prometheus/Grafana 的 firing 与 resolved 共用同一 fingerprint）。
+	// QA 审计 C2：旧唯一索引 (source, source_event_id) 会让 resolved 落库撞约束被丢弃，
+	// 此前测试用 "k1-resolved" 规避了该 bug。现改回真实相同 id，验证索引修复后两者共存。
 	evt2, err := c.Event.Create().
-		SetSourceEventID("k1-resolved").
+		SetSourceEventID("k1").
 		SetSource("prometheus").
 		SetSeverity(event.SeverityWarning).
 		SetStatus(event.StatusResolved).

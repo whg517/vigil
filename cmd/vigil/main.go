@@ -166,6 +166,10 @@ func run() error {
 		log.Info("webhook out drained")
 	}
 
+	// 停止后台 goroutine（QA 审计 C3：通知聚合 flush ticker 等），并最后 flush 一次
+	wired.Close()
+	log.Info("background workers stopped")
+
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := wired.Server.Shutdown(shutdownCtx); err != nil {

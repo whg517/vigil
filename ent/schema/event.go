@@ -84,7 +84,11 @@ func (Event) Indexes() []ent.Index {
 	return []ent.Index{
 		// 去重/幂等查询高频
 		index.Fields("dedup_key"),
-		index.Fields("source", "source_event_id").Unique(),
+		// 幂等唯一键（QA 审计 C2）：含 status 列。
+		// 旧索引 (source, source_event_id) 导致 firing 与 resolved 共用同一 fingerprint
+		// 时，resolved 落库撞唯一约束被静默丢弃 → Incident 永不自动解决（M3.7 失效）。
+		// 加 status 后 firing/resolved 各占一行，dedup 仍由 dedup_key + 分诊层保证。
+		index.Fields("source", "source_event_id", "status").Unique(),
 		index.Fields("severity", "received_at"),
 		index.Fields("is_noise"),
 	}

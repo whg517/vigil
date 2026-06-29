@@ -4996,6 +4996,103 @@ export interface paths {
         };
         trace?: never;
     };
+    "/users/{id}/im-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 列出 IM 账号 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 用户 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_auth.IMAccountInfo"][];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * 绑定 IM 账号
+         * @description 给指定用户绑定一个 IM 平台账号（platform + account_id），幂等。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 用户 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description IM 账号 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["internal_auth.bindIMAccountReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_auth.bindIMAccountReq"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhook/{token}": {
         parameters: {
             query?: never;
@@ -6173,6 +6270,10 @@ export interface components {
             events?: number;
             incidents?: number;
         };
+        "internal_auth.IMAccountInfo": {
+            account_id?: string;
+            platform?: string;
+        };
         "internal_auth.apiKeyCreateReq": {
             /** @description 有效期（小时），0=永久 */
             expires_in_hours?: number;
@@ -6200,6 +6301,12 @@ export interface components {
             prefix?: string;
             scope?: string[];
             status?: string;
+        };
+        "internal_auth.bindIMAccountReq": {
+            /** @description IM 平台 unionId */
+            account_id?: string;
+            /** @description dingtalk | feishu | wecom */
+            platform?: string;
         };
         "internal_auth.changePasswordReq": {
             new_password?: string;
