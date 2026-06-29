@@ -74,10 +74,17 @@ var _ = Describe("升级链", func() {
 			testEnv.waitForIncidentStatus(incID, incident.StatusAcked)
 
 			By("等待一段时间，确认 level 没继续推进到 2（ack 守卫）")
-			// 不真等 10min，只验证 ack 后短时间内状态仍为 acked（守卫间接证据）。
-			time.Sleep(2 * time.Second)
-			inc, _ := testEnv.db().Incident.Get(context.Background(), incID)
-			Expect(inc.Status).To(Equal(incident.StatusAcked), "ack 后升级应停止")
+			// QA 审计 Flaky 治理：旧用 time.Sleep(2s) 反证"没推进"，慢机/超慢机结论脆弱。
+			// 改为 Consistently 正向断言：3s 窗口内 current_level 始终 ≤ 1（未到 level 2）。
+			// level 2 的 delay 是 10min，正常绝不应在此窗口触发；若触发说明 ack 守卫失效。
+			Consistently(func() int {
+				inc, err := testEnv.db().Incident.Get(context.Background(), incID)
+				if err != nil {
+					return 99 // 查询失败不让断言误通过
+				}
+				return inc.CurrentLevel
+			}, 3*time.Second, 300*time.Millisecond).
+				Should(BeNumerically("<=", 1), "ack 后升级应停止，current_level 不应到 2")
 		})
 	})
 })

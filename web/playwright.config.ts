@@ -18,7 +18,9 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false, // 全栈单实例 + 共享 DB，串行避免 reset 竞态
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // QA 审计 Flaky 治理：CI 重试会掩盖 flaky（失败重试通过即绿）。
+  // 改为 0 重试，失败即暴露；flaky 用例需根治而非靠重试洗绿。
+  retries: 0,
   workers: 1, // 单实例必须单 worker
   reporter: process.env.CI ? "github" : "list",
   timeout: 60_000,

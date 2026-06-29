@@ -35,9 +35,28 @@ jobs:
           go generate ./cmd/vigil/...
           git diff --exit-code -- internal/server/gen
 
-      # ③ Test
-      - name: go test
-        run: go test -race -cover ./internal/... ./cmd/...
+      # ③ Test + 覆盖率门禁（QA 审计：原仅 -cover 打印百分比，无阈值不阻断）
+      #    生成 coverprofile，总覆盖率低于阈值（45%）则 fail；产物归档供排查。
+      - name: go test (with coverage gate)
+        run: |
+          go test -race -coverpkg=./internal/...,./cmd/... -coverprofile=coverage.out ./internal/... ./cmd/...
+          # 总覆盖率（mode set/atomic 的行覆盖百分比）
+          COV=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3+0}')
+          echo "Total coverage: ${COV}%"
+          THRESHOLD=45
+          if awk "BEGIN {exit !(${COV} < ${THRESHOLD})}"; then
+            echo "::error::Coverage ${COV}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi
+          echo "Coverage ${COV}% >= ${THRESHOLD}% ✓"
+
+      - name: upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-out
+          path: coverage.out
+          retention-days: 7
 
       # ④ Build
       - name: go build
@@ -80,6 +99,27 @@ jobs:
       - name: build
         working-directory: web
         run: pnpm build
+
+  # ===== 安全扫描（QA 审计：原仅 golangci-lint 静态扫描，无依赖漏洞扫描）=====
+  # govulncheck 检测 Go 依赖的已知漏洞（CVE），命中则阻断。轻量、官方维护。
+  # 依赖的定期升级由 .github/dependabot.yml 负责。
+  security:
+    name: Security (govulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: "1.25"
+          # 扫描业务代码（含 cmd），排除 ent 生成代码噪声
+          # 注：默认扫描整个 module；如生成代码误报，在此加 -scan-package 调整
 
   # ===== E2E：真实 PG(pgvector) + Redis + Asynq 端到端闭环 =====
   # 与 backend/frontend job 并行；用 build tag 隔离，不拖慢默认单测。
