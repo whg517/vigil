@@ -5,8 +5,8 @@
 // · Notifier 适配 escalation.Notifier，桥接升级触发与通道送达
 // · 通知幂等（notification_id）、送达记录
 //
-// 本期实现：Webhook 通道 + 邮件通道 + escalation.Notifier 适配器。
-// IM 通道（钉钉/飞书/企微）留待能力域 8 接入（先占位接口）。
+// 已实现通道：Webhook / 邮件 / IM（钉钉/飞书，企微为 NoopBot 占位）。
+// 电话/SMS 为抽象层 + webhook 占位转发（真实云厂商对接见 TODO.md M7.2）。
 package notification
 
 import (

@@ -6,8 +6,8 @@
 // · ack 即取消（DeleteTask + 状态守卫）
 // · 每次升级记时间线（TimelineItem type=escalated）
 //
-// 通知（能力域 7）暂未实现，触发时先记时间线 + 返回 targets，
-// 通知引擎接入后由 Notifier 承载实际送达。
+// 通知（能力域 7）通过 Notifier 接口接入：升级触发时由 notifier.NotifyEscalation
+// 送达 targets（IM/邮件/webhook/电话），notifier 为 nil 时降级为仅记时间线。
 package escalation
 
 import (

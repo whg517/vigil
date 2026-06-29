@@ -3,9 +3,9 @@
 // 对应 architecture.md §接入层 + §6.3 可观测性：
 // · REST API + WebSocket
 // · /health 健康检查（依赖连通性）
-// · /metrics Prometheus 指标（后续接入）
+// · /metrics Prometheus 指标（Go runtime + 业务 + HTTP，已接入）
 //
-// 业务 handler 后续按能力域挂载到 group。
+// 业务 handler 按能力域挂载到 group（见 wire.go 装配）。
 package server
 
 import (

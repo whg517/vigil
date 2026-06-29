@@ -46,8 +46,8 @@ func (w *Worker) Handle(ctx context.Context, t *asynq.Task) error {
 	if err != nil {
 		return fmt.Errorf("triage event %d: %w", p.EventID, err)
 	}
-	// 结果可用于后续联动（如触发通知/升级）——当前仅记录，TODO 交给能力域 5/6/7
+	// 下游联动（排班/升级链/通知）由 Engine.Process 内 bindPolicyAndPublish 发布
+	// IncidentCreated 事件触发，经事件总线解耦扇出（escalation/IM/webhook/WS 订阅）。
 	_ = res
-	// TODO: Incident 创建后，触发排班(5)/升级(6)/通知(7)
 	return nil
 }
