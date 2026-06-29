@@ -80,4 +80,25 @@ test.describe("事件列表", () => {
     // 切回"全部" → 应有数据
     await authedPage.getByRole("button", { name: "全部" }).first().click();
   });
+
+  test("严重度筛选生效", async ({ authedPage }) => {
+    // 造一条 critical 告警
+    const token = await login();
+    const team = await seedTeam(token, "支付");
+    const svc = await seedService(token, "pay-api", team.id);
+    const { token: integToken } = await seedIntegration(token, "prometheus", team.id, svc.id);
+    await sendWebhook(integToken, svc.slug, "fp-incident-sev-1");
+
+    await authedPage.goto("/incidents");
+    // 等数据加载（点"全部"确保在完整列表态）
+    await authedPage.getByRole("button", { name: "全部" }).first().click();
+
+    // 筛"信息"（info）→ 应为空（造的告警是 critical）
+    await authedPage.getByRole("button", { name: "信息" }).click();
+    await expect(authedPage.getByText("暂无事件")).toBeVisible({ timeout: 15000 });
+
+    // 切回"严重"（critical）→ 应有数据
+    await authedPage.getByRole("button", { name: "严重" }).click();
+    await expect(authedPage.locator("tbody tr").first()).toBeVisible({ timeout: 15000 });
+  });
 });
