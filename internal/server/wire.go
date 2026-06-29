@@ -16,6 +16,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"strings"
 	"time"
 
@@ -49,6 +50,8 @@ import (
 
 	"github.com/hibiken/asynq"
 	"go.uber.org/zap"
+
+	"github.com/labstack/echo/v5"
 )
 
 // Wired 装配产物：调用方（main/e2e）生命周期管理需要的句柄。
@@ -187,7 +190,15 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	srv := New(cfg, st)
 	public := srv.PublicGroup()
 	v1 := srv.APIGroup()
-	v1.Use(auth.RequireUser(cfg.Auth.Enabled, identityResolver))
+
+	// QA 审计 C1：路由级 RBAC 守卫。原实现只在 v1 挂 RequireUser（仅身份解析），
+	// RequirePermPerRoute 定义了从未被调用——所有写路由对任意登录用户敞开。
+	// RouteGuard 按 (method,path) 查权限点命中鉴权，未登记路由保持现状（渐进启用）。
+	// 组级中间件先做身份解析 + 强制改密检查（C8），再挂守卫。
+	routeGuard := auth.NewRouteGuard(authz, identityResolver)
+	registerSensitiveRoutePerms(routeGuard)
+	v1.Use(auth.RequireUserWithGuard(cfg.Auth.Enabled, identityResolver, forcePasswordGuard(st.DB)))
+	v1.Use(routeGuard.Middleware())
 
 	// 公开路由（自带鉴权，不走 RBAC）
 	ingestHandler.Register(public)
@@ -204,7 +215,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		log.Info("test reset endpoint enabled (development only) at /api/v1/__test__/reset")
 	}
 
-	// 业务路由（受 RequireUser 保护）
+	// 业务路由（受 RequireUser + RouteGuard 保护）
 	authHandler.RegisterProtected(v1)
 	imHandler.RegisterStatus(v1)
 	apiKeyHandler := auth.NewAPIKeyHandler(st.DB)
@@ -492,4 +503,86 @@ type runbookEscalator struct {
 func (r runbookEscalator) Trigger(ctx context.Context, incID int, reason string) error {
 	_, err := r.inc.Escalate(ctx, incID, 0, incident.SourceRunbook)
 	return err
+}
+
+// registerSensitiveRoutePerms 登记敏感写路由的权限点（QA 审计 C1 RBAC 接线）。
+// 按 (method, path) 注册到 RouteGuard，命中则鉴权。路径与各 handler Register 中的定义一致。
+// 未登记的写路由保持现状（渐进启用）；本轮覆盖审计点名的越权风险面：
+// 角色管理 / API Key / incident 操作 / 排班 / 复盘删除 / runbook 等。
+func registerSensitiveRoutePerms(g *auth.RouteGuard) {
+	// 角色与角色绑定（M13.3）—— 最敏感：能自授任意角色。
+	g.RoutePerm(http.MethodPost, "/roles", auth.PermRoleCreate)
+	g.RoutePerm(http.MethodDelete, "/roles/:id", auth.PermRoleDelete)
+	g.RoutePerm(http.MethodPost, "/role-bindings", auth.PermRoleAssign)
+	g.RoutePerm(http.MethodDelete, "/role-bindings/:id", auth.PermRoleAssign)
+	// API Key（M13.7）—— 审计点名：原不限 org_admin，任何人可签发。
+	g.RoutePerm(http.MethodPost, "/api-keys", auth.PermAdminAPIKeyManage)
+	g.RoutePerm(http.MethodDelete, "/api-keys/:id", auth.PermAdminAPIKeyManage)
+	// 审计日志查看（M13.5）
+	g.RoutePerm(http.MethodGet, "/audit-logs", auth.PermAdminAuditView)
+	// incident 生命周期操作（M6.5 手动升级等）
+	g.RoutePerm(http.MethodPost, "/incidents/:id/ack", auth.PermIncidentAck)
+	g.RoutePerm(http.MethodPost, "/incidents/:id/resolve", auth.PermIncidentResolve)
+	g.RoutePerm(http.MethodPost, "/incidents/:id/escalate", auth.PermIncidentEscalate)
+	g.RoutePerm(http.MethodPost, "/incidents/:id/reopen", auth.PermIncidentReopen)
+	// 排班写操作 + override（M5.3）
+	g.RoutePerm(http.MethodPost, "/schedules", auth.PermScheduleCreate)
+	g.RoutePerm(http.MethodPatch, "/schedules/:id", auth.PermScheduleUpdate)
+	g.RoutePerm(http.MethodDelete, "/schedules/:id", auth.PermScheduleDelete)
+	// 升级策略
+	g.RoutePerm(http.MethodPost, "/escalation-policies", auth.PermEscalationCreate)
+	g.RoutePerm(http.MethodPatch, "/escalation-policies/:id", auth.PermEscalationUpdate)
+	g.RoutePerm(http.MethodDelete, "/escalation-policies/:id", auth.PermEscalationDelete)
+	// Runbook（M9 写操作安全护栏）
+	g.RoutePerm(http.MethodPost, "/runbooks", auth.PermRunbookCreate)
+	g.RoutePerm(http.MethodPatch, "/runbooks/:id", auth.PermRunbookUpdate)
+	g.RoutePerm(http.MethodDelete, "/runbooks/:id", auth.PermRunbookDelete)
+	g.RoutePerm(http.MethodPost, "/runbooks/:id/execute", auth.PermRunbookExecute)
+	// 复盘删除 + 状态流转 + 改进项（M12）
+	g.RoutePerm(http.MethodDelete, "/postmortems/:id", auth.PermPostmortemUpdate)
+	g.RoutePerm(http.MethodPatch, "/postmortems/:id/transition", auth.PermPostmortemPublish)
+	// 服务目录写（M13.4）
+	g.RoutePerm(http.MethodPost, "/services", auth.PermServiceCreate)
+	g.RoutePerm(http.MethodPatch, "/services/:id", auth.PermServiceUpdate)
+	g.RoutePerm(http.MethodDelete, "/services/:id", auth.PermServiceDelete)
+	// 接入点写（含 token 生成，M1.5）
+	g.RoutePerm(http.MethodPost, "/integrations", auth.PermIntegrationCreate)
+	g.RoutePerm(http.MethodPatch, "/integrations/:id", auth.PermIntegrationUpdate)
+	g.RoutePerm(http.MethodDelete, "/integrations/:id", auth.PermIntegrationDelete)
+	// 团队写（M13.2）
+	g.RoutePerm(http.MethodPost, "/teams", auth.PermTeamCreate)
+	g.RoutePerm(http.MethodPatch, "/teams/:id", auth.PermTeamUpdate)
+	g.RoutePerm(http.MethodDelete, "/teams/:id", auth.PermTeamDelete)
+	// 通知规则 / 抑制规则 / 模板写
+	g.RoutePerm(http.MethodPost, "/notification-rules", auth.PermNotificationRuleCreate)
+	g.RoutePerm(http.MethodPatch, "/notification-rules/:id", auth.PermNotificationRuleUpdate)
+	g.RoutePerm(http.MethodDelete, "/notification-rules/:id", auth.PermNotificationRuleDelete)
+	g.RoutePerm(http.MethodPost, "/suppression-rules", auth.PermSuppressionCreate)
+	g.RoutePerm(http.MethodPatch, "/suppression-rules/:id", auth.PermSuppressionUpdate)
+	g.RoutePerm(http.MethodDelete, "/suppression-rules/:id", auth.PermSuppressionDelete)
+	g.RoutePerm(http.MethodPost, "/notification-templates", auth.PermNotificationTemplateCreate)
+	g.RoutePerm(http.MethodPatch, "/notification-templates/:id", auth.PermNotificationTemplateUpdate)
+	g.RoutePerm(http.MethodDelete, "/notification-templates/:id", auth.PermNotificationTemplateDelete)
+}
+
+// forcePasswordGuard 强制改密守卫（QA 审计 C8 / H1.6）。
+// 用户 must_change_password=true 时，仅放行改密端点，其余业务 API 返回 403
+// 引导前端走改密流程，杜绝 admin/changeme 长期可用。
+func forcePasswordGuard(db *ent.Client) auth.UserGuard {
+	return func(c *echo.Context, uid int) (bool, int, string) {
+		// 仅放行改密端点本身 + 健康检查
+		path := c.Path()
+		if path == "/auth/change-password" || path == "/auth/me" || path == "/health" {
+			return true, 0, ""
+		}
+		u, err := db.User.Get(c.Request().Context(), uid)
+		if err != nil {
+			// 查不到用户不在此处阻断（交给后续 handler 处理），避免误伤
+			return true, 0, ""
+		}
+		if u.MustChangePassword {
+			return false, http.StatusForbidden, "must_change_password"
+		}
+		return true, 0, ""
+	}
 }

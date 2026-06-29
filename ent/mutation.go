@@ -22077,6 +22077,7 @@ type UserMutation struct {
 	status                      *user.Status
 	timezone                    *string
 	password_hash               *string
+	must_change_password        *bool
 	created_at                  *time.Time
 	updated_at                  *time.Time
 	clearedFields               map[string]struct{}
@@ -22558,6 +22559,42 @@ func (m *UserMutation) PasswordHashCleared() bool {
 func (m *UserMutation) ResetPasswordHash() {
 	m.password_hash = nil
 	delete(m.clearedFields, user.FieldPasswordHash)
+}
+
+// SetMustChangePassword sets the "must_change_password" field.
+func (m *UserMutation) SetMustChangePassword(b bool) {
+	m.must_change_password = &b
+}
+
+// MustChangePassword returns the value of the "must_change_password" field in the mutation.
+func (m *UserMutation) MustChangePassword() (r bool, exists bool) {
+	v := m.must_change_password
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMustChangePassword returns the old "must_change_password" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldMustChangePassword(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMustChangePassword is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMustChangePassword requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMustChangePassword: %w", err)
+	}
+	return oldValue.MustChangePassword, nil
+}
+
+// ResetMustChangePassword resets all changes to the "must_change_password" field.
+func (m *UserMutation) ResetMustChangePassword() {
+	m.must_change_password = nil
 }
 
 // SetCreatedAt sets the "created_at" field.
@@ -23044,7 +23081,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -23068,6 +23105,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.password_hash != nil {
 		fields = append(fields, user.FieldPasswordHash)
+	}
+	if m.must_change_password != nil {
+		fields = append(fields, user.FieldMustChangePassword)
 	}
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
@@ -23099,6 +23139,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Timezone()
 	case user.FieldPasswordHash:
 		return m.PasswordHash()
+	case user.FieldMustChangePassword:
+		return m.MustChangePassword()
 	case user.FieldCreatedAt:
 		return m.CreatedAt()
 	case user.FieldUpdatedAt:
@@ -23128,6 +23170,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldTimezone(ctx)
 	case user.FieldPasswordHash:
 		return m.OldPasswordHash(ctx)
+	case user.FieldMustChangePassword:
+		return m.OldMustChangePassword(ctx)
 	case user.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case user.FieldUpdatedAt:
@@ -23196,6 +23240,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPasswordHash(v)
+		return nil
+	case user.FieldMustChangePassword:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMustChangePassword(v)
 		return nil
 	case user.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -23310,6 +23361,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldPasswordHash:
 		m.ResetPasswordHash()
+		return nil
+	case user.FieldMustChangePassword:
+		m.ResetMustChangePassword()
 		return nil
 	case user.FieldCreatedAt:
 		m.ResetCreatedAt()

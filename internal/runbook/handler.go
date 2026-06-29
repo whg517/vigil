@@ -2,6 +2,7 @@
 package runbook
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -80,6 +81,11 @@ func (h *Handler) create(c *echo.Context) error {
 	}
 	if req.Name == "" {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "name required"})
+	}
+	// QA 审计 C4 数据层兜底：写步骤（Readonly=false）必须 RequireApproval=true，
+	// 防止通过配置绕过 engine 的"写操作必须 approved"安全控制。
+	if err := validateSteps(req.Steps); err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
 	}
 	rb := h.db.Runbook.Create().SetName(req.Name).SetType(entrunbook.Type(req.Type))
 	if req.ContentMarkdown != "" {
@@ -168,6 +174,10 @@ func (h *Handler) update(c *echo.Context) error {
 		u.SetTrigger(req.Trigger)
 	}
 	if req.Steps != nil {
+		// QA 审计 C4 数据层兜底：写步骤必须 RequireApproval=true。
+		if err := validateSteps(*req.Steps); err != nil {
+			return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
+		}
 		u.SetSteps(*req.Steps)
 	}
 	rb, err := u.Save(c.Request().Context())
@@ -232,4 +242,16 @@ func (h *Handler) execute(c *echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
 	return c.JSON(http.StatusOK, res)
+}
+
+// validateSteps 数据层兜底校验（QA 审计 C4）：
+// 写步骤（target.readonly=false）必须 require_approval=true。
+// 防止通过 API 配置成"写操作不需确认"绕过 engine 的强制 approved 控制。
+func validateSteps(steps []schema.RunbookStep) error {
+	for _, s := range steps {
+		if !s.Action.Target.Readonly && !s.RequireApproval {
+			return fmt.Errorf("step %q is a write action (readonly=false) and must set require_approval=true", s.Name)
+		}
+	}
+	return nil
 }

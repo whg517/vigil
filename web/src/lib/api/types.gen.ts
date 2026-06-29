@@ -733,6 +733,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 修改密码
+         * @description 校验旧密码并设置新密码，成功清除强制改密标志。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 旧密码 + 新密码 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["internal_auth.changePasswordReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: string;
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -5734,6 +5807,8 @@ export interface components {
             id?: number;
             /** @description IM 账号绑定（JSON，兼容字段；新数据见 im_bindings 表） */
             im_accounts?: components["schemas"]["github_com_kevin_vigil_ent_schema.IMAccount"][];
+            /** @description 强制改密标志（默认 admin seed 置 true） */
+            must_change_password?: boolean;
             /** @description 显示名 */
             name?: string;
             /** @description 电话，用于 SMS/语音 */
@@ -6126,6 +6201,10 @@ export interface components {
             scope?: string[];
             status?: string;
         };
+        "internal_auth.changePasswordReq": {
+            new_password?: string;
+            old_password?: string;
+        };
         "internal_auth.createBindingReq": {
             /** @description 可选，临时授权小时数 */
             expires_in_hours?: number;
@@ -6417,6 +6496,8 @@ export interface components {
         "internal_service.createReq": {
             auto_create_incident?: boolean;
             description?: string;
+            /** @description 可选，关联升级策略 */
+            escalation_policy_id?: number;
             labels?: {
                 [key: string]: string;
             };
@@ -6429,6 +6510,13 @@ export interface components {
         "internal_service.updateReq": {
             auto_create_incident?: boolean;
             description?: string;
+            /**
+             * @description EscalationPolicyID 关联升级策略。指针区分三种语义：
+             *       nil  —— 不修改（请求未带该字段）
+             *       0   —— 解除关联（显式清空）
+             *       >0  —— 关联指定策略
+             */
+            escalation_policy_id?: number;
             labels?: {
                 [key: string]: string;
             };

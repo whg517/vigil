@@ -24,3 +24,36 @@ func VerifyPassword(pw, hash string) bool {
 	}
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
 }
+
+// ValidatePasswordStrength 校验新密码强度（QA 审计 C8 强制改密链路用）。
+// 规则（保守，避免过度限制可用性）：
+//   - 长度 ≥ 8
+//   - 至少含两类字符：字母 / 数字 / 符号
+//
+// 返回不满足的规则说明（空串表示通过）。
+func ValidatePasswordStrength(pw string) string {
+	if len(pw) < 8 {
+		return "password must be at least 8 characters"
+	}
+	hasLetter, hasDigit, hasSymbol := false, false, false
+	for _, r := range pw {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z'):
+			hasLetter = true
+		case r >= '0' && r <= '9':
+			hasDigit = true
+		default:
+			hasSymbol = true
+		}
+	}
+	classes := 0
+	for _, b := range []bool{hasLetter, hasDigit, hasSymbol} {
+		if b {
+			classes++
+		}
+	}
+	if classes < 2 {
+		return "password must contain at least two of: letters, digits, symbols"
+	}
+	return ""
+}

@@ -32,6 +32,10 @@ func TestSeedDefaultAdmin_CreatesAdmin(t *testing.T) {
 	if !VerifyPassword("changeme", admin.PasswordHash) {
 		t.Error("admin password is not changeme")
 	}
+	// QA 审计 C8：seed 的 admin 必须置 must_change_password=true（强制首登改密）
+	if !admin.MustChangePassword {
+		t.Error("seeded admin must_change_password=false, want true")
+	}
 }
 
 // TestSeedDefaultAdmin_Idempotent 已有 admin 时再次调用幂等（created=false，无副作用）。

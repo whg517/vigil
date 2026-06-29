@@ -833,6 +833,7 @@ var (
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "disabled"}, Default: "active"},
 		{Name: "timezone", Type: field.TypeString, Default: "Asia/Shanghai"},
 		{Name: "password_hash", Type: field.TypeString, Nullable: true},
+		{Name: "must_change_password", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

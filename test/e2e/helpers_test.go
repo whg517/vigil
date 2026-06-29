@@ -14,6 +14,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/timelineitem"
+	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/auth"
 
 	"github.com/onsi/ginkgo/v2"
@@ -70,10 +71,20 @@ var _ = ginkgo.BeforeEach(func() {
 
 // reseedAdmin 重建默认管理员（admin/changeme）并刷新全局 adminToken。
 // SeedDefaultAdmin 幂等：resetDB 清空后调它会重建。
+//
+// 注意（QA 审计 C8）：SeedDefaultAdmin 现在置 must_change_password=true，强制首登改密。
+// e2e 是可信测试环境（admin/changeme 已知），重建后立即清除该标志，避免 forcePasswordGuard
+// 拦截测试用例的业务 API 调用。生产部署首登会走 /auth/change-password 流程。
 func reseedAdmin() {
 	ctx := context.Background()
 	_, err := auth.SeedDefaultAdmin(ctx, testEnv.Store.DB)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "reseed admin")
+	// 清除强制改密标志（测试环境，admin 凭证已知可信）
+	_, err = testEnv.Store.DB.User.Update().
+		SetMustChangePassword(false).
+		Where(user.UsernameEQ("admin")).
+		Save(ctx)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "clear must_change_password for e2e")
 	adminToken = loginAdmin(testEnv)
 }
 

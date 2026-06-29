@@ -123,10 +123,13 @@ func (e *Engine) executeStep(ctx context.Context, step schema.RunbookStep, appro
 	start := time.Now()
 	sr := StepResult{StepID: step.ID, Name: step.Name, Action: step.Action.Type}
 
-	// ★ 核心安全控制：写动作必须确认
-	if !step.Action.Target.Readonly && step.RequireApproval && !approved {
+	// ★ 核心安全控制（QA 审计 C4）：写操作一律需 confirmed，与 RequireApproval 标志解耦。
+	// 旧逻辑 `!Readonly && RequireApproval && !approved` 用 AND——若配置成
+	// RequireApproval=false 且 Readonly=false，写操作会无确认直接执行，绕过安全红线
+	// （可触发回滚/扩容等危险动作）。改为：凡非只读步骤，approved=false 一律 skip。
+	if !step.Action.Target.Readonly && !approved {
 		sr.Skipped = true
-		sr.Error = "require_approval not confirmed, skipped"
+		sr.Error = "write action requires approval, skipped"
 		return sr
 	}
 

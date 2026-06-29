@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/enttest"
+	"github.com/kevin/vigil/ent/user"
 
 	"github.com/labstack/echo/v5"
 	_ "github.com/mattn/go-sqlite3"
@@ -234,4 +236,98 @@ func TestMe_Unauthenticated(t *testing.T) {
 
 func contains(s, sub string) bool {
 	return bytes.Contains([]byte(s), []byte(sub))
+}
+
+// —— QA 审计 C8：密码强度校验 ——
+
+func TestValidatePasswordStrength(t *testing.T) {
+	cases := []struct {
+		pw   string
+		want string // 空串表示通过
+	}{
+		{"short", "at least 8"}, // 太短
+		{"abcdefgh", "two of"},  // 仅字母一类
+		{"12345678", "two of"},  // 仅数字一类
+		{"abcd1234", ""},        // 字母+数字 → 通过
+		{"abcdefg1!", ""},       // 三类 → 通过
+		{"Abcd1234", ""},        // 大小写+数字 → 通过
+	}
+	for _, tc := range cases {
+		got := ValidatePasswordStrength(tc.pw)
+		if tc.want == "" {
+			if got != "" {
+				t.Errorf("ValidatePasswordStrength(%q)=%q, want pass", tc.pw, got)
+			}
+		} else {
+			if !contains(got, tc.want) {
+				t.Errorf("ValidatePasswordStrength(%q)=%q, want containing %q", tc.pw, got, tc.want)
+			}
+		}
+	}
+}
+
+// —— QA 审计 C8：修改密码端点 ——
+
+// TestChangePassword_Success 正确旧密码 + 合格新密码 → 200 + 清除 must_change_password。
+func TestChangePassword_Success(t *testing.T) {
+	c := newAuthTestClient(t) // alice 密码 "pw"
+	h := NewAuthHandler(c, newTestSigner1m())
+	// 标记 alice 强制改密
+	ctx := context.Background()
+	alice, _ := c.User.Query().Where(user.UsernameEQ("alice")).Only(ctx)
+	_ = c.User.UpdateOneID(alice.ID).SetMustChangePassword(true).Exec(ctx)
+
+	e := echo.New()
+	e.POST("/api/v1/auth/change-password", h.changePassword, RequireUser(true, nil))
+
+	body := changePasswordReq{OldPassword: "pw", NewPassword: "alice-new-123"}
+	req := postJSON("/api/v1/auth/change-password", body)
+	req.Header.Set("X-Vigil-User-ID", strconv.Itoa(alice.ID))
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	// 验证新密码生效 + 标志清除
+	updated, _ := c.User.Get(ctx, alice.ID)
+	if !VerifyPassword("alice-new-123", updated.PasswordHash) {
+		t.Error("new password not set")
+	}
+	if updated.MustChangePassword {
+		t.Error("must_change_password not cleared after change")
+	}
+}
+
+// TestChangePassword_WrongOld 旧密码错误 → 401，不改密。
+func TestChangePassword_WrongOld(t *testing.T) {
+	c := newAuthTestClient(t)
+	h := NewAuthHandler(c, newTestSigner1m())
+	e := echo.New()
+	e.POST("/api/v1/auth/change-password", h.changePassword, RequireUser(true, nil))
+
+	req := postJSON("/api/v1/auth/change-password",
+		changePasswordReq{OldPassword: "wrong", NewPassword: "alice-new-123"})
+	req.Header.Set("X-Vigil-User-ID", "1")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status %d, want 401; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestChangePassword_WeakNew 新密码强度不足 → 400。
+func TestChangePassword_WeakNew(t *testing.T) {
+	c := newAuthTestClient(t)
+	h := NewAuthHandler(c, newTestSigner1m())
+	e := echo.New()
+	e.POST("/api/v1/auth/change-password", h.changePassword, RequireUser(true, nil))
+
+	req := postJSON("/api/v1/auth/change-password",
+		changePasswordReq{OldPassword: "pw", NewPassword: "weak"})
+	req.Header.Set("X-Vigil-User-ID", "1")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
 }

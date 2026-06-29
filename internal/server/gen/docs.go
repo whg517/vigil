@@ -1546,6 +1546,10 @@ const docTemplate = `{
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "must_change_password": {
+                        "description": "强制改密标志（默认 admin seed 置 true）",
+                        "type": "boolean"
+                    },
                     "name": {
                         "description": "显示名",
                         "type": "string"
@@ -2637,6 +2641,17 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "internal_auth.changePasswordReq": {
+                "properties": {
+                    "new_password": {
+                        "type": "string"
+                    },
+                    "old_password": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_auth.createBindingReq": {
                 "properties": {
                     "expires_in_hours": {
@@ -3407,6 +3422,10 @@ const docTemplate = `{
                     "description": {
                         "type": "string"
                     },
+                    "escalation_policy_id": {
+                        "description": "可选，关联升级策略",
+                        "type": "integer"
+                    },
                     "labels": {
                         "additionalProperties": {
                             "type": "string"
@@ -3436,6 +3455,10 @@ const docTemplate = `{
                     },
                     "description": {
                         "type": "string"
+                    },
+                    "escalation_policy_id": {
+                        "description": "EscalationPolicyID 关联升级策略。指针区分三种语义：\n  nil  —— 不修改（请求未带该字段）\n  0   —— 解除关联（显式清空）\n  \u003e0  —— 关联指定策略",
+                        "type": "integer"
                     },
                     "labels": {
                         "additionalProperties": {
@@ -4342,6 +4365,85 @@ const docTemplate = `{
                 "summary": "审计日志查询",
                 "tags": [
                     "audit"
+                ]
+            }
+        },
+        "/auth/change-password": {
+            "post": {
+                "description": "校验旧密码并设置新密码，成功清除强制改密标志。",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/internal_auth.changePasswordReq",
+                                        "description": "旧密码 + 新密码",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "旧密码 + 新密码",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "修改密码",
+                "tags": [
+                    "auth"
                 ]
             }
         },

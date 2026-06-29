@@ -63,9 +63,65 @@ func (h *AuthHandler) RegisterPublic(g *echo.Group) {
 	g.POST("/auth/refresh", h.refresh)
 }
 
-// RegisterProtected 挂载需已登录态的路由（me）。挂到 v1（带 RequireUser）。
+// RegisterProtected 挂载需已登录态的路由（me / change-password）。挂到 v1（带 RequireUser）。
 func (h *AuthHandler) RegisterProtected(g *echo.Group) {
 	g.GET("/auth/me", h.me)
+	g.POST("/auth/change-password", h.changePassword)
+}
+
+type changePasswordReq struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+// changePassword 修改当前用户密码（QA 审计 C8 强制改密闭环）。
+// 校验旧密码 + 新密码强度，成功后清除 must_change_password 标志。
+// 默认 admin 被中间件标记 must_change_password=true 后，唯一出路就是此端点改密。
+//
+// @Summary      修改密码
+// @Description  校验旧密码并设置新密码，成功清除强制改密标志。
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body  changePasswordReq  true  "旧密码 + 新密码"
+// @Success      200   {object}  map[string]string
+// @Failure      400   {object}  httputil.ErrorResponse
+// @Failure      401   {object}  httputil.ErrorResponse
+// @Failure      500   {object}  httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /auth/change-password [post]
+func (h *AuthHandler) changePassword(c *echo.Context) error {
+	uid, ok := UserIDFromContext(c.Request().Context())
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "not authenticated"})
+	}
+	var req changePasswordReq
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
+	}
+	if req.OldPassword == "" || req.NewPassword == "" {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "old_password and new_password required"})
+	}
+	if msg := ValidatePasswordStrength(req.NewPassword); msg != "" {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: msg})
+	}
+	if req.OldPassword == req.NewPassword {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "new password must differ from old"})
+	}
+	u, err := h.db.User.Get(c.Request().Context(), uid)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "user not found"})
+	}
+	if !VerifyPassword(req.OldPassword, u.PasswordHash) {
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid old password"})
+	}
+	if err := h.db.User.UpdateOneID(uid).
+		SetPasswordHash(HashPassword(req.NewPassword)).
+		SetMustChangePassword(false).
+		Exec(c.Request().Context()); err != nil {
+		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // toLoginUser 把 ent.User 裁剪为对前端安全的视图（不含 password_hash）。

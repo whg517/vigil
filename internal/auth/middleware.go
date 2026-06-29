@@ -78,6 +78,17 @@ func parseTeamScope(c *echo.Context) *int {
 // RequireUser 仅做身份解析（不校验权限），用于"需登录但任何角色可访问"的接口。
 // 无任何有效身份时按 enforce 决定：enforce=true 返回 401；enforce=false 放行（匿名，渐进启用）。
 func RequireUser(enforce bool, resolver *IdentityResolver) echo.MiddlewareFunc {
+	return RequireUserWithGuard(enforce, resolver, nil)
+}
+
+// UserGuard 已鉴权用户的额外准入校验（在身份解析通过后、放行前执行）。
+// 返回 (allowed=true, _, _) 放行；(false, code, msg) 则以该 code/msg 中断。
+// 典型用途：强制改密（QA 审计 C8）——must_change_password=true 时仅放行改密端点。
+type UserGuard func(c *echo.Context, uid int) (allowed bool, denyCode int, denyMsg string)
+
+// RequireUserWithGuard 带 UserGuard 的 RequireUser（QA 审计 C8）。
+// guard 为 nil 时退化为 RequireUser。
+func RequireUserWithGuard(enforce bool, resolver *IdentityResolver, guard UserGuard) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			uid, ok := resolver.Resolve(c.Request().Context(), c.Request().Header)
@@ -88,6 +99,14 @@ func RequireUser(enforce bool, resolver *IdentityResolver) echo.MiddlewareFunc {
 				return next(c) // 匿名放行（渐进启用阶段）
 			}
 			c.SetRequest(c.Request().WithContext(context.WithValue(c.Request().Context(), ctxUser, uid)))
+
+			// 额外准入校验（如强制改密）
+			if guard != nil {
+				allowed, code, msg := guard(c, uid)
+				if !allowed {
+					return c.JSON(code, map[string]string{"error": msg})
+				}
+			}
 			return next(c)
 		}
 	}

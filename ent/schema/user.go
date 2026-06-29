@@ -30,6 +30,9 @@ func (User) Fields() []ent.Field {
 		// Sensitive：ent 序列化/日志时自动脱敏，避免泄露。
 		// 仅 JWT 登录链路使用；IM/SSO 绑定不写此字段。空=未设密码，拒绝密码登录。
 		field.String("password_hash").Sensitive().Optional().Comment("密码哈希（bcrypt），仅登录链路用"),
+		// must_change_password 强制改密标志（H1.6 默认安全）：
+		// 默认管理员 seed 时置 true，登录后必须改密才能访问业务 API，杜绝 admin/changeme 长期可用。
+		field.Bool("must_change_password").Default(false).Comment("强制改密标志（默认 admin seed 置 true）"),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}

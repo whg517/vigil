@@ -115,6 +115,44 @@ func TestExecute_WriteRequiresApproval(t *testing.T) {
 	}
 }
 
+// TestExecute_WriteBypass_ConfigNoApproval QA 审计 C4：写步骤即便配置成
+// RequireApproval=false（用户误配/恶意配置），approved=false 时也必须 skip。
+// 旧实现用 `!Readonly && RequireApproval && !approved`（AND）→ 此场景会绕过审批直接执行。
+func TestExecute_WriteBypass_ConfigNoApproval(t *testing.T) {
+	writeCalled := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t)
+	rb := createExecRunbook(t, c, []schema.RunbookStep{
+		{
+			ID: "s1", Name: "扩容",
+			Action: schema.StepAction{
+				Type:   "execute",
+				Target: schema.StepTarget{Kind: "http", Endpoint: srv.URL, Readonly: false},
+			},
+			RequireApproval: false, // ★ 故意配置成"不需确认"——旧逻辑会被绕过
+			OnFailure:       "continue",
+		},
+	})
+	eng := NewEngine(c, NewRegistry())
+
+	// approved=false：写操作必须 skip（C4 修复后与 RequireApproval 标志解耦）
+	res, err := eng.Execute(context.Background(), rb.ID, 0, false)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if writeCalled {
+		t.Fatal("写端点不应被调用：写操作必须 approved（即使 RequireApproval=false，C4 安全红线）")
+	}
+	if len(res.Steps) != 1 || !res.Steps[0].Skipped {
+		t.Fatalf("expected step skipped (write without approval), got %+v", res.Steps)
+	}
+}
+
 // TestExecute_OnFailureAbort 验证 abort 中止后续步骤。
 func TestExecute_OnFailureAbort(t *testing.T) {
 	c := newTestClient(t)

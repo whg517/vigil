@@ -31,6 +31,8 @@ const (
 	FieldTimezone = "timezone"
 	// FieldPasswordHash holds the string denoting the password_hash field in the database.
 	FieldPasswordHash = "password_hash"
+	// FieldMustChangePassword holds the string denoting the must_change_password field in the database.
+	FieldMustChangePassword = "must_change_password"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -107,6 +109,7 @@ var Columns = []string{
 	FieldStatus,
 	FieldTimezone,
 	FieldPasswordHash,
+	FieldMustChangePassword,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -138,6 +141,8 @@ var (
 	UsernameValidator func(string) error
 	// DefaultTimezone holds the default value on creation for the "timezone" field.
 	DefaultTimezone string
+	// DefaultMustChangePassword holds the default value on creation for the "must_change_password" field.
+	DefaultMustChangePassword bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -213,6 +218,11 @@ func ByTimezone(opts ...sql.OrderTermOption) OrderOption {
 // ByPasswordHash orders the results by the password_hash field.
 func ByPasswordHash(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPasswordHash, opts...).ToFunc()
+}
+
+// ByMustChangePassword orders the results by the must_change_password field.
+func ByMustChangePassword(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMustChangePassword, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.
