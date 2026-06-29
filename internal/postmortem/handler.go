@@ -51,7 +51,7 @@ func (h *Handler) list(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
-	return c.JSON(http.StatusOK, pms)
+	return c.JSON(http.StatusOK, flattenAll(pms))
 }
 
 // get 复盘详情（含 incident + action-items 关联）。
@@ -78,7 +78,7 @@ func (h *Handler) get(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
-	return c.JSON(http.StatusOK, pm)
+	return c.JSON(http.StatusOK, flatten(pm))
 }
 
 // generateDraft 为事件生成复盘草稿（AI + 时间线）。
@@ -102,7 +102,7 @@ func (h *Handler) generateDraft(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
-	return c.JSON(http.StatusCreated, pm)
+	return c.JSON(http.StatusCreated, flatten(pm))
 }
 
 // transitionReq 状态流转请求。
@@ -135,7 +135,7 @@ func (h *Handler) transition(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
 	}
-	return c.JSON(http.StatusOK, pm)
+	return c.JSON(http.StatusOK, flatten(pm))
 }
 
 // addActionItemReq 添加改进项。

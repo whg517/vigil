@@ -9,8 +9,7 @@ import { test, expect } from "./fixtures";
 import { login, seedTeam, seedService } from "./api-client";
 
 test.describe("服务编辑与删除", () => {
-  // TODO(隔离): 全量跑时受前序 services-crud 测试数据污染 + React Query staleTime
-  // 缓存，单独跑通过。待测试数据用唯一标识（避免重名污染）+ staleTime 策略调整后启用。
+  // TODO(渲染): 编辑/删除后列表渲染时序问题（同 users-teams）。API 验证正常。
   test.skip("编辑服务 → 名称更新", async ({ authedPage }) => {
     const token = await login();
     const team = await seedTeam(token, "运维");
@@ -37,7 +36,7 @@ test.describe("服务编辑与删除", () => {
     await expect(authedPage.getByText("pay-api-renamed")).toBeVisible({ timeout: 10000 });
   });
 
-  // TODO(隔离): 删除后列表刷新受 staleTime 缓存影响，待启用。
+  // TODO(渲染): 删除后列表未移除（refetch 时序/渲染问题）。删除 API 验证正常。
   test.skip("删除服务 → 列表移除", async ({ authedPage }) => {
     const token = await login();
     const team = await seedTeam(token, "运维");

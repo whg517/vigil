@@ -19,31 +19,28 @@ test.describe("用户与团队", () => {
     await expect(authedPage.getByRole("button", { name: "创建团队" })).toBeVisible({ timeout: 5000 });
   });
 
-  // TODO(隔离): 创建/删除后列表刷新受 staleTime 缓存 + 测试间污染影响，待启用。
+  // TODO(渲染): 创建后 DB 有数据 + refetch 发出，但 TeamsTab 列表未渲染新项
+  // （React Query refetch 时序/组件更新问题）。团队创建 API 验证正常。待排查后启用。
   test.skip("创建团队 → 列表出现", async ({ authedPage }) => {
     await authedPage.goto("/users-teams");
     await authedPage.getByRole("button", { name: "团队" }).click();
     await expect(authedPage.getByRole("button", { name: "创建团队" })).toBeVisible();
 
     await authedPage.getByRole("button", { name: "创建团队" }).click();
-    // Dialog 出现（标题含"创建团队"）
     await expect(authedPage.getByRole("heading", { name: "创建团队" })).toBeVisible({ timeout: 5000 });
 
-    // 填名称 + slug（都是 required，否则创建按钮 disabled）
     await authedPage.getByPlaceholder("SRE 平台组").fill("e2e-team");
-    await authedPage.getByPlaceholder("sre-platform").fill(`e2e-team-${Date.now()}`);
+    const slugInput = authedPage.getByPlaceholder("sre-platform");
+    await slugInput.fill(`e2e-team-${Date.now()}`);
 
-    // 提交后等列表刷新（invalidateQueries refetch）
-    const [resp] = await Promise.all([
-      authedPage.waitForResponse((r) => r.url().includes("/teams") && r.status() === 200),
-      authedPage.getByRole("button", { name: "创建", exact: true }).click(),
-    ]);
+    // click 创建按钮在该 form 偶发不触发 submit，用 Enter 提交（同改进项测试）。
+    await slugInput.press("Enter");
 
-    // 列表出现新团队
     await expect(authedPage.getByText("e2e-team")).toBeVisible({ timeout: 10000 });
   });
 
   // TODO(隔离): 同创建团队，全量跑时 staleTime + 污染，待启用。
+  // TODO(渲染): 同创建团队，列表渲染时序问题。
   test.skip("删除团队 → 列表移除", async ({ authedPage }) => {
     // 先用 API 创建团队（聚焦删除交互）
     const { login, seedTeam } = await import("./api-client");
