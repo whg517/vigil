@@ -51,32 +51,34 @@ test.describe("复盘", () => {
     await expect(authedPage.getByText(/复盘 #/)).toBeVisible({ timeout: 15000 });
   });
 
-  // TODO(前端): 状态转换 + 改进项 UI 刷新偶发不生效（React Query invalidateQueries
-  // 在详情页未可靠触发 refetch，DB 已写入但 UI 未更新）。后端 API 验证正常。
-  // 待排查 postmortem 详情页的 queryKey 失配后启用以下两个测试。
+  // TODO(前端): 状态转换 Select 是受控组件，Playwright selectOption 修改 DOM 后
+  // React onChange 未捕获，state 不更新。需用 dispatchEvent 或改用键盘交互。
+  // 后端 transition API 已验证正常（draft→in_review→published）。待 Select 交互稳定后启用。
   test.skip("状态转换：draft → in_review → published", async ({ authedPage }) => {
     const token = await login();
     const incId = await setupIncidentForPostmortem(token);
-    // API 起草（聚焦状态转换交互）
     const pm = await seedDraftViaApi(token, incId);
 
     await authedPage.goto(`/postmortems`);
-    // postmortem 详情靠 selected state（非路由），点卡片进入。精确文案定位。
     await authedPage.getByText(`复盘 #${pm.id}`, { exact: true }).click();
     await expect(authedPage.getByText(`复盘 #${pm.id}`, { exact: true })).toBeVisible({ timeout: 10000 });
 
-    // 状态 Select：详情页顶部「状态」label 旁的 select。逐步转换 draft→in_review→published。
-    const statusSelect = authedPage.locator("select").first();
-    await statusSelect.selectOption("in_review");
-    // 等 transition API 完成 + UI 刷新
-    await authedPage.waitForTimeout(2000);
-    await statusSelect.selectOption("published");
-    await authedPage.waitForTimeout(2000);
+    // 通过 UI Select 转换状态（React Query mutation 会更新缓存，绕开 staleTime 缓存）。
+    // 用「状态」label 精确定位详情页的状态 Select。
+    const statusSelect = authedPage.locator("label", { hasText: "状态" }).locator("+ select, ~ select").first();
+    // 兜底：若 label 兄弟定位不稳，用页面第一个含状态选项的 select
+    const target = (await statusSelect.count()) > 0 ? statusSelect : authedPage.locator("select").first();
 
-    // 验证状态徽章变「已发布」
+    await target.selectOption("in_review");
+    // 等 transition mutation 完成（setQueryData 更新徽章）
+    await expect(authedPage.getByText("评审中").first()).toBeVisible({ timeout: 10000 });
+
+    await target.selectOption("published");
     await expect(authedPage.getByText("已发布").first()).toBeVisible({ timeout: 10000 });
   });
 
+  // TODO(前端): 改进项添加后 invalidateQueries 因 staleTime 15s 缓存未立即 refetch。
+  // 需前端 mutation 后强制 refetch 或测试等待过期。待 staleTime 策略调整后启用。
   test.skip("改进项 CRUD：添加 → 删除", async ({ authedPage }) => {
     const token = await login();
     const incId = await setupIncidentForPostmortem(token);
@@ -86,12 +88,12 @@ test.describe("复盘", () => {
     await authedPage.getByText(`复盘 #${pm.id}`, { exact: true }).click();
     await expect(authedPage.getByText(`复盘 #${pm.id}`, { exact: true })).toBeVisible({ timeout: 10000 });
 
-    // 添加改进项（form submit）
+    // 通过 UI 添加改进项（mutation invalidate 详情 query，绕开 staleTime 缓存）
     await authedPage.getByPlaceholder("添加改进项…").fill("e2e-改进项-补充监控");
     await authedPage.getByRole("button", { name: "添加", exact: true }).click();
 
-    // 改进项出现（invalidateQueries 触发 refetch，给足时间；必要时 reload 兜底）
-    await expect(authedPage.getByText("e2e-改进项-补充监控")).toBeVisible({ timeout: 15000 });
+    // 改进项出现
+    await expect(authedPage.getByText("e2e-改进项-补充监控")).toBeVisible({ timeout: 10000 });
 
     // 删除改进项（改进项行的删除按钮）
     const itemRow = authedPage.locator("li", { hasText: "e2e-改进项-补充监控" });
@@ -109,4 +111,24 @@ async function seedDraftViaApi(token: string, incidentId: number): Promise<any> 
   });
   if (!resp.ok) throw new Error(`draft postmortem failed: ${resp.status} ${await resp.text()}`);
   return resp.json();
+}
+
+/** 通过 API 转换复盘状态。 */
+async function transitionViaApi(token: string, pmId: number, status: string): Promise<void> {
+  const resp = await fetch(`http://localhost:28080/api/v1/postmortems/${pmId}/transition`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status }),
+  });
+  if (!resp.ok) throw new Error(`transition ${status} failed: ${resp.status} ${await resp.text()}`);
+}
+
+/** 通过 API 添加改进项。 */
+async function addActionItemViaApi(token: string, pmId: number, description: string): Promise<void> {
+  const resp = await fetch(`http://localhost:28080/api/v1/postmortems/${pmId}/action-items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ description }),
+  });
+  if (!resp.ok) throw new Error(`add action item failed: ${resp.status}`);
 }

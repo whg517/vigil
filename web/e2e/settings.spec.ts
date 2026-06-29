@@ -30,23 +30,23 @@ test.describe("设置页", () => {
     });
   }
 
-  // TODO(前端): API Key 创建 Dialog 选择器/刷新待稳定后启用。
-  test.skip("创建 API Key → 展示一次性 token", async ({ authedPage }) => {
+  test("创建 API Key → 展示一次性 token", async ({ authedPage }) => {
     await authedPage.goto("/settings");
     await authedPage.getByRole("button", { name: "API Key" }).click();
 
-    // RBAC tab 也有创建按钮，切到 API Key 后点其创建
+    // API Key tab 的创建按钮（Tab 内第一个创建按钮）
     await authedPage.getByRole("button", { name: "创建" }).first().click();
-    await expect(authedPage.getByRole("heading", { name: /API Key|创建/ }).last()).toBeVisible({
+    await expect(authedPage.getByRole("heading", { name: "创建 API Key" })).toBeVisible({
       timeout: 5000,
     });
 
-    // 填名称（Dialog 内 input，autofocus）
-    await authedPage.locator("input").last().fill("e2e-key");
-    await authedPage.getByRole("button", { name: "创建", exact: true }).click();
+    // 填名称（用 placeholder 精确定位，避免匹配到有效期 number input）
+    await authedPage.getByPlaceholder("ci-deploy-key").fill("e2e-key");
+    // Dialog 内的提交按钮（用 form 定位避免匹配 RBAC 的创建按钮）
+    await authedPage.locator("form").getByRole("button", { name: "创建", exact: true }).click();
 
-    // 应展示一次性 token（vig_ 开头或"已创建"提示）
-    await expect(authedPage.getByText(/vig_|token|已创建|请立即/i).first()).toBeVisible({
+    // 应展示一次性 token（"API Key 已创建"二次态）
+    await expect(authedPage.getByRole("heading", { name: "API Key 已创建" })).toBeVisible({
       timeout: 10000,
     });
   });

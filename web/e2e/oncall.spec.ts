@@ -13,6 +13,17 @@ import { login, seedTeam, BASE_URL } from "./api-client";
 
 test.describe("值班排班", () => {
   test("空数据状态：显示提示，不崩溃", async ({ authedPage }) => {
+    // 前序测试（oncall-create）造的排班可能残留，显式确保空起点
+    const token = await login();
+    const check = await fetch("http://localhost:28080/api/v1/schedules", {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+    if ((check.items?.length ?? check.length ?? 0) > 0) {
+      const { resetDB } = await import("./api-client");
+      await resetDB();
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+
     await authedPage.goto("/oncall");
 
     await expect(authedPage.getByRole("heading", { name: "值班排班" })).toBeVisible();

@@ -7,14 +7,13 @@
 import { test, expect } from "./fixtures";
 
 test.describe("升级策略创建", () => {
-// TODO(前端): 创建后列表刷新偶发不生效，待排查后启用。
-test.skip("创建策略 → 列表出现", async ({ authedPage }) => {
+test("创建策略 → 列表出现", async ({ authedPage }) => {
     await authedPage.goto("/escalation-policies");
     await expect(authedPage.getByRole("heading", { name: "升级策略" })).toBeVisible();
 
-    // 打开创建 Dialog
+    // 打开创建 Dialog（标题是"创建升级策略"）
     await authedPage.getByRole("button", { name: "创建策略" }).click();
-    await expect(authedPage.getByRole("heading", { name: "创建策略" }).last()).toBeVisible();
+    await expect(authedPage.getByRole("heading", { name: "创建升级策略" })).toBeVisible();
 
     // 填名称
     await authedPage.getByPlaceholder("默认升级（5min→IM）").fill("e2e-策略");
