@@ -48,6 +48,28 @@ func routeKey(method, path string) string {
 	return strings.ToUpper(method) + " " + path
 }
 
+// apiGroupPrefix 业务路由组的 URL 前缀（与 server.go 的 e.Group("/api/v1") 一致）。
+// RoutePerm 登记的是 handler 内的相对路径（无前缀），而 echo c.Path() 含前缀，
+// 故 lookupPerm 需去前缀再查。集中定义避免多处硬编码不一致。
+const apiGroupPrefix = "/api/v1"
+
+// lookupPerm 查权限点：同时尝试完整路径与去 API 前缀的相对路径（QA 修正）。
+// 命中其一即返回。兼容 RoutePerm 登记的相对路径与 echo c.Path() 的完整路径。
+func (g *RouteGuard) lookupPerm(method, fullPath string) (Permission, bool) {
+	// 1. 直接用完整路径查（若 RoutePerm 登记的是含前缀路径）
+	if perm, ok := g.routes[routeKey(method, fullPath)]; ok {
+		return perm, true
+	}
+	// 2. 去 API 前缀查（RoutePerm 登记的是 handler 相对路径的常规情况）
+	rel := strings.TrimPrefix(fullPath, apiGroupPrefix)
+	if rel != fullPath {
+		if perm, ok := g.routes[routeKey(method, rel)]; ok {
+			return perm, true
+		}
+	}
+	return "", false
+}
+
 // RoutePerm 登记一条路由所需的权限点。guard 为 nil 时 no-op（向后兼容）。
 // 同时返回传入的 middleware（若需 per-route 显式挂载）。
 func (g *RouteGuard) RoutePerm(method, path string, perm Permission) {
@@ -59,13 +81,17 @@ func (g *RouteGuard) RoutePerm(method, path string, perm Permission) {
 
 // Middleware 返回挂到 echo.Group 的中间件：对每个请求查表，命中则鉴权。
 // 未登记的路由放行（渐进启用）。authz 为 nil 时整体放行（降级）。
+//
+// 路径匹配（QA 修正）：echo v5 的 c.Path() 返回含 group 前缀的完整路径
+// （如 /api/v1/incidents/:id/ack），而 RoutePerm 登记的是 handler 内的相对路径
+// （/incidents/:id/ack）。因此查找时同时尝试完整路径与去前缀路径，命中其一即鉴权。
 func (g *RouteGuard) Middleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			if g == nil || g.authz == nil {
 				return next(c)
 			}
-			perm, ok := g.routes[routeKey(c.Request().Method, c.Path())]
+			perm, ok := g.lookupPerm(c.Request().Method, c.Path())
 			if !ok {
 				// 未登记为敏感路由 → 放行（仍受组级 RequireUser 身份解析保护）
 				return next(c)

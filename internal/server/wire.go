@@ -649,8 +649,10 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 // 引导前端走改密流程，杜绝 admin/changeme 长期可用。
 func forcePasswordGuard(db *ent.Client) auth.UserGuard {
 	return func(c *echo.Context, uid int) (bool, int, string) {
-		// 仅放行改密端点本身 + 健康检查
-		path := c.Path()
+		// echo v5 的 c.Path() 含 group 前缀（/api/v1/...），去前缀后比对放行清单
+		// （与 RouteGuard.lookupPerm 同款修正：原写法比对的是相对路径，永远不匹配 →
+		// 改密端点本身也会被守卫拦死，导致改密闭环无法走通）。
+		path := strings.TrimPrefix(c.Path(), "/api/v1")
 		if path == "/auth/change-password" || path == "/auth/me" || path == "/health" {
 			return true, 0, ""
 		}

@@ -13,6 +13,8 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
+	"github.com/kevin/vigil/ent/role"
+	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/auth"
@@ -75,16 +77,41 @@ var _ = ginkgo.BeforeEach(func() {
 // 注意（QA 审计 C8）：SeedDefaultAdmin 现在置 must_change_password=true，强制首登改密。
 // e2e 是可信测试环境（admin/changeme 已知），重建后立即清除该标志，避免 forcePasswordGuard
 // 拦截测试用例的业务 API 调用。生产部署首登会走 /auth/change-password 流程。
+//
+// 注意（e2e RBAC 修正）：resetDB 清空了 roles/role_bindings 表（含 SeedBuiltinRoles 建的
+// 内置角色）。RouteGuard 现在真正生效，admin 若无 org_admin 角色绑定会被所有写路由拒 403。
+// 故重建后补种内置角色并把 org_admin 绑给 admin，模拟生产超管。
 func reseedAdmin() {
 	ctx := context.Background()
+	// 1. 重建内置角色（resetDB 清空了，RouteGuard 鉴权依赖角色存在）
+	gomega.Expect(auth.SeedBuiltinRoles(ctx, testEnv.Store.DB)).
+		NotTo(gomega.HaveOccurred(), "reseed builtin roles")
+	// 2. 重建默认管理员
 	_, err := auth.SeedDefaultAdmin(ctx, testEnv.Store.DB)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "reseed admin")
-	// 清除强制改密标志（测试环境，admin 凭证已知可信）
+	// 3. 清除强制改密标志（测试环境，admin 凭证已知可信）
 	_, err = testEnv.Store.DB.User.Update().
 		SetMustChangePassword(false).
 		Where(user.UsernameEQ("admin")).
 		Save(ctx)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "clear must_change_password for e2e")
+	// 4. 把 org_admin 角色绑给 admin（使 RouteGuard 放行写路由，模拟生产超管）
+	adminU, err := testEnv.Store.DB.User.Query().Where(user.UsernameEQ("admin")).Only(ctx)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "query admin for binding")
+	orgAdminRole, err := testEnv.Store.DB.Role.Query().Where(role.NameEQ("org_admin")).Only(ctx)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "query org_admin role")
+	// 幂等绑定（重复跑也不报错：先查再建）
+	exist, _ := testEnv.Store.DB.RoleBinding.Query().
+		Where(rolebinding.HasUserWith(user.IDEQ(adminU.ID)), rolebinding.HasRoleWith(role.IDEQ(orgAdminRole.ID))).
+		Count(ctx)
+	if exist == 0 {
+		_, berr := testEnv.Store.DB.RoleBinding.Create().
+			SetUserID(adminU.ID).
+			SetRoleID(orgAdminRole.ID).
+			SetScopeLevel(rolebinding.ScopeLevelOrg).
+			Save(ctx)
+		gomega.Expect(berr).NotTo(gomega.HaveOccurred(), "bind org_admin to admin")
+	}
 	adminToken = loginAdmin(testEnv)
 }
 
@@ -261,6 +288,44 @@ func loginAdmin(e *envState) string {
 	doJSON(req, &got)
 	gomega.Expect(got.AccessToken).NotTo(gomega.BeEmpty(), "login access token")
 	return got.AccessToken
+}
+
+// loginAs 用指定用户名/密码登录，返回 JWT access token（供非 admin 角色测试）。
+func loginAs(e *envState, username, password string) string {
+	body, _ := json.Marshal(map[string]string{"username": username, "password": password})
+	req, _ := http.NewRequest(http.MethodPost, e.apiURL("/auth/login"), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	var got struct {
+		AccessToken string `json:"access_token"`
+	}
+	doJSON(req, &got)
+	return got.AccessToken
+}
+
+// seedUserWithRole 创建一个带 org 级角色绑定的普通用户，返回 (用户, 登录token)。
+// 供 RBAC 越权 e2e 用：用受限角色登录验证写路由应被 RouteGuard 拒 403。
+// roleName 必须是已 seed 的内置角色名（org_admin/subscriber/responder...）。
+// subscriber 是只读角色（仅 incident.view 等），最适合验证"越权拒绝"。
+func (e *envState) seedUserWithRole(username, roleName string) (*ent.User, string) {
+	ctx := context.Background()
+	u, err := e.db().User.Create().
+		SetUsername(username).
+		SetName(username).
+		SetEmail(username + "@e2e.test").
+		SetPasswordHash(auth.HashPassword("e2e-pw-123")).
+		Save(ctx)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "create user "+username)
+	rl, err := e.db().Role.Query().Where(role.NameEQ(roleName)).Only(ctx)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "query role "+roleName)
+	_, err = e.db().RoleBinding.Create().
+		SetUserID(u.ID).
+		SetRoleID(rl.ID).
+		SetScopeLevel(rolebinding.ScopeLevelOrg).
+		Save(ctx)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "bind "+roleName+" to "+username)
+	tok := loginAs(e, username, "e2e-pw-123")
+	gomega.Expect(tok).NotTo(gomega.BeEmpty(), "login as "+username)
+	return u, tok
 }
 
 // ===== 异步轮询断言（基于 gomega Eventually）=====
