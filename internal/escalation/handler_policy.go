@@ -12,6 +12,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/schema"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -61,7 +62,7 @@ type createReq struct {
 func (h *PolicyHandler) list(c *echo.Context) error {
 	policies, err := h.db.EscalationPolicy.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, policies)
 }
@@ -92,7 +93,7 @@ func (h *PolicyHandler) create(c *echo.Context) error {
 	}
 	policy, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, policy)
 }
@@ -160,7 +161,7 @@ func (h *PolicyHandler) update(c *echo.Context) error {
 	}
 	policy, err := u.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: err.Error()})
+		return errs.FailNotFound(c, nil, err, "escalation policy")
 	}
 	return c.JSON(http.StatusOK, policy)
 }

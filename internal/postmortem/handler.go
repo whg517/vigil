@@ -8,6 +8,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/actionitem"
 	"github.com/kevin/vigil/ent/postmortem"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -49,7 +50,7 @@ func (h *Handler) Register(g *echo.Group) {
 func (h *Handler) list(c *echo.Context) error {
 	pms, err := h.db.Postmortem.Query().WithIncident().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, flattenAll(pms))
 }
@@ -100,7 +101,7 @@ func (h *Handler) generateDraft(c *echo.Context) error {
 	}
 	pm, err := h.engine.GenerateDraft(c.Request().Context(), incID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, flatten(pm))
 }
@@ -174,7 +175,7 @@ func (h *Handler) addActionItem(c *echo.Context) error {
 		SetPostmortemID(pmID).
 		Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, ai)
 }
@@ -219,7 +220,7 @@ func (h *Handler) updateActionItem(c *echo.Context) error {
 	}
 	ai, err := update.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, ai)
 }
@@ -246,7 +247,7 @@ func (h *Handler) delete(c *echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: derr.Error()})
 	}
 	if err := h.db.Postmortem.DeleteOneID(id).Exec(ctx); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.NoContent(http.StatusNoContent)
 }
@@ -268,7 +269,7 @@ func (h *Handler) deleteActionItem(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	if err := h.db.ActionItem.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.NoContent(http.StatusNoContent)
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/internal/auth"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 	imincident "github.com/kevin/vigil/internal/incident"
 
@@ -235,7 +236,7 @@ func (h *Handler) handleCardAction(c *echo.Context, ctx context.Context, bot IMB
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "unknown action"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 
 	// 刷新已发卡片（若有记录的 cardID）
@@ -277,7 +278,7 @@ func (h *Handler) handleCommand(c *echo.Context, ctx context.Context, bot IMBot,
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "unsupported command: " + cmd})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	h.refreshCard(ctx, bot, inc, user)
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok", "command": cmd})

@@ -10,6 +10,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/auditlog"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -88,7 +89,7 @@ func (h *AuditHandler) list(c *echo.Context) error {
 
 	logs, err := q.Limit(limit).Offset(offset).All(ctx)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, httputil.Paginated[*ent.AuditLog]{
 		Items: logs, Total: total, Limit: limit, Offset: offset,

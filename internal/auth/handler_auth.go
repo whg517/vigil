@@ -14,6 +14,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/user"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -126,7 +127,7 @@ func (h *AuthHandler) changePassword(c *echo.Context) error {
 		SetPasswordHash(HashPassword(req.NewPassword)).
 		SetMustChangePassword(false).
 		Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -188,11 +189,11 @@ func (h *AuthHandler) login(c *echo.Context) error {
 	}
 	access, err := h.signer.GenerateAccessToken(u.ID, u.Username)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	refresh, err := h.signer.GenerateRefreshToken(u.ID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	// 登录成功：清零该账号失败计数。
 	if h.loginGuard != nil {
@@ -263,7 +264,7 @@ func (h *AuthHandler) refresh(c *echo.Context) error {
 	}
 	access, err := h.signer.GenerateAccessToken(claims.UserID, claims.Username)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, map[string]string{"access_token": access, "token_type": "Bearer"})
 }

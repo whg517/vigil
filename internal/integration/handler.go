@@ -14,6 +14,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/integration"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -81,7 +82,7 @@ type createResp struct {
 func (h *Handler) list(c *echo.Context) error {
 	ints, err := h.db.Integration.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, ints)
 }
@@ -123,7 +124,7 @@ func (h *Handler) create(c *echo.Context) error {
 	}
 	integ, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, createResp{Integration: integ, Token: integ.Token})
 }
@@ -187,7 +188,7 @@ func (h *Handler) update(c *echo.Context) error {
 	}
 	integ, err := u.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: err.Error()})
+		return errs.FailNotFound(c, nil, err, "integration")
 	}
 	return c.JSON(http.StatusOK, integ)
 }

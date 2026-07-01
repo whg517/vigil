@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kevin/vigil/internal/httputil"
+	"github.com/kevin/vigil/internal/errs"
 
 	"github.com/labstack/echo/v5"
 )
@@ -68,7 +68,7 @@ func (h *Handler) dashboard(c *echo.Context) error {
 	days, _ := strconv.Atoi(c.QueryParam("days"))
 	d, err := h.engine.Dashboard(c.Request().Context(), days)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, d)
 }
@@ -88,7 +88,7 @@ func (h *Handler) dashboard(c *echo.Context) error {
 func (h *Handler) alerts(c *echo.Context) error {
 	m, err := h.engine.AlertMetrics(c.Request().Context(), parseRange(c))
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, m)
 }
@@ -108,7 +108,7 @@ func (h *Handler) alerts(c *echo.Context) error {
 func (h *Handler) incidents(c *echo.Context) error {
 	m, err := h.engine.IncidentMetrics(c.Request().Context(), parseRange(c))
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, m)
 }
@@ -128,7 +128,7 @@ func (h *Handler) incidents(c *echo.Context) error {
 func (h *Handler) teamLoad(c *echo.Context) error {
 	m, err := h.engine.TeamLoad(c.Request().Context(), parseRange(c))
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, m)
 }
@@ -148,7 +148,7 @@ func (h *Handler) teamLoad(c *echo.Context) error {
 func (h *Handler) postmortems(c *echo.Context) error {
 	m, err := h.engine.PostmortemMetrics(c.Request().Context(), parseRange(c))
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, m)
 }
@@ -170,7 +170,7 @@ func (h *Handler) trend(c *echo.Context) error {
 	days, _ := strconv.Atoi(c.QueryParam("days"))
 	points, err := h.engine.Trend(c.Request().Context(), days, parseRange(c))
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, map[string]any{"days": points})
 }

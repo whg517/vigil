@@ -13,6 +13,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/role"
 	"github.com/kevin/vigil/ent/rolebinding"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -79,7 +80,7 @@ type createRoleReq struct {
 func (h *Handler) listRoles(c *echo.Context) error {
 	rls, err := h.db.Role.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, rls)
 }
@@ -121,7 +122,7 @@ func (h *Handler) createRole(c *echo.Context) error {
 		SetPermissions(req.Permissions).
 		Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if h.audit != nil {
 		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.create", "role", rl.ID, rl.Name))
@@ -154,7 +155,7 @@ func (h *Handler) deleteRole(c *echo.Context) error {
 		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "builtin role cannot be deleted"})
 	}
 	if err := h.db.Role.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if h.audit != nil {
 		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.delete", "role", id, rl.Name))
@@ -184,7 +185,7 @@ type createBindingReq struct {
 func (h *Handler) listBindings(c *echo.Context) error {
 	bs, err := h.db.RoleBinding.Query().WithRole().WithUser().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, bs)
 }
@@ -229,7 +230,7 @@ func (h *Handler) createBinding(c *echo.Context) error {
 	}
 	saved, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if h.audit != nil {
 		e := h.auditFrom(c, "role.assign", "role_binding", saved.ID, "")
@@ -255,7 +256,7 @@ func (h *Handler) deleteBinding(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	if err := h.db.RoleBinding.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if h.audit != nil {
 		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.unassign", "role_binding", id, ""))

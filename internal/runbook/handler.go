@@ -9,6 +9,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	entrunbook "github.com/kevin/vigil/ent/runbook"
 	"github.com/kevin/vigil/ent/schema"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -48,7 +49,7 @@ func (h *Handler) Register(g *echo.Group) {
 func (h *Handler) list(c *echo.Context) error {
 	rbs, err := h.db.Runbook.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, rbs)
 }
@@ -99,7 +100,7 @@ func (h *Handler) create(c *echo.Context) error {
 	}
 	saved, err := rb.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, saved)
 }
@@ -182,7 +183,7 @@ func (h *Handler) update(c *echo.Context) error {
 	}
 	rb, err := u.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: err.Error()})
+		return errs.FailNotFound(c, nil, err, "runbook")
 	}
 	return c.JSON(http.StatusOK, rb)
 }
@@ -204,7 +205,7 @@ func (h *Handler) delete(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
 	}
 	if err := h.db.Runbook.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.NoContent(http.StatusNoContent)
 }
@@ -239,7 +240,7 @@ func (h *Handler) execute(c *echo.Context) error {
 
 	res, err := h.engine.Execute(c.Request().Context(), id, req.IncidentID, req.Approved)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, res)
 }

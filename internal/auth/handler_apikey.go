@@ -19,6 +19,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/apikey"
 	"github.com/kevin/vigil/ent/user"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -94,7 +95,7 @@ func (h *APIKeyHandler) list(c *echo.Context) error {
 		Order(ent.Desc(apikey.FieldCreatedAt)).
 		All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	out := make([]apiKeyView, 0, len(keys))
 	for _, k := range keys {
@@ -132,7 +133,7 @@ func (h *APIKeyHandler) create(c *echo.Context) error {
 
 	plaintext, hash, err := GenerateAPIKey()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 
 	builder := h.db.APIKey.Create().
@@ -148,7 +149,7 @@ func (h *APIKeyHandler) create(c *echo.Context) error {
 	}
 	k, err := builder.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if h.audit != nil {
 		uid, _ := UserIDFromContext(c.Request().Context())
@@ -193,7 +194,7 @@ func (h *APIKeyHandler) delete(c *echo.Context) error {
 		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "cannot delete others' api key"})
 	}
 	if err := h.db.APIKey.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if h.audit != nil {
 		uid, _ := UserIDFromContext(c.Request().Context())

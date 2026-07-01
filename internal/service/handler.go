@@ -12,6 +12,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	entservice "github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -54,7 +55,7 @@ func (h *Handler) Register(g *echo.Group) {
 func (h *Handler) list(c *echo.Context) error {
 	svcs, err := h.db.Service.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, svcs)
 }
@@ -114,7 +115,7 @@ func (h *Handler) create(c *echo.Context) error {
 	}
 	s, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, s)
 }
@@ -141,7 +142,7 @@ func (h *Handler) get(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, s)
 }
@@ -212,7 +213,7 @@ func (h *Handler) update(c *echo.Context) error {
 	}
 	s, err := upd.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, s)
 }
@@ -236,7 +237,7 @@ func (h *Handler) delete(c *echo.Context) error {
 		if ent.IsNotFound(err) {
 			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 		}
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.NoContent(http.StatusNoContent)
 }

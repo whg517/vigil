@@ -11,6 +11,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/internal/auth"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -69,7 +70,7 @@ func (h *Handler) list(c *echo.Context) error {
 	// 在加 limit/offset 前 clone 出计数 query，保证 total 与列表筛选条件一致
 	total, err := q.Clone().Count(ctx)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	offset, _ := strconv.Atoi(c.QueryParam("offset"))
@@ -82,7 +83,7 @@ func (h *Handler) list(c *echo.Context) error {
 	}
 	items, err := q.Order(ent.Desc(incident.FieldCreatedAt)).All(ctx)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, httputil.Paginated[*ent.Incident]{
 		Items: items, Total: total, Limit: limit, Offset: offset,

@@ -13,6 +13,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/user"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -77,7 +78,7 @@ func (h *UserHandler) Register(g *echo.Group) {
 func (h *UserHandler) listUsers(c *echo.Context) error {
 	users, err := h.db.User.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, users)
 }
@@ -123,7 +124,7 @@ func (h *UserHandler) updateUser(c *echo.Context) error {
 	}
 	updated, err := u.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: err.Error()})
+		return errs.FailNotFound(c, nil, err, "user")
 	}
 	return c.JSON(http.StatusOK, updated)
 }
@@ -165,7 +166,7 @@ func (h *UserHandler) bindIMAccount(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "platform and account_id required"})
 	}
 	if err := h.imBinder.BindAccount(c.Request().Context(), id, req.Platform, req.AccountID); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, req)
 }
@@ -189,7 +190,7 @@ func (h *UserHandler) listIMAccounts(c *echo.Context) error {
 	if h.imResolver != nil {
 		accs, err := h.imResolver.ListBindings(c.Request().Context(), id)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+			return errs.Internal(c, nil, err)
 		}
 		return c.JSON(http.StatusOK, accs)
 	}
@@ -244,7 +245,7 @@ type createTeamReq struct {
 func (h *TeamHandler) listTeams(c *echo.Context) error {
 	teams, err := h.db.Team.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, teams)
 }
@@ -275,7 +276,7 @@ func (h *TeamHandler) createTeam(c *echo.Context) error {
 	}
 	t, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, t)
 }
@@ -317,7 +318,7 @@ func (h *TeamHandler) updateTeam(c *echo.Context) error {
 	}
 	t, err := u.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: err.Error()})
+		return errs.FailNotFound(c, nil, err, "team")
 	}
 	return c.JSON(http.StatusOK, t)
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -52,7 +53,7 @@ func (h *Handler) diagnose(c *echo.Context) error {
 	}
 	res, err := h.engine.Diagnose(c.Request().Context(), incID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if res == nil {
 		return c.JSON(http.StatusOK, map[string]string{"status": "disabled", "message": "AI 诊断未启用（无 LLM）"})
@@ -81,7 +82,7 @@ func (h *Handler) similar(c *echo.Context) error {
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	similar, err := h.engine.FindSimilar(c.Request().Context(), incID, limit)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, map[string]any{"similar": similar})
 }
@@ -108,7 +109,7 @@ func (h *Handler) similarPostmortems(c *echo.Context) error {
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	pms, err := h.engine.FindSimilarPostmortems(c.Request().Context(), incID, limit)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, map[string]any{"similar_postmortems": pms})
 }
@@ -140,7 +141,7 @@ func (h *Handler) resolve(c *echo.Context) error {
 	var req resolveReq
 	_ = c.Bind(&req)
 	if err := h.engine.ResolveInsight(c.Request().Context(), insightID, req.Accepted); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, map[string]any{"status": "resolved", "accepted": req.Accepted})
 }

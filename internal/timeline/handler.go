@@ -7,6 +7,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/timelineitem"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -58,7 +59,7 @@ func (h *Handler) list(c *echo.Context) error {
 
 	items, err := h.recorder.Query(c.Request().Context(), incID, typeFilter, sourceFilter, limit, offset)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	total, _ := h.recorder.Count(c.Request().Context(), incID)
 	return c.JSON(http.StatusOK, httputil.Paginated[*ent.TimelineItem]{
@@ -111,7 +112,7 @@ func (h *Handler) add(c *echo.Context) error {
 	}
 	if err := h.recorder.Record(c.Request().Context(), incID,
 		timelineitem.TypeNoteAdded, req.Content, actor, src, req.Detail); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, map[string]string{"status": "recorded"})
 }

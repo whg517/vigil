@@ -18,6 +18,7 @@ import (
 	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/suppressionrule"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
@@ -82,7 +83,7 @@ func (h *Handler) Register(g *echo.Group) {
 func (h *Handler) listRules(c *echo.Context) error {
 	rules, err := h.db.NotificationRule.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, rules)
 }
@@ -137,7 +138,7 @@ func (h *Handler) createRule(c *echo.Context) error {
 	}
 	r, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, r)
 }
@@ -165,7 +166,7 @@ func (h *Handler) getRule(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, r)
 }
@@ -223,7 +224,7 @@ func (h *Handler) updateRule(c *echo.Context) error {
 	}
 	r, err := upd.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, r)
 }
@@ -249,7 +250,7 @@ func (h *Handler) deleteRule(c *echo.Context) error {
 		if ent.IsNotFound(err) {
 			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 		}
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.NoContent(http.StatusNoContent)
 }
@@ -281,7 +282,7 @@ func (h *Handler) testRule(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "rule not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	// 解析静默配置
 	qh := parseQuietHours(r.QuietHours)
@@ -355,7 +356,7 @@ func ParseQuietHoursPublic(m map[string]any) *QuietHours {
 func (h *Handler) listSuppressions(c *echo.Context) error {
 	rules, err := h.db.SuppressionRule.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, rules)
 }
@@ -422,7 +423,7 @@ func (h *Handler) createSuppression(c *echo.Context) error {
 	}
 	r, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, r)
 }
@@ -450,7 +451,7 @@ func (h *Handler) getSuppression(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, r)
 }
@@ -521,7 +522,7 @@ func (h *Handler) updateSuppression(c *echo.Context) error {
 	}
 	r, err := upd.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, r)
 }
@@ -547,7 +548,7 @@ func (h *Handler) deleteSuppression(c *echo.Context) error {
 		if ent.IsNotFound(err) {
 			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 		}
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.NoContent(http.StatusNoContent)
 }
@@ -567,7 +568,7 @@ func (h *Handler) deleteSuppression(c *echo.Context) error {
 func (h *Handler) listTemplates(c *echo.Context) error {
 	templates, err := h.db.NotificationTemplate.Query().All(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, templates)
 }
@@ -621,7 +622,7 @@ func (h *Handler) createTemplate(c *echo.Context) error {
 	}
 	t, err := b.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if h.templates != nil {
 		h.templates.InvalidateCache()
@@ -652,7 +653,7 @@ func (h *Handler) getTemplate(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, t)
 }
@@ -693,7 +694,7 @@ func (h *Handler) updateTemplate(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if existing.Builtin {
 		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "builtin template cannot be modified"})
@@ -723,7 +724,7 @@ func (h *Handler) updateTemplate(c *echo.Context) error {
 	}
 	t, err := upd.Save(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if h.templates != nil {
 		h.templates.InvalidateCache()
@@ -754,13 +755,13 @@ func (h *Handler) deleteTemplate(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if existing.Builtin {
 		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "builtin template cannot be deleted"})
 	}
 	if err := h.db.NotificationTemplate.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	if h.templates != nil {
 		h.templates.InvalidateCache()
@@ -802,21 +803,21 @@ func (h *Handler) previewTemplate(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "template not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	inc, err := h.db.Incident.Get(ctx, incID)
 	if ent.IsNotFound(err) {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "incident not found"})
 	}
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	rendered, err := h.templates.Render(ctx, tmpl.Name, string(tmpl.Channel), TemplateData{
 		Incident: inc,
 		Level:    inc.CurrentLevel,
 	})
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
+		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, map[string]any{
 		"template_id":   tmpl.ID,
