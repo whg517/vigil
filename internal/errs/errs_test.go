@@ -1,0 +1,172 @@
+// errs_test.go 统一错误模型测试（BE-03）。
+package errs
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/kevin/vigil/internal/httputil"
+	"github.com/labstack/echo/v5"
+)
+
+// newCtx 构造测试用 *echo.Context（最小依赖，便于断言响应）。
+// echo v5 的 NewContext 已返回 *Context，故直接用。
+func newCtx(t *testing.T) (*echo.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	return c, rec
+}
+
+// decode 解析响应体为 ErrorResponse。
+func decode(t *testing.T, rec *httptest.ResponseRecorder) httputil.ErrorResponse {
+	t.Helper()
+	var r httputil.ErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return r
+}
+
+func TestBadRequest(t *testing.T) {
+	c, rec := newCtx(t)
+	if err := BadRequest(c, "invalid id"); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want 400", rec.Code)
+	}
+	r := decode(t, rec)
+	if r.Error != "invalid id" {
+		t.Errorf("msg: got %q", r.Error)
+	}
+	if r.Code != CodeInvalidArgument {
+		t.Errorf("code: got %q", r.Code)
+	}
+}
+
+func TestNotFound(t *testing.T) {
+	c, rec := newCtx(t)
+	if err := NotFound(c); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status: got %d", rec.Code)
+	}
+	r := decode(t, rec)
+	if r.Code != CodeNotFound {
+		t.Errorf("code: got %q", r.Code)
+	}
+	// 带 msg 覆盖
+	c2, rec2 := newCtx(t)
+	_ = NotFound(c2, "incident not found")
+	if decode(t, rec2).Error != "incident not found" {
+		t.Error("custom msg not applied")
+	}
+}
+
+func TestForbidden(t *testing.T) {
+	c, rec := newCtx(t)
+	_ = Forbidden(c, "")
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("status: got %d", rec.Code)
+	}
+	if decode(t, rec).Code != CodePermissionDenied {
+		t.Error("wrong code")
+	}
+}
+
+func TestRateLimited(t *testing.T) {
+	c, rec := newCtx(t)
+	_ = RateLimited(c, "too many", 60)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Errorf("status: got %d", rec.Code)
+	}
+	r := decode(t, rec)
+	if r.Code != CodeRateLimited {
+		t.Error("wrong code")
+	}
+	// Details 应含 retry_after_seconds
+	d, ok := r.Details.(map[string]any)
+	if !ok {
+		t.Fatal("details not a map")
+	}
+	if d["retry_after_seconds"] == nil {
+		t.Error("retry_after_seconds missing")
+	}
+}
+
+// TestInternal_NoLeak 验证 Internal 不泄露底层 err.Error()，前端只见通用 message。
+func TestInternal_NoLeak(t *testing.T) {
+	c, rec := newCtx(t)
+	// 模拟含敏感信息的底层错误
+	sensitive := errors.New("pq: relation \"users_secret\" does not exist (SQLSTATE 42P01)")
+	_ = Internal(c, nil, sensitive)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status: got %d", rec.Code)
+	}
+	r := decode(t, rec)
+	if r.Error != "internal error" {
+		t.Errorf("should return generic message, got %q (leaks details!)", r.Error)
+	}
+	if r.Code != CodeInternal {
+		t.Errorf("code: got %q", r.Code)
+	}
+}
+
+func TestFailNotFound_EntNotFound(t *testing.T) {
+	c, rec := newCtx(t)
+	err := errors.New("ent: incident not found")
+	_ = FailNotFound(c, nil, err, "incident")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("ent not found should map to 404, got %d", rec.Code)
+	}
+	r := decode(t, rec)
+	if r.Error != "incident not found" {
+		t.Errorf("msg: got %q", r.Error)
+	}
+}
+
+func TestFailNotFound_SqlNoRows(t *testing.T) {
+	c, rec := newCtx(t)
+	err := errors.New("sql: no rows in result set")
+	_ = FailNotFound(c, nil, err, "runbook")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("sql no rows should map to 404, got %d", rec.Code)
+	}
+}
+
+func TestFailNotFound_OtherErrorMapsInternal(t *testing.T) {
+	c, rec := newCtx(t)
+	err := errors.New("connection refused")
+	_ = FailNotFound(c, nil, err, "incident")
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("non-not-found err should map to 500, got %d", rec.Code)
+	}
+	if decode(t, rec).Error != "internal error" {
+		t.Error("should be generic internal message")
+	}
+}
+
+func TestIsNotFound(t *testing.T) {
+	cases := []struct {
+		err  error
+		want bool
+	}{
+		{nil, false},
+		{errors.New("ent: user not found"), true},
+		{errors.New("sql: no rows in result set"), true},
+		{errors.New("connection refused"), false},
+		{errors.New("permission denied"), false},
+	}
+	for _, c := range cases {
+		if got := isNotFound(c.err); got != c.want {
+			t.Errorf("isNotFound(%v) = %v, want %v", c.err, got, c.want)
+		}
+	}
+}
