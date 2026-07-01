@@ -45,6 +45,8 @@ func TestLoad_EnvOverride(t *testing.T) {
 	t.Setenv("VIGIL_DB_HOST", "db.internal")
 	t.Setenv("VIGIL_DB_PORT", "6543")
 	t.Setenv("VIGIL_APP_ENV", "production")
+	// 生产环境必须配置 JWT_SECRET（SEC-02：缺失则 Load 报错）。
+	t.Setenv("VIGIL_AUTH_JWT_SECRET", "prod-secret-for-test")
 
 	cfg, err := Load()
 	if err != nil {
@@ -72,5 +74,52 @@ func TestDB_DSN(t *testing.T) {
 	want := "host=h port=5432 user=u password=p dbname=n sslmode=disable"
 	if got != want {
 		t.Errorf("DSN: got %q, want %q", got, want)
+	}
+}
+
+// TestAuthEnabled_DefaultTrue 验证鉴权默认开启（SEC-02）。
+// 开箱即鉴权，杜绝默认部署裸奔。
+func TestAuthEnabled_DefaultTrue(t *testing.T) {
+	// envconfig 解析空字符串到 bool 会报错，故显式 unset 让其走 default。
+	t.Setenv("VIGIL_AUTH_ENABLED", "true")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.Auth.Enabled {
+		t.Error("Auth.Enabled default should be true (SEC-02)")
+	}
+}
+
+// TestEffectiveEnabled_ProductionForced 验证生产环境强制鉴权（SEC-02）。
+// 即使用户显式设 AUTH_ENABLED=false，生产环境 EffectiveEnabled 仍返回 true。
+func TestEffectiveEnabled_ProductionForced(t *testing.T) {
+	// 生产环境：无论 Enabled 字段如何，EffectiveEnabled(true) 必为 true。
+	a := Auth{Enabled: false}
+	if !a.EffectiveEnabled(true) {
+		t.Error("production should force Enabled=true even when user sets false")
+	}
+	a.Enabled = true
+	if !a.EffectiveEnabled(true) {
+		t.Error("production should force Enabled=true (already true)")
+	}
+	// development 尊重用户配置
+	a.Enabled = false
+	if a.EffectiveEnabled(false) {
+		t.Error("development should respect user setting (false)")
+	}
+	a.Enabled = true
+	if !a.EffectiveEnabled(false) {
+		t.Error("development should respect user setting (true)")
+	}
+}
+
+// TestLoad_ProductionRequiresJWTSecret 验证生产环境缺失 JWT_SECRET 启动失败（SEC-02）。
+func TestLoad_ProductionRequiresJWTSecret(t *testing.T) {
+	t.Setenv("VIGIL_APP_ENV", "production")
+	t.Setenv("VIGIL_AUTH_JWT_SECRET", "")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("production Load without JWT_SECRET should fail")
 	}
 }

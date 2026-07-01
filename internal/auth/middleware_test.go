@@ -95,7 +95,7 @@ func doReq(t *testing.T, mw echo.MiddlewareFunc, setHeader func(*http.Request), 
 
 func TestRequireUser_ValidJWT(t *testing.T) {
 	s := NewJWTSigner("mw-test-secret-xxxxxxxxxxxxxxxx", time.Minute, time.Hour)
-	r := NewIdentityResolver(s, nil)
+	r := NewIdentityResolver(s, nil, true)
 	tok, _ := s.GenerateAccessToken(42, "alice")
 	_, uid, hasUID := doReq(t, RequireUser(true, r), func(r *http.Request) {
 		r.Header.Set("Authorization", "Bearer "+tok)
@@ -107,7 +107,7 @@ func TestRequireUser_ValidJWT(t *testing.T) {
 
 func TestRequireUser_InvalidJWT_EnforceTrue(t *testing.T) {
 	s := NewJWTSigner("mw-test-secret-xxxxxxxxxxxxxxxx", time.Minute, time.Hour)
-	r := NewIdentityResolver(s, nil)
+	r := NewIdentityResolver(s, nil, true)
 	doReq(t, RequireUser(true, r), func(r *http.Request) {
 		r.Header.Set("Authorization", "Bearer invalid.token.here")
 	}, 401)
@@ -115,7 +115,7 @@ func TestRequireUser_InvalidJWT_EnforceTrue(t *testing.T) {
 
 func TestRequireUser_ExpiredJWT(t *testing.T) {
 	s := NewJWTSigner("mw-test-secret-xxxxxxxxxxxxxxxx", time.Millisecond, time.Millisecond)
-	r := NewIdentityResolver(s, nil)
+	r := NewIdentityResolver(s, nil, true)
 	tok, _ := s.GenerateAccessToken(1, "bob")
 	time.Sleep(5 * time.Millisecond)
 	_, _, hasUID := doReq(t, RequireUser(false, r), func(r *http.Request) {
@@ -129,7 +129,7 @@ func TestRequireUser_ExpiredJWT(t *testing.T) {
 // TestRequireUser_FallbackHeader 无 Bearer 时回退 X-Vigil-User-ID（兼容）。
 func TestRequireUser_FallbackHeader(t *testing.T) {
 	s := NewJWTSigner("mw-test-secret-xxxxxxxxxxxxxxxx", time.Minute, time.Hour)
-	r := NewIdentityResolver(s, nil)
+	r := NewIdentityResolver(s, nil, true)
 	_, uid, hasUID := doReq(t, RequireUser(true, r), func(r *http.Request) {
 		r.Header.Set("X-Vigil-User-ID", "7")
 	}, 200)
@@ -141,7 +141,7 @@ func TestRequireUser_FallbackHeader(t *testing.T) {
 // TestRequireUser_JWTDoesNotFallbackOnBadToken 关键安全属性：无效 Bearer 不回退 header。
 func TestRequireUser_JWTDoesNotFallbackOnBadToken(t *testing.T) {
 	s := NewJWTSigner("mw-test-secret-xxxxxxxxxxxxxxxx", time.Minute, time.Hour)
-	r := NewIdentityResolver(s, nil)
+	r := NewIdentityResolver(s, nil, true)
 	_, _, hasUID := doReq(t, RequireUser(true, r), func(r *http.Request) {
 		r.Header.Set("Authorization", "Bearer invalid.token")
 		r.Header.Set("X-Vigil-User-ID", "99")
@@ -153,7 +153,7 @@ func TestRequireUser_JWTDoesNotFallbackOnBadToken(t *testing.T) {
 
 func TestRequireUser_RefreshTokenRejectedAsAccess(t *testing.T) {
 	s := NewJWTSigner("mw-test-secret-xxxxxxxxxxxxxxxx", time.Minute, time.Hour)
-	r := NewIdentityResolver(s, nil)
+	r := NewIdentityResolver(s, nil, true)
 	refresh, _ := s.GenerateRefreshToken(5)
 	_, _, hasUID := doReq(t, RequireUser(true, r), func(r *http.Request) {
 		r.Header.Set("Authorization", "Bearer "+refresh)
@@ -186,7 +186,7 @@ func newAPIKeyTestClient(t *testing.T, plaintext string) (verifier *APIKeyVerifi
 // TestRequireUser_ValidAPIKey 有效 API Key 注入归属 user_id。
 func TestRequireUser_ValidAPIKey(t *testing.T) {
 	verifier, _ := newAPIKeyTestClient(t, "vgl_testkey123456")
-	r := NewIdentityResolver(nil, verifier)
+	r := NewIdentityResolver(nil, verifier, true)
 	_, uid, hasUID := doReq(t, RequireUser(true, r), func(req *http.Request) {
 		req.Header.Set("X-Vigil-Key", "vgl_testkey123456")
 	}, 200)
@@ -198,7 +198,7 @@ func TestRequireUser_ValidAPIKey(t *testing.T) {
 // TestRequireUser_InvalidAPIKey 无效 API Key → 401。
 func TestRequireUser_InvalidAPIKey(t *testing.T) {
 	verifier, _ := newAPIKeyTestClient(t, "vgl_testkey123456")
-	r := NewIdentityResolver(nil, verifier)
+	r := NewIdentityResolver(nil, verifier, true)
 	doReq(t, RequireUser(true, r), func(req *http.Request) {
 		req.Header.Set("X-Vigil-Key", "vgl_wrongkey")
 	}, 401)
@@ -207,7 +207,7 @@ func TestRequireUser_InvalidAPIKey(t *testing.T) {
 // TestRequireUser_APIKeyDoesNotFallbackOnBadKey 关键安全属性：无效 API Key 不回退 header。
 func TestRequireUser_APIKeyDoesNotFallbackOnBadKey(t *testing.T) {
 	verifier, _ := newAPIKeyTestClient(t, "vgl_testkey123456")
-	r := NewIdentityResolver(nil, verifier)
+	r := NewIdentityResolver(nil, verifier, true)
 	_, _, hasUID := doReq(t, RequireUser(true, r), func(req *http.Request) {
 		req.Header.Set("X-Vigil-Key", "vgl_wrongkey")
 		req.Header.Set("X-Vigil-User-ID", "99")
@@ -220,7 +220,7 @@ func TestRequireUser_APIKeyDoesNotFallbackOnBadKey(t *testing.T) {
 // TestRequireUser_APIKeyFallbackHeader 无 X-Vigil-Key 时回退 header。
 func TestRequireUser_APIKeyFallbackHeader(t *testing.T) {
 	verifier, _ := newAPIKeyTestClient(t, "vgl_testkey123456")
-	r := NewIdentityResolver(nil, verifier)
+	r := NewIdentityResolver(nil, verifier, true)
 	_, uid, hasUID := doReq(t, RequireUser(true, r), func(req *http.Request) {
 		req.Header.Set("X-Vigil-User-ID", "7")
 	}, 200)

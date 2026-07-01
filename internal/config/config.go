@@ -93,11 +93,14 @@ type Asynq struct {
 }
 
 // Auth 鉴权配置（能力域 13）。
-// Enabled 为 false 时业务 API 不强制身份解析（匿名放行，渐进启用阶段默认 false）；
-// 为 true 时所有业务 API 须提供有效身份（JWT 优先，回退 X-Vigil-User-ID）。
+// Enabled 为 true 时所有业务 API 须提供有效身份（JWT 优先，回退 X-Vigil-User-ID）；
+// 为 false 时业务 API 不强制身份解析（匿名放行，仅限本地开发/测试）。
 // webhook 接入/IM 回调不受此开关影响（它们用各自的 token/签名鉴权）。
+//
+// 安全默认（SEC-02）：默认 true（开箱即鉴权）。生产环境（App.Env=production）
+// 下即使用户显式设置 false 也强制为 true——杜绝开箱即裸奔。
 type Auth struct {
-	Enabled bool `envconfig:"enabled" default:"false"` // 是否强制业务 API 鉴权
+	Enabled bool `envconfig:"enabled" default:"true"` // 是否强制业务 API 鉴权（生产强制 true）
 
 	// JWT 自管登录态配置（能力域 13 登录链路）。
 	// JWTSecret 为空时登录链路降级（拒绝签发，提示配置缺失）。
@@ -114,6 +117,19 @@ func (a Auth) EffectiveAccessTokenTTL() time.Duration {
 		return 15 * time.Minute
 	}
 	return a.AccessTokenTTL
+}
+
+// EffectiveEnabled 返回鉴权是否生效（SEC-02）。
+// 生产环境（App.Env=production）强制 true，杜绝显式 false 导致业务 API 裸奔。
+// 配合 App.IsProduction 传入，避免 Auth 自身持有 App 引用。
+//
+// 用法：装配件应使用 cfg.Auth.EffectiveEnabled(cfg.App.IsProduction())
+// 而非直接读 cfg.Auth.Enabled。
+func (a Auth) EffectiveEnabled(isProduction bool) bool {
+	if isProduction {
+		return true // 生产强制鉴权，忽略用户配置
+	}
+	return a.Enabled
 }
 
 // EffectiveRefreshTokenTTL 返回 refresh token 有效期，零值时回退默认 720h（30d）。
@@ -238,6 +254,13 @@ func Load() (*Config, error) {
 	// 仅 development 生效，生产模式不填充。
 	if c.App.Env == "development" && c.Auth.JWTSecret == "" {
 		c.Auth.JWTSecret = "dev-jwt-secret-not-for-production"
+	}
+
+	// 生产环境安全校验（SEC-02）：强制鉴权已生效（EffectiveEnabled 保证），
+	// 但鉴权链路依赖 JWT secret——secret 缺失会导致登录链路降级（拒绝签发），
+	// 而强制鉴权 + 无可签发 = 系统不可用。故生产必须显式配置强 secret。
+	if c.App.IsProduction() && c.Auth.JWTSecret == "" {
+		return nil, fmt.Errorf("production requires VIGIL_AUTH_JWT_SECRET to be set (auth is enforced)")
 	}
 
 	return &c, nil

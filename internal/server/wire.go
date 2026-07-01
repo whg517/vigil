@@ -103,8 +103,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		}
 	}
 	// 身份解析（三轨：JWT/APIKey/X-Vigil-User-ID），中间件用。
+	// SEC-02：生产环境禁用 X-Vigil-User-ID 头回退（可伪造），仅承认 JWT/API Key。
 	apiKeyVerifier := auth.NewAPIKeyVerifier(st.DB)
-	identityResolver := auth.NewIdentityResolver(jwtSigner, apiKeyVerifier)
+	identityResolver := auth.NewIdentityResolver(jwtSigner, apiKeyVerifier, !cfg.App.IsProduction())
 
 	// —— 接入（能力域 1-2）：webhook 接收 + 归一化 worker ——
 	adapterRegistry := ingestion.NewAdapterRegistry()
@@ -210,9 +211,10 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// RequirePermPerRoute 定义了从未被调用——所有写路由对任意登录用户敞开。
 	// RouteGuard 按 (method,path) 查权限点命中鉴权，未登记路由保持现状（渐进启用）。
 	// 组级中间件先做身份解析 + 强制改密检查（C8），再挂守卫。
+	// SEC-02：生产环境强制鉴权（EffectiveEnabled），杜绝业务 API 裸奔。
 	routeGuard := auth.NewRouteGuard(authz, identityResolver)
 	registerSensitiveRoutePerms(routeGuard)
-	v1.Use(auth.RequireUserWithGuard(cfg.Auth.Enabled, identityResolver, forcePasswordGuard(st.DB)))
+	v1.Use(auth.RequireUserWithGuard(cfg.Auth.EffectiveEnabled(cfg.App.IsProduction()), identityResolver, forcePasswordGuard(st.DB)))
 	v1.Use(routeGuard.Middleware())
 
 	// 公开路由（自带鉴权，不走 RBAC）
