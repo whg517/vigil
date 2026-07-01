@@ -21,9 +21,10 @@ import (
 
 // AuthHandler 登录态 API handler（与 RBAC 的 Handler 区分）。
 type AuthHandler struct {
-	db     *ent.Client
-	signer *JWTSigner
-	audit  *AuditRecorder // 审计记录器（可选，登录成功/失败都记）
+	db         *ent.Client
+	signer     *JWTSigner
+	audit      *AuditRecorder // 审计记录器（可选，登录成功/失败都记）
+	loginGuard *LoginGuard    // 登录限流/锁定（可选，SEC-04）
 }
 
 // NewAuthHandler 创建登录态 handler。signer 为 nil 时签发链路返回 500（降级保护）。
@@ -34,6 +35,12 @@ func NewAuthHandler(db *ent.Client, signer *JWTSigner) *AuthHandler {
 // SetAuditRecorder 注入审计记录器（main 装配时调用）。
 func (h *AuthHandler) SetAuditRecorder(r *AuditRecorder) {
 	h.audit = r
+}
+
+// SetLoginGuard 注入登录防护器（SEC-04，main 装配时调用）。
+// 为 nil 时降级为不限流（依赖审计日志事后追溯）。
+func (h *AuthHandler) SetLoginGuard(g *LoginGuard) {
+	h.loginGuard = g
 }
 
 type loginReq struct {
@@ -157,14 +164,22 @@ func (h *AuthHandler) login(c *echo.Context) error {
 	if h.signer == nil || !h.signer.Available() {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: "jwt not configured"})
 	}
+	// SEC-04：登录前双维度限流 + 锁定检查（无 Redis 时降级跳过）。
+	ip := ClientIP(c.Request().Header.Get("X-Forwarded-For"), c.Request().RemoteAddr)
+	if h.loginGuard != nil {
+		if allowed, reason := h.loginGuard.Check(c.Request().Context(), ip, req.Username); !allowed {
+			h.auditLogin(c, 0, req.Username, AuditResultDenied, map[string]any{"reason": "rate_limited", "ip": ip})
+			return c.JSON(http.StatusTooManyRequests, httputil.ErrorResponse{Error: reason})
+		}
+	}
 	u, err := h.db.User.Query().Where(user.UsernameEQ(req.Username)).Only(c.Request().Context())
 	if err != nil {
 		// 用户不存在也返回 invalid credentials（避免用户名枚举）
-		h.auditLogin(c, 0, req.Username, AuditResultFailed, map[string]any{"reason": "user_not_found"})
+		h.recordLoginFailure(c, 0, req.Username, "user_not_found", ip)
 		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid credentials"})
 	}
 	if !VerifyPassword(req.Password, u.PasswordHash) {
-		h.auditLogin(c, u.ID, u.Username, AuditResultFailed, map[string]any{"reason": "wrong_password"})
+		h.recordLoginFailure(c, u.ID, u.Username, "wrong_password", ip)
 		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid credentials"})
 	}
 	if u.Status != user.StatusActive {
@@ -179,11 +194,23 @@ func (h *AuthHandler) login(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: err.Error()})
 	}
+	// 登录成功：清零该账号失败计数。
+	if h.loginGuard != nil {
+		h.loginGuard.RecordSuccess(c.Request().Context(), u.Username)
+	}
 	h.auditLogin(c, u.ID, u.Username, AuditResultSuccess, nil)
 	return c.JSON(http.StatusOK, loginResp{
 		AccessToken: access, RefreshToken: refresh, TokenType: "Bearer",
 		User: toLoginUser(u),
 	})
+}
+
+// recordLoginFailure 统一处理登录失败：记审计 + 累加失败计数（SEC-04）。
+func (h *AuthHandler) recordLoginFailure(c *echo.Context, uid int, username, reason, ip string) {
+	h.auditLogin(c, uid, username, AuditResultFailed, map[string]any{"reason": reason, "ip": ip})
+	if h.loginGuard != nil {
+		h.loginGuard.RecordFailure(c.Request().Context(), username)
+	}
 }
 
 // auditLogin 记录登录审计（actor_user_id 可能 0=用户不存在，actor_name 记 username 用于溯源）。

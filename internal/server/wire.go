@@ -224,6 +224,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	log.Info("websocket ready (/ws/incidents/:id)")
 	authHandler := auth.NewAuthHandler(st.DB, jwtSigner)
 	authHandler.SetAuditRecorder(auditRecorder)
+	// SEC-04：登录限流/锁定（无 Redis 时降级跳过，依赖审计日志事后追溯）。
+	authHandler.SetLoginGuard(auth.NewLoginGuard(st.Redis))
 	authHandler.RegisterPublic(public)
 	// 测试专用 reset 端点：仅 development 环境挂载（生产禁用，零暴露）。
 	// 供前端 Playwright e2e 在每个 spec 前清空数据，保证用例隔离。
