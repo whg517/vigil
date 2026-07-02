@@ -1,45 +1,40 @@
-// ssrf.go Runbook 执行器 SSRF 防护（SEC-03）。
+// ssrf.go Runbook 执行器 SSRF 防护（SEC-03，FIX-2 修正 DNS rebinding）。
 //
 // Runbook 的 HTTP 执行器（HTTPExecutor / InternalExecutor.checkHTTP）会向
 // target.Endpoint 发请求。若不校验，有 runbook 配置权限的用户可构造 Endpoint
-// 指向云元数据（169.254.169.254）、内网服务（localhost/10.x/172.16.x/192.168.x）、
-// file:// 等实现 SSRF。
+// 指向云元数据（169.254.169.254）、内网服务、file:// 等实现 SSRF。
 //
-// validateEndpoint 在发请求前校验目标 URL：
-//   - 只允许 http/https scheme（禁 file/data/gopher/dict 等）
-//   - 禁止指向私网/保留地址（loopback/私网/链路本地/云元数据）
-//   - 解析 DNS 后再校验 IP（防 DNS rebinding 与域名指向内网）
+// 防护分两层：
 //
-// 设计权衡：默认拒绝私网，可通过 AllowPrivateEndpoints 选项放开（如本地开发/同集群调用）。
+//  1. 静态校验（validateEndpoint，请求前）：scheme 白名单（仅 http/https）、
+//     host 非空。快速拦截明显恶意 URL（file:///etc/passwd 等）的第一道关。
+//
+//  2. 连接时校验（safeDialer 的 Control 回调）：在 TCP 连接真正建立前，对实际
+//     解析到的 IP 做私网/保留地址判定。★ 这是防 DNS rebinding 的关键 ——
+//     早期实现（FIX-2 之前）在请求前 LookupIP 校验，但 http.Client.Do 会再次解析
+//     DNS，两次解析之间攻击者可改 DNS 记录（rebinding）绕过校验。
+//     Control 回调在连接栈最底层拿到真实 IP，无 TOCTOU 间隙。
+//
+// 设计权衡：默认拒绝私网，可通过 AllowPrivate 选项放开（本地开发/同集群调用）。
 package runbook
 
 import (
-	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
+	"syscall"
+	"time"
 )
 
 // ErrSSRFBlocked endpoint 未通过 SSRF 校验。
-var ErrSSRFBlocked = errors.New("endpoint blocked by SSRF protection")
+var ErrSSRFBlocked = fmt.Errorf("endpoint blocked by SSRF protection")
 
-// ssrfValidator 共享校验器（默认禁私网）。HTTPExecutor/InternalExecutor 复用。
-var ssrfValidator = &endpointValidator{allowPrivate: false}
-
-// validateEndpoint 校验 endpoint URL 是否安全（防 SSRF）。
-// 返回 nil 表示安全可请求；ErrSSRFBlocked 表示被拒。
+// validateEndpoint 静态校验 endpoint URL（第一道关：scheme/host）。
+// IP 校验交给 safeDialer 的 Control（第二道关，防 rebinding）。
+// 返回 nil 表示静态校验通过（不代表 IP 可达，IP 校验在连接时）。
 func validateEndpoint(endpoint string) error {
-	return ssrfValidator.validate(endpoint)
-}
-
-// endpointValidator endpoint SSRF 校验器。
-type endpointValidator struct {
-	allowPrivate bool // 是否允许私网/loopback（本地开发场景可放开）
-}
-
-// validate 校验单个 endpoint URL。
-func (v *endpointValidator) validate(endpoint string) error {
 	if endpoint == "" {
 		return fmt.Errorf("empty endpoint")
 	}
@@ -47,46 +42,52 @@ func (v *endpointValidator) validate(endpoint string) error {
 	if err != nil {
 		return fmt.Errorf("parse endpoint: %w", err)
 	}
-	// 1. scheme 白名单
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "http" && scheme != "https" {
 		return fmt.Errorf("%w: scheme %q not allowed (only http/https)", ErrSSRFBlocked, scheme)
 	}
-	// 2. 解析 host（可能是域名或 IP）
-	host := u.Hostname()
-	if host == "" {
+	if u.Hostname() == "" {
 		return fmt.Errorf("%w: empty host", ErrSSRFBlocked)
-	}
-	// 3. 解析 DNS（若 host 是域名）拿到所有 IP，逐一校验
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		// DNS 解析失败：可能是 IP 字面量，直接解析
-		ip := net.ParseIP(host)
-		if ip == nil {
-			return fmt.Errorf("%w: cannot resolve host %q", ErrSSRFBlocked, host)
-		}
-		ips = []net.IP{ip}
-	}
-	if v.allowPrivate {
-		return nil // 开发模式放行
-	}
-	for _, ip := range ips {
-		if isBlockedIP(ip) {
-			return fmt.Errorf("%w: host %q resolves to private/reserved address %s", ErrSSRFBlocked, host, ip)
-		}
 	}
 	return nil
 }
 
+// newHTTPClient 构造带 SSRF 防护的 http.Client（连接时校验真实 IP，防 rebinding）。
+// allowPrivate=true 时放行私网（测试/同集群场景）；生产必须 false。
+func newHTTPClient(allowPrivate bool) *http.Client {
+	dialer := &net.Dialer{Timeout: 30 * time.Second}
+	if !allowPrivate {
+		// Control 在每个网络连接真正建立前调用，address 是实际拨号目标
+		// （形如 "1.2.3.4:80"）。此处校验解析后的真实 IP，无 rebinding 间隙。
+		dialer.Control = func(network, address string, _ syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				host = address // 无端口的兜底（理论上 dial 总带端口）
+			}
+			if ip := net.ParseIP(host); ip != nil && isBlockedIP(ip) {
+				return fmt.Errorf("%w: dial to private/reserved address %s", ErrSSRFBlocked, ip)
+			}
+			return nil
+		}
+	}
+	return &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DialContext: dialer.DialContext,
+		},
+	}
+}
+
 // isBlockedIP 判断 IP 是否属于禁止访问的私网/保留地址段。
-// 覆盖：
-//   - loopback：127.0.0.0/8、::1
-//   - 私网：10.0.0.0/8、172.16.0.0/12、192.168.0.0/16、fc00::/7（IPv6 私网）
-//   - 链路本地：169.254.0.0/16（含云元数据 169.254.169.254）、fe80::/10
-//   - 未指定：0.0.0.0、::
+// 覆盖：loopback、私网、链路本地（含云元数据 169.254.169.254）、未指定。
 func isBlockedIP(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+	if ip == nil {
 		return true
 	}
-	return false
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()
 }
+
+// endpointValidator 兼容旧引用（内部不再用 LookupIP 预校验，交给 dialer）。
+type endpointValidator struct{ allowPrivate bool }
+
+func (v *endpointValidator) validate(endpoint string) error { return validateEndpoint(endpoint) }

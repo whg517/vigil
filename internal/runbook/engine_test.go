@@ -279,10 +279,10 @@ func newTestRegistry() *Registry {
 	r := &Registry{executors: make(map[string]Executor)}
 	// 复用生产构造函数拿默认 client，再开 AllowPrivate（测试需要打 httptest 的 127.0.0.1）
 	hc := NewHTTPExecutor()
-	hc.AllowPrivate = true
+	hc.SetAllowPrivate(true)
 	r.Register(hc)
 	ic := NewInternalExecutor()
-	ic.AllowPrivate = true
+	ic.SetAllowPrivate(true)
 	r.Register(ic)
 	return r
 }

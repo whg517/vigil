@@ -53,9 +53,16 @@ type HTTPExecutor struct {
 	AllowPrivate bool // 放行私网地址（仅测试用，生产保持 false）
 }
 
-// NewHTTPExecutor 创建 HTTP 执行器（生产用，AllowPrivate=false）。
+// NewHTTPExecutor 创建 HTTP 执行器（生产用，AllowPrivate=false，SSRF 防护生效）。
 func NewHTTPExecutor() *HTTPExecutor {
-	return &HTTPExecutor{Client: &http.Client{Timeout: 30 * time.Second}}
+	return &HTTPExecutor{Client: newHTTPClient(false)}
+}
+
+// SetAllowPrivate 切换私网放行（测试用：httptest 绑定 127.0.0.1 需放行）。
+// 生产代码不要调用；保留默认 false。
+func (h *HTTPExecutor) SetAllowPrivate(allow bool) {
+	h.AllowPrivate = allow
+	h.Client = newHTTPClient(allow)
 }
 
 func (HTTPExecutor) Kind() string { return "http" }
@@ -104,9 +111,19 @@ type InternalExecutor struct {
 	AllowPrivate bool // 放行私网（仅测试用，生产保持 false）
 }
 
-// NewInternalExecutor 创建内置执行器。
+// NewInternalExecutor 创建内置执行器（生产用，AllowPrivate=false，SSRF 防护生效）。
 func NewInternalExecutor() *InternalExecutor {
-	return &InternalExecutor{client: &http.Client{Timeout: 10 * time.Second}}
+	c := newHTTPClient(false)
+	c.Timeout = 10 * time.Second // 内置探活用更短超时
+	return &InternalExecutor{client: c}
+}
+
+// SetAllowPrivate 切换私网放行（测试用）。
+func (e *InternalExecutor) SetAllowPrivate(allow bool) {
+	e.AllowPrivate = allow
+	c := newHTTPClient(allow)
+	c.Timeout = 10 * time.Second
+	e.client = c
 }
 
 func (*InternalExecutor) Kind() string { return "internal" }
