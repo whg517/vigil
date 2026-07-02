@@ -30,6 +30,9 @@ const indexHTML = "index.html"
 //
 // 用「先判断再 serve」而非「捕获 FileServer 的 404」，避免重复 WriteHeader 冲突，
 // 也规避 echo.StaticDirectoryHandler 在 embed.FS 下返回 200 空体的异常行为。
+//
+// FIX-7：dist 缺失 index.html 时不再 panic，改为跳过静态路由 + 兜底 404 提示。
+// 这样后端纯 API 测试/e2e 不依赖前端构建产物（worktree 里 dist 被 gitignore）。
 func (s *Server) registerStatic() {
 	// embed 的内容带 "dist/" 前缀，用 fs.Sub 切到 dist 根。
 	distFS, err := fs.Sub(web.DistFS, "dist")
@@ -41,7 +44,13 @@ func (s *Server) registerStatic() {
 	// 预读 index.html，SPA fallback 时直接写（避免每个请求重复读 FS）。
 	indexBytes, err := fs.ReadFile(distFS, indexHTML)
 	if err != nil {
-		panic("server: embed dist missing index.html: " + err.Error())
+		// FIX-7：dist 缺 index.html（如 worktree 里 dist 被 gitignore，仅 .gitkeep）。
+		// 不 panic——注册兜底路由提示前端未构建，让后端 API 测试/e2e 可跑。
+		// 生产 Docker 构建会注入真实 dist；缺失只影响前端 serve，API 照常工作。
+		s.echo.GET("/*", func(c *echo.Context) error {
+			return c.String(http.StatusNotFound, "frontend dist not built (run `pnpm --dir web build` and copy to internal/web/dist)")
+		})
+		return
 	}
 
 	fileServer := http.FileServer(http.FS(distFS))
