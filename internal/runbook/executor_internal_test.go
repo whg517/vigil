@@ -31,6 +31,7 @@ func TestInternalExecutor_CheckHTTP_Reachable(t *testing.T) {
 	defer srv.Close()
 
 	e := NewInternalExecutor()
+	e.AllowPrivate = true // httptest 绑定 127.0.0.1，测试需放行私网
 	out, err := e.Execute(context.Background(),
 		schema.StepTarget{Kind: "internal", Endpoint: srv.URL},
 		map[string]any{"action": "check_http"})
@@ -47,6 +48,7 @@ func TestInternalExecutor_CheckHTTP_Reachable(t *testing.T) {
 
 func TestInternalExecutor_CheckHTTP_Unreachable(t *testing.T) {
 	e := NewInternalExecutor()
+	e.AllowPrivate = true // 目标 127.0.0.1，测试需放行私网
 	// 坏地址（不 panic，返回 unreachable 状态）
 	out, err := e.Execute(context.Background(),
 		schema.StepTarget{Kind: "internal", Endpoint: "http://127.0.0.1:1/nonexistent"},

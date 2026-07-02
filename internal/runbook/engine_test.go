@@ -54,7 +54,7 @@ func TestExecute_DiagnoseReadOnly(t *testing.T) {
 			OnFailure: "continue",
 		},
 	})
-	eng := NewEngine(c, NewRegistry())
+	eng := NewEngine(c, newTestRegistry())
 
 	// approved=false，但只读步骤应执行
 	res, err := eng.Execute(context.Background(), rb.ID, 0, false)
@@ -90,7 +90,7 @@ func TestExecute_WriteRequiresApproval(t *testing.T) {
 			OnFailure:       "continue",
 		},
 	})
-	eng := NewEngine(c, NewRegistry())
+	eng := NewEngine(c, newTestRegistry())
 
 	// approved=false —— 写动作应被跳过，writeCalled 必须为 false
 	res, err := eng.Execute(context.Background(), rb.ID, 0, false)
@@ -138,7 +138,7 @@ func TestExecute_WriteBypass_ConfigNoApproval(t *testing.T) {
 			OnFailure:       "continue",
 		},
 	})
-	eng := NewEngine(c, NewRegistry())
+	eng := NewEngine(c, newTestRegistry())
 
 	// approved=false：写操作必须 skip（C4 修复后与 RequireApproval 标志解耦）
 	res, err := eng.Execute(context.Background(), rb.ID, 0, false)
@@ -174,7 +174,7 @@ func TestExecute_OnFailureAbort(t *testing.T) {
 			OnFailure: "continue",
 		},
 	})
-	eng := NewEngine(c, NewRegistry())
+	eng := NewEngine(c, newTestRegistry())
 
 	res, _ := eng.Execute(context.Background(), rb.ID, 0, true)
 	if !res.Aborted {
@@ -206,7 +206,7 @@ func TestExecute_OnFailureContinue(t *testing.T) {
 			OnFailure: "continue",
 		},
 	})
-	eng := NewEngine(c, NewRegistry())
+	eng := NewEngine(c, newTestRegistry())
 
 	res, _ := eng.Execute(context.Background(), rb.ID, 0, true)
 	if res.Aborted {
@@ -228,7 +228,7 @@ func TestExecute_DocumentRunbook(t *testing.T) {
 		SetType(runbook.TypeDocument).
 		SetContentMarkdown("## 处置步骤\n1. ...").
 		Save(context.Background())
-	eng := NewEngine(c, NewRegistry())
+	eng := NewEngine(c, newTestRegistry())
 
 	res, err := eng.Execute(context.Background(), rb.ID, 0, true)
 	if err != nil {
@@ -271,4 +271,18 @@ func TestRegistry(t *testing.T) {
 	if _, ok := r.Get("internal"); !ok {
 		t.Error("internal executor not registered")
 	}
+}
+
+// newTestRegistry 创建允许私网地址的测试用 registry（httptest 绑定 127.0.0.1）。
+// 生产用 NewRegistry（AllowPrivate=false，SSRF 防护生效）。
+func newTestRegistry() *Registry {
+	r := &Registry{executors: make(map[string]Executor)}
+	// 复用生产构造函数拿默认 client，再开 AllowPrivate（测试需要打 httptest 的 127.0.0.1）
+	hc := NewHTTPExecutor()
+	hc.AllowPrivate = true
+	r.Register(hc)
+	ic := NewInternalExecutor()
+	ic.AllowPrivate = true
+	r.Register(ic)
+	return r
 }

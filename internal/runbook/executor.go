@@ -45,11 +45,15 @@ type Executor interface {
 
 // HTTPExecutor HTTP 执行器：POST 到 target.Endpoint，返回响应体。
 // 诊断类（查日志 API）与处置类（触发 webhook）通用。
+//
+// AllowPrivate 控制 SSRF 防护是否放行私网/loopback（SEC-03）：
+// 生产默认 false（拒绝私网）；测试场景（httptest 绑定 127.0.0.1）设 true。
 type HTTPExecutor struct {
-	Client *http.Client
+	Client       *http.Client
+	AllowPrivate bool // 放行私网地址（仅测试用，生产保持 false）
 }
 
-// NewHTTPExecutor 创建 HTTP 执行器。
+// NewHTTPExecutor 创建 HTTP 执行器（生产用，AllowPrivate=false）。
 func NewHTTPExecutor() *HTTPExecutor {
 	return &HTTPExecutor{Client: &http.Client{Timeout: 30 * time.Second}}
 }
@@ -59,6 +63,10 @@ func (HTTPExecutor) Kind() string { return "http" }
 func (h *HTTPExecutor) Execute(ctx context.Context, target schema.StepTarget, params map[string]any) (string, error) {
 	if target.Endpoint == "" {
 		return "", fmt.Errorf("empty endpoint")
+	}
+	// SEC-03：SSRF 防护——校验目标 URL（禁私网/云元数据/非 http scheme）。
+	if err := (&endpointValidator{allowPrivate: h.AllowPrivate}).validate(target.Endpoint); err != nil {
+		return "", err
 	}
 	var body []byte
 	if params != nil {
@@ -92,7 +100,8 @@ func (h *HTTPExecutor) Execute(ctx context.Context, target schema.StepTarget, pa
 //
 // 全部只读，不修改外部状态。后续可扩展 query_metrics（查 Prometheus）等。
 type InternalExecutor struct {
-	client *http.Client
+	client       *http.Client
+	AllowPrivate bool // 放行私网（仅测试用，生产保持 false）
 }
 
 // NewInternalExecutor 创建内置执行器。
@@ -122,6 +131,10 @@ func (e *InternalExecutor) Execute(ctx context.Context, target schema.StepTarget
 func (e *InternalExecutor) checkHTTP(ctx context.Context, endpoint string) (string, error) {
 	if endpoint == "" {
 		return "", fmt.Errorf("check_http requires endpoint")
+	}
+	// SEC-03：SSRF 防护（与 HTTPExecutor 同一校验）。
+	if err := (&endpointValidator{allowPrivate: e.AllowPrivate}).validate(endpoint); err != nil {
+		return "", err
 	}
 	start := time.Now()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
