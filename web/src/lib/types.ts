@@ -58,17 +58,11 @@ export interface ListResponse<T> {
 }
 
 // —— 引用实体（User 完整字段，登录态与管理页共用）——
-export interface User {
-  id: number;
-  username?: string;
-  name?: string;
-  email?: string;
-  phone?: string;
-  status?: "active" | "disabled";
-  timezone?: string;
-  created_at?: string;
-  updated_at?: string;
-}
+// ENG-02：User 从 Schemas 派生（原手写易与后端 ent.User drift）。
+// status 用 Schemas 的 enum 引用（与 ent_user.Status 一致："active"|"disabled"）。
+export type User = Required<
+  Omit<Schemas["ent.User"], "edges" | "im_accounts" | "must_change_password">
+>;
 
 export type Event = Required<
   Omit<Schemas["ent.Event"], "edges">
@@ -123,16 +117,8 @@ export type EscalationPolicy = Required<
   levels?: EscalationLevel[];
 };
 
-// —— Team（能力域 13 团队管理）——
-export interface Team {
-  id: number;
-  name: string;
-  slug: string;
-  description?: string;
-  parent_team_id?: string;
-  created_at?: string;
-  updated_at?: string;
-}
+// ENG-02：Team 从 Schemas 派生（原手写易与后端 ent.Team drift）。
+export type Team = Required<Omit<Schemas["ent.Team"], "edges">>;
 
 // —— Schedule（ent/schema/schedule.go，能力域 5）——
 export type ScheduleType = Schemas["github_com_kevin_vigil_ent_schedule.Type"];
