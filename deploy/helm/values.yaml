@@ -67,6 +67,11 @@ resources:
     cpu: "1"
     memory: 1Gi
 
+# PodDisruptionBudget（SEC-05/可靠性）：自愿中断时保证最少可用副本。
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1  # 单副本时阻止节点驱逐中断；多副本可设为 percentage 如 "50%"
+
 # 健康检查（server.go 的 /health 端点）
 probes:
   liveness:

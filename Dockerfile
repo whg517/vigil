@@ -26,8 +26,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /vigil ./cmd/vigil
 # ===== Stage 3: 运行 =====
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
+# SEC-05：以非 root 用户运行容器（最小权限原则）。
+# 创建 vigil 用户/组（固定 UID/GID 65532，与 distroless 常见值对齐便于迁移）。
+RUN addgroup -g 65532 -S vigil && adduser -u 65532 -S vigil -G vigil
 WORKDIR /app
 COPY --from=go-builder /vigil /app/vigil
+# 二进制归属 root，仅运行权限给 vigil（防容器内篡改自身二进制）。
+RUN chown root:root /app/vigil && chmod 0555 /app/vigil
+USER 65532
 EXPOSE 8080
 ENTRYPOINT ["/app/vigil"]
 CMD []

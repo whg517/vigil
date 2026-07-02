@@ -1,0 +1,18 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+# SEC-05/可靠性：PodDisruptionBudget 保证自愿中断（维护/升级）时最少可用副本数。
+# 默认 minAvailable: 1（与默认 replicaCount:1 配合——单副本时阻止节点驱逐导致中断；
+# 多副本时可设为 percentage 保证滚动可用性）。
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: vigil
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vigil
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

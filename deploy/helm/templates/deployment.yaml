@@ -17,10 +17,25 @@ spec:
         app.kubernetes.io/name: vigil
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      # SEC-05：Pod 级安全上下文（最小权限）。
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: vigil
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # SEC-05：容器级安全上下文（drop 全部 capabilities + 禁提权 + 只读根文件系统）。
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 8080
@@ -86,3 +101,10 @@ spec:
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          # readOnlyRootFilesystem 下挂载可写 tmp（Go runtime / sqlite 测试 / 临时文件用）。
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
