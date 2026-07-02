@@ -15,6 +15,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/kevin/vigil/ent"
@@ -63,6 +64,43 @@ func (a *Authorizer) CheckAny(ctx context.Context, userID int, teamScope *int, p
 		result[p] = permSet[p]
 	}
 	return result, nil
+}
+
+// VisibleTeamIDs 返回用户可见的 team ID 集合（ARCH-02/SEC-01，list 数据隔离用）。
+//
+// 返回 (teamIDs, orgWide, err)：
+//   - orgWide=true：用户有任一有效的 org 级 RoleBinding → 可见全部 team（list 不过滤）
+//   - orgWide=false：用户仅有 team 级 binding → 返回这些 binding 涉及的 team_id（list 限定）
+//   - orgWide=false 且 teamIDs 为空：用户无任何有效 binding（list 应返回空）
+//
+// 设计：list 查询无法用 path :team_id（列表路由无该参数），改用此方法在查询前
+// 取得"用户可见域"，注入到 Where(team.IDIn(...)) 过滤。
+func (a *Authorizer) VisibleTeamIDs(ctx context.Context, userID int) (teamIDs []int, orgWide bool, err error) {
+	now := time.Now()
+	bindings, err := a.db.RoleBinding.Query().
+		Where(
+			rolebinding.HasUserWith(user.IDEQ(userID)),
+			// 未过期
+			rolebinding.Or(rolebinding.ExpiresAtIsNil(), rolebinding.ExpiresAtGTE(now)),
+		).
+		All(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("query role bindings for visible teams: %w", err)
+	}
+	seen := make(map[int]bool)
+	for _, b := range bindings {
+		if b.ScopeLevel == rolebinding.ScopeLevelOrg {
+			return nil, true, nil // 有 org 级 binding → 全可见
+		}
+		if b.ScopeLevel == rolebinding.ScopeLevelTeam && b.TeamID != "" {
+			// team 级 binding 的 TeamID 存为字符串（见 effectivePermissions 用法）
+			if id, perr := strconv.Atoi(b.TeamID); perr == nil && id > 0 && !seen[id] {
+				teamIDs = append(teamIDs, id)
+				seen[id] = true
+			}
+		}
+	}
+	return teamIDs, false, nil
 }
 
 // effectivePermissions 一次性查询用户在指定 scope 下所有有效 RoleBinding，

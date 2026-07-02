@@ -7,7 +7,10 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/actionitem"
+	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/postmortem"
+	"github.com/kevin/vigil/ent/team"
+	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
@@ -18,11 +21,47 @@ import (
 type Handler struct {
 	db     *ent.Client
 	engine *Engine
+	authz  *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
+	scope  *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
 }
 
 // NewHandler 创建复盘 handler。
 func NewHandler(db *ent.Client, e *Engine) *Handler {
 	return &Handler{db: db, engine: e}
+}
+
+// SetAuthorizer 注入鉴权器（ARCH-02/SEC-01：资源级鉴权 + list 数据隔离）。
+// 为 nil 时降级为无资源级校验（兼容渐进启用与单测）。
+func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
+
+// SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
+func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
+
+// actorFromContext 取当前操作人 ID。
+// 来自鉴权中间件注入的 ctxUser（auth.UserIDFromContext）。
+// 渐进式鉴权阶段：中间件可能未注入（匿名放行），此时返回 0（视为系统/匿名操作）。
+func (h *Handler) actorFromContext(c *echo.Context) int {
+	if uid, ok := auth.UserIDFromContext(c.Request().Context()); ok {
+		return uid
+	}
+	return 0
+}
+
+// checkAccess 资源级鉴权 helper（SEC-01）：校验当前用户对 kind 资源是否有 perm 权限。
+// kind 取值：postmortem / action_item（间接归属：ScopeResolver 多级回溯到 incident.team）。
+// 返回 echo error 形式，handler 直接 return。authz/scope 为 nil 时放行（兼容渐进/单测）。
+func (h *Handler) checkAccess(c *echo.Context, id int, perm auth.Permission, kind string) error {
+	if h.authz == nil || h.scope == nil {
+		return nil // 未注入：降级放行（渐进/单测）
+	}
+	allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, h.actorFromContext(c), perm, kind, id)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	if !allowed {
+		return errs.Forbidden(c, "")
+	}
+	return nil
 }
 
 // Register 挂载路由。
@@ -48,7 +87,27 @@ func (h *Handler) Register(g *echo.Group) {
 // @Security     bearerAuth
 // @Router       /postmortems [get]
 func (h *Handler) list(c *echo.Context) error {
-	pms, err := h.db.Postmortem.Query().WithIncident().All(c.Request().Context())
+	ctx := c.Request().Context()
+	q := h.db.Postmortem.Query()
+	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
+	// postmortem 间接归属 team（经 incident），用 HasIncidentWith + incident.HasTeamWith 组合 join。
+	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
+	if h.authz != nil {
+		uid := h.actorFromContext(c)
+		if uid > 0 {
+			teamIDs, orgWide, err := h.authz.VisibleTeamIDs(ctx, uid)
+			if err != nil {
+				return errs.Internal(c, nil, err)
+			}
+			if !orgWide {
+				if len(teamIDs) == 0 {
+					return c.JSON(http.StatusOK, []any{})
+				}
+				q = q.Where(postmortem.HasIncidentWith(incident.HasTeamWith(team.IDIn(teamIDs...))))
+			}
+		}
+	}
+	pms, err := q.WithIncident().All(ctx)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -69,7 +128,10 @@ func (h *Handler) list(c *echo.Context) error {
 func (h *Handler) get(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermPostmortemView, "postmortem"); e != nil {
+		return e
 	}
 	pm, err := h.db.Postmortem.Query().
 		Where(postmortem.IDEQ(id)).
@@ -126,7 +188,10 @@ type transitionReq struct {
 func (h *Handler) transition(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermPostmortemView, "postmortem"); e != nil {
+		return e
 	}
 	var req transitionReq
 	if err := c.Bind(&req); err != nil || req.Status == "" {
@@ -162,7 +227,11 @@ type addActionItemReq struct {
 func (h *Handler) addActionItem(c *echo.Context) error {
 	pmID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	// id 参数为 postmortem id；checkAccess 按 postmortem 间接归属回溯到 incident.team。
+	if e := h.checkAccess(c, pmID, auth.PermPostmortemActionItemManage, "postmortem"); e != nil {
+		return e
 	}
 	var req addActionItemReq
 	if err := c.Bind(&req); err != nil || req.Description == "" {
@@ -203,7 +272,11 @@ type updateActionItemReq struct {
 func (h *Handler) updateActionItem(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	// id 参数为 action_item id；ScopeResolver 经 action_item→postmortem→incident→team 三级回溯。
+	if e := h.checkAccess(c, id, auth.PermPostmortemActionItemManage, "action_item"); e != nil {
+		return e
 	}
 	var req updateActionItemReq
 	_ = c.Bind(&req)
@@ -239,7 +312,10 @@ func (h *Handler) updateActionItem(c *echo.Context) error {
 func (h *Handler) delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermPostmortemView, "postmortem"); e != nil {
+		return e
 	}
 	ctx := c.Request().Context()
 	// 先删关联改进项，再删复盘（无 OnDelete 声明，避免外键约束/孤儿）。
@@ -266,7 +342,11 @@ func (h *Handler) delete(c *echo.Context) error {
 func (h *Handler) deleteActionItem(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	// id 参数为 action_item id；ScopeResolver 经 action_item→postmortem→incident→team 三级回溯。
+	if e := h.checkAccess(c, id, auth.PermPostmortemActionItemManage, "action_item"); e != nil {
+		return e
 	}
 	if err := h.db.ActionItem.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		return errs.Internal(c, nil, err)

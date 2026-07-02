@@ -15,9 +15,12 @@ import (
 	"strconv"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/suppressionrule"
+	"github.com/kevin/vigil/ent/team"
+	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
@@ -29,7 +32,9 @@ type Handler struct {
 	db         *ent.Client
 	notifier   *Notifier // 用于 test 端点 dry-run
 	aggregator *Aggregator
-	templates  *TemplateEngine // 用于 preview 端点
+	templates  *TemplateEngine     // 用于 preview 端点
+	authz      *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
+	scope      *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
 }
 
 // NewHandler 创建通知配置 handler。notifier/aggregator/templates 可为 nil（对应端点降级）。
@@ -40,6 +45,40 @@ func NewHandler(db *ent.Client, notifier *Notifier, aggregator *Aggregator) *Han
 // SetTemplateEngine 注入模板引擎（template CRUD + preview 需要）。
 func (h *Handler) SetTemplateEngine(e *TemplateEngine) {
 	h.templates = e
+}
+
+// SetAuthorizer 注入鉴权器（ARCH-02/SEC-01：资源级鉴权 + list 数据隔离）。
+// 为 nil 时降级为无资源级校验（兼容渐进启用与单测）。
+func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
+
+// SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
+func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
+
+// actorFromContext 取当前操作人 ID。
+// 来自鉴权中间件注入的 ctxUser（auth.UserIDFromContext）。
+// 渐进式鉴权阶段：中间件可能未注入（匿名放行），此时返回 0（视为系统/匿名操作）。
+func (h *Handler) actorFromContext(c *echo.Context) int {
+	if uid, ok := auth.UserIDFromContext(c.Request().Context()); ok {
+		return uid
+	}
+	return 0
+}
+
+// checkAccess 资源级鉴权 helper（SEC-01）：校验当前用户对 kind 资源是否有 perm 权限。
+// kind 取值：notification_rule / suppression_rule / notification_template。
+// 返回 echo error 形式，handler 直接 return。authz/scope 为 nil 时放行（兼容渐进/单测）。
+func (h *Handler) checkAccess(c *echo.Context, id int, perm auth.Permission, kind string) error {
+	if h.authz == nil || h.scope == nil {
+		return nil // 未注入：降级放行（渐进/单测）
+	}
+	allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, h.actorFromContext(c), perm, kind, id)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	if !allowed {
+		return errs.Forbidden(c, "")
+	}
+	return nil
 }
 
 // Register 挂载路由。
@@ -81,7 +120,26 @@ func (h *Handler) Register(g *echo.Group) {
 // @Router       /notification-rules [get]
 // @Security     bearerAuth
 func (h *Handler) listRules(c *echo.Context) error {
-	rules, err := h.db.NotificationRule.Query().All(c.Request().Context())
+	ctx := c.Request().Context()
+	q := h.db.NotificationRule.Query()
+	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
+	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
+	if h.authz != nil {
+		uid := h.actorFromContext(c)
+		if uid > 0 {
+			teamIDs, orgWide, err := h.authz.VisibleTeamIDs(ctx, uid)
+			if err != nil {
+				return errs.Internal(c, nil, err)
+			}
+			if !orgWide {
+				if len(teamIDs) == 0 {
+					return c.JSON(http.StatusOK, []*ent.NotificationRule{})
+				}
+				q = q.Where(notificationrule.HasTeamWith(team.IDIn(teamIDs...)))
+			}
+		}
+	}
+	rules, err := q.All(ctx)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -159,7 +217,10 @@ func (h *Handler) createRule(c *echo.Context) error {
 func (h *Handler) getRule(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermNotificationRuleView, "notification_rule"); e != nil {
+		return e
 	}
 	r, err := h.db.NotificationRule.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
@@ -197,7 +258,10 @@ type updateRuleReq struct {
 func (h *Handler) updateRule(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermNotificationRuleView, "notification_rule"); e != nil {
+		return e
 	}
 	var req updateRuleReq
 	if err := c.Bind(&req); err != nil {
@@ -244,7 +308,10 @@ func (h *Handler) updateRule(c *echo.Context) error {
 func (h *Handler) deleteRule(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermNotificationRuleView, "notification_rule"); e != nil {
+		return e
 	}
 	if err := h.db.NotificationRule.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		if ent.IsNotFound(err) {
@@ -273,7 +340,10 @@ func (h *Handler) deleteRule(c *echo.Context) error {
 func (h *Handler) testRule(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermNotificationRuleView, "notification_rule"); e != nil {
+		return e
 	}
 	incIDStr := c.QueryParam("incident_id")
 	incID, _ := strconv.Atoi(incIDStr)
@@ -354,7 +424,26 @@ func ParseQuietHoursPublic(m map[string]any) *QuietHours {
 // @Router       /suppression-rules [get]
 // @Security     bearerAuth
 func (h *Handler) listSuppressions(c *echo.Context) error {
-	rules, err := h.db.SuppressionRule.Query().All(c.Request().Context())
+	ctx := c.Request().Context()
+	q := h.db.SuppressionRule.Query()
+	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
+	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
+	if h.authz != nil {
+		uid := h.actorFromContext(c)
+		if uid > 0 {
+			teamIDs, orgWide, err := h.authz.VisibleTeamIDs(ctx, uid)
+			if err != nil {
+				return errs.Internal(c, nil, err)
+			}
+			if !orgWide {
+				if len(teamIDs) == 0 {
+					return c.JSON(http.StatusOK, []*ent.SuppressionRule{})
+				}
+				q = q.Where(suppressionrule.HasTeamWith(team.IDIn(teamIDs...)))
+			}
+		}
+	}
+	rules, err := q.All(ctx)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -444,7 +533,10 @@ func (h *Handler) createSuppression(c *echo.Context) error {
 func (h *Handler) getSuppression(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermSuppressionView, "suppression_rule"); e != nil {
+		return e
 	}
 	r, err := h.db.SuppressionRule.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
@@ -484,7 +576,10 @@ type updateSuppressionReq struct {
 func (h *Handler) updateSuppression(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermSuppressionView, "suppression_rule"); e != nil {
+		return e
 	}
 	var req updateSuppressionReq
 	if err := c.Bind(&req); err != nil {
@@ -542,7 +637,10 @@ func (h *Handler) updateSuppression(c *echo.Context) error {
 func (h *Handler) deleteSuppression(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermSuppressionView, "suppression_rule"); e != nil {
+		return e
 	}
 	if err := h.db.SuppressionRule.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		if ent.IsNotFound(err) {
@@ -566,7 +664,28 @@ func (h *Handler) deleteSuppression(c *echo.Context) error {
 // @Router       /notification-templates [get]
 // @Security     bearerAuth
 func (h *Handler) listTemplates(c *echo.Context) error {
-	templates, err := h.db.NotificationTemplate.Query().All(c.Request().Context())
+	ctx := c.Request().Context()
+	q := h.db.NotificationTemplate.Query()
+	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
+	// 注意：notification_template 的 team 可能为 nil（builtin 全局模板），ScopeResolver
+	// 对 nil team 返回 nil → org 级判定；list 过滤此处仅作用于绑定 team 的模板。
+	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
+	if h.authz != nil {
+		uid := h.actorFromContext(c)
+		if uid > 0 {
+			teamIDs, orgWide, err := h.authz.VisibleTeamIDs(ctx, uid)
+			if err != nil {
+				return errs.Internal(c, nil, err)
+			}
+			if !orgWide {
+				if len(teamIDs) == 0 {
+					return c.JSON(http.StatusOK, []*ent.NotificationTemplate{})
+				}
+				q = q.Where(notificationtemplate.HasTeamWith(team.IDIn(teamIDs...)))
+			}
+		}
+	}
+	templates, err := q.All(ctx)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -646,7 +765,10 @@ func (h *Handler) createTemplate(c *echo.Context) error {
 func (h *Handler) getTemplate(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermNotificationTemplateView, "notification_template"); e != nil {
+		return e
 	}
 	t, err := h.db.NotificationTemplate.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
@@ -686,7 +808,10 @@ type updateTemplateReq struct {
 func (h *Handler) updateTemplate(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermNotificationTemplateView, "notification_template"); e != nil {
+		return e
 	}
 	// 内置模板不可改（只能由 seed 更新）
 	existing, err := h.db.NotificationTemplate.Get(c.Request().Context(), id)
@@ -748,7 +873,10 @@ func (h *Handler) updateTemplate(c *echo.Context) error {
 func (h *Handler) deleteTemplate(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermNotificationTemplateView, "notification_template"); e != nil {
+		return e
 	}
 	existing, err := h.db.NotificationTemplate.Get(c.Request().Context(), id)
 	if ent.IsNotFound(err) {
@@ -791,7 +919,10 @@ func (h *Handler) previewTemplate(c *echo.Context) error {
 	}
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermNotificationTemplateView, "notification_template"); e != nil {
+		return e
 	}
 	incID, _ := strconv.Atoi(c.QueryParam("incident_id"))
 	if incID == 0 {

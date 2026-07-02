@@ -11,7 +11,10 @@ import (
 	"strconv"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/schema"
+	"github.com/kevin/vigil/ent/team"
+	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
@@ -20,12 +23,47 @@ import (
 
 // PolicyHandler 升级策略管理 API（与处理升级任务的 Engine 区分）。
 type PolicyHandler struct {
-	db *ent.Client
+	db    *ent.Client
+	authz *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
+	scope *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
 }
 
 // NewPolicyHandler 创建升级策略 handler。
 func NewPolicyHandler(db *ent.Client) *PolicyHandler {
 	return &PolicyHandler{db: db}
+}
+
+// SetAuthorizer 注入鉴权器（ARCH-02/SEC-01：资源级鉴权 + list 数据隔离）。
+// 为 nil 时降级为无资源级校验（兼容渐进启用与单测）。
+func (h *PolicyHandler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
+
+// SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
+func (h *PolicyHandler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
+
+// actorFromContext 取当前操作人 ID。
+// 来自鉴权中间件注入的 ctxUser（auth.UserIDFromContext）。
+// 渐进式鉴权阶段：中间件可能未注入（匿名放行），此时返回 0（视为系统/匿名操作）。
+func (h *PolicyHandler) actorFromContext(c *echo.Context) int {
+	if uid, ok := auth.UserIDFromContext(c.Request().Context()); ok {
+		return uid
+	}
+	return 0
+}
+
+// checkAccess 资源级鉴权 helper（SEC-01）：校验当前用户对 escalation_policy 是否有 perm 权限。
+// 返回 echo error 形式，handler 直接 return。authz/scope 为 nil 时放行（兼容渐进/单测）。
+func (h *PolicyHandler) checkAccess(c *echo.Context, id int, perm auth.Permission) error {
+	if h.authz == nil || h.scope == nil {
+		return nil // 未注入：降级放行（渐进/单测）
+	}
+	allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, h.actorFromContext(c), perm, "escalation_policy", id)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	if !allowed {
+		return errs.Forbidden(c, "")
+	}
+	return nil
 }
 
 // Register 挂载路由。
@@ -60,7 +98,26 @@ type createReq struct {
 // @Security     bearerAuth
 // @Router       /escalation-policies [get]
 func (h *PolicyHandler) list(c *echo.Context) error {
-	policies, err := h.db.EscalationPolicy.Query().All(c.Request().Context())
+	ctx := c.Request().Context()
+	q := h.db.EscalationPolicy.Query()
+	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
+	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
+	if h.authz != nil {
+		uid := h.actorFromContext(c)
+		if uid > 0 {
+			teamIDs, orgWide, err := h.authz.VisibleTeamIDs(ctx, uid)
+			if err != nil {
+				return errs.Internal(c, nil, err)
+			}
+			if !orgWide {
+				if len(teamIDs) == 0 {
+					return c.JSON(http.StatusOK, []*ent.EscalationPolicy{})
+				}
+				q = q.Where(escalationpolicy.HasTeamWith(team.IDIn(teamIDs...)))
+			}
+		}
+	}
+	policies, err := q.All(ctx)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -111,7 +168,10 @@ func (h *PolicyHandler) create(c *echo.Context) error {
 func (h *PolicyHandler) get(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermEscalationView); e != nil {
+		return e
 	}
 	policy, err := h.db.EscalationPolicy.Get(c.Request().Context(), id)
 	if err != nil {
@@ -143,7 +203,10 @@ type updateReq struct {
 func (h *PolicyHandler) update(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermEscalationView); e != nil {
+		return e
 	}
 	var req updateReq
 	if err := c.Bind(&req); err != nil {
@@ -178,7 +241,10 @@ func (h *PolicyHandler) update(c *echo.Context) error {
 func (h *PolicyHandler) delete(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermEscalationView); e != nil {
+		return e
 	}
 	if err := h.db.EscalationPolicy.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})

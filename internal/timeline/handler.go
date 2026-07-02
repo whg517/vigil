@@ -7,6 +7,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/timelineitem"
+	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
@@ -16,11 +17,46 @@ import (
 // Handler 时间线 API。
 type Handler struct {
 	recorder *Recorder
+	authz    *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
+	scope    *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
 }
 
 // NewHandler 创建时间线 handler。
 func NewHandler(r *Recorder) *Handler {
 	return &Handler{recorder: r}
+}
+
+// SetAuthorizer 注入鉴权器（ARCH-02/SEC-01：资源级鉴权）。
+// 为 nil 时降级为无资源级校验（兼容渐进启用与单测）。
+func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
+
+// SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
+func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
+
+// actorFromContext 取当前操作人 ID（鉴权中间件注入的 ctxUser）。
+// 中间件未注入（匿名放行）时返回 0。
+func (h *Handler) actorFromContext(c *echo.Context) int {
+	if uid, ok := auth.UserIDFromContext(c.Request().Context()); ok {
+		return uid
+	}
+	return 0
+}
+
+// checkAccess 资源级鉴权 helper（SEC-01）：校验当前用户对 incident 是否有 perm 权限。
+// 时间线按 incident id 查询/追加，资源 kind 固定为 "incident"。
+// 返回 echo error 形式，handler 直接 return。authz/scope 为 nil 时放行（兼容渐进/单测）。
+func (h *Handler) checkAccess(c *echo.Context, id int, perm auth.Permission) error {
+	if h.authz == nil || h.scope == nil {
+		return nil // 未注入：降级放行（渐进/单测）
+	}
+	allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, h.actorFromContext(c), perm, "incident", id)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	if !allowed {
+		return errs.Forbidden(c, "")
+	}
+	return nil
 }
 
 // Register 挂载路由。
@@ -50,7 +86,10 @@ func (h *Handler) Register(g *echo.Group) {
 func (h *Handler) list(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, incID, auth.PermIncidentView); e != nil {
+		return e
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	offset, _ := strconv.Atoi(c.QueryParam("offset"))
@@ -95,11 +134,14 @@ type addReq struct {
 func (h *Handler) add(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, incID, auth.PermIncidentView); e != nil {
+		return e
 	}
 	var req addReq
 	if err := c.Bind(&req); err != nil || req.Content == "" {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "content required"})
+		return errs.BadRequest(c, "content required")
 	}
 	// 默认 note_added 类型、web 来源
 	actor := req.Actor

@@ -136,6 +136,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// —— 鉴权（能力域 13）：RBAC + 审计 ——
 	authz := auth.NewAuthorizer(st.DB)
 	auditRecorder := auth.NewAuditRecorder(st.DB)
+	// ARCH-02/SEC-01：资源级鉴权 scope 解析器（资源→team 反查）。
+	// 供各业务 handler 经 SetScopeResolver 注入后做资源级判定（checkAccess）。
+	scopeResolver := auth.NewScopeResolver(st.DB)
 
 	// —— 事件动作服务（能力域 8 复用层）：发布事件，不持 escalation ——
 	incService := incident.NewService(st.DB, timelineRecorder, bus)
@@ -240,11 +243,26 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	apiKeyHandler := auth.NewAPIKeyHandler(st.DB)
 	apiKeyHandler.SetAuditRecorder(auditRecorder)
 	apiKeyHandler.Register(v1)
-	schedule.NewHandler(schedEngine, st.DB).Register(v1)
-	service.NewHandler(st.DB).Register(v1)
-	integration.NewHandler(st.DB).Register(v1)
-	escalation.NewPolicyHandler(st.DB).Register(v1)
-	incident.NewHandler(st.DB, incService).Register(v1)
+	scheduleH := schedule.NewHandler(schedEngine, st.DB)
+	scheduleH.SetAuthorizer(authz)
+	scheduleH.SetScopeResolver(scopeResolver)
+	scheduleH.Register(v1)
+	serviceH := service.NewHandler(st.DB)
+	serviceH.SetAuthorizer(authz)
+	serviceH.SetScopeResolver(scopeResolver)
+	serviceH.Register(v1)
+	integrationH := integration.NewHandler(st.DB)
+	integrationH.SetAuthorizer(authz)
+	integrationH.SetScopeResolver(scopeResolver)
+	integrationH.Register(v1)
+	escalationH := escalation.NewPolicyHandler(st.DB)
+	escalationH.SetAuthorizer(authz)
+	escalationH.SetScopeResolver(scopeResolver)
+	escalationH.Register(v1)
+	incidentH := incident.NewHandler(st.DB, incService)
+	incidentH.SetAuthorizer(authz)
+	incidentH.SetScopeResolver(scopeResolver)
+	incidentH.Register(v1)
 	rbacHandler := auth.NewHandler(st.DB)
 	rbacHandler.SetAuditRecorder(auditRecorder)
 	rbacHandler.Register(v1)
@@ -260,24 +278,38 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
 	runbookEngine.SetTimelineRecorder(timelineRecorder)
 	runbookEngine.SetEscalationTrigger(runbookEscalator{inc: incService})
-	runbook.NewHandler(st.DB, runbookEngine).Register(v1)
-	timeline.NewHandler(timelineRecorder).Register(v1)
+	runbookH := runbook.NewHandler(st.DB, runbookEngine)
+	runbookH.SetAuthorizer(authz)
+	runbookH.SetScopeResolver(scopeResolver)
+	runbookH.Register(v1)
+	timelineH := timeline.NewHandler(timelineRecorder)
+	timelineH.SetAuthorizer(authz)
+	timelineH.SetScopeResolver(scopeResolver)
+	timelineH.Register(v1)
 	// 复盘（能力域 12）+ AI 诊断（能力域 11）：共享 GLM provider（成本控制包装）。
 	glmProvider := buildGLMProvider(cfg, log, st)
 	postmortemEngine := postmortem.NewEngine(st.DB, postmortemLLM(glmProvider, log))
 	if glmProvider.Available() {
 		postmortemEngine.SetEmbedder(glmProvider) // 知识沉淀：published 复盘计算 embedding
 	}
-	postmortem.NewHandler(st.DB, postmortemEngine).Register(v1)
+	postmortemH := postmortem.NewHandler(st.DB, postmortemEngine)
+	postmortemH.SetAuthorizer(authz)
+	postmortemH.SetScopeResolver(scopeResolver)
+	postmortemH.Register(v1)
 	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)
 	if st.SQL != nil {
 		aiDiagEngine.SetSQLRunner(pgvectorRunner(st.SQL))
 	}
-	ai.NewHandler(aiDiagEngine).Register(v1)
+	aiH := ai.NewHandler(aiDiagEngine)
+	aiH.SetAuthorizer(authz)
+	aiH.SetScopeResolver(scopeResolver)
+	aiH.Register(v1)
 	analytics.NewHandler(analytics.NewEngine(st.DB)).Register(v1)
 	// 通知配置（能力域 7 + 3 抑制）：Rule/Suppression/Template CRUD + dry-run。
 	notifHandler := notification.NewHandler(st.DB, notifier, notifAggregator)
 	notifHandler.SetTemplateEngine(notifTemplates)
+	notifHandler.SetAuthorizer(authz)
+	notifHandler.SetScopeResolver(scopeResolver)
 	notifHandler.Register(v1)
 
 	// QA 审计 C3：通知聚合 flush ticker。原实现 FlushAggregated 从未被调用 → 非 critical

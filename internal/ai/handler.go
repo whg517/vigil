@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
-	"github.com/kevin/vigil/internal/httputil"
 
 	"github.com/labstack/echo/v5"
 )
@@ -14,11 +14,45 @@ import (
 // Handler AI 诊断 API。
 type Handler struct {
 	engine *DiagnoseEngine
+	authz  *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
+	scope  *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
 }
 
 // NewHandler 创建 AI handler。
 func NewHandler(e *DiagnoseEngine) *Handler {
 	return &Handler{engine: e}
+}
+
+// SetAuthorizer 注入鉴权器（ARCH-02/SEC-01：资源级鉴权）。
+// 为 nil 时降级为无资源级校验（兼容渐进启用与单测）。
+func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
+
+// SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
+func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
+
+// actorFromContext 取当前操作人 ID（鉴权中间件注入的 ctxUser）。
+// 中间件未注入（匿名放行）时返回 0。
+func (h *Handler) actorFromContext(c *echo.Context) int {
+	if uid, ok := auth.UserIDFromContext(c.Request().Context()); ok {
+		return uid
+	}
+	return 0
+}
+
+// checkAccess 资源级鉴权 helper（SEC-01）：校验当前用户对 (kind,id) 资源是否有 perm 权限。
+// 返回 echo error 形式，handler 直接 return。authz/scope 为 nil 时放行（兼容渐进/单测）。
+func (h *Handler) checkAccess(c *echo.Context, kind string, id int, perm auth.Permission) error {
+	if h.authz == nil || h.scope == nil {
+		return nil // 未注入：降级放行（渐进/单测）
+	}
+	allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, h.actorFromContext(c), perm, kind, id)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	if !allowed {
+		return errs.Forbidden(c, "")
+	}
+	return nil
 }
 
 // Register 挂载路由。
@@ -49,7 +83,10 @@ func (h *Handler) Register(g *echo.Group) {
 func (h *Handler) diagnose(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, "incident", incID, auth.PermIncidentView); e != nil {
+		return e
 	}
 	res, err := h.engine.Diagnose(c.Request().Context(), incID)
 	if err != nil {
@@ -77,7 +114,10 @@ func (h *Handler) diagnose(c *echo.Context) error {
 func (h *Handler) similar(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, "incident", incID, auth.PermIncidentView); e != nil {
+		return e
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	similar, err := h.engine.FindSimilar(c.Request().Context(), incID, limit)
@@ -104,7 +144,10 @@ func (h *Handler) similar(c *echo.Context) error {
 func (h *Handler) similarPostmortems(c *echo.Context) error {
 	incID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, "incident", incID, auth.PermIncidentView); e != nil {
+		return e
 	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	pms, err := h.engine.FindSimilarPostmortems(c.Request().Context(), incID, limit)
@@ -136,7 +179,10 @@ type resolveReq struct {
 func (h *Handler) resolve(c *echo.Context) error {
 	insightID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, "ai_insight", insightID, auth.PermIncidentView); e != nil {
+		return e
 	}
 	var req resolveReq
 	_ = c.Bind(&req)

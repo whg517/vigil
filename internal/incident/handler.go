@@ -10,6 +10,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
+	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
@@ -19,14 +20,23 @@ import (
 
 // Handler Incident API。
 type Handler struct {
-	db  *ent.Client
-	svc *Service
+	db    *ent.Client
+	svc   *Service
+	authz *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
+	scope *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
 }
 
 // NewHandler 创建 incident handler。
 func NewHandler(db *ent.Client, svc *Service) *Handler {
 	return &Handler{db: db, svc: svc}
 }
+
+// SetAuthorizer 注入鉴权器（ARCH-02/SEC-01：资源级鉴权 + list 数据隔离）。
+// 为 nil 时降级为无资源级校验（兼容渐进启用与单测）。
+func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
+
+// SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
+func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
 
 // Register 挂载路由。
 // GET    /incidents           列表（?status=&severity=&limit=&offset=）
@@ -67,6 +77,23 @@ func (h *Handler) list(c *echo.Context) error {
 	if s := c.QueryParam("severity"); s != "" {
 		q = q.Where(incident.SeverityEQ(incident.Severity(s)))
 	}
+	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
+	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
+	if h.authz != nil {
+		uid := h.actorFromContext(c)
+		if uid > 0 {
+			teamIDs, orgWide, err := h.authz.VisibleTeamIDs(ctx, uid)
+			if err != nil {
+				return errs.Internal(c, nil, err)
+			}
+			if !orgWide {
+				if len(teamIDs) == 0 {
+					return c.JSON(http.StatusOK, httputil.Paginated[*ent.Incident]{Items: []*ent.Incident{}, Total: 0})
+				}
+				q = q.Where(incident.HasTeamWith(team.IDIn(teamIDs...)))
+			}
+		}
+	}
 	// 在加 limit/offset 前 clone 出计数 query，保证 total 与列表筛选条件一致
 	total, err := q.Clone().Count(ctx)
 	if err != nil {
@@ -105,7 +132,14 @@ func (h *Handler) list(c *echo.Context) error {
 func (h *Handler) get(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	// SEC-01：资源级鉴权——反查 incident.team → 校验当前用户对该 team 的 view 权限。
+	uid := h.actorFromContext(c)
+	if allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, uid, auth.PermIncidentView, "incident", id); err != nil {
+		return errs.Internal(c, nil, err)
+	} else if !allowed {
+		return errs.Forbidden(c, "")
 	}
 	inc, err := h.db.Incident.Query().
 		Where(incident.IDEQ(id)).
@@ -113,7 +147,7 @@ func (h *Handler) get(c *echo.Context) error {
 		WithEvents().
 		Only(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
+		return errs.NotFound(c, "not found")
 	}
 	return c.JSON(http.StatusOK, inc)
 }
@@ -129,6 +163,22 @@ func (h *Handler) actorFromContext(c *echo.Context) int {
 	return 0
 }
 
+// checkAccess 资源级鉴权 helper（SEC-01）：校验当前用户对 incident 是否有 perm 权限。
+// 返回 echo error 形式，handler 直接 return。authz/scope 为 nil 时放行（兼容渐进/单测）。
+func (h *Handler) checkAccess(c *echo.Context, id int, perm auth.Permission) error {
+	if h.authz == nil || h.scope == nil {
+		return nil // 未注入：降级放行（渐进/单测）
+	}
+	allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, h.actorFromContext(c), perm, "incident", id)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	if !allowed {
+		return errs.Forbidden(c, "")
+	}
+	return nil
+}
+
 // ack 确认事件（@Router /incidents/{id}/ack）。
 //
 // @Summary      确认事件（ack）
@@ -142,11 +192,14 @@ func (h *Handler) actorFromContext(c *echo.Context) int {
 func (h *Handler) ack(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermIncidentAck); e != nil {
+		return e
 	}
 	inc, err := h.svc.Ack(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
+		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
 	}
 	return c.JSON(http.StatusOK, inc)
 }
@@ -164,11 +217,14 @@ func (h *Handler) ack(c *echo.Context) error {
 func (h *Handler) resolve(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermIncidentResolve); e != nil {
+		return e
 	}
 	inc, err := h.svc.Resolve(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
+		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
 	}
 	return c.JSON(http.StatusOK, inc)
 }
@@ -186,11 +242,14 @@ func (h *Handler) resolve(c *echo.Context) error {
 func (h *Handler) escalate(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermIncidentEscalate); e != nil {
+		return e
 	}
 	inc, err := h.svc.Escalate(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
+		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
 	}
 	return c.JSON(http.StatusOK, inc)
 }
@@ -209,11 +268,14 @@ func (h *Handler) escalate(c *echo.Context) error {
 func (h *Handler) reopen(c *echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid id"})
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermIncidentReopen); e != nil {
+		return e
 	}
 	inc, err := h.svc.Reopen(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
+		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
 	}
 	return c.JSON(http.StatusOK, inc)
 }
