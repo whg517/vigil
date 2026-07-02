@@ -34,9 +34,11 @@ var _ = Describe("升级链", func() {
 			incs := testEnv.waitForIncidentCount(1)
 			incID := incs[0].ID
 
-			By("升级链启动后，current_level 推进到 1，再到 2（delay=0）")
-			testEnv.waitForEscalationLevel(incID, 1)
-			testEnv.waitForEscalationLevel(incID, 2)
+			By("升级链启动后，current_level 最终推进到 2（delay=0，两层快连续）")
+			// FIX-6：原分别 waitForEscalationLevel(1) 再 (2)，但两层 delay=0 时 asynq
+			// 几乎瞬时连续触发 level 0→1→2，200ms 轮询间隔可能跳过 level=1 中间态，
+			// 导致等 level 1 超时（flaky）。改为只断言最终达到 level 2（用 >= 语义容忍快速越过）。
+			testEnv.waitForEscalationLevelAtLeast(incID, 2)
 
 			By("时间线应有升级记录")
 			testEnv.waitForTimelineEntry(incID)

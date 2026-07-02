@@ -375,6 +375,23 @@ func (e *envState) waitForEscalationLevel(incID, wantLevel int) *ent.Incident {
 	return got
 }
 
+// waitForEscalationLevelAtLeast 轮询直到 current_level >= wantLevel（FIX-6）。
+// 用于多层 delay=0 的快速连续升级场景：asynq 可能在 200ms 轮询间隔内连续越过多个 level，
+// 用 >= 语义容忍快速越过，避免等中间态超时 flaky。
+func (e *envState) waitForEscalationLevelAtLeast(incID, wantLevel int) *ent.Incident {
+	var got *ent.Incident
+	gomega.Eventually(func() int {
+		inc, err := e.db().Incident.Get(context.Background(), incID)
+		if err != nil {
+			return -1
+		}
+		got = inc
+		return inc.CurrentLevel
+	}, 15*time.Second, 200*time.Millisecond).
+		Should(gomega.BeNumerically(">=", wantLevel), "incident 升级到至少 level "+strconv.Itoa(wantLevel))
+	return got
+}
+
 // waitForTimelineEntry 轮询直到 incident 有至少一条时间线条目。
 func (e *envState) waitForTimelineEntry(incID int) {
 	gomega.Eventually(func() int {
