@@ -48,3 +48,5 @@ internal/web/dist/*
 
 # 日志
 *.log
+/genmigration
+cmd/genmigration/genmigration
