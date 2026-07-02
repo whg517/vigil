@@ -44,31 +44,28 @@ func New(ctx context.Context, cfg *config.Config) (*Store, error) {
 		return nil, fmt.Errorf("open raw sql db: %w", err)
 	}
 	sqlDB.SetMaxOpenConns(10)
+	// BE-02：用 SELECT 1 轻量探活（替代旧的 User.Count 全表扫描）。
+	// 启动期验证连通即可，无需遍历数据。
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := sqlDB.PingContext(pingCtx); err != nil {
+		_ = db.Close()
+		_ = rc.Close()
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("ping postgres: %w", err)
+	}
 	return &Store{DB: db, Redis: rc, SQL: sqlDB}, nil
 }
 
-// openDB 打开 ent client（底层 PostgreSQL），并 ping 验证连通。
-// 不在此自动迁移，迁移由 migrate 子命令/部署流程负责。
+// openDB 打开 ent client（底层 PostgreSQL）。
+// 不在此自动迁移或 ping（连通性由 store.New 统一用 sql.DB.PingContext 探活）。
 // 驱动：lib/pq（与 main.go 的 blank import 一致，ent dialect "postgres" 也用此）。
 func openDB(ctx context.Context, cfg *config.Config) (*ent.Client, error) {
 	db, err := ent.Open("postgres", cfg.DB.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %w", err)
 	}
-	// ping 验证连通性：通过查实体计数验证（兼容 ent 接口，不依赖底层 driver）
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if err := pingViaEnt(pingCtx, db); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("ping postgres: %w", err)
-	}
 	return db, nil
-}
-
-// pingViaEnt 通过查一个实体计数验证连通（兼容 ent 接口，不依赖底层 driver）。
-func pingViaEnt(ctx context.Context, db *ent.Client) error {
-	_, err := db.User.Query().Limit(1).Count(ctx)
-	return err
 }
 
 // openRedis 打开 Redis client。

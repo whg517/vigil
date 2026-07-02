@@ -95,13 +95,24 @@ func (s *Server) health(c *echo.Context) error {
 		checks["redis"] = "up"
 	}
 
-	// PostgreSQL 连通性：轻量查询验证（运行时探活，非依赖初始化）。
+	// PostgreSQL 连通性：SELECT 1 轻量探活（BE-02，替代 User.Count 全表扫描）。
 	// DB 挂了健康检查必须能反映出来，供 K8s liveness/readiness 判断。
-	if _, err := s.store.DB.User.Query().Limit(1).Count(ctx); err != nil {
-		checks["postgres"] = "down: " + err.Error()
-		status = http.StatusServiceUnavailable
+	// 高频探针下 SELECT 1 比 COUNT(*) 廉价（不访问数据，仅协议往返）。
+	if s.store.SQL != nil {
+		if err := s.store.SQL.QueryRowContext(ctx, "SELECT 1").Scan(new(int)); err != nil {
+			checks["postgres"] = "down: " + err.Error()
+			status = http.StatusServiceUnavailable
+		} else {
+			checks["postgres"] = "up"
+		}
 	} else {
-		checks["postgres"] = "up"
+		// SQL 未配置（理论上不会发生，store.New 总会构造）：降级用 ent。
+		if _, err := s.store.DB.User.Query().Limit(1).Count(ctx); err != nil {
+			checks["postgres"] = "down: " + err.Error()
+			status = http.StatusServiceUnavailable
+		} else {
+			checks["postgres"] = "up"
+		}
 	}
 
 	resp := map[string]any{
