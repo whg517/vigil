@@ -30,6 +30,10 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           # SEC-05：容器级安全上下文（drop 全部 capabilities + 禁提权 + 只读根文件系统）。
+          # FIX-5 验证：vigil 运行时不写 /tmp 之外的路径（logger 走 stderr，无文件日志；
+          # 业务代码无 os.Create/WriteFile；唯一文件写入是开发工具 cmd/swagfix，非运行时）。
+          # 故只挂载 /tmp（Go runtime/os.TempDir 用）即可安全启用只读根文件系统。
+          # 若未来引入文件日志（lumberjack 等）或本地缓存，须额外挂载对应卷。
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
