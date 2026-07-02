@@ -8,11 +8,13 @@
 --   · ent auto-migrate（migrate.Run 第 6 步）负责创建/同步全部 17 个实体表
 --   · post_*.sql 在 auto-migrate 后执行（未来增量：数据回填/索引调优等）
 --
--- 为什么 baseline 不含 CREATE TABLE：
+-- 为什么本文件不含 CREATE TABLE：
 --   ent schema（ent/schema/*.go → ent/migrate/schema.go）是 schema 的权威源。
---   用 ent auto-migrate 生成表保证「代码与 schema 强一致」（编译期保障），
---   避免 SQL DDL 与 Go 代码双写漂移。CI 用 enttest 验证 schema 可自洽生成
---   （见 .github/workflows/ci.yml 的 schema-consistency job）。
+--   运行时由 ent auto-migrate 创建/同步表，保证「代码与 schema 强一致」（编译期保障），
+--   避免 SQL DDL 与 Go 代码双写漂移。
+--
+--   完整可 review 的 DDL 镜像见 internal/migrate/schema/baseline.sql
+--   （由 cmd/genmigration 从 ent schema 生成，CI drift 检测保证同步，但不参与运行时 apply）。
 --
 -- 本文件存在的意义：
 --   1. 在 schema_migrations 记录 baseline 版本，使版本链可追溯
