@@ -44,6 +44,16 @@ const (
 	msgInternal = "internal error"
 )
 
+// globalLogger 全局 logger（FIX-3：消除 errs.Internal(c, nil, err) 的可观测性回归）。
+// 由 SetLogger 在装配期注入（wire 调一次），Internal/FailNotFound 在调用方传 nil 时回退用它。
+// logger 是启动期设置一次的单例，全局状态在此处可接受（与 echo.New 同为装配对象）。
+var globalLogger *zap.Logger
+
+// SetLogger 设置全局 logger（装配期由 server.Wire 调用一次）。
+// 设置后，所有 errs.Internal(c, nil, err) 会用此 logger 记录详细 err，
+// 无需每个 handler 持有 logger——消除 BE-01 引入的"传 nil 导致不记录"回归。
+func SetLogger(log *zap.Logger) { globalLogger = log }
+
 // BadRequest 400 invalid_argument。msg 为用户可读提示（非底层 err）。
 func BadRequest(c *echo.Context, msg string) error {
 	return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: msg, Code: CodeInvalidArgument})
@@ -95,8 +105,13 @@ func RateLimited(c *echo.Context, msg string, retryAfterSec int) error {
 // Internal 500 internal。真实 err 用 log 记录（含 RequestID 串联排障），
 // 前端只收到通用 "internal error"，杜绝底层细节（SQL 错误/路径/表名）泄露。
 //
-// log 为 nil 时仅返回响应（测试场景）；生产装配件必须注入 logger。
+// log 解析顺序：显式传入 > 全局（SetLogger 注入）> 不记录（纯测试）。
+// 生产装配（server.Wire 调 errs.SetLogger）后，即使 handler 传 nil 也会记录，
+// 消除 BE-01 引入的"传 nil 导致生产不记录 err"回归（FIX-3）。
 func Internal(c *echo.Context, log *zap.Logger, err error, msg ...string) error {
+	if log == nil {
+		log = globalLogger // 回退全局（装配期注入）
+	}
 	if log != nil && err != nil {
 		// RequestID 由 echo middleware 注入到 response header，日志此处带 err 即可串联。
 		log.Error("request internal error",

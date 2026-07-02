@@ -10,6 +10,7 @@ import (
 
 	"github.com/kevin/vigil/internal/httputil"
 	"github.com/labstack/echo/v5"
+	"go.uber.org/zap"
 )
 
 // newCtx 构造测试用 *echo.Context（最小依赖，便于断言响应）。
@@ -116,6 +117,29 @@ func TestInternal_NoLeak(t *testing.T) {
 	}
 	if r.Code != CodeInternal {
 		t.Errorf("code: got %q", r.Code)
+	}
+}
+
+// TestInternal_GlobalLoggerFallback 验证 SetLogger 注入后，Internal(nil) 不 panic 且
+// 走全局 logger 路径（FIX-3：消除 handler 传 nil 导致不记录的回归）。
+func TestInternal_GlobalLoggerFallback(t *testing.T) {
+	prev := globalLogger
+	t.Cleanup(func() { globalLogger = prev })
+	SetLogger(zap.NewNop()) // 模拟装配期注入
+	c, _ := newCtx(t)
+	// Internal 传 nil 应回退用全局 logger，不 panic
+	if err := Internal(c, nil, errors.New("db down")); err != nil {
+		t.Fatalf("Internal with global fallback: %v", err)
+	}
+}
+
+// TestSetLogger 验证 SetLogger 设置全局 logger（装配期调用）。
+func TestSetLogger(t *testing.T) {
+	prev := globalLogger
+	t.Cleanup(func() { globalLogger = prev })
+	SetLogger(zap.NewNop())
+	if globalLogger == nil {
+		t.Error("SetLogger should set globalLogger")
 	}
 }
 

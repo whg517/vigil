@@ -27,6 +27,7 @@ import (
 	"github.com/kevin/vigil/internal/analytics"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/config"
+	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/escalation"
 	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/im"
@@ -80,6 +81,9 @@ func (w *Wired) Close() {
 // ctx 用于装配期初始化（如 resolveEmails 闭包、seed）。调用方传入的 ctx 生命周期
 // 应覆盖整个使用期。装配顺序对应架构分层，依赖图通过局部变量声明顺序自然满足。
 func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.Store, q *queue.Queue, bus *domainevent.Bus) (*Wired, error) {
+	// FIX-3：注入全局 logger，使 errs.Internal(c, nil, err) 也能记录详细 err（消除可观测性回归）。
+	errs.SetLogger(log)
+
 	// —— 基础设施 seed（鉴权生效前提，幂等）——
 	if err := auth.SeedBuiltinRoles(ctx, st.DB); err != nil {
 		log.Warn("seed builtin roles failed", zap.Error(err))
