@@ -291,6 +291,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
 	runbookEngine.SetTimelineRecorder(timelineRecorder)
 	runbookEngine.SetEscalationTrigger(runbookEscalator{inc: incService})
+	// 并发保护（C.5.1 / audit S10）：(runbook, incident) 维度执行锁，防连点/并发重复触发写步骤。
+	// 无 Redis 时降级为无锁（TTL 用默认兜底值）。
+	runbookEngine.SetRedis(st.Redis, 0)
 	runbookH := runbook.NewHandler(st.DB, runbookEngine)
 	runbookH.SetAuthorizer(authz)
 	runbookH.SetScopeResolver(scopeResolver)

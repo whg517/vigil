@@ -322,6 +322,11 @@ func (h *Handler) execute(c *echo.Context) error {
 	// 执行人身份从鉴权中间件取（留痕"谁执行/审批了写操作"，见 C.5.3）。
 	res, err := h.engine.Execute(c.Request().Context(), id, req.IncidentID, req.Approved, h.actorFromContext(c))
 	if err != nil {
+		// 并发保护（C.5.1）：同一 runbook+incident 已有执行在途，连点/并发第二次冲突。
+		// 返回 409 而非 500——这是预期的幂等拒绝，不是服务端错误。
+		if errors.Is(err, ErrExecuteInProgress) {
+			return errs.Conflict(c, "该 runbook 正在对此 incident 执行中，请勿重复触发")
+		}
 		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, res)

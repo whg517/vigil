@@ -22,7 +22,7 @@
 | S7 | **复盘起草端点零权限校验**（`postmortem.create` 悬空）+ 对已存在复盘（含 published）**直接覆盖** sections | `wire.go`、`postmortem/handler.go` generateDraft、`engine.go:101-115` | C.6 |
 | S8 | `POST /incidents/:id/timeline` 的 **actor/source 请求体自报**可冒充（服务端不回填登录态）；只读 subscriber 也能备注（仅校验 `incident.view`） | `timeline/handler.go` add | C.8 / E.5 |
 | S9 | **IM 越权/denied 不落审计**（AuditLog 仍仅 7 种 action；C.3.2 图"拒绝→审计"为设计目标） | `im/handler.go` 无 AuditRecorder | C.3.2 |
-| S10 | ✅ **已修复（2026-07-04）**：`RecordRunbook`/`RecordRunbookBlocked` 透传发起人 actorID（时间线记 `actor={kind:user,id}`、source=web），执行/阻断/升级均留痕；未获批写步骤按 on_failure 阻断（continue/abort/escalate）；前端弹窗真实传审批决策。⏳ 剩余：AuditLog/IncidentAction 未写、execute **无并发保护**（连点重复执行）、无独立审批人/pending 流 | `runbook/engine.go`、`timeline/recorder.go`、`web/src/pages/runbooks.tsx` | C.5.1/C.5.3 |
+| S10 | ✅ **已修复（2026-07-04）**：`RecordRunbook`/`RecordRunbookBlocked` 透传发起人 actorID（时间线记 `actor={kind:user,id}`、source=web），执行/阻断/升级均留痕；未获批写步骤按 on_failure 阻断（continue/abort/escalate）；前端弹窗真实传审批决策；execute **已加并发保护**（2026-07-04：(runbook, incident) 维度 Redis 执行锁，approved=true 连点/并发第二次返回 409，写步骤不重复触发；只读干跑不加锁、执行结束释放锁允许合法重试）。⏳ 剩余：AuditLog/IncidentAction 未写、无独立审批人/pending 流 | `runbook/engine.go`、`timeline/recorder.go`、`web/src/pages/runbooks.tsx` | C.5.1/C.5.3 |
 | S11 | AIInsight accept/reject 仅需 `incident.view`（subscriber 也能改判）、无前置状态校验（可反复改判）、无 resolver 留痕 | `ai/diagnose.go` ResolveInsight | C.4.4 |
 | S12 | 钉钉回调**缺 sign 头时跳过验签**（只解密）；明文模式（无 aes_key）完全不校验 | `im/dingtalk/adapter.go` VerifyCallback | C.3.3 |
 | S13 | 出站 webhook **无签名头**（仅 UA），接收端无法验源 | `webhook/dispatcher.go` | F.3 |

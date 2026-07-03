@@ -12,12 +12,25 @@ package runbook
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/schema"
+
+	"github.com/redis/go-redis/v9"
 )
+
+// ErrExecuteInProgress 表示同一 (runbook, incident) 已有一次已审批执行在进行中，
+// 本次触发被并发保护闸门拒绝（handler 映射为 409）。用于防止连点/并发重复触发写步骤
+// （回滚/扩容/Jenkins job 等不可逆写操作）。
+var ErrExecuteInProgress = errors.New("runbook execution already in progress for this incident")
+
+// defaultExecLockTTL 执行锁的兜底 TTL。正常路径执行结束即主动释放锁；TTL 仅用于
+// 进程崩溃/请求中断时兜底自动过期，避免 (runbook, incident) 被永久锁死。
+// 取值需大于单次执行的最坏耗时（含外接 Jenkins/HTTP 执行器超时）。
+const defaultExecLockTTL = 10 * time.Minute
 
 // Engine Runbook 执行引擎。
 type Engine struct {
@@ -25,6 +38,13 @@ type Engine struct {
 	registry  *Registry
 	timeline  TimelineRecorder  // 时间线记录接口，由 main 注入；nil 则不记录
 	escalator EscalationTrigger // 升级触发器，on_failure=escalate 时调用；nil 则仅中止不升级
+
+	// redis 用于 execute 并发保护（(runbook, incident) 维度的执行锁）。
+	// 为 nil 时降级为无锁（单机/单测友好）——核心 human-in-the-loop 审批闸门仍在，
+	// 只是失去"连点/并发去重"这一层防护。由 main 注入（SetRedis）。
+	redis *redis.Client
+	// execLockTTL 执行锁兜底过期时间，NewEngine 设默认值，测试可经 SetRedis 覆盖。
+	execLockTTL time.Duration
 }
 
 // TimelineRecorder 时间线记录接口（解耦 runbook 与 incident 包）。
@@ -46,7 +66,16 @@ type EscalationTrigger interface {
 
 // NewEngine 创建执行引擎。
 func NewEngine(db *ent.Client, reg *Registry) *Engine {
-	return &Engine{db: db, registry: reg}
+	return &Engine{db: db, registry: reg, execLockTTL: defaultExecLockTTL}
+}
+
+// SetRedis 注入 Redis（execute 并发保护用）。ttl<=0 时保留默认兜底 TTL。
+// 为 nil 时执行锁降级为无操作（见 Engine.redis 说明）。
+func (e *Engine) SetRedis(rc *redis.Client, ttl time.Duration) {
+	e.redis = rc
+	if ttl > 0 {
+		e.execLockTTL = ttl
+	}
 }
 
 // SetTimelineRecorder 注入时间线记录器。
@@ -83,8 +112,51 @@ func (e *Engine) Execute(ctx context.Context, runbookID, incID int, approved boo
 		return &ExecuteResult{RunbookID: runbookID, IncidentID: incID}, nil
 	}
 
+	// 并发保护：只对"已审批执行"（approved=true，真正会触发写步骤的路径）加锁去重，
+	// 防止连点/并发把回滚/扩容/Jenkins job 等不可逆写操作重复触发（C.5.1、audit S10）。
+	// 只读干跑（approved=false）跳过所有写步骤、可反复预览，不加锁以免误伤重试。
+	if approved {
+		release, err := e.acquireExecLock(ctx, runbookID, incID)
+		if err != nil {
+			return nil, err // ErrExecuteInProgress（并发冲突）或 Redis 故障（fail-closed）
+		}
+		defer release()
+	}
+
 	res := &ExecuteResult{RunbookID: runbookID, IncidentID: incID}
 	return e.executeSteps(ctx, incID, rb.Steps, approved, actorID, res), nil
+}
+
+// execLockKey (runbook, incident) 维度的执行锁 key。
+func execLockKey(runbookID, incID int) string {
+	return fmt.Sprintf("vigil:runbook:exec:%d:%d", runbookID, incID)
+}
+
+// acquireExecLock 获取 (runbookID, incID) 的执行锁，返回释放函数。
+//
+// 语义（对齐 triage dedup 的 SETNX 用法，但执行结束主动释放以允许合法重试）：
+//   - SETNX 抢锁：已被占用（并发/连点第二次）返回 ErrExecuteInProgress。
+//   - 抢到锁：返回释放闭包，执行结束（含失败）删除 key，使后续合法重试可再次执行。
+//   - TTL 仅作兜底：进程崩溃/请求中断未走到释放时自动过期，避免永久锁死。
+//   - 无 Redis：降级为无锁（返回 no-op 释放函数）；核心审批闸门仍在。
+//   - Redis 故障：fail-closed 返回错误——宁可拒绝本次执行，也不冒重复触发写操作的风险。
+func (e *Engine) acquireExecLock(ctx context.Context, runbookID, incID int) (func(), error) {
+	noop := func() {}
+	if e.redis == nil {
+		return noop, nil // 降级：无 Redis 不加锁
+	}
+	key := execLockKey(runbookID, incID)
+	ok, err := e.redis.SetNX(ctx, key, 1, e.execLockTTL).Result()
+	if err != nil {
+		return noop, fmt.Errorf("acquire runbook exec lock: %w", err)
+	}
+	if !ok {
+		return noop, ErrExecuteInProgress
+	}
+	return func() {
+		// 用独立 context 释放：请求 ctx 可能已取消，否则锁会残留到 TTL 才过期。
+		_ = e.redis.Del(context.Background(), key).Err()
+	}, nil
 }
 
 // executeSteps 执行步骤列表，处理 on_failure（continue/abort/escalate）+ 时间线记录。
