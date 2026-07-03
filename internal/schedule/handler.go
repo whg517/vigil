@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	entrotation "github.com/kevin/vigil/ent/rotation"
 	entschedule "github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/team"
-	entrotation "github.com/kevin/vigil/ent/rotation"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
@@ -123,23 +123,23 @@ func (h *Handler) list(c *echo.Context) error {
 
 // createScheduleReq 创建排班请求。
 type createScheduleReq struct {
-	Name     string            `json:"name"`
-	Type     string            `json:"type"`     // calendar | rotation | follow_the_sun
-	Timezone string            `json:"timezone"` // 默认 Asia/Shanghai
-	Layers   []createLayerReq  `json:"layers"`
-	TeamID   int               `json:"team_id"`
+	Name     string           `json:"name"`
+	Type     string           `json:"type"`     // calendar | rotation | follow_the_sun
+	Timezone string           `json:"timezone"` // 默认 Asia/Shanghai
+	Layers   []createLayerReq `json:"layers"`
+	TeamID   int              `json:"team_id"`
 }
 
 // createLayerReq 创建排班分层请求（FIX-D：含 rotation 配置，建 Rotation 实体）。
 // 修复前 layers 只存 JSON 不建 Rotation → oncall 查不到 rotation → 返回空。
 type createLayerReq struct {
-	Name         string   `json:"name"`          // 层名，如 "一线"
-	Priority     int      `json:"priority"`      // 数字越小优先级越高
-	Participants []int    `json:"participants"`  // 值班人 user id 列表
-	RotationType string   `json:"rotation_type"` // daily | weekly | custom（默认 daily）
-	ShiftLength  string   `json:"shift_length"`  // 班次时长 "24h"/"1week"（默认 24h）
-	HandoffTime  string   `json:"handoff_time"`  // 交接时刻 "HH:MM"（默认 09:00）
-	StartDate    string   `json:"start_date"`    // 开始日期 RFC3339（默认现在）
+	Name         string `json:"name"`          // 层名，如 "一线"
+	Priority     int    `json:"priority"`      // 数字越小优先级越高
+	Participants []int  `json:"participants"`  // 值班人 user id 列表
+	RotationType string `json:"rotation_type"` // daily | weekly | custom（默认 daily）
+	ShiftLength  string `json:"shift_length"`  // 班次时长 "24h"/"1week"（默认 24h）
+	HandoffTime  string `json:"handoff_time"`  // 交接时刻 "HH:MM"（默认 09:00）
+	StartDate    string `json:"start_date"`    // 开始日期 RFC3339（默认现在）
 }
 
 // create 创建排班。
@@ -266,7 +266,7 @@ func buildRotation(ctx context.Context, tx *ent.Tx, lr createLayerReq) (*ent.Rot
 		AddParticipantIDs(lr.Participants...)
 	return rb.Save(ctx)
 }
-//
+
 // @Summary      排班详情
 // @Tags         schedule
 // @Produce      json
