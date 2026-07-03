@@ -306,7 +306,8 @@ func (h *Handler) execute(c *echo.Context) error {
 	var req executeReq
 	_ = c.Bind(&req) // approved 可缺省（默认 false，写动作会被跳过）
 
-	res, err := h.engine.Execute(c.Request().Context(), id, req.IncidentID, req.Approved)
+	// 执行人身份从鉴权中间件取（留痕"谁执行/审批了写操作"，见 C.5.3）。
+	res, err := h.engine.Execute(c.Request().Context(), id, req.IncidentID, req.Approved, h.actorFromContext(c))
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}

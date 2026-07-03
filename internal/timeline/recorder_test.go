@@ -149,17 +149,48 @@ func TestRecorder_FulfillsRunbookInterface(t *testing.T) {
 	var _ runbook.TimelineRecorder = (*Recorder)(nil)
 }
 
-// TestRecorder_RecordRunbook 验证 RecordRunbook 写入。
+// TestRecorder_RecordRunbook 验证 RecordRunbook 写入 + actor 留痕（C.5.3）。
 func TestRecorder_RecordRunbook(t *testing.T) {
 	c := newTestClient(t)
 	inc := seedIncident(t, c)
 	r := NewRecorder(c)
 
-	if err := r.RecordRunbook(context.Background(), inc.ID, "查日志", "ok", true); err != nil {
+	if err := r.RecordRunbook(context.Background(), inc.ID, "查日志", "ok", true, 42); err != nil {
 		t.Fatalf("RecordRunbook: %v", err)
 	}
 	items, _ := r.Query(context.Background(), inc.ID, timelineitem.TypeRunbookExecuted, "", 10, 0)
 	if len(items) != 1 {
 		t.Fatalf("expected 1 runbook item, got %d", len(items))
+	}
+	// actorID=42 → actor.kind=user, actor.id="42"、source=web（不再恒 system）
+	if got := items[0].Actor["kind"]; got != "user" {
+		t.Errorf("actor.kind = %q, want user", got)
+	}
+	if got := items[0].Actor["id"]; got != "42" {
+		t.Errorf("actor.id = %q, want 42", got)
+	}
+	if items[0].Source != timelineitem.SourceWeb {
+		t.Errorf("source = %q, want web", items[0].Source)
+	}
+}
+
+// TestRecorder_RecordRunbookBlocked 验证写步骤未获审批的阻断留痕（含 actor）。
+func TestRecorder_RecordRunbookBlocked(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncident(t, c)
+	r := NewRecorder(c)
+
+	if err := r.RecordRunbookBlocked(context.Background(), inc.ID, "回滚", 7); err != nil {
+		t.Fatalf("RecordRunbookBlocked: %v", err)
+	}
+	items, _ := r.Query(context.Background(), inc.ID, timelineitem.TypeRunbookExecuted, "", 10, 0)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].Actor["id"] != "7" {
+		t.Errorf("actor.id = %q, want 7", items[0].Actor["id"])
+	}
+	if blocked, _ := items[0].Detail["blocked"].(bool); !blocked {
+		t.Errorf("detail.blocked = %v, want true", items[0].Detail["blocked"])
 	}
 }

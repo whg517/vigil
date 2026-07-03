@@ -107,6 +107,14 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const [executing, setExecuting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [incidentId, setIncidentId] = useState("");
+  // 写操作审批：默认不批准（human-in-the-loop）。不勾选 = 干跑（写步骤被跳过），
+  // 勾选 = 明确批准执行写操作。绝不恒发 approved:true（安全红线，见 C.5.1）。
+  const [approveWrites, setApproveWrites] = useState(false);
+
+  const closeExecuting = () => {
+    setExecuting(false);
+    setApproveWrites(false); // 复位：每次执行都需重新做审批决策
+  };
 
   if (isLoading) return <div className="p-6"><Skeleton className="h-40 w-full" /></div>;
   if (isError || !rb) {
@@ -166,14 +174,14 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
       </Card>
 
       {executing && (
-        <Dialog open onClose={() => setExecuting(false)} title="执行 Runbook" description="可执行 Runbook 写操作需人确认（human-in-the-loop）。">
+        <Dialog open onClose={closeExecuting} title="执行 Runbook" description="可执行 Runbook 写操作需人确认（human-in-the-loop）。">
           <form
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
               exec.mutate(
-                { id, incidentId: Number(incidentId), approved: true },
-                { onSuccess: () => setExecuting(false) },
+                { id, incidentId: Number(incidentId), approved: approveWrites },
+                { onSuccess: closeExecuting },
               );
             }}
           >
@@ -187,12 +195,23 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 placeholder="42"
               />
             </label>
-            <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
-              ⚠️ 写操作将执行，请确认 Runbook 步骤安全。诊断类（readonly）自动执行无需确认。
-            </p>
+            <label className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 p-2 text-xs dark:border-amber-500/30 dark:bg-amber-950/30">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-amber-600"
+                checked={approveWrites}
+                onChange={(e) => setApproveWrites(e.target.checked)}
+              />
+              <span className="text-amber-900 dark:text-amber-200">
+                <span className="font-medium">我确认执行写操作</span>
+                （回滚/扩容等）。不勾选则仅干跑：诊断类（readonly）步骤照常执行，写操作步骤将被跳过。
+              </span>
+            </label>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setExecuting(false)}>取消</Button>
-              <Button type="submit" disabled={exec.isPending || !incidentId}>确认执行</Button>
+              <Button type="button" variant="outline" onClick={closeExecuting}>取消</Button>
+              <Button type="submit" disabled={exec.isPending || !incidentId}>
+                {approveWrites ? "确认并执行写操作" : "执行（仅干跑）"}
+              </Button>
             </div>
           </form>
         </Dialog>

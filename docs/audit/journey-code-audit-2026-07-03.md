@@ -22,7 +22,7 @@
 | S7 | **复盘起草端点零权限校验**（`postmortem.create` 悬空）+ 对已存在复盘（含 published）**直接覆盖** sections | `wire.go`、`postmortem/handler.go` generateDraft、`engine.go:101-115` | C.6 |
 | S8 | `POST /incidents/:id/timeline` 的 **actor/source 请求体自报**可冒充（服务端不回填登录态）；只读 subscriber 也能备注（仅校验 `incident.view`） | `timeline/handler.go` add | C.8 / E.5 |
 | S9 | **IM 越权/denied 不落审计**（AuditLog 仍仅 7 种 action；C.3.2 图"拒绝→审计"为设计目标） | `im/handler.go` 无 AuditRecorder | C.3.2 |
-| S10 | **Runbook 执行人全链路不留痕**：时间线 RecordRunbook 无 actor（恒 system）、HTTP 层不写审计、approved 值零留痕；且 execute **无并发保护**（写操作可被连点重复执行） | `runbook/engine.go`、`timeline/recorder.go` | C.5.3 |
+| S10 | ✅ **已修复（2026-07-04）**：`RecordRunbook`/`RecordRunbookBlocked` 透传发起人 actorID（时间线记 `actor={kind:user,id}`、source=web），执行/阻断/升级均留痕；未获批写步骤按 on_failure 阻断（continue/abort/escalate）；前端弹窗真实传审批决策。⏳ 剩余：AuditLog/IncidentAction 未写、execute **无并发保护**（连点重复执行）、无独立审批人/pending 流 | `runbook/engine.go`、`timeline/recorder.go`、`web/src/pages/runbooks.tsx` | C.5.1/C.5.3 |
 | S11 | AIInsight accept/reject 仅需 `incident.view`（subscriber 也能改判）、无前置状态校验（可反复改判）、无 resolver 留痕 | `ai/diagnose.go` ResolveInsight | C.4.4 |
 | S12 | 钉钉回调**缺 sign 头时跳过验签**（只解密）；明文模式（无 aes_key）完全不校验 | `im/dingtalk/adapter.go` VerifyCallback | C.3.3 |
 | S13 | 出站 webhook **无签名头**（仅 UA），接收端无法验源 | `webhook/dispatcher.go` | F.3 |
@@ -81,7 +81,7 @@
 | C11 | RawEvent "received→processed" → `received→normalized / parse_failed / requeued`（无 processed 态） | `ent/schema/event.go` | B.10 / B.15 |
 | C12 | "通知兜底降级链" → **不存在**——启动时固定 im+email(+webhook) **并联**各发一份，无逐通道降级 | `wire.go` buildNotifier、`notifier.go:80` | C.9 |
 | C13 | "卡片按看卡人权限渲染" → 群卡片按**首个通知 target** 的权限渲染（subscriber 看到按钮点了 403 群内静默）；候选按钮按权限裁剪**不按状态** | `im/notification_channel.go`、`card.go` | C.3.1 / E.4 |
-| C14 | "require_approval 弹窗审批流" → 引擎**不读该标志**；"审批"=execute 请求体 `approved` 布尔（缺省 false，发起人自证，无独立审批人/无 pending/无超时） | `runbook/engine.go`、handler | C.5.1 |
+| C14 | "require_approval 弹窗审批流" → 引擎凡写步骤只认 `approved`（与标志解耦，数据层强制写步骤 require_approval=true）；✅ **已修复**：前端弹窗真实传审批决策（复选框），未获批写步骤按 on_failure 阻断（continue/abort/escalate）。⏳ 剩余：仍是发起人自证（无独立审批人/pending/超时） | `runbook/engine.go`、handler、`runbooks.tsx` | C.5.1 |
 | C15 | "AI 分诊/Copilot 推荐/draft_summary" → **完全无代码**（全仓唯一 AIInsight.Create 是诊断链）；置信度 0.6 过滤、evidence 强制亦未实现 | `ai/` 全集 | C.4.2 / C.4.3 |
 | C16 | "resolve 自动起草复盘 / 复盘闸门 / 发布自动建工单" → 三者皆无（IncidentResolved 订阅方无复盘引擎；全仓无 Jira/禅道调用，tracker_url 纯手填） | `wire.go:203-210`、全仓 grep | C.6.1 / C.6.2 |
 | C17 | "用户自助绑 IM" → `user.im.bind` 仅 org_admin（**代绑**）；无解绑端点、误绑不可迁移、无前端页 | `seed.go`、`im/mapper.go:88-99` | B.9 |

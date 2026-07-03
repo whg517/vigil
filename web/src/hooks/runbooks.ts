@@ -61,8 +61,9 @@ export function useExecuteRunbook() {
   return useMutation({
     mutationFn: (args: { id: number; incidentId: number; approved: boolean }) =>
       api.executeRunbook(args.id, { incident_id: args.incidentId, approved: args.approved }),
-    onSuccess: (data) => {
-      toast.success(data.result ? `执行完成：${data.result}` : "执行完成");
+    // approved 决定写操作是否真正执行；干跑（approved=false）时提示写步骤已跳过。
+    onSuccess: (_data, vars) => {
+      toast.success(vars.approved ? "执行完成" : "干跑完成：写操作步骤已跳过（未批准）");
     },
   });
 }

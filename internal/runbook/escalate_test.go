@@ -10,15 +10,17 @@ import (
 
 // stubEscalator 测试用 EscalationTrigger，记录调用。
 type stubEscalator struct {
-	called bool
-	incID  int
-	reason string
+	called  bool
+	incID   int
+	reason  string
+	actorID int
 }
 
-func (s *stubEscalator) Trigger(ctx context.Context, incID int, reason string) error {
+func (s *stubEscalator) Trigger(ctx context.Context, incID int, reason string, actorID int) error {
 	s.called = true
 	s.incID = incID
 	s.reason = reason
+	s.actorID = actorID
 	return nil
 }
 
@@ -33,7 +35,7 @@ func TestOnFailureEscalate_TriggersEscalator(t *testing.T) {
 		OnFailure: "escalate",
 	}}
 
-	res := e.executeSteps(context.Background(), 42, steps, true, &ExecuteResult{})
+	res := e.executeSteps(context.Background(), 42, steps, true, 5, &ExecuteResult{})
 	if !res.Aborted {
 		t.Error("expected aborted=true on escalate")
 	}
@@ -58,7 +60,7 @@ func TestOnFailureEscalate_NoEscalator(t *testing.T) {
 		OnFailure: "escalate",
 	}}
 
-	res := e.executeSteps(context.Background(), 1, steps, true, &ExecuteResult{})
+	res := e.executeSteps(context.Background(), 1, steps, true, 0, &ExecuteResult{})
 	if !res.Aborted {
 		t.Error("expected aborted=true even without escalator")
 	}
@@ -75,7 +77,7 @@ func TestOnFailureAbort_NoEscalate(t *testing.T) {
 		OnFailure: "abort",
 	}}
 
-	res := e.executeSteps(context.Background(), 1, steps, true, &ExecuteResult{})
+	res := e.executeSteps(context.Background(), 1, steps, true, 0, &ExecuteResult{})
 	if !res.Aborted {
 		t.Error("expected aborted=true on abort")
 	}

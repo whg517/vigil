@@ -12,6 +12,7 @@ package timeline
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/kevin/vigil/ent"
@@ -61,14 +62,35 @@ func (r *Recorder) Record(ctx context.Context, incID int, typ timelineitem.Type,
 
 // RecordRunbook 实现 runbook.TimelineRecorder 接口。
 // 让 runbook 引擎无需感知 ent 类型细节，统一通过 Recorder 记录。
-func (r *Recorder) RecordRunbook(ctx context.Context, incID int, stepName, output string, success bool) error {
+// actorID 为执行发起人（0 视为系统），据此在时间线留痕"谁执行了该步"（C.5.3）。
+func (r *Recorder) RecordRunbook(ctx context.Context, incID int, stepName, output string, success bool, actorID int) error {
 	content := fmt.Sprintf("执行 Runbook 步骤 %q", stepName)
 	if !success {
 		content += "（失败）"
 	}
+	actor, source := runbookActor(actorID)
 	return r.Record(ctx, incID, timelineitem.TypeRunbookExecuted, content,
-		Actor{Kind: "system"}, timelineitem.SourceSystem,
+		actor, source,
 		map[string]any{"step": stepName, "success": success, "output": output})
+}
+
+// RecordRunbookBlocked 实现 runbook.TimelineRecorder 接口：记录写步骤未获审批被阻断。
+// human-in-the-loop 闸门生效时留痕"谁在何时尝试执行未获批的写操作"（安全审计，C.5.3）。
+func (r *Recorder) RecordRunbookBlocked(ctx context.Context, incID int, stepName string, actorID int) error {
+	content := fmt.Sprintf("Runbook 步骤 %q 为写操作，未获审批，已阻断", stepName)
+	actor, source := runbookActor(actorID)
+	return r.Record(ctx, incID, timelineitem.TypeRunbookExecuted, content,
+		actor, source,
+		map[string]any{"step": stepName, "blocked": true, "reason": "require_approval"})
+}
+
+// runbookActor 把执行发起人 ID 映射为时间线 Actor + Source。
+// actorID>0 → 人工发起（source=web，Runbook 执行入口目前仅 Web/API）；否则系统。
+func runbookActor(actorID int) (Actor, timelineitem.Source) {
+	if actorID > 0 {
+		return Actor{Kind: "user", ID: strconv.Itoa(actorID)}, timelineitem.SourceWeb
+	}
+	return Actor{Kind: "system"}, timelineitem.SourceSystem
 }
 
 // Query 查询某事件的时间线。

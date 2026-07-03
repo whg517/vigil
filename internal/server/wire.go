@@ -601,13 +601,14 @@ func resolvePhones(ctx context.Context, db *ent.Client, targets []notification.T
 }
 
 // runbookEscalator 实现 runbook.EscalationTrigger，包装 incident.Service.Escalate。
-// on_failure=escalate 时触发该 incident 的立即升级（系统触发，actorID=0，source=runbook）。
+// on_failure=escalate 时触发该 incident 的立即升级；actorID 透传自 Runbook 执行发起人
+// （0 视为系统），让"谁触发的这次 Runbook 升级"可追溯（source=runbook）。
 type runbookEscalator struct {
 	inc *incident.Service
 }
 
-func (r runbookEscalator) Trigger(ctx context.Context, incID int, reason string) error {
-	_, err := r.inc.Escalate(ctx, incID, 0, incident.SourceRunbook)
+func (r runbookEscalator) Trigger(ctx context.Context, incID int, reason string, actorID int) error {
+	_, err := r.inc.Escalate(ctx, incID, actorID, incident.SourceRunbook)
 	return err
 }
 
