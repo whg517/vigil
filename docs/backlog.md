@@ -65,6 +65,7 @@
 | 首次部署向导（first-run wizard） | 待讨论 | 📋 无 | 当前靠环境变量 + 种子超管 |
 | **未路由事件重路由端点** | 能力域 4 M4.3 | 🟡 部分 | 当前只能修 Service labels，无对已 unrouted Event 的改派/重路由操作。详见 user-journeys.md B.13 |
 | **用户禁用自动交接提示** | 能力域 13 M13.1 | 🟡 部分 | 当前仅置 status=disabled，不提示待交接的排班/Action Item。详见 user-journeys.md B.14 |
+| **排班/升级引擎解算 oncall 不查 User.status** | 能力域 5/6 · 审计 B21/C4 | 🟡 部分 | 禁用用户仍会被 `schedule/engine.go`、`escalation/engine.go` 解算为 oncall 并通知（通知打扰/静默漏派，非鉴权旁路）。已修复的鉴权侧旁路（refresh/API Key 查 status，审计 S3/S4）不覆盖此路径。修复需在两处 oncall 解算过滤 disabled 成员，并补空班/降级信号。详见 user-journeys.md B.14 |
 | **报表/审计导出端点** | 能力域 15 / 13 M13.5 | 📋 无 | analytics 6 端点无 export；audit-logs 无导出。详见 user-journeys.md B.11/B.12 |
 | **migrate-down / 回滚** | H1.4 | ❌ 无 | 无；回滚靠备份恢复。详见 user-journeys.md D.1 |
 | **多副本 WebSocket pub/sub** | architecture §7 | 📋 无 | 单实例优先，多副本需 Redis pub/sub 广播。详见 user-journeys.md D.4 |

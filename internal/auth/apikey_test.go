@@ -121,6 +121,25 @@ func TestAPIKeyVerifier_Disabled(t *testing.T) {
 	}
 }
 
+// TestAPIKeyVerifier_DisabledOwner 归属用户被禁用 → Key 失效（安全审计 S4）。
+// Key 自身 status=active、未过期，但归属 User.status=disabled，应拒绝，
+// 杜绝禁用用户名下的 API Key 永久可用旁路鉴权。
+func TestAPIKeyVerifier_DisabledOwner(t *testing.T) {
+	c := enttest.Open(t, "sqlite3", "file:apikey_disabled_owner?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = c.Close() })
+	ctx := context.Background()
+	u, _ := c.User.Create().SetUsername("u").SetEmail("u@v.local").SetStatus("disabled").Save(ctx)
+	plaintext, hash, _ := GenerateAPIKey()
+	_, _ = c.APIKey.Create().
+		SetName("k").SetTokenHash(hash).SetPrefix(TokenPrefix(plaintext)).
+		SetUserID(u.ID).Save(ctx) // Key 本身 active、不过期
+
+	v := NewAPIKeyVerifier(c)
+	if _, ok := v.Verify(ctx, plaintext); ok {
+		t.Error("key of disabled owner accepted, want rejected")
+	}
+}
+
 func TestAPIKeyVerifier_Expired(t *testing.T) {
 	c := enttest.Open(t, "sqlite3", "file:apikey_expired?mode=memory&cache=shared&_fk=1")
 	t.Cleanup(func() { _ = c.Close() })

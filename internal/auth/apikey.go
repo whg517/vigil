@@ -19,6 +19,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/apikey"
+	"github.com/kevin/vigil/ent/user"
 )
 
 // apikeyPrefix 明文 token 的可识别前缀（防与其他系统 token 混淆）。
@@ -87,6 +88,11 @@ func (v *APIKeyVerifier) Verify(ctx context.Context, plaintext string) (int, boo
 	// user_id 是 edge，需查归属用户
 	u, err := k.QueryUser().Only(ctx)
 	if err != nil {
+		return 0, false
+	}
+	// 归属用户被禁用（status=disabled）则 Key 失效：API Key 默认长期有效，
+	// 若不查归属 User.status，禁用用户名下的 Key 将永久可用旁路鉴权（安全审计 S4）。
+	if u.Status != user.StatusActive {
 		return 0, false
 	}
 	return u.ID, true

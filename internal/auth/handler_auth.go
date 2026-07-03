@@ -262,6 +262,13 @@ func (h *AuthHandler) refresh(c *echo.Context) error {
 	if err != nil || claims.TokenType != TokenTypeRefresh {
 		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid refresh token"})
 	}
+	// 为什么在此查库：refresh token 默认 30 天有效，若期间用户被禁用（status=disabled），
+	// 无状态 JWT 无法感知。必须实时查 User.status，否则禁用用户可凭旧 refresh 持续换取
+	// access token 旁路访问（安全审计 S3）。用户不存在同样拒绝。
+	u, err := h.db.User.Get(c.Request().Context(), claims.UserID)
+	if err != nil || u.Status != user.StatusActive {
+		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid refresh token"})
+	}
 	access, err := h.signer.GenerateAccessToken(claims.UserID, claims.Username)
 	if err != nil {
 		return errs.Internal(c, nil, err)

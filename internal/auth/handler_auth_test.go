@@ -164,6 +164,40 @@ func TestRefresh_ValidRefresh(t *testing.T) {
 	}
 }
 
+// TestRefresh_DisabledUser 禁用用户的 refresh token 不能换 access → 401（安全审计 S3）。
+// bob（uid 2）状态 disabled，refresh 应被拒绝，杜绝禁用用户凭旧 token 持续访问。
+func TestRefresh_DisabledUser(t *testing.T) {
+	c := newAuthTestClient(t)
+	s := newTestSigner1m()
+	h := NewAuthHandler(c, s)
+	e := echo.New()
+	e.POST("/api/v1/auth/refresh", h.refresh)
+
+	bob, _ := c.User.Query().Where(user.UsernameEQ("bob")).Only(context.Background())
+	refresh, _ := s.GenerateRefreshToken(bob.ID)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, postJSON("/api/v1/auth/refresh", refreshReq{RefreshToken: refresh}))
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status %d, want 401; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestRefresh_UserDeleted refresh token 指向已不存在的用户 → 401。
+func TestRefresh_UserDeleted(t *testing.T) {
+	c := newAuthTestClient(t)
+	s := newTestSigner1m()
+	h := NewAuthHandler(c, s)
+	e := echo.New()
+	e.POST("/api/v1/auth/refresh", h.refresh)
+
+	refresh, _ := s.GenerateRefreshToken(9999) // 无此用户
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, postJSON("/api/v1/auth/refresh", refreshReq{RefreshToken: refresh}))
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status %d, want 401; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 // TestRefresh_WithAccessToken access token 不能用于 refresh → 401。
 func TestRefresh_WithAccessToken(t *testing.T) {
 	c := newAuthTestClient(t)
