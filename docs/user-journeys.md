@@ -37,8 +37,8 @@
 | Runbook 两档（readonly 自动 / 写操作人确认） | ✅ | |
 | 复盘草稿生成（`GenerateDraft`） | ✅ | 时间线 + AI 填充 + 规则化降级 |
 | **复盘 resolve 自动触发起草** | 🟡 | 草稿生成在，**但未接 `IncidentResolved` 事件**，当前需手动调 `POST /incidents/:id/postmortem/draft` |
-| **作战室 War Room（M8.2）** | 🚧 **暂不做** | 原语（飞书/钉钉 `CreateChat`）在，但**编排未做**：自动建群/升级拉人/关闭归档整段不实现。详见 C.3.4 |
-| **跨团队 @人 → 事件级临时授权** | 🟡 | `AddResponder` 把人加入 responders，但**不创建临时 RoleBinding**；被 @人能否操作取决于其已有权限。详见 C.3.5 |
+| **作战室 War Room（M8.2/M8.9/M10.5）** | 🚧 **暂不做** | 现阶段不做，已记录至 [`backlog.md`](./backlog.md)。协同改走 IM 交互卡片 + 状态实时刷新 |
+| **跨团队 @人 → 事件级临时授权** | 🟡 | `AddResponder` 把人加入 responders，但**不创建临时 RoleBinding**；被 @人能否操作取决于其已有权限。详见 C.3.4 |
 | IM 斜杠命令 | 📋 | 部分命令在，全量待补 |
 | 备份/恢复（`scripts/*.sh`） | 📋 | 脚本在，未成旅程 |
 
@@ -65,10 +65,10 @@
 
 1. **告警消费者定位** —— Vigil 不采集，所有 Event 必须从外部进来（webhook / 邮件 / API）。所以旅程 B 必须先配 Integration，旅程 C 才有信号。
 2. **Event / Incident 分离** —— Event 是海量不可变原始信号，Incident 是少量有状态的人工处置单元。旅程 C 的"看到告警"看到的是 Incident，不是 Event。
-3. **IM-first** —— 一线工程师的"现场"是 IM 群；ack / 升级 / 拉人 / 作战室都在 IM 完成，且走与 Web **完全相同**的鉴权链路。Web 是管理配置与全局视图的补充。
+3. **IM-first** —— 一线工程师的"现场"是 IM 群；ack / 升级 / 拉人都在 IM 完成，且走与 Web **完全相同**的鉴权链路。Web 是管理配置与全局视图的补充。
 4. **AI 横向 Copilot + human-in-the-loop** —— 每个 AI 建议都带 evidence，必须人确认才生效；LLM 挂了自动降级为规则化草稿，告警主流程不中断。
 5. **Runbook 分两档** —— 诊断（readonly）Vigil 直接执行；处置（写操作）必须人确认或外接，Vigil **绝不**直接动生产。
-6. **单组织多团队软隔离** —— 团队是数据归属边界，权限**不**沿团队树继承。跨团队协作的设计意图是 `add_responder` + 事件级临时授权（🟡 当前仅加入 responders 名单，临时授权未实现，见 C.3.5）。
+6. **单组织多团队软隔离** —— 团队是数据归属边界，权限**不**沿团队树继承。跨团队协作的设计意图是 `add_responder` + 事件级临时授权（🟡 当前仅加入 responders 名单，临时授权未实现，见 C.3.4）。
 7. **RBAC 可自配置** —— 权限点是系统枚举（固定），角色由使用者自由组合。旅程 B 的"建角色"是核心治理动作。
 
 ### 0.3 全景图：一个 Incident 的一生
@@ -432,7 +432,7 @@ SuppressionRule（维护窗/已知问题）
 | 确认/ack | `incident.ack` | 取消后续升级，状态→acked |
 | 升级/escalate | `incident.escalate` | 立即跳到下一升级层 |
 | 解决/resolve | `incident.resolve` | 状态→resolved |
-| 拉人/add_responder | `incident.add_responder` | 把 @人 加入 responders（见 C.3.5，🟡 不自动授权） |
+| 拉人/add_responder | `incident.add_responder` | 把 @人 加入 responders（见 C.3.4，🟡 不自动授权） |
 | 详情/detail | `incident.view` | 跳 Web 详情 |
 
 #### C.3.2 IM 鉴权链路（与 Web 完全相同，关键设计）
@@ -458,22 +458,7 @@ IM 按钮点击
 - 钉钉：部分支持
 - 企微：不支持 → 降级为"发新消息标注最新状态"
 
-#### C.3.4 作战室 War Room（M8.2） — 🚧 暂不做
-
-> **当前版本明确不做作战室编排**。原语（飞书/钉钉 `CreateChat`）已在 adapter 层实现并保留，
-> 但**未接 live path**：Incident 触发时不会自动建群、升级时不会自动拉人入群、关闭时不会归档。
-> 以下为 PRD 设计目标，仅作 backlog 记录，**不要据此编写验收用例**。
-
-设计目标（暂缓）：
-- Incident 触发时一键/自动建临时 IM 群，群名 `[Vigil] INC-0042 支付5xx`
-- 自动邀请：当前 oncall + 归属团队 + 可选订阅者；置顶 Incident 卡片
-- 升级到新层级 → 新 oncall 自动入群
-- `@人` = 加入（+ 临时授权，见 C.3.5）
-- 关闭时归档（历史保留，链到复盘）
-
-**当前替代方案**：告警协同在 IM 卡片的评论区/现有工作群里完成；状态一致由 C.3.3 卡片实时刷新保证。
-
-#### C.3.5 跨团队拉人（M8.3） — 🟡 部分实现
+#### C.3.4 跨团队拉人（M8.3） — 🟡 部分实现
 
 > **当前实现只到"加入 responders 名单"，不创建临时 RoleBinding**。
 > 被拉的人能否实际 ack/操作，取决于他**已有的** RoleBinding —— 恰恰是软隔离边界本身。
@@ -631,7 +616,7 @@ Incident resolved
 2. 分诊聚合 → `INC-0042 支付服务 5xx 错误率 > 5%`（critical，triggered）
 3. 路由命中 payment service → 继承升级策略 + 张三所在排班
 4. 升级 level[0] 通知 → 飞书卡片送达张三，附 AI `root_cause_hint`："DB 连接池耗尽 78%"（引慢查询日志），`similar_incident`：INC-0035
-5. 张三卡片点 [ack] → 升级任务取消 → 卡片实时刷新为 acked 状态（🚧 作战室暂不做，协同在工作群内完成）
+5. 张三卡片点 [ack] → 升级任务取消 → 卡片实时刷新为 acked 状态，群内可见
 6. 张三 `/vigil runbook restart-pool INC-0042` → 诊断步骤 readonly 自动跑；处置步骤弹确认 → 张三确认 → Jenkins 重启连接池
 7. 服务恢复 → 张三 [resolve] →（🟡 自动起草未接）张三手动调 `POST /incidents/INC-0042/postmortem/draft` 起复盘草稿
 8. 次日张三评审 AI 草稿 → in_review → published → Action Item "扩容连接池"建禅道工单 → 入知识库
