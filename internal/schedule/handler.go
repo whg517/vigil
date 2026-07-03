@@ -2,14 +2,18 @@
 package schedule
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kevin/vigil/ent"
 	entschedule "github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/team"
+	entrotation "github.com/kevin/vigil/ent/rotation"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
@@ -119,11 +123,23 @@ func (h *Handler) list(c *echo.Context) error {
 
 // createScheduleReq 创建排班请求。
 type createScheduleReq struct {
-	Name     string                 `json:"name"`
-	Type     string                 `json:"type"`     // calendar | rotation | follow_the_sun
-	Timezone string                 `json:"timezone"` // 默认 Asia/Shanghai
-	Layers   []schema.ScheduleLayer `json:"layers"`
-	TeamID   int                    `json:"team_id"`
+	Name     string            `json:"name"`
+	Type     string            `json:"type"`     // calendar | rotation | follow_the_sun
+	Timezone string            `json:"timezone"` // 默认 Asia/Shanghai
+	Layers   []createLayerReq  `json:"layers"`
+	TeamID   int               `json:"team_id"`
+}
+
+// createLayerReq 创建排班分层请求（FIX-D：含 rotation 配置，建 Rotation 实体）。
+// 修复前 layers 只存 JSON 不建 Rotation → oncall 查不到 rotation → 返回空。
+type createLayerReq struct {
+	Name         string   `json:"name"`          // 层名，如 "一线"
+	Priority     int      `json:"priority"`      // 数字越小优先级越高
+	Participants []int    `json:"participants"`  // 值班人 user id 列表
+	RotationType string   `json:"rotation_type"` // daily | weekly | custom（默认 daily）
+	ShiftLength  string   `json:"shift_length"`  // 班次时长 "24h"/"1week"（默认 24h）
+	HandoffTime  string   `json:"handoff_time"`  // 交接时刻 "HH:MM"（默认 09:00）
+	StartDate    string   `json:"start_date"`    // 开始日期 RFC3339（默认现在）
 }
 
 // create 创建排班。
@@ -141,11 +157,12 @@ type createScheduleReq struct {
 func (h *Handler) create(c *echo.Context) error {
 	var req createScheduleReq
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
+		return errs.BadRequest(c, "invalid body")
 	}
 	if req.Name == "" {
-		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "name required"})
+		return errs.BadRequest(c, "name required")
 	}
+	ctx := c.Request().Context()
 	typ := "rotation"
 	if req.Type != "" {
 		typ = req.Type
@@ -154,24 +171,101 @@ func (h *Handler) create(c *echo.Context) error {
 	if tz == "" {
 		tz = "Asia/Shanghai"
 	}
-	b := h.db.Schedule.Create().
+
+	// FIX-D：用事务创建 Schedule + 各 layer 对应的 Rotation 实体，保证一致性。
+	// 修复前只 SetLayers(JSON)，不建 Rotation → Oncall 查 sched.QueryRotations() 为空。
+	tx, err := h.db.Tx(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	rollback := func() { _ = tx.Rollback() }
+
+	layers := make([]schema.ScheduleLayer, 0, len(req.Layers))
+	rotationIDs := make([]int, 0, len(req.Layers))
+	for _, lr := range req.Layers {
+		// 无 participants 的 layer 跳过 Rotation 创建（无法算在班人，仅保留层信息）
+		if len(lr.Participants) == 0 {
+			layers = append(layers, schema.ScheduleLayer{Name: lr.Name, Priority: lr.Priority})
+			continue
+		}
+		rot, rerr := buildRotation(ctx, tx, lr)
+		if rerr != nil {
+			rollback()
+			return errs.BadRequest(c, "invalid layer "+lr.Name+": "+rerr.Error())
+		}
+		rotationIDs = append(rotationIDs, rot.ID)
+		layers = append(layers, schema.ScheduleLayer{
+			ID:         strconv.Itoa(rot.ID),
+			Name:       lr.Name,
+			Priority:   lr.Priority,
+			RotationID: strconv.Itoa(rot.ID),
+		})
+	}
+
+	b := tx.Schedule.Create().
 		SetName(req.Name).
 		SetType(entschedule.Type(typ)).
 		SetTimezone(tz)
-	if len(req.Layers) > 0 {
-		b.SetLayers(req.Layers)
+	if len(layers) > 0 {
+		b.SetLayers(layers)
 	}
 	if req.TeamID > 0 {
 		b.SetTeamID(req.TeamID)
 	}
-	s, err := b.Save(c.Request().Context())
+	if len(rotationIDs) > 0 {
+		b.AddRotationIDs(rotationIDs...)
+	}
+	s, err := b.Save(ctx)
 	if err != nil {
+		rollback()
+		return errs.FailConstraint(c, nil, err, "schedule", "schedule already exists")
+	}
+	if err := tx.Commit(); err != nil {
 		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, s)
 }
 
-// get 排班详情。
+// buildRotation 从 createLayerReq 构造 Rotation 实体（FIX-D）。
+// 解析 participants/rotation_type/shift_length/start_date，用事务 client 持久化。
+// 调用方负责把返回的 rotation.ID 关联到 Schedule 并回填 layer.RotationID。
+func buildRotation(ctx context.Context, tx *ent.Tx, lr createLayerReq) (*ent.Rotation, error) {
+	rt := entrotation.RotationTypeDaily
+	switch strings.ToLower(lr.RotationType) {
+	case "weekly":
+		rt = entrotation.RotationTypeWeekly
+	case "custom":
+		rt = entrotation.RotationTypeCustom
+	case "", "daily":
+		// 默认 daily
+	default:
+		return nil, fmt.Errorf("invalid rotation_type %q", lr.RotationType)
+	}
+	shiftLen := lr.ShiftLength
+	if shiftLen == "" {
+		shiftLen = "24h"
+	}
+	handoff := lr.HandoffTime
+	if handoff == "" {
+		handoff = "09:00"
+	}
+	start := time.Now()
+	if lr.StartDate != "" {
+		parsed, err := time.Parse(time.RFC3339, lr.StartDate)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start_date: %w", err)
+		}
+		start = parsed
+	}
+	rb := tx.Rotation.Create().
+		SetName(lr.Name).
+		SetRotationType(rt).
+		SetShiftLength(shiftLen).
+		SetHandoffTime(handoff).
+		SetStartDate(start).
+		AddParticipantIDs(lr.Participants...)
+	return rb.Save(ctx)
+}
 //
 // @Summary      排班详情
 // @Tags         schedule
