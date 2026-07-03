@@ -76,3 +76,25 @@ func TestInternalExecutor_Kind(t *testing.T) {
 		t.Errorf("Kind=%q, want internal", got)
 	}
 }
+
+// TestHTTPExecutor_StructuredOutput FIX-E：Execute 返回结构化输出含 status_code，
+// 即使 body 空（如探活端点）也能看到状态码。
+func TestHTTPExecutor_StructuredOutput(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK) // 无 body
+	}))
+	defer srv.Close()
+
+	h := NewHTTPExecutor()
+	h.SetAllowPrivate(true) // httptest 绑定 127.0.0.1
+	out, err := h.Execute(context.Background(), schema.StepTarget{Kind: "http", Endpoint: srv.URL, Readonly: true}, nil)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !strings.Contains(out, "status_code") {
+		t.Errorf("FIX-E: output should contain status_code, got %q", out)
+	}
+	if !strings.Contains(out, "200") {
+		t.Errorf("output should contain 200, got %q", out)
+	}
+}

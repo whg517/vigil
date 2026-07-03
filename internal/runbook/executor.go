@@ -93,10 +93,20 @@ func (h *HTTPExecutor) Execute(ctx context.Context, target schema.StepTarget, pa
 	defer func() { _ = resp.Body.Close() }()
 	buf := new(bytes.Buffer)
 	_, _ = buf.ReadFrom(resp.Body)
+	// FIX-E：返回结构化输出（status_code + body），而非裸 body。
+	// 修复前对探活端点（如 /status/200 无 body）返回空串，用户看不到任何结果。
+	// 现在即使 body 空，也能看到状态码，便于判断处置结果。
+	result := fmt.Sprintf(`{"status_code":%d,"body":%s}`, resp.StatusCode, jsonQuote(buf.String()))
 	if resp.StatusCode >= 400 {
-		return buf.String(), fmt.Errorf("http %d", resp.StatusCode)
+		return result, fmt.Errorf("http %d", resp.StatusCode)
 	}
-	return buf.String(), nil
+	return result, nil
+}
+
+// jsonQuote 把字符串转为 JSON 字符串字面量（含转义），供结构化输出用。
+func jsonQuote(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }
 
 // InternalExecutor 内置诊断执行器（只读安全动作，能力域 9 M9.4）。
