@@ -6,7 +6,43 @@
 >
 > **阅读对象**：产品/设计/测试/QA，用于评审交互流程、编写测试用例、对照验收标准。
 >
-> **状态**：Draft v0.1（2026-07-03）。文档为 PRD 的"动起来"投影，需求变更以 PRD 为准。
+> **状态**：Draft v0.2（2026-07-03）。文档为 PRD 的"动起来"投影，需求变更以 PRD 为准。
+
+---
+
+## ⚠️ 实现状态约定（务必先读）
+
+本文档描述的是**目标产品行为**（来自 PRD/架构/能力域设计），**不等于当前代码已全部实现**。
+阅读时请注意每节的内联标记，以及下方的功能状态总表：
+
+- ✅ 已实现：代码已落地，可据此编写验收/测试用例。
+- 🟡 部分实现：核心逻辑在，但某个编排/触发环节缺失；用例需标注前置条件。
+- 🚧 暂不做：设计保留，当前版本明确不做（见下表"备注"）。
+- 📋 未实现：PRD 设计目标，未排期，作为 backlog。
+
+### 功能状态总表（对照源码核对，2026-07-03）
+
+| 功能 | 状态 | 说明 / 备注 |
+|------|------|-------------|
+| 接入 + 归一化流水线 | ✅ | webhook/SMTP/API + Adapter Normalize |
+| 分诊三级（dedup/suppression/aggregation） | ✅ | |
+| 路由匹配 Service | ✅ | |
+| Incident 状态机（5 态） | ✅ | `ent/schema/incident.go` |
+| 排班实时 oncall 计算 | ✅ | `schedule/engine.go`，**无 Redis 缓存**（实时算） |
+| 升级引擎（Asynq ProcessIn） | ✅ | `escalation/engine.go`，ack 取消 pending 任务已实现 |
+| 通知引擎（IM/邮件/电话/webhook） | ✅ | |
+| **IM 交互卡片（按权限渲染按钮）** | ✅ | `im/card.go`，含 ack/escalate/resolve/add_responder/detail |
+| **IM 操作同链鉴权（非后门）** | ✅ | `im/handler.go` 走同一 Authorizer |
+| AI 诊断/分诊/复盘 Copilot（human-in-the-loop） | ✅ | LLM 不可用自动降级 |
+| Runbook 两档（readonly 自动 / 写操作人确认） | ✅ | |
+| 复盘草稿生成（`GenerateDraft`） | ✅ | 时间线 + AI 填充 + 规则化降级 |
+| **复盘 resolve 自动触发起草** | 🟡 | 草稿生成在，**但未接 `IncidentResolved` 事件**，当前需手动调 `POST /incidents/:id/postmortem/draft` |
+| **作战室 War Room（M8.2）** | 🚧 **暂不做** | 原语（飞书/钉钉 `CreateChat`）在，但**编排未做**：自动建群/升级拉人/关闭归档整段不实现。详见 C.3.4 |
+| **跨团队 @人 → 事件级临时授权** | 🟡 | `AddResponder` 把人加入 responders，但**不创建临时 RoleBinding**；被 @人能否操作取决于其已有权限。详见 C.3.5 |
+| IM 斜杠命令 | 📋 | 部分命令在，全量待补 |
+| 备份/恢复（`scripts/*.sh`） | 📋 | 脚本在，未成旅程 |
+
+> 用作验收依据前，🚧/🟡/📋 项需在用例中显式标注前置条件或排除范围。
 
 ---
 
@@ -32,7 +68,7 @@
 3. **IM-first** —— 一线工程师的"现场"是 IM 群；ack / 升级 / 拉人 / 作战室都在 IM 完成，且走与 Web **完全相同**的鉴权链路。Web 是管理配置与全局视图的补充。
 4. **AI 横向 Copilot + human-in-the-loop** —— 每个 AI 建议都带 evidence，必须人确认才生效；LLM 挂了自动降级为规则化草稿，告警主流程不中断。
 5. **Runbook 分两档** —— 诊断（readonly）Vigil 直接执行；处置（写操作）必须人确认或外接，Vigil **绝不**直接动生产。
-6. **单组织多团队软隔离** —— 团队是数据归属边界，权限**不**沿团队树继承；跨团队协作靠 `add_responder` + 事件级临时授权。
+6. **单组织多团队软隔离** —— 团队是数据归属边界，权限**不**沿团队树继承。跨团队协作的设计意图是 `add_responder` + 事件级临时授权（🟡 当前仅加入 responders 名单，临时授权未实现，见 C.3.5）。
 7. **RBAC 可自配置** —— 权限点是系统枚举（固定），角色由使用者自由组合。旅程 B 的"建角色"是核心治理动作。
 
 ### 0.3 全景图：一个 Incident 的一生
@@ -259,7 +295,8 @@ SuppressionRule（维护窗/已知问题）
 | 4 | 配 Rotation 规则 | `participants`、`shift_length`(如 24h)、`handoff_time`(如 09:00)、`rotation_type`、`start_date`、`end_date` |
 | 5 | 预览未来 N 天 | `GET /schedules/{id}/preview?days=14` |
 
-**实时查询值班**：`GET /schedules/{id}/oncall?time=<iso8601>` → `{primary, secondary, overrides}`，分钟级 Redis 缓存，但"现在谁值班"永远实时算。
+**实时查询值班**：`GET /schedules/{id}/oncall?time=<iso8601>` → `{primary, secondary, overrides}`。
+> 注：代码 `schedule/engine.go` 的 `OncallNow` 当前**无 Redis 缓存**（`// TODO: Redis 缓存`），每次实时计算。这与"永远实时算"一致；设计目标的"分钟级缓存"未实现。
 
 **换班 Override**（`oncall` 用户自助，权限 `schedule.override`）：`{user_id, start, end, reason}`，覆盖窗口内完全顶替 Rotation。
 
@@ -360,7 +397,7 @@ SuppressionRule（维护窗/已知问题）
 ⑨ 工程师点 [ack] → IM 层：unionId→User→鉴权→核心服务 ack
 ⑩ ack 取消该 Incident 所有后续升级 + 通知任务 → status=acked → 时间线
 ⑪ 处置：展示 Runbook / 诊断执行 / 处置(人确认或外接)
-⑫ 标记 resolved → AI 起复盘草稿 → 人评审 → 发布
+⑫ 标记 resolved →（🟡 当前需手动调 `POST /incidents/:id/postmortem/draft` 起草；📋 设计目标：critical 自动触发）→ 人评审 → 发布
 ⑬ 闭环：复盘入知识库 → 反哺相似 Incident 检索（下次更快）
 ```
 
@@ -395,6 +432,7 @@ SuppressionRule（维护窗/已知问题）
 | 确认/ack | `incident.ack` | 取消后续升级，状态→acked |
 | 升级/escalate | `incident.escalate` | 立即跳到下一升级层 |
 | 解决/resolve | `incident.resolve` | 状态→resolved |
+| 拉人/add_responder | `incident.add_responder` | 把 @人 加入 responders（见 C.3.5，🟡 不自动授权） |
 | 详情/detail | `incident.view` | 跳 Web 详情 |
 
 #### C.3.2 IM 鉴权链路（与 Web 完全相同，关键设计）
@@ -420,27 +458,45 @@ IM 按钮点击
 - 钉钉：部分支持
 - 企微：不支持 → 降级为"发新消息标注最新状态"
 
-#### C.3.4 作战室 War Room（M8.2）
+#### C.3.4 作战室 War Room（M8.2） — 🚧 暂不做
 
-Incident 触发时可一键/自动建临时 IM 群：
-- 群名 `[Vigil] INC-0042 支付5xx`
-- 自动邀请：当前 oncall + 归属团队 + 可选订阅者
-- 置顶 Incident 卡片
+> **当前版本明确不做作战室编排**。原语（飞书/钉钉 `CreateChat`）已在 adapter 层实现并保留，
+> 但**未接 live path**：Incident 触发时不会自动建群、升级时不会自动拉人入群、关闭时不会归档。
+> 以下为 PRD 设计目标，仅作 backlog 记录，**不要据此编写验收用例**。
+
+设计目标（暂缓）：
+- Incident 触发时一键/自动建临时 IM 群，群名 `[Vigil] INC-0042 支付5xx`
+- 自动邀请：当前 oncall + 归属团队 + 可选订阅者；置顶 Incident 卡片
 - 升级到新层级 → 新 oncall 自动入群
-- `@人` = 加入 + 临时授权
+- `@人` = 加入（+ 临时授权，见 C.3.5）
 - 关闭时归档（历史保留，链到复盘）
 
-#### C.3.5 跨团队拉人（M8.3，软隔离下的协作路径）
+**当前替代方案**：告警协同在 IM 卡片的评论区/现有工作群里完成；状态一致由 C.3.3 卡片实时刷新保证。
 
+#### C.3.5 跨团队拉人（M8.3） — 🟡 部分实现
+
+> **当前实现只到"加入 responders 名单"，不创建临时 RoleBinding**。
+> 被拉的人能否实际 ack/操作，取决于他**已有的** RoleBinding —— 恰恰是软隔离边界本身。
+> PRD 设计的"事件级临时授权 + 关闭自动失效"机制尚未实现，下文分"当前行为"与"设计目标"两段。
+
+**当前行为（已实现）**：
 ```
-卡片/作战室里 @李四
+卡片/工作群里 @李四
    └─ 映射 IM id → User
-       └─ add_responder（需 incident.add_responder）
-           └─ 给李四授"事件级临时 responder 权限"（Incident 关闭时自动失效）
-               └─ 李四现在可以 ack/操作这个 Incident
+       └─ AddResponder（需 incident.add_responder）
+           └─ 把李四加入该 Incident 的 responders 列表 + 写时间线 responder_added
+               └─ 李四能否 ack/操作 = 看他已有的 RoleBinding（软隔离不放宽）
 ```
 
-这是软隔离下跨团队协作的**唯一**正规路径。
+**设计目标（📋 未实现，backlog）**：
+```
+... AddResponder 后
+   └─ 给李四授"事件级临时 responder 权限"（RoleBinding, scope=incident, expires_at=incident 关闭）
+       └─ 李四在 Incident 期间可以 ack/操作
+           └─ Incident 关闭时自动撤销临时授权
+```
+
+**当前跨团队协作的实际路径**：由 `team_admin` 临时给对方发一个 team-scope 的 `responder` RoleBinding（可设 `expires_at`），事后手动撤销。
 
 #### C.3.6 斜杠命令（M8.5）
 
@@ -483,12 +539,15 @@ Incident 触发时可一键/自动建临时 IM 群：
 每步都作为 IncidentAction 审计
 ```
 
-### C.6 复盘闭环（Domain 8）
+### C.6 复盘闭环（Domain 8） — 🟡 草稿生成在，自动触发未接
+
+**当前行为**：`GenerateDraft`（时间线自动填充 + AI 草拟 summary/impact/root_cause + LLM 不可用时规则化降级）已实现，但**只暴露为手动端点** `POST /incidents/:id/postmortem/draft`，未接 `IncidentResolved` 事件。
 
 ```
 Incident resolved
-   └─ 触发复盘（critical 强制；warning 可配；info 不强制）
-       └─ 自动起草稿：时间线（自动）+ AI postmortem_draft（填 summary/impact/root_cause）
+   └─ 📋 设计目标（未实现）：按 severity 自动触发起草（critical 强制；warning 可配；info 不强制）
+   └─ 🟡 当前：用户在 Web 手动点"起草"或调 API
+       └─ 起草稿：时间线（自动）+ AI postmortem_draft（填 summary/impact/root_cause）
            └─ 状态: draft
                └─ 人评审（每段标"AI 草拟"，可 accept/edit/reject）
                    └─ in_review
@@ -518,7 +577,7 @@ Incident resolved
 ## 附录 A：权限矩阵（旅程 × 动作 × 权限点）
 
 > 内置角色：`org_admin`(org) / `team_admin`(team) / `responder`(team) / `responder_lead`(team) / `subscriber`(team) / `oncall`(team)。
-> ✅=有 · —=无 · ⚙️=可配。详细权限点见 `internal/auth/permission.go`。
+> ✅=有 · —=无。权限以 `internal/auth/seed.go` 的 `builtinRoles` 为权威来源（本表对照 2026-07-03 代码）。
 
 | 动作 | org_admin | team_admin | responder_lead | responder | oncall | subscriber |
 |------|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -537,10 +596,10 @@ Incident resolved
 | ack / resolve | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | escalate（手动升级）| ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | reassign | ✅ | ✅ | ✅ | — | — | — |
-| add_responder（拉人+临时授权）| ✅ | ✅ | ✅ | ⚙️ | ⚙️ | — |
+| add_responder（拉人入 responders）| ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | 执行 Runbook | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | 发起/发布复盘 | ✅ | ✅ | ✅ | — | — | — |
-| 看审计日志 | ✅ | ✅(团队内) | — | — | — | — |
+| 看审计日志（`admin.audit.view`）| ✅ | — | — | — | — | — |
 
 ---
 
@@ -572,9 +631,9 @@ Incident resolved
 2. 分诊聚合 → `INC-0042 支付服务 5xx 错误率 > 5%`（critical，triggered）
 3. 路由命中 payment service → 继承升级策略 + 张三所在排班
 4. 升级 level[0] 通知 → 飞书卡片送达张三，附 AI `root_cause_hint`："DB 连接池耗尽 78%"（引慢查询日志），`similar_incident`：INC-0035
-5. 张三卡片点 [ack] → 升级任务取消 → 作战室自动建群 → 卡片群内全员可见实时刷新
+5. 张三卡片点 [ack] → 升级任务取消 → 卡片实时刷新为 acked 状态（🚧 作战室暂不做，协同在工作群内完成）
 6. 张三 `/vigil runbook restart-pool INC-0042` → 诊断步骤 readonly 自动跑；处置步骤弹确认 → 张三确认 → Jenkins 重启连接池
-7. 服务恢复 → 张三 [resolve] → critical 强制起复盘草稿
+7. 服务恢复 → 张三 [resolve] →（🟡 自动起草未接）张三手动调 `POST /incidents/INC-0042/postmortem/draft` 起复盘草稿
 8. 次日张三评审 AI 草稿 → in_review → published → Action Item "扩容连接池"建禅道工单 → 入知识库
 
 **剧本 2：oncall 没响应，升级兜底**
@@ -583,11 +642,14 @@ Incident resolved
 3. level[1] target=team → 通知全 payment 团队 + 电话兜底
 4. 李四（backup）电话接 → 在 IM `/vigil ack INC-0050` → 升级任务全取消 → acked
 
-**剧本 3：跨团队协作（软隔离）**
+**剧本 3：跨团队协作（软隔离） — 🟡 反映当前实现**
 1. INC-0060 是订单服务故障，王五是 order team_admin，怀疑波及用户服务
-2. 王五在作战室 `@李四` → 李四获 INC-0060 事件级临时 responder 权限
-3. 李四查看用户服务指标 → 确认有连带影响 → 协助排查
-4. INC-0060 resolve → 李四临时权限自动失效
+2. 王五 `@李四` 把李四加入 INC-0060 的 responders（写时间线）—— 但李四**默认无操作权限**（软隔离）
+3. 王五（有 `role.assign`）临时给李四发 team=order 的 `responder` RoleBinding（设 `expires_at`=当晚 23:59）
+4. 李四现在能查看 order 团队的 Incident/Event → 确认用户服务连带影响 → 协助排查
+5. INC-0060 resolve → 王五（或李四自己）撤销临时 RoleBinding，或等 `expires_at` 自动失效
+
+> 设计目标（📋 未实现）：第 3-5 步由"@人 = 自动事件级临时授权 + 关闭自动失效"一键完成。
 
 ---
 
