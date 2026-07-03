@@ -68,3 +68,4 @@
 | **报表/审计导出端点** | 能力域 15 / 13 M13.5 | 📋 无 | analytics 6 端点无 export；audit-logs 无导出。详见 user-journeys.md B.11/B.12 |
 | **migrate-down / 回滚** | H1.4 | ❌ 无 | 无；回滚靠备份恢复。详见 user-journeys.md D.1 |
 | **多副本 WebSocket pub/sub** | architecture §7 | 📋 无 | 单实例优先，多副本需 Redis pub/sub 广播。详见 user-journeys.md D.4 |
+| **Action Item 自动建工单 + 状态回写（M14.2）** | 能力域 12 §5 / 能力域 14 | 📋 无 | 复盘发布时自动在 Jira/禅道建改进任务并回写状态——当前无任何工单集成代码，`tracker_url` 为手填字符串、due_date API 未暴露。详见 user-journeys.md C.6.2 |
