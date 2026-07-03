@@ -45,6 +45,10 @@ spec:
               containerPort: 8080
               protocol: TCP
           env:
+            # 运行环境（SEC-02）：必须显式注入，否则 config 默认 development——
+            # 会挂载无鉴权的测试重置端点并启用 X-Vigil-User-ID 头回退（可冒充任意用户）。
+            - name: VIGIL_APP_ENV
+              value: {{ .Values.config.appEnv | quote }}
             # 数据库（密码从 Secret 读）
             - name: VIGIL_DB_HOST
               value: {{ .Values.database.host | quote }}
@@ -90,6 +94,10 @@ spec:
             {{- if .Values.config.phoneWebhookUrl }}
             - name: VIGIL_NOTIFICATION_PHONE_WEBHOOK_URL
               value: {{ .Values.config.phoneWebhookUrl | quote }}
+            {{- end }}
+            # 通用扩展：注入 values.extraEnv 中未在上方显式列出的 VIGIL_* 配置。
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
             {{- end }}
           livenessProbe:
             httpGet:

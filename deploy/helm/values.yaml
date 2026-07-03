@@ -35,6 +35,11 @@ redis:
 
 # Vigil 应用配置（对应 config.Config，非敏感项）
 config:
+  # 运行环境（development | production）。★ 生产必须 production：
+  # development 会挂载无鉴权的 /api/v1/__test__/reset（TRUNCATE 全库 + 清队列），
+  # 且启用 X-Vigil-User-ID 头回退（任意客户端带该头即可冒充任意用户），见 SEC-02。
+  # 默认 production 以防按 chart 部署即裸奔；本地开发可显式覆盖为 development。
+  appEnv: "production"
   authEnabled: "true"            # 生产必须开鉴权
   # jwtSecret 从 existingSecret 的 jwt-secret 键读，不在此配置
   ingestionRateLimitPerMin: "600"
@@ -42,6 +47,13 @@ config:
   # 各通道配置（按需启用）
   smtpHost: ""
   phoneWebhookUrl: ""
+
+# 额外环境变量（通用扩展）：注入 deployment 未显式列出的 VIGIL_* 配置，
+# 免改模板即可覆盖 config.Config 任意项。列表元素为标准 K8s EnvVar。
+# 例：extraEnv:
+#       - name: VIGIL_APP_LOG_LEVEL
+#         value: "debug"
+extraEnv: []
 
 # 服务暴露
 service:
