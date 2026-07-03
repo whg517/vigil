@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -195,6 +196,7 @@ func (w *NormalizeWorker) Handle(ctx context.Context, t *asynq.Task) error {
 		// payload 格式错误不可重试，标记失败
 		return fmt.Errorf("unmarshal normalize payload: %w", err)
 	}
+	slog.Info("normalize worker: processing", "raw_event_id", p.RawEventID)
 
 	// 1. 取 RawEvent
 	raw, err := w.db.RawEvent.Get(ctx, p.RawEventID)
@@ -206,7 +208,9 @@ func (w *NormalizeWorker) Handle(ctx context.Context, t *asynq.Task) error {
 	adapter, ok := w.registry.Get(p.SourceType)
 	if !ok {
 		// 无适配器：标记 parse_failed，人工介入
-		return w.failRaw(ctx, raw.ID, fmt.Sprintf("no adapter for source type %q", p.SourceType))
+		err := fmt.Errorf("no adapter for source type %q", p.SourceType)
+		slog.Error("normalize worker: failed", "raw_event_id", p.RawEventID, "error", err)
+		return w.failRaw(ctx, raw.ID, err.Error())
 	}
 
 	// 3. 归一化
@@ -214,12 +218,16 @@ func (w *NormalizeWorker) Handle(ctx context.Context, t *asynq.Task) error {
 	// 此处先做核心：payload → Event。
 	integ, err := w.db.Integration.Get(ctx, p.IntegrationID)
 	if err != nil {
-		return w.failRaw(ctx, raw.ID, "get integration: "+err.Error())
+		nerr := fmt.Errorf("get integration: %w", err)
+		slog.Error("normalize worker: failed", "raw_event_id", p.RawEventID, "error", nerr)
+		return w.failRaw(ctx, raw.ID, nerr.Error())
 	}
 
 	evts, err := adapter.Normalize(ctx, raw.Payload, integ, raw)
 	if err != nil {
-		return w.failRaw(ctx, raw.ID, "normalize: "+err.Error())
+		nerr := fmt.Errorf("normalize: %w", err)
+		slog.Error("normalize worker: failed", "raw_event_id", p.RawEventID, "error", nerr)
+		return w.failRaw(ctx, raw.ID, nerr.Error())
 	}
 
 	// 4. 落 Event（每条 alert 一个 Event，幂等：source + source_event_id 唯一索引保证）
@@ -263,6 +271,7 @@ func (w *NormalizeWorker) Handle(ctx context.Context, t *asynq.Task) error {
 	if err := w.markRawNormalized(ctx, raw.ID, 0); err != nil {
 		return err
 	}
+	slog.Info("normalize worker: done", "raw_event_id", p.RawEventID)
 	return nil
 }
 

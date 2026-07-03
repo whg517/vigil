@@ -99,9 +99,20 @@ func (s *Server) registerTestReset() {
 			_ = insp.UnpauseQueue(q)
 		}
 
-		// 6. 重建默认管理员。
+		// 6. 重建角色 + 默认管理员 + admin 绑定。
+		// FIX-G：reset 清表含 roles + role_bindings（users 也清），原仅调 SeedDefaultAdmin
+		// 会因 org_admin 角色不存在导致绑定失败 → reset 后系统无角色/admin 无权限。
+		// 故按 wire.go 启动顺序补回：roles → admin → 确保绑定（admin 已存在也补）。
+		if err := auth.SeedBuiltinRoles(ctx, s.store.DB); err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "re-seed roles: " + err.Error()})
+		}
 		if _, err := auth.SeedDefaultAdmin(ctx, s.store.DB); err != nil {
-			return c.JSON(http.StatusOK, map[string]any{"status": "ok", "warning": "reseed admin: " + err.Error()})
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "re-seed admin: " + err.Error()})
+		}
+		// SeedDefaultAdmin 对已存在 admin 不补绑定（created=false 时跳过 bindOrgAdmin），
+		// 显式补回 org_admin 绑定，保证 reset 后 admin 仍有全部权限。
+		if err := auth.EnsureAdminOrgAdminBinding(ctx, s.store.DB); err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "ensure admin binding: " + err.Error()})
 		}
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})

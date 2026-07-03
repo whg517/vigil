@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -150,6 +151,7 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 	}
 	if incSt := incident.Status(inc.Status); incSt != incident.StatusTriggered && incSt != incident.StatusEscalated {
 		// 已 ack/resolved/closed —— 取消所有后续升级
+		slog.Info("escalation: skip, incident not active", "incident_id", p.IncidentID, "status", incSt)
 		return nil
 	}
 
@@ -184,6 +186,7 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 	}
 	// 埋点：升级触发次数
 	metrics.EscalationsTriggered.Inc()
+	slog.Info("escalation: level processed", "incident_id", p.IncidentID, "level", p.LevelIdx+1)
 	// 通过统一 Recorder 记时间线（消除直接 ent 调用），失败不阻塞主流程
 	if e.recorder != nil {
 		_ = e.recorder.Record(ctx, inc.ID, timelineitem.TypeEscalated,

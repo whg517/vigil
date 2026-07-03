@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/hibiken/asynq"
 )
@@ -42,12 +43,12 @@ func (w *Worker) Handle(ctx context.Context, t *asynq.Task) error {
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return fmt.Errorf("unmarshal triage payload: %w", err)
 	}
+	slog.Info("triage worker: processing", "event_id", p.EventID)
 	res, err := w.engine.Process(ctx, p.EventID)
 	if err != nil {
+		slog.Error("triage worker: process failed", "event_id", p.EventID, "error", err)
 		return fmt.Errorf("triage event %d: %w", p.EventID, err)
 	}
-	// 下游联动（排班/升级链/通知）由 Engine.Process 内 bindPolicyAndPublish 发布
-	// IncidentCreated 事件触发，经事件总线解耦扇出（escalation/IM/webhook/WS 订阅）。
-	_ = res
+	slog.Info("triage worker: done", "event_id", p.EventID, "action", res.Action, "incident_id", res.IncidentID)
 	return nil
 }

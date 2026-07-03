@@ -19,6 +19,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/role"
 	"github.com/kevin/vigil/ent/rolebinding"
+	"github.com/kevin/vigil/ent/user"
 )
 
 // OrgAdminRoleName 内置组织超管角色名（与 seed.go 的 builtinRoles 一致）。
@@ -70,4 +71,23 @@ func bindOrgAdmin(ctx context.Context, db *ent.Client, userID int) error {
 		return fmt.Errorf("create role binding: %w", err)
 	}
 	return nil
+}
+
+// DefaultAdminUsername 默认管理员用户名（与 SeedDefaultAdmin 一致）。
+const DefaultAdminUsername = "admin"
+
+// EnsureAdminOrgAdminBinding 确保默认 admin 用户拥有 org_admin 绑定（org scope）。
+// 用于测试 reset 等清表场景：reset 清空 role_bindings/roles 后重新 seed，
+// admin 用户可能已存在但无绑定（SeedDefaultAdmin 对已存在 admin 返回 false 不补绑定），
+// 此函数显式补回 org_admin 绑定，保证 reset 后 admin 仍有全部权限。
+//
+// 前置：须先 SeedBuiltinRoles（补回 org_admin 角色），否则返回错误。
+// admin 用户不存在时返回错误（应先 SeedDefaultAdmin 或用户表已含 admin）。
+// 幂等：已绑定则无副作用。
+func EnsureAdminOrgAdminBinding(ctx context.Context, db *ent.Client) error {
+	u, err := db.User.Query().Where(user.UsernameEQ(DefaultAdminUsername)).Only(ctx)
+	if err != nil {
+		return fmt.Errorf("query default admin %q: %w", DefaultAdminUsername, err)
+	}
+	return bindOrgAdmin(ctx, db, u.ID)
 }

@@ -177,8 +177,15 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	imHandler := im.NewHandler(st.DB, imRegistry, imMapper, authz, incService, imRenderer, imCards)
 	// IM 也作为 notification 通道（升级通知走 IM 卡片送达，IM-first 闭环）。
 	notifReg := notifier.Registry() // 注册 IMChannel 到同一 registry（晚注册也能生效，notifier 实时查）
+	// FIX-H：OncallChannel 可能仍是占位配置（如 "# 值班群 chat_id..."），
+	// 占位值会被 IMChannel 当作真实 channel 尝试发送而失败。识别占位特征后置空降级（不发送）。
+	oncall := cfg.IM.OncallChannel
+	if oncall == "" || strings.HasPrefix(oncall, "#") ||
+		strings.Contains(oncall, "chat_id") || strings.Contains(oncall, "openConversationId") {
+		oncall = "" // 占位配置，置空降级（不发送）
+	}
 	imChannel := im.NewIMChannel(imRegistry, imCards, func(inc *ent.Incident, targets []notification.Target) string {
-		return cfg.IM.OncallChannel // 值班群 channel（空则不发送）
+		return oncall // 值班群 channel（空则不发送）
 	})
 	// QA 审计 C5：注入渲染器，使通知主路径卡片按接收者权限渲染操作按钮
 	// （旧实现主路径卡片零按钮，值班人收到告警只能看不能点，IM 差异化核心失效）。
