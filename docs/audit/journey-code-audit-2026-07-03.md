@@ -54,7 +54,7 @@
 | B16 | **钉钉 UpdateCard 是 no-op**（连"降级发新消息"都没有，卡片永停下发时状态）；钉钉 mention 不解析（拉人不可用）；企微 NoopBot 完全占位 | `dingtalk/adapter.go:78-85`、ParseCallback、`noop.go` | C.3.3 |
 | B17 | IM 值班群 `VIGIL_IM_ONCALL_CHANNEL` 未配 → Send 返回 nil,nil：**不报错、不计 metrics、无日志**（可观测性盲区） | `im/notification_channel.go:55-57` | C.9 |
 | B18 | 复盘发布唯一副作用=embedding（失败静默无补算任务）；**archived 掉出相似检索**（SQL 硬编码 status='published'）；similar-postmortems 无 LIKE 降级（静默 `[]`） | `postmortem/engine.go`、检索 SQL | C.4.5 / C.6 |
-| B19 | ⚠️ 代码缺陷（建议单独修）：analytics 响应结构体**无 json tag**（PascalCase）≠ 前端 camelCase → Web Dashboard KPI 恒空 | `analytics/engine.go` | B.11 |
+| B19 | ✅ 已修（补 camelCase json tag，对齐 spec/前端）：analytics 响应结构体原**无 json tag**（PascalCase）≠ 前端 camelCase → Web Dashboard KPI 恒空 | `analytics/engine.go` | B.11 |
 | B20 | ⚠️ 代码缺陷（同款）：Runbook ExecuteResult/StepResult 无 json tag → Web 执行结果不可见；engine 失败分支丢弃结构化 Output（削弱 FIX-E） | `runbook/engine.go` | C.5.2 |
 | B21 | Schedule PATCH 只写 layers JSON **不重建 Rotation**（改参与人只能删除重建）；引擎不读 `Schedule.type`（三枚举无算法差异）、不查 `User.status`（禁用仍被解算通知） | `schedule/handler.go`、`engine.go` | B.5 / B.14 |
 | B22 | quiet_hours 静默的通知**直接丢弃无补发**；通知全败无兜底告警；送达不落库（无 Notification 实体），仅 metrics+日志 | `quiet_hours.go`、`notifier.go` | B.7 / C.9 |

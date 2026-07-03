@@ -38,10 +38,10 @@ type Range struct {
 
 // AlertMetrics 告警度量（能力域 15 §B1）。
 type AlertMetrics struct {
-	Total     int     // 接入总量
-	Notified  int     // 触发通知的（非噪音）
-	NoiseRate float64 // 降噪率 = 1 - Notified/Total（0~1）
-	Unrouted  int     // 未命中路由
+	Total     int     `json:"total"`     // 接入总量
+	Notified  int     `json:"notified"`  // 触发通知的（非噪音）
+	NoiseRate float64 `json:"noiseRate"` // 降噪率 = 1 - Notified/Total（0~1）
+	Unrouted  int     `json:"unrouted"`  // 未命中路由
 }
 
 // AlertMetrics 计算告警度量。
@@ -77,12 +77,12 @@ func (e *Engine) AlertMetrics(ctx context.Context, r Range) (*AlertMetrics, erro
 
 // IncidentMetrics 事件度量（能力域 15 §B2）。
 type IncidentMetrics struct {
-	Total         int
-	BySeverity    map[string]int // critical/warning/info 各数量
-	ByStatus      map[string]int
-	MTTARatio     float64 // 平均确认时长（秒），无数据为 0
-	MTTRatio      float64 // 平均解决时长（秒）
-	ResolvedCount int     // 已解决数（用于 MTTR 计算）
+	Total         int            `json:"total"`
+	BySeverity    map[string]int `json:"bySeverity"` // critical/warning/info 各数量
+	ByStatus      map[string]int `json:"byStatus"`
+	MTTARatio     float64        `json:"mttaratio"`     // 平均确认时长（秒），无数据为 0
+	MTTRatio      float64        `json:"mttratio"`      // 平均解决时长（秒）
+	ResolvedCount int            `json:"resolvedCount"` // 已解决数（用于 MTTR 计算）
 }
 
 // IncidentMetrics 计算事件度量。MTTA = acked_at - created_at，MTTR = resolved_at - created_at。
@@ -130,9 +130,9 @@ func (e *Engine) IncidentMetrics(ctx context.Context, r Range) (*IncidentMetrics
 
 // TeamLoad 团队负载（能力域 15 §B3）。
 type TeamLoad struct {
-	TeamID    int
-	TeamName  string
-	Incidents int // 该团队事件数
+	TeamID    int    `json:"teamID"`
+	TeamName  string `json:"teamName"`
+	Incidents int    `json:"incidents"` // 该团队事件数
 }
 
 // TeamLoad 计算各团队事件负载。
@@ -161,9 +161,9 @@ func (e *Engine) TeamLoad(ctx context.Context, r Range) ([]TeamLoad, error) {
 
 // PostmortemMetrics 复盘度量（能力域 15 §B4）。
 type PostmortemMetrics struct {
-	Total          int
-	Published      int
-	CompletionRate float64 // published/total
+	Total          int     `json:"total"`
+	Published      int     `json:"published"`
+	CompletionRate float64 `json:"completionRate"` // published/total
 }
 
 // PostmortemMetrics 计算复盘度量。
@@ -193,9 +193,9 @@ func (e *Engine) PostmortemMetrics(ctx context.Context, r Range) (*PostmortemMet
 
 // TrendPoint 趋势数据点。
 type TrendPoint struct {
-	Date      string // YYYY-MM-DD
-	Incidents int
-	Events    int
+	Date      string `json:"date"` // YYYY-MM-DD
+	Incidents int    `json:"incidents"`
+	Events    int    `json:"events"`
 }
 
 // Trend 计算每日趋势（事件数 + 告警数）。
@@ -244,10 +244,10 @@ func (e *Engine) Trend(ctx context.Context, days int, r Range) ([]TrendPoint, er
 
 // Dashboard 仪表盘汇总（一次返回各维度概览，减少前端请求）。
 type Dashboard struct {
-	Alert      *AlertMetrics
-	Incident   *IncidentMetrics
-	Load       []TeamLoad
-	Postmortem *PostmortemMetrics
+	Alert      *AlertMetrics      `json:"alert"`
+	Incident   *IncidentMetrics   `json:"incident"`
+	Load       []TeamLoad         `json:"load"`
+	Postmortem *PostmortemMetrics `json:"postmortem"`
 }
 
 // Dashboard 汇总仪表盘数据（近 N 天）。
