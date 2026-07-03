@@ -205,6 +205,69 @@ func TestIsolation_AckOtherTeamIncident_403(t *testing.T) {
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("userA ack teamB incident: got %d, want 403 (cross-team write isolation FAILED)", rec.Code)
 	}
+	// ★ 回归断言：仅校验 403 会漏掉 checkAccess 短路失效——handler 写完 403 仍继续执行 Ack。
+	// 必须回读 incB：状态须仍为 triggered（未被 ack），否则即"报 403 却已落库"的越权。
+	incB, err := d.c.Incident.Get(ctx, d.incB)
+	if err != nil {
+		t.Fatalf("reload incB: %v", err)
+	}
+	if incB.Status != incident.StatusTriggered {
+		t.Errorf("incB status mutated despite 403: got %s, want triggered (checkAccess short-circuit FAILED)", incB.Status)
+	}
+}
+
+// TestIsolation_CrossTeamWrite_StateUnchanged userA（仅 teamA 全套写权限）对 teamB 的 incident
+// 逐一发起 ack/resolve/escalate，每次都应 403 且 incB 状态保持 triggered 不变。
+//
+// ★ 本用例专治 checkAccess 短路失效：errs.Forbidden 写完 403 按 echo 惯例返回 nil，若 handler
+// 未因哨兵中止就会继续执行写操作，形成"报 403 却已落库/已改状态"的越权。仅断言响应码无法暴露
+// 该 bug（响应码确为 403），必须回读资源状态。
+func TestIsolation_CrossTeamWrite_StateUnchanged(t *testing.T) {
+	d := isoSetup(t)
+	ctx := context.Background()
+	// 给 userA 授予 teamA 范围的全套写权限（ack/resolve/escalate/reopen + view）。
+	writerRole, err := d.c.Role.Create().
+		SetName("writer").
+		SetScopeLevel(role.ScopeLevelTeam).
+		SetPermissions([]string{
+			string(auth.PermIncidentView),
+			string(auth.PermIncidentAck),
+			string(auth.PermIncidentResolve),
+			string(auth.PermIncidentEscalate),
+			string(auth.PermIncidentReopen),
+		}).
+		Save(ctx)
+	if err != nil {
+		t.Fatalf("create writer role: %v", err)
+	}
+	if _, err := d.c.RoleBinding.Create().
+		SetUserID(d.userA).
+		SetRoleID(writerRole.ID).
+		SetScopeLevel(rolebinding.ScopeLevelTeam).
+		SetTeamID(itoa(d.teamA)). // 仅 teamA
+		SetGrantedAt(time.Now()).
+		Save(ctx); err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+
+	e, _ := newIsolatedHandler(d)
+	// incB 初始 triggered；ack/escalate 均为 triggered 的合法转移，若跨 team 鉴权被绕过就会真的改状态。
+	for _, action := range []string{"ack", "resolve", "escalate"} {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(d.incB)+"/"+action, nil)
+		req.Header.Set("X-Vigil-User-ID", itoa(d.userA))
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("userA %s teamB incident: got %d, want 403", action, rec.Code)
+		}
+		incB, err := d.c.Incident.Get(ctx, d.incB)
+		if err != nil {
+			t.Fatalf("reload incB after %s: %v", action, err)
+		}
+		if incB.Status != incident.StatusTriggered {
+			t.Errorf("incB status mutated by denied %s: got %s, want triggered (403-but-mutated bug)", action, incB.Status)
+		}
+	}
 }
 
 // TestIsolation_OrgWideUserSeesAll org 级权限用户应看到全部（不被隔离）。

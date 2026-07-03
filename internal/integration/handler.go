@@ -9,6 +9,7 @@ package integration
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -21,6 +22,14 @@ import (
 
 	"github.com/labstack/echo/v5"
 )
+
+// errAccessDenied 哨兵错误：checkAccess 已写出 403/500 响应，handler 应立即 return 中止后续逻辑。
+//
+// 背景：errs.Forbidden/Internal 写完响应后按 echo 惯例返回 nil，若 checkAccess 直接把该 nil
+// 透传给调用方，则 `if e := checkAccess(...); e != nil { return e }` 永不触发，handler 会在
+// 已写 403 的情况下继续执行写操作，造成"报 403 却已落库"的越权。故 checkAccess 拒绝时返回
+// 本哨兵（非 nil），调用方据此中止；响应已提交，echo 错误处理器会跳过二次写。
+var errAccessDenied = errors.New("access denied (response already written)")
 
 // tokenPrefix 接入 token 前缀（防与 API Key 混淆）。
 const tokenPrefix = "vig_int_"
@@ -62,10 +71,14 @@ func (h *Handler) checkAccess(c *echo.Context, id int, perm auth.Permission) err
 	}
 	allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, h.actorFromContext(c), perm, "integration", id)
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		// errs.Internal 写完 500 返回 nil，必须换成非 nil 哨兵，否则调用方不会中止。
+		_ = errs.Internal(c, nil, err)
+		return errAccessDenied
 	}
 	if !allowed {
-		return errs.Forbidden(c, "")
+		// 同理：errs.Forbidden 写完 403 返回 nil，返回哨兵让调用方 return 中止后续写操作。
+		_ = errs.Forbidden(c, "")
+		return errAccessDenied
 	}
 	return nil
 }
