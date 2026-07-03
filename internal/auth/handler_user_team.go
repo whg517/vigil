@@ -276,7 +276,7 @@ func (h *TeamHandler) createTeam(c *echo.Context) error {
 	}
 	t, err := b.Save(c.Request().Context())
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		return errs.FailConstraint(c, nil, err, "team", "team slug or name already exists")
 	}
 	return c.JSON(http.StatusCreated, t)
 }
@@ -318,7 +318,10 @@ func (h *TeamHandler) updateTeam(c *echo.Context) error {
 	}
 	t, err := u.Save(c.Request().Context())
 	if err != nil {
-		return errs.FailNotFound(c, nil, err, "team")
+		if ent.IsNotFound(err) {
+			return errs.FailNotFound(c, nil, err, "team")
+		}
+		return errs.FailConstraint(c, nil, err, "team", "team slug or name already exists")
 	}
 	return c.JSON(http.StatusOK, t)
 }

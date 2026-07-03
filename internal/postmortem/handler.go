@@ -163,7 +163,7 @@ func (h *Handler) generateDraft(c *echo.Context) error {
 	}
 	pm, err := h.engine.GenerateDraft(c.Request().Context(), incID)
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		return errs.FailConstraint(c, nil, err, "postmortem", "postmortem already exists")
 	}
 	return c.JSON(http.StatusCreated, flatten(pm))
 }
@@ -244,7 +244,7 @@ func (h *Handler) addActionItem(c *echo.Context) error {
 		SetPostmortemID(pmID).
 		Save(c.Request().Context())
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		return errs.FailConstraint(c, nil, err, "postmortem", "postmortem already exists")
 	}
 	return c.JSON(http.StatusCreated, ai)
 }

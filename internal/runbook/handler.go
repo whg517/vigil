@@ -156,7 +156,7 @@ func (h *Handler) create(c *echo.Context) error {
 	}
 	saved, err := rb.Save(c.Request().Context())
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		return errs.FailConstraint(c, nil, err, "runbook", "runbook already exists")
 	}
 	return c.JSON(http.StatusCreated, saved)
 }

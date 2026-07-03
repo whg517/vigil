@@ -196,7 +196,7 @@ func (h *Handler) createRule(c *echo.Context) error {
 	}
 	r, err := b.Save(c.Request().Context())
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		return errs.FailConstraint(c, nil, err, "notification rule", "notification rule already exists")
 	}
 	return c.JSON(http.StatusCreated, r)
 }
@@ -512,7 +512,7 @@ func (h *Handler) createSuppression(c *echo.Context) error {
 	}
 	r, err := b.Save(c.Request().Context())
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		return errs.FailConstraint(c, nil, err, "suppression rule", "suppression rule already exists")
 	}
 	return c.JSON(http.StatusCreated, r)
 }
@@ -741,7 +741,7 @@ func (h *Handler) createTemplate(c *echo.Context) error {
 	}
 	t, err := b.Save(c.Request().Context())
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		return errs.FailConstraint(c, nil, err, "notification template", "notification template already exists")
 	}
 	if h.templates != nil {
 		h.templates.InvalidateCache()

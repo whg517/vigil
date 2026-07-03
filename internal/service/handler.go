@@ -171,7 +171,7 @@ func (h *Handler) create(c *echo.Context) error {
 	}
 	s, err := b.Save(c.Request().Context())
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		return errs.FailConstraint(c, nil, err, "service", "service slug already exists")
 	}
 	return c.JSON(http.StatusCreated, s)
 }

@@ -143,6 +143,45 @@ func FailNotFound(c *echo.Context, log *zap.Logger, err error, resource string) 
 	return Internal(c, log, err)
 }
 
+// FailConstraint 把 ent/sql 唯一约束冲突（重名/重复）转为 409 Conflict，
+// 其余错误走 500 Internal。便于 handler 在 Create/Update 时统一收口"重名"场景。
+//
+// 用法：
+//
+//	saved, err := h.db.Team.Create().SetName(req.Name).Save(ctx)
+//	if err != nil {
+//	    return errs.FailConstraint(c, log, err, "team", "name already exists")
+//	}
+//
+// msg 仅在判定为约束冲突时使用（覆盖底层 SQL 细节，返回稳定可读提示）。
+func FailConstraint(c *echo.Context, log *zap.Logger, err error, resource, msg string) error {
+	if isConstraintError(err) {
+		return Conflict(c, msg)
+	}
+	return Internal(c, log, err)
+}
+
+// isConstraintError 判断是否唯一约束/外键冲突类错误。
+// 不导入 ent 包（避免 errs → ent 反向依赖），用字符串匹配覆盖：
+//   - ent ConstraintError: "ent: constraint failed: pq: duplicate key value violates unique constraint"
+//   - postgres: "duplicate key value violates unique constraint" / "foreign key constraint"
+//   - sqlite: "UNIQUE constraint failed"
+func isConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	for _, marker := range []string{
+		"duplicate key", "UNIQUE constraint", "constraint failed",
+		"foreign key constraint", "violates unique constraint",
+	} {
+		if contains(msg, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // isNotFound 判断是否"未找到"类错误（ent NotFound / sql no rows）。
 // 不导入 ent 包（避免 errs → ent 反向依赖），改用字符串匹配，
 // 覆盖 ent.NotFound 与 database/sql.ErrNoRows 两类。

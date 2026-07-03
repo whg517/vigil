@@ -194,3 +194,39 @@ func TestIsNotFound(t *testing.T) {
 		}
 	}
 }
+
+// TestFailConstraint_DuplicateKey FIX-B：重复键约束冲突应返回 409 Conflict。
+func TestFailConstraint_DuplicateKey(t *testing.T) {
+	cases := []string{
+		`pq: duplicate key value violates unique constraint "teams_slug_key" (23505)`,
+		`ent: constraint failed: pq: duplicate key value violates unique constraint "services_slug_key"`,
+		`UNIQUE constraint failed: users.username`,
+		`duplicate key value violates unique constraint "roles_name_key"`,
+	}
+	for _, errStr := range cases {
+		c, rec := newCtx(t)
+		_ = FailConstraint(c, nil, errors.New(errStr), "team", "team slug already exists")
+		if rec.Code != http.StatusConflict {
+			t.Errorf("constraint error should map to 409, got %d for %q", rec.Code, errStr)
+		}
+		r := decode(t, rec)
+		if r.Code != CodeAlreadyExists {
+			t.Errorf("code: got %q, want %q", r.Code, CodeAlreadyExists)
+		}
+		if r.Error != "team slug already exists" {
+			t.Errorf("msg: got %q", r.Error)
+		}
+	}
+}
+
+// TestFailConstraint_OtherErrorMapsInternal 非约束错误应走 500 Internal（不误判 409）。
+func TestFailConstraint_OtherErrorMapsInternal(t *testing.T) {
+	c, rec := newCtx(t)
+	_ = FailConstraint(c, nil, errors.New("connection refused"), "team", "msg")
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("non-constraint err should map to 500, got %d", rec.Code)
+	}
+	if decode(t, rec).Error != "internal error" {
+		t.Error("should be generic internal, not leak details")
+	}
+}

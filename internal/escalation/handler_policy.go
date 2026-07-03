@@ -150,7 +150,7 @@ func (h *PolicyHandler) create(c *echo.Context) error {
 	}
 	policy, err := b.Save(c.Request().Context())
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		return errs.FailConstraint(c, nil, err, "escalation policy", "escalation policy already exists")
 	}
 	return c.JSON(http.StatusCreated, policy)
 }
