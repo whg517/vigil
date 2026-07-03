@@ -280,6 +280,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// QA 审计 C6：UserHandler 注入 IM 账号绑定器/查询器（imMapper 实现），
 	// 补齐 POST /users/:id/im-accounts 绑定端点（原 Mapper.BindAccount 全仓 0 调用方）。
 	userHandler := auth.NewUserHandler(st.DB)
+	// 审计 S2：注入鉴权器，使 PATCH /users/:id 改 status 时叠加 user.disable 校验。
+	userHandler.SetAuthorizer(authz)
 	userHandler.SetIMAccountBinder(imMapper)
 	userHandler.SetIMAccountResolver(imMapperResolver{m: imMapper})
 	userHandler.Register(v1)
@@ -636,10 +638,18 @@ func (r imMapperResolver) ListBindings(ctx context.Context, userID int) ([]auth.
 // 角色管理 / API Key / incident 操作 / 排班 / 复盘删除 / runbook 等。
 func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	// 角色与角色绑定（M13.3）—— 最敏感：能自授任意角色。
+	// 读端点也登记（审计 S2）：角色/绑定关系暴露组织权限结构，仅 role.view 可见。
+	g.RoutePerm(http.MethodGet, "/roles", auth.PermRoleView)
 	g.RoutePerm(http.MethodPost, "/roles", auth.PermRoleCreate)
 	g.RoutePerm(http.MethodDelete, "/roles/:id", auth.PermRoleDelete)
+	g.RoutePerm(http.MethodGet, "/role-bindings", auth.PermRoleView)
 	g.RoutePerm(http.MethodPost, "/role-bindings", auth.PermRoleAssign)
 	g.RoutePerm(http.MethodDelete, "/role-bindings/:id", auth.PermRoleAssign)
+	// 用户管理（M13.1）—— 审计 S2：原仅登录态，任意用户可枚举全员并改他人（含停用）。
+	// GET /users 暴露全员名录 → user.view；PATCH /users/:id 改名/时区/启停 → user.update
+	//（改 status=disabled 时 handler 内再叠加 user.disable，见 auth.UserHandler.updateUser）。
+	g.RoutePerm(http.MethodGet, "/users", auth.PermUserView)
+	g.RoutePerm(http.MethodPatch, "/users/:id", auth.PermUserUpdate)
 	// API Key（M13.7）—— 审计点名：原不限 org_admin，任何人可签发。
 	g.RoutePerm(http.MethodPost, "/api-keys", auth.PermAdminAPIKeyManage)
 	g.RoutePerm(http.MethodDelete, "/api-keys/:id", auth.PermAdminAPIKeyManage)
@@ -690,6 +700,15 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/notification-templates", auth.PermNotificationTemplateCreate)
 	g.RoutePerm(http.MethodPatch, "/notification-templates/:id", auth.PermNotificationTemplateUpdate)
 	g.RoutePerm(http.MethodDelete, "/notification-templates/:id", auth.PermNotificationTemplateDelete)
+	// 分析报表（能力域 11）—— 审计 S14：原无任何权限点，任意登录用户可拉全组织指标。
+	// 全部为组织级只读视图，统一挂 analytics.view（当前仅 org_admin 持有）。
+	// 团队 scope 隔离（team-load/dashboard 按 team 过滤）改动较大，另记 docs/backlog.md。
+	g.RoutePerm(http.MethodGet, "/analytics/dashboard", auth.PermAnalyticsView)
+	g.RoutePerm(http.MethodGet, "/analytics/alerts", auth.PermAnalyticsView)
+	g.RoutePerm(http.MethodGet, "/analytics/incidents", auth.PermAnalyticsView)
+	g.RoutePerm(http.MethodGet, "/analytics/team-load", auth.PermAnalyticsView)
+	g.RoutePerm(http.MethodGet, "/analytics/postmortems", auth.PermAnalyticsView)
+	g.RoutePerm(http.MethodGet, "/analytics/trend", auth.PermAnalyticsView)
 }
 
 // forcePasswordGuard 强制改密守卫（QA 审计 C8 / H1.6）。

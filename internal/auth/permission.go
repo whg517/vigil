@@ -103,6 +103,11 @@ const (
 	PermSuppressionUpdate Permission = "suppression.update"
 	PermSuppressionDelete Permission = "suppression.delete"
 
+	// —— analytics 报表与度量（能力域 11 分析）——
+	// 报表为组织级视图（当前无团队 scope 隔离，见 docs/backlog.md），
+	// 故仅授予 org 级角色，避免团队管理员越权看到全组织指标。
+	PermAnalyticsView Permission = "analytics.view"
+
 	// —— admin 平台级管理 ——
 	PermAdminSettings          Permission = "admin.settings"
 	PermAdminAuditView         Permission = "admin.audit.view"
@@ -129,6 +134,7 @@ var AllPermissions = []Permission{
 	PermNotificationRuleView, PermNotificationRuleCreate, PermNotificationRuleUpdate, PermNotificationRuleDelete,
 	PermNotificationTemplateView, PermNotificationTemplateCreate, PermNotificationTemplateUpdate, PermNotificationTemplateDelete,
 	PermSuppressionView, PermSuppressionCreate, PermSuppressionUpdate, PermSuppressionDelete,
+	PermAnalyticsView,
 	PermAdminSettings, PermAdminAuditView, PermAdminAPIKeyManage, PermAdminGlobalIntegration,
 }
 

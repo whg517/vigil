@@ -70,3 +70,4 @@
 | **migrate-down / 回滚** | H1.4 | ❌ 无 | 无；回滚靠备份恢复。详见 user-journeys.md D.1 |
 | **多副本 WebSocket pub/sub** | architecture §7 | 📋 无 | 单实例优先，多副本需 Redis pub/sub 广播。详见 user-journeys.md D.4 |
 | **Action Item 自动建工单 + 状态回写（M14.2）** | 能力域 12 §5 / 能力域 14 | 📋 无 | 复盘发布时自动在 Jira/禅道建改进任务并回写状态——当前无任何工单集成代码，`tracker_url` 为手填字符串、due_date API 未暴露。详见 user-journeys.md C.6.2 |
+| **analytics 报表团队 scope 隔离** | 能力域 11 / 审计 S14 | 🟡 部分 | 已修：6 个 `/analytics/*` 端点统一挂 `analytics.view`（当前仅 org_admin 持有），堵住「任意登录用户看全组织指标」的越权。**待做**：`analytics/engine.go` 全量查询未按 team 过滤，需引入 `Authorizer.VisibleTeamIDs` 做 team 级数据隔离；隔离落地后再把 `analytics.view` 授予 team_admin / responder_lead（团队维度看板）。详见 journey-code-audit-2026-07-03.md S14 |

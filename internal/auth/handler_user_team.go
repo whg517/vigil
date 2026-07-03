@@ -43,12 +43,19 @@ type UserHandler struct {
 	db         *ent.Client
 	imBinder   IMAccountBinder // 可选：IM 账号绑定（C6）
 	imResolver IMAccountResolver
+	authz      *Authorizer // 可选：细分「停用」为独立权限点（user.disable）用
 }
 
 // NewUserHandler 创建用户 handler。
 func NewUserHandler(db *ent.Client) *UserHandler {
 	return &UserHandler{db: db}
 }
+
+// SetAuthorizer 注入鉴权器（审计 S2）。
+// PATCH /users/:id 的路由级守卫只校验 user.update；当请求改动 status（启停）时，
+// 停用是更敏感的动作，需额外持有 user.disable。注入后 updateUser 做此细分校验；
+// 未注入（如测试）则退化为仅 user.update 门禁。
+func (h *UserHandler) SetAuthorizer(a *Authorizer) { h.authz = a }
 
 // SetIMAccountBinder 注入 IM 账号绑定器（QA 审计 C6，main 装配时调用）。
 func (h *UserHandler) SetIMAccountBinder(b IMAccountBinder) { h.imBinder = b }
@@ -111,6 +118,22 @@ func (h *UserHandler) updateUser(c *echo.Context) error {
 	var req updateUserReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
+	}
+	// 启停（改 status）是比改名/时区更敏感的动作：路由级守卫已确保 user.update，
+	// 这里对 status 变更叠加 user.disable（对应 09-admin-rbac §2「启用/停用」）。
+	// authz 未注入时跳过细分校验，退化为仅 user.update 门禁（不破坏测试装配）。
+	if req.Status != nil && h.authz != nil {
+		uid, ok := UserIDFromContext(c.Request().Context())
+		if !ok {
+			return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "not authenticated"})
+		}
+		allowed, err := h.authz.Check(c.Request().Context(), AuthzRequest{UserID: uid, Permission: PermUserDisable})
+		if err != nil {
+			return errs.Internal(c, nil, err)
+		}
+		if !allowed {
+			return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "forbidden: user.disable required to change status"})
+		}
 	}
 	u := h.db.User.UpdateOneID(id)
 	if req.Name != nil {
