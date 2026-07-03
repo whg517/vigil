@@ -40,7 +40,13 @@
 | **作战室 War Room（M8.2/M8.9/M10.5）** | 🚧 **暂不做** | 现阶段不做，已记录至 [`backlog.md`](./backlog.md)。协同改走 IM 交互卡片 + 状态实时刷新 |
 | **跨团队 @人 → 事件级临时授权** | 🟡 | `AddResponder` 把人加入 responders，但**不创建临时 RoleBinding**；被 @人能否操作取决于其已有权限。详见 C.3.4 |
 | IM 斜杠命令 | 📋 | 部分命令在，全量待补 |
-| 备份/恢复（`scripts/*.sh`） | 📋 | 脚本在，未成旅程 |
+| 数据报表 / 分析（6 端点） | ✅ | dashboard/alerts/incidents/team-load/postmortems/trend；**无 export 端点** |
+| 审计日志查询 | ✅ | `GET /audit-logs`（`admin.audit.view`，仅 org_admin）；无导出 |
+| 未路由事件池查看 | ✅ | `event.view_unrouted`；🟡 **无重路由端点**，只能修 Service labels |
+| 用户禁用 | ✅ | `user.disable`；🟡 **无自动交接提示**，须手动处理排班/Action Item |
+| 备份脚本（`scripts/backup.sh`） | ✅ | PG pg_dump + Redis BGSAVE；脚本本身不轮转 |
+| 恢复脚本（`scripts/restore.sh`） | ✅ | 含 Redis 丢失场景的升级计时器处置 |
+| migrate-down / 回滚 | ❌ | 无；回滚靠备份恢复 |
 
 > 用作验收依据前，🚧/🟡/📋 项需在用例中显式标注前置条件或排除范围。
 
@@ -53,8 +59,9 @@
 | 旅程 | 主角色 | 角色定位 | 主要权限点 | 主战场 |
 |------|--------|----------|------------|--------|
 | **A 首次部署** | 平台运维 / SRE Lead | 把系统跑起来、初始化超管 | （系统级，无业务权限点） | 宿主机 / K8s / 终端 |
-| **B 管理员配置** | `org_admin` + `team_admin` | 把组织结构、服务、排班、升级、通知、Runbook 配好 | `team.*` / `service.*` / `schedule.*` / `escalation.*` / `runbook.create` / `integration.*` / `role.*` | Web 控制台 |
+| **B 管理员配置** | `org_admin` + `team_admin` | 把组织结构、服务、排班、升级、通知、Runbook 配好 + 报表/审计/分诊/交接 | `team.*` / `service.*` / `schedule.*` / `escalation.*` / `runbook.create` / `integration.*` / `role.*` / `admin.audit.view` | Web 控制台 |
 | **C 告警处置** | `responder` / `oncall` | 半夜被叫醒 → 在 IM 内 ack / 诊断 / 处置 / 解决 / 复盘 | `incident.*` / `event.view` / `runbook.execute` / `postmortem.*` | **IM（首选）** + Web（补充） |
+| **D 运维保障** | 平台运维 / SRE Lead | 长期运行：升级/迁移/备份/灾难恢复 | （系统级，无业务权限点） | 宿主机 / K8s / 终端 |
 
 > 旁路角色：`subscriber`（团队 Leader，只读订阅）、`responder_lead`（可 reassign + 发起复盘）。
 > 旅程 C 中"在 IM 内"是核心差异化，但 Web 仍是兜底与全局视图。
@@ -95,6 +102,12 @@
             │  拉镜像/起依赖 → migrate → 启动 → 种子超管 → 改密码 →     │
             │  健康检查 → 接入 IM/LLM（可选）                            │
             └────────────────────────────────────────────────────────────┘
+
+            ┌──────────── 旅程 D：运维保障（长期运行，低频高危）────────┐
+            │  升级/迁移（双轨 migrate，无 down，靠备份回滚）            │
+            │  备份（PG pg_dump + Redis BGSAVE，cron 定时）              │
+            │  恢复/DR（含 Redis 丢失 = 升级计时器丢失的处置）           │
+            └────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -104,6 +117,8 @@
 **主角色**：平台运维 / SRE Lead（部署决策者，参见 `personas.md`）
 **目标**：让 Vigil 在自己的环境跑起来、初始化超管、验证可用，然后把钥匙交给 `org_admin`。
 **特点**：一次性、命令行驱动、无 Web 向导（设计上无 first-run wizard，靠环境变量 + 种子）。
+
+> 本旅程只覆盖**从零到跑起来**。长期运行的升级/备份/恢复见 [旅程 D](#旅程-d运维保障升级--迁移--备份--灾难恢复)。
 
 ### A.1 前置条件
 
@@ -362,10 +377,117 @@ SuppressionRule（维护窗/已知问题）
    - 升级计时器启动（Asynq ProcessIn）
    - 通知引擎投递 IM 卡片到 oncall
 3. oncall 在 IM 点 ack → 状态 acked，升级任务全部取消，卡片实时刷新
-4. 标记 resolved → 若 critical 自动起复盘草稿
+4. 标记 resolved →（🟡 自动起草未接）手动调 `POST /incidents/:id/postmortem/draft` 起复盘草稿
 ```
 
 这条链路通了，旅程 B 才算交付完成。
+
+### B.11 数据报表与分析（能力域 15）
+
+> 触发权限点：登录即可访问（无独立报表权限点；数据按团队 scope 隔离 —— 只看到自己团队）
+
+**角色**：`team_admin` / `responder_lead` / `subscriber`（团队 Leader 看团队全貌）
+**端点**（均 ✅ 已实现，`internal/analytics/handler.go`）：
+
+| 端点 | 内容 | 关键指标 |
+|------|------|----------|
+| `GET /analytics/dashboard?days=7` | 仪表盘汇总 | 综合概览 |
+| `GET /analytics/alerts` | 告警度量 | 告警量、降噪率、unrouted 数 |
+| `GET /analytics/incidents` | 事件度量 | MTTA、MTTR、severity 分布 |
+| `GET /analytics/team-load` | 团队负载 | oncall 次数、**夜间打扰次数**、人均事件数 |
+| `GET /analytics/postmortems` | 复盘度量 | 完成率、Action Item 闭环率 |
+| `GET /analytics/trend?days=7` | 趋势 | 时间序列（变好/变差） |
+
+**操作流程**：
+```
+1. 进报表页 → 选时间窗（默认 7 天）+ 团队
+2. 看仪表盘汇总 → 下钻具体维度
+3. 重点看：
+   - 降噪率 = 1 − (已通知 Event 数 / 原始 Event 数) —— 验证分诊效果
+   - MTTA / MTTR —— 验证响应速度
+   - 夜间打扰次数（quiet_hours 内通知到 oncall 的次数）—— 验证"少打扰"目标
+   - 复盘完成率 + Action Item 超期数 —— 验证闭环质量
+4. 📋 导出：当前**无 export 端点**（backlog），需导出时走数据库直查或后续补端点
+```
+
+> 关键定义：MTTA = created → first ack；MTTR = created → resolved；夜间打扰 = quiet_hours 内通知到 oncall 的次数。
+
+### B.12 审计调查（能力域 13 M13.5）
+
+> 触发权限点：`admin.audit.view`（**仅 `org_admin`**，见附录 A）
+
+**角色**：`org_admin`（合规/追责场景）
+**端点**（✅ `GET /audit-logs`，`internal/auth/handler_audit.go`）：
+
+```
+GET /audit-logs?actor=<user_id>&action=<type>&object=<type>&from=<ts>&to=<ts>
+```
+
+支持按 **操作者 / 操作类型 / 对象类型 / 时间** 筛选，分页返回。
+
+**两类审计**：
+| 类 | 内容 | 字段 |
+|----|------|------|
+| 管理审计 | 角色变更、Integration token、用户禁用、配置变更 | actor / action / target / time |
+| 操作审计 | 每个 IncidentAction | actor / **via**(web/im/api/automation) / action / time |
+
+**典型调查流程**：
+```
+1. 起因：某 Incident 被误 resolve / 某权限被不当授予
+2. 进审计页 → 按时间窗 + 对象类型筛选
+3. 定位条目 → 看 actor（谁）+ via（从哪里操作的）
+4. via 字段的价值：统计"多少操作发生在 IM 内" —— 验证 IM-first 落地效果
+5. 📋 导出：当前无导出端点（backlog），截图或数据库直查
+```
+
+> 注意：`team_admin` **看不了审计日志**（无 `admin.audit.view`）。团队内合规问题须上报 org_admin。
+
+### B.13 未路由事件分诊（能力域 4 M4.3） — 🟡 部分实现
+
+> 触发权限点：`event.view_unrouted`
+
+**背景**：Event 的 labels 匹配不到任何 Service → 落 `unrouted` 池（`triage/engine.go` 标记 `ActionUnrouted`，Event.service_id 留空）。**critical 落 unrouted 会兜底通知全员/admin**，是顶级运维痛点。
+
+**操作流程**：
+```
+1. team_admin 进 unrouted 池（需 event.view_unrouted 权限）
+2. 检查每条未路由 Event：
+   ├─ 看原始 labels（Event.detail）
+   ├─ 判断属于哪个 Service
+   └─ 找根因：Service labels 配错？新服务未登记？源系统 label 不全？
+3. 🟡 当前实现：无"重路由/改派"端点 —— 处置方式是：
+   ├─ 修 Service labels（补匹配规则）→ 后续相同 Event 会命中
+   └─ 当前这批 unrouted Event 不会被回溯路由，等新 Event 进来或人工建 Incident 关联
+4. 若是噪声 → 加 SuppressionRule（见 B.7）防再次打扰
+```
+
+**预防**：新接入 Integration 时，先用 `POST /integrations/:id/test`（见 B.4）干跑验证 labels 命中，避免上线后才发现 unrouted。
+
+> 📋 backlog：补"unrouted Event 重路由"操作端点（标 service_id 或合并到现有 Incident）。
+
+### B.14 用户禁用与交接（能力域 13 M13.1） — 🟡 部分实现
+
+> 触发权限点：`user.disable`
+
+**角色**：`team_admin` / `org_admin`（员工离职/转岗场景）
+
+**操作流程**：
+```
+1. 禁用用户：PATCH 用户 status=disabled
+   ├─ ✅ 已实现：用户不能登录，历史保留
+   └─ 🟡 当前实现：仅置标志，无自动交接
+2. 手动交接（🟡 全靠管理员手动，系统不提示）：
+   ├─ 排班：从所有 Rotation.participants 移除，或建 Override 覆盖其班次
+   │   ⚠️ 不移除会留空班 → 空班检测会告警 team_admin
+   ├─ Action Item：该用户 owner 的 postmortem action_item 须 reassign
+   │   （复盘发布前的 open item，不交接会超期高亮）
+   ├─ 角色：其临时 RoleBinding（expires_at 未到）手动撤销
+   └─ IM 绑定：im_accounts 不自动清，建议手动解绑
+3. 验证：进 B.11 报表看团队负载，确认无遗漏班次；进审计看交接记录
+```
+
+> ⚠️ 设计目标（📋 backlog）：禁用用户时**提示**待交接项（capability 09-admin-rbac.md L33 已写），当前不提示，管理员须自查。
+> **建议**：离职场景前先做 step 2 再禁用，避免留空班/超期 item。
 
 ---
 
@@ -483,7 +605,7 @@ IM 按钮点击
 
 **当前跨团队协作的实际路径**：由 `team_admin` 临时给对方发一个 team-scope 的 `responder` RoleBinding（可设 `expires_at`），事后手动撤销。
 
-#### C.3.6 斜杠命令（M8.5）
+#### C.3.5 斜杠命令（M8.5）
 
 ```
 /vigil ack <id>
@@ -559,6 +681,111 @@ Incident resolved
 
 ---
 
+## 旅程 D：运维保障（升级 / 迁移 / 备份 / 灾难恢复）
+
+**主角色**：平台运维 / SRE Lead（旅程 A 的延续，但面向**长期运行**而非首次部署）
+**目标**：让 Vigil 在生产长期跑下去 —— 安全升级版本、定时备份、出事能恢复。
+**特点**：低频高危、命令行驱动、必须先在测试环境验证。
+
+> ⚠️ 与旅程 A 的区别：A 是"从零跑起来"；D 是"已经在跑，要动它"。所有 D 操作**先备份、先在测试环境验证**，再上生产。
+
+### D.1 升级 / 迁移（H1.4）
+
+**前置认知（双轨迁移机制，见 `internal/migrate/migrate.go`）**：
+```
+vigil migrate 执行顺序：
+1. 建 schema_migrations 表（版本追踪）
+2. 读已应用版本
+3. 跑 pre_*.sql      ← 前置（如装 pgvector 扩展）
+4. ent auto-migrate  ← 权威源，建/同步全部 17 实体表
+5. 跑 其他 .sql      ← 后置增量（数据回填/索引调优等）
+已应用的版本跳过（幂等）。
+```
+
+**升级流程**：
+```
+1. 测试环境验证（必做）：
+   git pull && docker compose build vigil
+   cp 生产备份到测试环境 → restore.sh 恢复
+   docker compose exec vigil vigil migrate   # 跑迁移
+   docker compose up -d vigil                # 启动新版本
+   冒烟测试：登录 / 发测试告警 / 看 /health /metrics
+2. 生产升级：
+   a. 先备份（见 D.2）
+   b. git pull && docker compose build vigil
+   c. docker compose exec vigil vigil migrate   # 关键：migrate 是显式子命令
+   d. docker compose up -d vigil                # 滚动重启
+   e. 验证：/health、/metrics、发一条测试告警走通 C 的主链路
+3. 多副本（Helm）：逐 pod 滚动，确保至少 minAvailable 个就绪
+```
+
+**关键限制**：
+- ❌ **无 migrate-down / 回滚**（`migrate.go` 只前进不后退）。回滚靠**备份恢复**（见 D.2），这是为什么 step 2a 必做。
+- ⚠️ `ent/schema/*.go` 改动后须 `go generate ./ent/...`（开发者责任，见 AGENTS.md）。
+- ⚠️ ent auto-migrate 对**删列/改类型有限制**，破坏性变更须 hand-tuned SQL 挂到 `post_*.sql`。
+- ✅ 升级期间服务可用性：API 无状态可滚动；Worker 升级时正在处理的任务由 Asynq 重试；升级计时器存 Redis 不受影响。
+
+### D.2 备份（H1.5）
+
+**脚本**：`scripts/backup.sh`（✅ 已实现）
+**备份内容**：
+- PostgreSQL：`pg_dump` 全量（自定义格式，支持并行恢复）
+- Redis：`BGSAVE` 触发 RDB 快照 + 拷贝 `dump.rdb`
+
+**操作**：
+```
+手动：./scripts/backup.sh                       # 用环境变量
+      ./scripts/backup.sh /path/to/backup/dir   # 指定目录
+定时（推荐）：
+      # crontab -e
+      0 2 * * * /path/to/vigil/scripts/backup.sh >> /var/log/vigil-backup.log 2>&1
+```
+
+**保留策略**：脚本本身不轮转，建议外部 cron + `find backups/ -mtime +7 -delete`（保留 7 天）。
+**验证**：备份产物含 `<timestamp>/vigil_pg.dump` + `redis_dump.rdb.gz`；定期在测试环境 restore 验证可用性（**不验证的备份等于没有**）。
+
+### D.3 恢复 / 灾难恢复
+
+**脚本**：`scripts/restore.sh`（✅ 已实现）
+**典型场景**：
+
+| 场景 | 恢复方式 |
+|------|----------|
+| 误删数据 / 版本升级失败 | stop vigil → `restore.sh <backup_dir>` → start vigil |
+| 数据库崩溃 | 新建 PG → restore → 重启 vigil（pgvector 扩展须先装） |
+| Redis 丢（升级计时器丢） | **从最近备份恢复 RDB**；恢复前在飞的升级任务需人工核查 Incident 状态 |
+| 整机灾难 | 新机器 → 拉镜像 → 起依赖 → restore → 启动 |
+
+**Redis 丢失的特殊风险**（升级计时器存活于 Redis）：
+```
+Redis 数据丢失 = 正在等待的 Asynq 延迟任务（升级计时器）丢失
+后果：未 ack 的 Incident 不会按 EscalationPolicy 升级
+处置：
+1. 从 RDB 备份恢复 Redis（首选）
+2. 若无法恢复，手动核查 status ∈ {triggered, escalated} 的 Incident，
+   必要时手动触发升级（incident.escalate 权限）或逐个 ack
+```
+
+**恢复流程**：
+```
+1. docker compose stop vigil
+2. ./scripts/restore.sh backups/<timestamp>     # 恢复 PG + Redis
+3. docker compose exec postgres pg_isready -U vigil   # 验证 PG
+4. docker compose start vigil
+5. 验证：/health、登录、发测试告警
+```
+
+### D.4 多副本演进（📋 待规划）
+
+当前单实例优先。多副本的关键风险：
+- **WebSocket 广播**：多 API 副本需 Redis pub/sub 同步状态推送（影响旅程 C 的"Web 实时刷新"）
+- **Worker 队列分片**：多 Worker 副本天然支持（Asynq 设计），但升级任务的幂等性须保证（已用 `incident_id + level` 去重）
+- **会话**：JWT 无状态，多副本无问题
+
+详见 [`architecture.md`](./architecture.md) §7 与本文"开放问题"第 3 条。
+
+---
+
 ## 附录 A：权限矩阵（旅程 × 动作 × 权限点）
 
 > 内置角色：`org_admin`(org) / `team_admin`(team) / `responder`(team) / `responder_lead`(team) / `subscriber`(team) / `oncall`(team)。
@@ -575,6 +802,9 @@ Incident resolved
 | 建 Service / Integration | ✅ | ✅ | — | — | — | — |
 | 建 Schedule / Escalation | ✅ | ✅ | — | — | — | — |
 | 建 Runbook / 通知规则 | ✅ | ✅ | — | — | — | — |
+| 看报表（analytics）| ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 看审计日志（`admin.audit.view`）| ✅ | — | — | — | — | — |
+| 禁用用户（`user.disable`）| ✅ | — | — | — | — | — |
 | 自己换班 Override | ✅ | ✅ | ✅ | — | ✅(仅自己) | — |
 | **旅程 C** | | | | | | |
 | 看 Incident/Event | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

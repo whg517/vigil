@@ -46,10 +46,25 @@
 
 > 以下为 PRD 设计目标但当前未排期的事项，列入以备规划。详细说明见各能力域文档的"开放问题"。
 
-| 项 | 出处 | 说明 |
-|----|------|------|
-| 跨团队 @人 → 事件级临时授权 + 关闭自动失效 | PRD M8.3 / data-model §5.6 | 当前 `AddResponder` 仅加入 responders 名单，不发临时 RoleBinding。详见 user-journeys.md C.3.5 |
-| 复盘 resolve 自动触发起草（critical 强制） | PRD M12.7 | 当前需手动调 `POST /incidents/:id/postmortem/draft`。详见 user-journeys.md C.6 |
-| IM 斜杠命令全量 | PRD M8.5 | 部分命令已实现，全量待补 |
-| 备份 / 恢复成旅程 | PRD H1.5 | `scripts/backup.sh` `restore.sh` 在，未形成操作旅程 |
-| 首次部署向导（first-run wizard） | 待讨论 | 当前靠环境变量 + 种子超管 |
+### 来自用户旅程完整性评估（2026-07-03）
+
+| 项 | 出处 | 当前状态 | 说明 |
+|----|------|----------|------|
+| **subscriber / 团队 Leader 独立旅程** | personas.md P1-4 | 无旅程 | 订阅 Incident、团队看板、跟进复盘质量。当前仅在权限矩阵带过 |
+| **平台工程师 / API 消费者旅程** | personas.md P1-3 | 部分覆盖 | APIKey 创建已覆盖（B.1）；缺 webhook 出站**订阅 CRUD**（当前仅 `VIGIL_WEBHOOK_OUT_URLS` 环境变量）、IaC/Terraform、集成向导 M14.6 |
+| **维护窗口 / 抑制操作流（独立旅程）** | 能力域 3 M3.2 | 配置在 B.7 | 缺"为计划内变更立维护窗 → 自动到期"的独立操作流叙述 |
+| **AI 反馈改进闭环** | 能力域 11 M11.5 | 部分覆盖 | accept/reject 已覆盖（C.4）；知识库反馈改进相似检索/噪声学习较薄 |
+
+### 既有项（前轮已记录）
+
+| 项 | 出处 | 当前状态 | 说明 |
+|----|------|----------|------|
+| 跨团队 @人 → 事件级临时授权 + 关闭自动失效 | PRD M8.3 / data-model §5.6 | 🟡 部分 | `AddResponder` 仅加入 responders 名单，不发临时 RoleBinding。详见 user-journeys.md C.3.4 |
+| 复盘 resolve 自动触发起草（critical 强制） | PRD M12.7 | 🟡 部分 | 当前需手动调 `POST /incidents/:id/postmortem/draft`。详见 user-journeys.md C.6 |
+| IM 斜杠命令全量 | PRD M8.5 | 📋 部分 | 部分命令已实现，全量待补 |
+| 首次部署向导（first-run wizard） | 待讨论 | 📋 无 | 当前靠环境变量 + 种子超管 |
+| **未路由事件重路由端点** | 能力域 4 M4.3 | 🟡 部分 | 当前只能修 Service labels，无对已 unrouted Event 的改派/重路由操作。详见 user-journeys.md B.13 |
+| **用户禁用自动交接提示** | 能力域 13 M13.1 | 🟡 部分 | 当前仅置 status=disabled，不提示待交接的排班/Action Item。详见 user-journeys.md B.14 |
+| **报表/审计导出端点** | 能力域 15 / 13 M13.5 | 📋 无 | analytics 6 端点无 export；audit-logs 无导出。详见 user-journeys.md B.11/B.12 |
+| **migrate-down / 回滚** | H1.4 | ❌ 无 | 无；回滚靠备份恢复。详见 user-journeys.md D.1 |
+| **多副本 WebSocket pub/sub** | architecture §7 | 📋 无 | 单实例优先，多副本需 Redis pub/sub 广播。详见 user-journeys.md D.4 |
