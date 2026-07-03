@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -81,7 +82,13 @@ func (e *DiagnoseEngine) Diagnose(ctx context.Context, incID int) (*DiagnoseResu
 	prompt := buildDiagnosePrompt(inc, items)
 	raw, err := e.provider.Complete(ctx, prompt)
 	if err != nil {
-		return nil, fmt.Errorf("llm diagnose: %w", err)
+		// FIX-C：LLM 调用失败（401/超时/限流等）降级为不诊断（返回 nil），
+		// 而非向上抛 500。符合设计基线第 7 条（凭证/服务不可用时降级）。
+		// handler 见 nil 会返回 200 disabled，让前端走规则兜底（与未配置 LLM 一致）。
+		// 记日志保留失败原因供运维排查（不泄露给前端）。
+		slog.Warn("ai diagnose: llm call failed, degrading to disabled",
+			"incident_id", incID, "error", err)
+		return nil, nil
 	}
 
 	// 解析 LLM 输出（期望 JSON：{root_cause, confidence}）

@@ -93,7 +93,9 @@ func (h *Handler) diagnose(c *echo.Context) error {
 		return errs.Internal(c, nil, err)
 	}
 	if res == nil {
-		return c.JSON(http.StatusOK, map[string]string{"status": "disabled", "message": "AI 诊断未启用（无 LLM）"})
+		// res==nil：LLM 未配置 或 调用失败降级（FIX-C，见 diagnose.go）。
+		// 两种情况都走 disabled，让前端用规则兜底；失败原因在后端日志，不泄露前端。
+		return c.JSON(http.StatusOK, map[string]string{"status": "disabled", "message": "AI 诊断暂不可用（未配置或调用失败，已降级）"})
 	}
 	return c.JSON(http.StatusCreated, res)
 }

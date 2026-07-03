@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/kevin/vigil/ent"
@@ -223,4 +224,29 @@ func keysOf(m map[string]any) []string {
 		ks = append(ks, k)
 	}
 	return ks
+}
+
+// TestDiagnose_LLMCallFailedDegrade FIX-C：LLM 调用失败时应降级返回 (nil, nil)，
+// 而非向上抛 error（修复前返回 error → handler 500）。
+func TestDiagnose_LLMCallFailedDegrade(t *testing.T) {
+	c := newDiagTestClient(t)
+	inc := seedIncidentForDiag(t, c)
+	// mock 一个 Available=true 但 Complete 失败的 provider（模拟 401/超时）
+	mp := &mockProvider{
+		avail: true,
+		err:   errors.New("glm http 401: token expired"),
+	}
+	e := NewDiagnoseEngine(c, mp)
+	res, err := e.Diagnose(context.Background(), inc.ID)
+	if err != nil {
+		t.Errorf("FIX-C: LLM call failed should degrade (nil,nil), got error: %v", err)
+	}
+	if res != nil {
+		t.Errorf("FIX-C: LLM call failed should return nil result, got %+v", res)
+	}
+	// 不应落 AIInsight（降级，无产出）
+	cnt, _ := c.AIInsight.Query().Count(context.Background())
+	if cnt != 0 {
+		t.Errorf("degraded diagnose should not create AIInsight, got %d", cnt)
+	}
 }
