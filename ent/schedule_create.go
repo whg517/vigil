@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/kevin/vigil/ent/escalationpolicy"
+	"github.com/kevin/vigil/ent/override"
 	"github.com/kevin/vigil/ent/rotation"
 	"github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/schema"
@@ -132,6 +133,21 @@ func (_c *ScheduleCreate) AddRotations(v ...*Rotation) *ScheduleCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddRotationIDs(ids...)
+}
+
+// AddOverrideIDs adds the "overrides" edge to the Override entity by IDs.
+func (_c *ScheduleCreate) AddOverrideIDs(ids ...int) *ScheduleCreate {
+	_c.mutation.AddOverrideIDs(ids...)
+	return _c
+}
+
+// AddOverrides adds the "overrides" edges to the Override entity.
+func (_c *ScheduleCreate) AddOverrides(v ...*Override) *ScheduleCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddOverrideIDs(ids...)
 }
 
 // AddEscalationPolicyIDs adds the "escalation_policies" edge to the EscalationPolicy entity by IDs.
@@ -317,6 +333,22 @@ func (_c *ScheduleCreate) createSpec() (*Schedule, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(rotation.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.OverridesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   schedule.OverridesTable,
+			Columns: []string{schedule.OverridesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(override.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

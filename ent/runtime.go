@@ -18,6 +18,7 @@ import (
 	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
+	"github.com/kevin/vigil/ent/override"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/rawevent"
 	"github.com/kevin/vigil/ent/role"
@@ -257,6 +258,12 @@ func init() {
 	notificationtemplate.DefaultUpdatedAt = notificationtemplateDescUpdatedAt.Default.(func() time.Time)
 	// notificationtemplate.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	notificationtemplate.UpdateDefaultUpdatedAt = notificationtemplateDescUpdatedAt.UpdateDefault.(func() time.Time)
+	overrideFields := schema.Override{}.Fields()
+	_ = overrideFields
+	// overrideDescCreatedAt is the schema descriptor for created_at field.
+	overrideDescCreatedAt := overrideFields[3].Descriptor()
+	// override.DefaultCreatedAt holds the default value on creation for the created_at field.
+	override.DefaultCreatedAt = overrideDescCreatedAt.Default.(func() time.Time)
 	postmortemFields := schema.Postmortem{}.Fields()
 	_ = postmortemFields
 	// postmortemDescCreatedAt is the schema descriptor for created_at field.

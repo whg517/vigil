@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -137,6 +138,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 
 	// —— 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链 ——
 	schedEngine := schedule.NewEngine(st.DB, st.Redis) // escalation 依赖它
+	schedEngine.SetLogger(log)
+	// C4：空班检测告警 team_admin（无 team 归属/无 team_admin 时兜底 org_admin）。
+	schedEngine.SetEmptyShiftAlerter(&emptyShiftAlerter{db: st.DB, notifier: notifier, log: log})
 	escRedisOpt := &asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB}
 	timelineRecorder := timeline.NewRecorder(st.DB) // 统一时间线 Recorder
 	escEngine := escalation.NewEngine(st.DB, q, schedEngine, notifier, escRedisOpt)
@@ -757,6 +761,79 @@ func buildAllFailedHook(_ context.Context, db *ent.Client, notifier *notificatio
 	}
 }
 
+// emptyShiftAlerter 实现 schedule.EmptyShiftAlerter（C4）。
+//
+// 排班在某时刻算不出任何在班人（空班）= 无人值班的严重信号。本适配器解算该 Schedule
+// 所属 team 的 team_admin 收件人，走 NotifyUnrouted（email/phone/sms/webhook，无单不走 IM 卡片）
+// 告警，避免"无人值班"盲区。schedule 无 team 归属或该 team 无 team_admin 时，兜底告警 org_admin。
+type emptyShiftAlerter struct {
+	db       *ent.Client
+	notifier *notification.Notifier
+	log      *zap.Logger
+}
+
+// AlertEmptyShift 空班告警：best-effort，失败只记日志不向上抛（避免故障放大）。
+func (a *emptyShiftAlerter) AlertEmptyShift(ctx context.Context, sched *ent.Schedule, at time.Time) {
+	recipients := a.resolveTeamAdmins(ctx, sched)
+	if len(recipients) == 0 {
+		// 该 team 无 team_admin（或无 team 归属）：兜底告警 org_admin。
+		fallback := &unroutedFallbackNotifier{db: a.db, notifier: a.notifier, log: a.log}
+		admins, err := fallback.resolveOrgAdmins(ctx)
+		if err != nil || len(admins) == 0 {
+			a.log.Warn("empty shift alert: no team_admin/org_admin to notify",
+				zap.Int("schedule_id", sched.ID), zap.Error(err))
+			return
+		}
+		recipients = admins
+	}
+	targets := make([]notification.Target, 0, len(recipients))
+	for _, u := range recipients {
+		targets = append(targets, notification.Target{UserID: u.ID, Name: u.Name, Source: "user"})
+	}
+	title := fmt.Sprintf("[排班空班] %s", sched.Name)
+	summary := fmt.Sprintf("排班「%s」在 %s 算不出任何在班人（空班/无人值班），请检查轮换参与人是否全部缺席/禁用，或补建 Override 换班。",
+		sched.Name, at.Format(time.RFC3339))
+	if err := a.notifier.NotifyUnrouted(ctx, targets, title, summary, nil); err != nil {
+		a.log.Warn("empty shift alert failed",
+			zap.Int("schedule_id", sched.ID), zap.Error(err))
+	}
+}
+
+// resolveTeamAdmins 解算该 Schedule 所属 team 的在职 team_admin（去重）。
+// schedule 无 team 归属时返回空（交由调用方兜底 org_admin）。
+func (a *emptyShiftAlerter) resolveTeamAdmins(ctx context.Context, sched *ent.Schedule) []*ent.User {
+	t, err := sched.QueryTeam().Only(ctx)
+	if err != nil || t == nil {
+		return nil // 无 team 归属
+	}
+	now := time.Now()
+	bindings, err := a.db.RoleBinding.Query().
+		Where(
+			rolebinding.HasRoleWith(role.NameEQ("team_admin")),
+			rolebinding.ScopeLevelEQ(rolebinding.ScopeLevelTeam),
+			rolebinding.TeamIDEQ(strconv.Itoa(t.ID)),
+			rolebinding.Or(rolebinding.ExpiresAtIsNil(), rolebinding.ExpiresAtGTE(now)),
+		).
+		WithUser().
+		All(ctx)
+	if err != nil {
+		a.log.Warn("empty shift alert: query team_admins failed",
+			zap.Int("team_id", t.ID), zap.Error(err))
+		return nil
+	}
+	seen := map[int]bool{}
+	var out []*ent.User
+	for _, b := range bindings {
+		usr := b.Edges.User
+		if usr == nil || seen[usr.ID] || usr.Status != user.StatusActive {
+			continue
+		}
+		seen[usr.ID] = true
+		out = append(out, usr)
+	}
+	return out
+}
+
 // runbookEscalator 实现 runbook.EscalationTrigger，包装 incident.Service.Escalate。
 // on_failure=escalate 时触发该 incident 的立即升级；actorID 透传自 Runbook 执行发起人
 // （0 视为系统），让"谁触发的这次 Runbook 升级"可追溯（source=runbook）。
@@ -836,6 +913,9 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/schedules", auth.PermScheduleCreate)
 	g.RoutePerm(http.MethodPatch, "/schedules/:id", auth.PermScheduleUpdate)
 	g.RoutePerm(http.MethodDelete, "/schedules/:id", auth.PermScheduleDelete)
+	// 换班 Override（C5/M5.3）：创建/删除需 schedule.override（换他人再叠加 schedule.update，见 handler）。
+	g.RoutePerm(http.MethodPost, "/schedules/:id/overrides", auth.PermScheduleOverride)
+	g.RoutePerm(http.MethodDelete, "/schedules/:id/overrides/:oid", auth.PermScheduleOverride)
 	// 升级策略
 	g.RoutePerm(http.MethodPost, "/escalation-policies", auth.PermEscalationCreate)
 	g.RoutePerm(http.MethodPatch, "/escalation-policies/:id", auth.PermEscalationUpdate)

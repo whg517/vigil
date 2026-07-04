@@ -25,6 +25,7 @@ import (
 	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
+	"github.com/kevin/vigil/ent/override"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/rawevent"
 	"github.com/kevin/vigil/ent/role"
@@ -110,6 +111,7 @@ func checkColumn(t, c string) error {
 			notification.Table:         notification.ValidColumn,
 			notificationrule.Table:     notificationrule.ValidColumn,
 			notificationtemplate.Table: notificationtemplate.ValidColumn,
+			override.Table:             override.ValidColumn,
 			postmortem.Table:           postmortem.ValidColumn,
 			rawevent.Table:             rawevent.ValidColumn,
 			role.Table:                 role.ValidColumn,

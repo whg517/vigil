@@ -45,6 +45,9 @@ type NotificationRule func(*sql.Selector)
 // NotificationTemplate is the predicate function for notificationtemplate builders.
 type NotificationTemplate func(*sql.Selector)
 
+// Override is the predicate function for override builders.
+type Override func(*sql.Selector)
+
 // Postmortem is the predicate function for postmortem builders.
 type Postmortem func(*sql.Selector)
 

@@ -1346,6 +1346,49 @@
                 },
                 "type": "object"
             },
+            "ent.Override": {
+                "properties": {
+                    "created_at": {
+                        "description": "CreatedAt holds the value of the \"created_at\" field.",
+                        "type": "string"
+                    },
+                    "edges": {
+                        "$ref": "#/components/schemas/ent.OverrideEdges"
+                    },
+                    "end_time": {
+                        "description": "覆盖结束（不含）",
+                        "type": "string"
+                    },
+                    "id": {
+                        "description": "ID of the ent.",
+                        "type": "integer"
+                    },
+                    "reason": {
+                        "description": "换班原因，如 user_a 请假",
+                        "type": "string"
+                    },
+                    "start_time": {
+                        "description": "覆盖起始（含）",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.OverrideEdges": {
+                "description": "Edges holds the relations/edges for other nodes in the graph.\nThe values are being populated by the OverrideQuery when eager-loading is set.",
+                "properties": {
+                    "created_by": {
+                        "$ref": "#/components/schemas/ent.User"
+                    },
+                    "schedule": {
+                        "$ref": "#/components/schemas/ent.Schedule"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/ent.User"
+                    }
+                },
+                "type": "object"
+            },
             "ent.Postmortem": {
                 "description": "Postmortem holds the value of the postmortem edge.",
                 "properties": {
@@ -1728,6 +1771,14 @@
                         "description": "EscalationPolicies holds the value of the escalation_policies edge.",
                         "items": {
                             "$ref": "#/components/schemas/ent.EscalationPolicy"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "overrides": {
+                        "description": "Overrides holds the value of the overrides edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Override"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -3330,6 +3381,26 @@
                 },
                 "type": "object"
             },
+            "schedule.createOverrideReq": {
+                "properties": {
+                    "end_time": {
+                        "description": "RFC3339",
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "start_time": {
+                        "description": "RFC3339",
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "description": "顶替人 user id",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "schedule.createScheduleReq": {
                 "properties": {
                     "layers": {
@@ -3356,11 +3427,46 @@
                 },
                 "type": "object"
             },
+            "schedule.overrideView": {
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "created_by": {
+                        "description": "创建人（自我换班=顶替对象，admin 指派=管理员）",
+                        "type": "integer"
+                    },
+                    "end_time": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "schedule_id": {
+                        "type": "integer"
+                    },
+                    "start_time": {
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "description": "顶替人",
+                        "type": "integer"
+                    },
+                    "user_name": {
+                        "description": "顶替人显示名",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "schedule.updateScheduleReq": {
                 "properties": {
                     "layers": {
                         "items": {
-                            "$ref": "#/components/schemas/schema.ScheduleLayer"
+                            "$ref": "#/components/schemas/schedule.createLayerReq"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -8655,6 +8761,207 @@
                     }
                 ],
                 "summary": "查询在班人",
+                "tags": [
+                    "schedule"
+                ]
+            }
+        },
+        "/schedules/{id}/overrides": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "排班 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/schedule.overrideView"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "查询换班列表",
+                "tags": [
+                    "schedule"
+                ]
+            },
+            "post": {
+                "parameters": [
+                    {
+                        "description": "排班 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/schedule.createOverrideReq",
+                                        "description": "换班参数",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "换班参数",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/schedule.overrideView"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "创建换班 Override",
+                "tags": [
+                    "schedule"
+                ]
+            }
+        },
+        "/schedules/{id}/overrides/{oid}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "排班 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "换班 ID",
+                        "in": "path",
+                        "name": "oid",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "删除换班",
                 "tags": [
                     "schedule"
                 ]

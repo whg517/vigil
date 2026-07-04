@@ -165,6 +165,18 @@ func (f NotificationTemplateFunc) Mutate(ctx context.Context, m ent.Mutation) (e
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.NotificationTemplateMutation", m)
 }
 
+// The OverrideFunc type is an adapter to allow the use of ordinary
+// function as Override mutator.
+type OverrideFunc func(context.Context, *ent.OverrideMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OverrideFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OverrideMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OverrideMutation", m)
+}
+
 // The PostmortemFunc type is an adapter to allow the use of ordinary
 // function as Postmortem mutator.
 type PostmortemFunc func(context.Context, *ent.PostmortemMutation) (ent.Value, error)

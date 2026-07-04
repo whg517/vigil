@@ -552,6 +552,43 @@ var (
 			},
 		},
 	}
+	// OverridesColumns holds the columns for the "overrides" table.
+	OverridesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "start_time", Type: field.TypeTime},
+		{Name: "end_time", Type: field.TypeTime},
+		{Name: "reason", Type: field.TypeString, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "override_user", Type: field.TypeInt},
+		{Name: "override_created_by", Type: field.TypeInt, Nullable: true},
+		{Name: "schedule_overrides", Type: field.TypeInt},
+	}
+	// OverridesTable holds the schema information for the "overrides" table.
+	OverridesTable = &schema.Table{
+		Name:       "overrides",
+		Columns:    OverridesColumns,
+		PrimaryKey: []*schema.Column{OverridesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "overrides_users_user",
+				Columns:    []*schema.Column{OverridesColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "overrides_users_created_by",
+				Columns:    []*schema.Column{OverridesColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "overrides_schedules_overrides",
+				Columns:    []*schema.Column{OverridesColumns[7]},
+				RefColumns: []*schema.Column{SchedulesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
 	// PostmortemsColumns holds the columns for the "postmortems" table.
 	PostmortemsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -1092,6 +1129,7 @@ var (
 		NotificationsTable,
 		NotificationRulesTable,
 		NotificationTemplatesTable,
+		OverridesTable,
 		PostmortemsTable,
 		RawEventsTable,
 		RolesTable,
@@ -1133,6 +1171,9 @@ func init() {
 	NotificationsTable.ForeignKeys[0].RefTable = IncidentsTable
 	NotificationRulesTable.ForeignKeys[0].RefTable = TeamsTable
 	NotificationTemplatesTable.ForeignKeys[0].RefTable = TeamsTable
+	OverridesTable.ForeignKeys[0].RefTable = UsersTable
+	OverridesTable.ForeignKeys[1].RefTable = UsersTable
+	OverridesTable.ForeignKeys[2].RefTable = SchedulesTable
 	PostmortemsTable.ForeignKeys[0].RefTable = IncidentsTable
 	RawEventsTable.ForeignKeys[0].RefTable = IntegrationsTable
 	RoleBindingsTable.ForeignKeys[0].RefTable = RolesTable

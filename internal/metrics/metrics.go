@@ -98,6 +98,13 @@ var (
 		Help: "Total escalation triggers.",
 	})
 
+	// ScheduleEmptyShifts 排班空班检测次数（C4）：某排班在某时刻算不出任何在班人。
+	// 空班=无人值班的严重信号，触发 team_admin 告警，此计数使盲区可观测。
+	ScheduleEmptyShifts = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "vigil_schedule_empty_shifts_total",
+		Help: "Total schedule computations that resolved to no oncall user (empty shift).",
+	}, []string{"schedule_id"})
+
 	// NotificationsSent 通知发送（按 channel/success）
 	NotificationsSent = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "vigil_notifications_sent_total",

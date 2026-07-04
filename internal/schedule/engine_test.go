@@ -125,6 +125,196 @@ func TestParseHandoff(t *testing.T) {
 	}
 }
 
+// TestOncall_ResponseStructure 锁定 C7：oncall 响应结构为 {schedule_id, schedule_name, layers[]}，
+// 每层含 name/priority/users[]，user 含 override 标志。
+func TestOncall_ResponseStructure(t *testing.T) {
+	c := newTestClient(t)
+	sched, _ := seedSchedule(t, c)
+	eng := NewEngine(c, nil)
+
+	at := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	res, err := eng.Oncall(context.Background(), sched.ID, at)
+	if err != nil {
+		t.Fatalf("Oncall: %v", err)
+	}
+	if res.ScheduleID != sched.ID {
+		t.Errorf("ScheduleID: got %d, want %d", res.ScheduleID, sched.ID)
+	}
+	if res.ScheduleName != "支付值班" {
+		t.Errorf("ScheduleName: got %q, want 支付值班", res.ScheduleName)
+	}
+	if len(res.Layers) == 0 {
+		t.Fatal("expected at least one layer")
+	}
+	l := res.Layers[0]
+	if len(l.Users) == 0 {
+		t.Fatal("expected users in layer")
+	}
+	if l.Users[0].Override {
+		t.Error("rotation user should have override=false")
+	}
+}
+
+// TestOncall_Override 验证 C5/M8：换班时段内顶替人覆盖 Rotation 结果，override=true 且最高优先级。
+func TestOncall_Override(t *testing.T) {
+	c := newTestClient(t)
+	sched, _ := seedSchedule(t, c)
+	eng := NewEngine(c, nil)
+	ctx := context.Background()
+
+	// 顶替人 u4（非轮换参与者）。
+	u4, _ := c.User.Create().SetUsername("u4").SetEmail("u4@x.com").SetName("替班王").Save(ctx)
+
+	// 6/1 全天换班给 u4（原本 6/1 应是 u1）。
+	winStart := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	winEnd := time.Date(2026, 6, 2, 0, 0, 0, 0, time.UTC)
+	_, err := c.Override.Create().
+		SetScheduleID(sched.ID).
+		SetUserID(u4.ID).
+		SetStartTime(winStart).
+		SetEndTime(winEnd).
+		SetReason("u1 请假").
+		Save(ctx)
+	if err != nil {
+		t.Fatalf("create override: %v", err)
+	}
+
+	// 时段内（6/1 12:00）：应是 u4 顶替，override=true，且为最高优先级层。
+	at := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	res, err := eng.Oncall(ctx, sched.ID, at)
+	if err != nil {
+		t.Fatalf("Oncall: %v", err)
+	}
+	if len(res.Layers) == 0 || len(res.Layers[0].Users) == 0 {
+		t.Fatal("expected override layer")
+	}
+	top := res.Layers[0].Users[0]
+	if top.Username != "u4" || !top.Override {
+		t.Errorf("override: got user=%q override=%v, want u4 override=true", top.Username, top.Override)
+	}
+
+	// 时段外（6/2 12:00）：override 不再命中，回到 Rotation（u2）。
+	after := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
+	res2, err := eng.Oncall(ctx, sched.ID, after)
+	if err != nil {
+		t.Fatalf("Oncall after: %v", err)
+	}
+	if res2.Layers[0].Users[0].Username != "u2" || res2.Layers[0].Users[0].Override {
+		t.Errorf("after override window: got %q override=%v, want u2 override=false",
+			res2.Layers[0].Users[0].Username, res2.Layers[0].Users[0].Override)
+	}
+}
+
+// TestOncall_DisabledUserNotResolved 验证 B21：禁用参与者不进在班计算。
+func TestOncall_DisabledUserNotResolved(t *testing.T) {
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	// 单人轮换，该人禁用 → 空班。
+	u, _ := c.User.Create().SetUsername("lone").SetEmail("lone@x.com").
+		SetStatus("disabled").Save(ctx)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	rot, _ := c.Rotation.Create().SetName("一线").SetShiftLength("24h").
+		SetHandoffTime("00:00").SetRotationType("daily").SetStartDate(start).
+		AddParticipantIDs(u.ID).Save(ctx)
+	sched, _ := c.Schedule.Create().SetName("单人值班").SetType("rotation").
+		SetTimezone("UTC").AddRotationIDs(rot.ID).Save(ctx)
+
+	eng := NewEngine(c, nil)
+	at := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	res, err := eng.Oncall(ctx, sched.ID, at)
+	if err != nil {
+		t.Fatalf("Oncall: %v", err)
+	}
+	// 禁用者被过滤 → 无在班人（空班）。
+	for _, l := range res.Layers {
+		if len(l.Users) > 0 {
+			t.Errorf("disabled user should not be resolved, got %+v", l.Users)
+		}
+	}
+}
+
+// TestOncall_EmptyShiftAlerts 验证 C4：空班触发 EmptyShiftAlerter。
+func TestOncall_EmptyShiftAlerts(t *testing.T) {
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	// 无参与者的 Rotation → 空班。
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	rot, _ := c.Rotation.Create().SetName("空层").SetShiftLength("24h").
+		SetHandoffTime("00:00").SetRotationType("daily").SetStartDate(start).Save(ctx)
+	sched, _ := c.Schedule.Create().SetName("空排班").SetType("rotation").
+		SetTimezone("UTC").AddRotationIDs(rot.ID).Save(ctx)
+
+	eng := NewEngine(c, nil)
+	spy := &spyAlerter{}
+	eng.SetEmptyShiftAlerter(spy)
+
+	at := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	if _, err := eng.Oncall(ctx, sched.ID, at); err != nil {
+		t.Fatalf("Oncall: %v", err)
+	}
+	if spy.calls != 1 {
+		t.Errorf("expected empty-shift alerter called once, got %d", spy.calls)
+	}
+	if spy.lastSchedID != sched.ID {
+		t.Errorf("alerter schedule id: got %d, want %d", spy.lastSchedID, sched.ID)
+	}
+}
+
+// TestOncall_NoEmptyShiftAlertWhenStaffed 验证有在班人时不触发空班告警。
+func TestOncall_NoEmptyShiftAlertWhenStaffed(t *testing.T) {
+	c := newTestClient(t)
+	sched, _ := seedSchedule(t, c)
+	eng := NewEngine(c, nil)
+	spy := &spyAlerter{}
+	eng.SetEmptyShiftAlerter(spy)
+
+	at := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	if _, err := eng.Oncall(context.Background(), sched.ID, at); err != nil {
+		t.Fatalf("Oncall: %v", err)
+	}
+	if spy.calls != 0 {
+		t.Errorf("staffed schedule should not trigger empty-shift alert, got %d calls", spy.calls)
+	}
+}
+
+// TestOncall_CalendarTypeAllStaff 验证 B21：calendar 型取全体在职参与者（无轮换）。
+func TestOncall_CalendarTypeAllStaff(t *testing.T) {
+	c := newTestClient(t)
+	ctx := context.Background()
+
+	u1, _ := c.User.Create().SetUsername("c1").SetEmail("c1@x.com").Save(ctx)
+	u2, _ := c.User.Create().SetUsername("c2").SetEmail("c2@x.com").Save(ctx)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	rot, _ := c.Rotation.Create().SetName("日历层").SetShiftLength("24h").
+		SetHandoffTime("00:00").SetRotationType("daily").SetStartDate(start).
+		AddParticipantIDs(u1.ID, u2.ID).Save(ctx)
+	sched, _ := c.Schedule.Create().SetName("日历值班").SetType("calendar").
+		SetTimezone("UTC").AddRotationIDs(rot.ID).Save(ctx)
+
+	eng := NewEngine(c, nil)
+	at := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	res, err := eng.Oncall(ctx, sched.ID, at)
+	if err != nil {
+		t.Fatalf("Oncall: %v", err)
+	}
+	if len(res.Layers) == 0 || len(res.Layers[0].Users) != 2 {
+		t.Fatalf("calendar type should return all %d participants, got %+v", 2, res.Layers)
+	}
+}
+
+// spyAlerter 记录 EmptyShiftAlerter 调用（测试桩）。
+type spyAlerter struct {
+	calls       int
+	lastSchedID int
+}
+
+func (s *spyAlerter) AlertEmptyShift(_ context.Context, sched *ent.Schedule, _ time.Time) {
+	s.calls++
+	s.lastSchedID = sched.ID
+}
+
 // TestPreview 验证预览生成多天数据。
 func TestPreview(t *testing.T) {
 	c := newTestClient(t)

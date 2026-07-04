@@ -84,13 +84,30 @@ override:
 
 ```http
 GET /api/v1/schedules/{id}/oncall?time=<iso8601>
-→ { primary: [...], secondary: [...], overrides: [...] }
+→ { schedule_id, schedule_name, layers: [ { name, priority, users: [ { id, name, username, override } ] } ] }
+   # C7：实际响应为分层结构（primary/secondary 由 layer.priority 表达，数字小优先；
+   #     Override 换班命中时作为最高优先级层置顶，users[].override=true）。
 
 GET /api/v1/schedules/{id}/preview?days=14
-→ [ { date, primary, secondary }, ... ]   # 排班日历预览
+→ { schedule_id, days: [ { date, layers: [...] }, ... ] }   # 排班日历预览
 ```
 
 供值班大屏、外部系统查询。
+
+### 2.8 Override 换班 API（M5.3）
+
+```http
+POST   /api/v1/schedules/{id}/overrides   # 建换班；权限 schedule.override
+       body: { user_id, start_time, end_time, reason }
+       # 换己班（user_id==登录人）仅需 schedule.override；换他人须叠加 schedule.update
+       #（team_admin/org_admin 具备），防值班人越权指派他人替班。
+GET    /api/v1/schedules/{id}/overrides   # 列换班（按 start_time 倒序）
+DELETE /api/v1/schedules/{id}/overrides/{oid}  # 删换班；权限 schedule.override
+```
+
+- 命中判定：`start_time <= 查询时刻 < end_time`，且顶替人在职（禁用则不顶替）。
+- 多条命中取最新创建的一条（后设覆盖先设）。
+- 顶替人在 oncall 结果中以最高优先级层返回，`override=true`。
 
 ---
 

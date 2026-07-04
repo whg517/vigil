@@ -4428,6 +4428,175 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedules/{id}/overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询换班列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 排班 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["schedule.overrideView"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 创建换班 Override */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 排班 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 换班参数 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["schedule.createOverrideReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["schedule.overrideView"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedules/{id}/overrides/{oid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除换班 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 排班 ID */
+                    id: number;
+                    /** @description 换班 ID */
+                    oid: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/schedules/{id}/preview": {
         parameters: {
             query?: never;
@@ -6075,6 +6244,28 @@ export interface components {
         "ent.NotificationTemplateEdges": {
             team?: components["schemas"]["ent.Team"];
         };
+        "ent.Override": {
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            edges?: components["schemas"]["ent.OverrideEdges"];
+            /** @description 覆盖结束（不含） */
+            end_time?: string;
+            /** @description ID of the ent. */
+            id?: number;
+            /** @description 换班原因，如 user_a 请假 */
+            reason?: string;
+            /** @description 覆盖起始（含） */
+            start_time?: string;
+        };
+        /**
+         * @description Edges holds the relations/edges for other nodes in the graph.
+         *     The values are being populated by the OverrideQuery when eager-loading is set.
+         */
+        "ent.OverrideEdges": {
+            created_by?: components["schemas"]["ent.User"];
+            schedule?: components["schemas"]["ent.Schedule"];
+            user?: components["schemas"]["ent.User"];
+        };
         /** @description Postmortem holds the value of the postmortem edge. */
         "ent.Postmortem": {
             /** @description CreatedAt holds the value of the "created_at" field. */
@@ -6259,6 +6450,8 @@ export interface components {
         "ent.ScheduleEdges": {
             /** @description EscalationPolicies holds the value of the escalation_policies edge. */
             escalation_policies?: components["schemas"]["ent.EscalationPolicy"][];
+            /** @description Overrides holds the value of the overrides edge. */
+            overrides?: components["schemas"]["ent.Override"][];
             /** @description Rotations holds the value of the rotations edge. */
             rotations?: components["schemas"]["ent.Rotation"][];
             /** @description Services holds the value of the services edge. */
@@ -6866,6 +7059,15 @@ export interface components {
             /** @description 开始日期 RFC3339（默认现在） */
             start_date?: string;
         };
+        "schedule.createOverrideReq": {
+            /** @description RFC3339 */
+            end_time?: string;
+            reason?: string;
+            /** @description RFC3339 */
+            start_time?: string;
+            /** @description 顶替人 user id */
+            user_id?: number;
+        };
         "schedule.createScheduleReq": {
             layers?: components["schemas"]["schedule.createLayerReq"][];
             name?: string;
@@ -6875,8 +7077,22 @@ export interface components {
             /** @description calendar | rotation | follow_the_sun */
             type?: string;
         };
+        "schedule.overrideView": {
+            created_at?: string;
+            /** @description 创建人（自我换班=顶替对象，admin 指派=管理员） */
+            created_by?: number;
+            end_time?: string;
+            id?: number;
+            reason?: string;
+            schedule_id?: number;
+            start_time?: string;
+            /** @description 顶替人 */
+            user_id?: number;
+            /** @description 顶替人显示名 */
+            user_name?: string;
+        };
         "schedule.updateScheduleReq": {
-            layers?: components["schemas"]["schema.ScheduleLayer"][];
+            layers?: components["schemas"]["schedule.createLayerReq"][];
             name?: string;
             timezone?: string;
             type?: string;

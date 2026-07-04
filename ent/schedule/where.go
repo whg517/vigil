@@ -384,6 +384,29 @@ func HasRotationsWith(preds ...predicate.Rotation) predicate.Schedule {
 	})
 }
 
+// HasOverrides applies the HasEdge predicate on the "overrides" edge.
+func HasOverrides() predicate.Schedule {
+	return predicate.Schedule(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, OverridesTable, OverridesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasOverridesWith applies the HasEdge predicate on the "overrides" edge with a given conditions (other predicates).
+func HasOverridesWith(preds ...predicate.Override) predicate.Schedule {
+	return predicate.Schedule(func(s *sql.Selector) {
+		step := newOverridesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasEscalationPolicies applies the HasEdge predicate on the "escalation_policies" edge.
 func HasEscalationPolicies() predicate.Schedule {
 	return predicate.Schedule(func(s *sql.Selector) {

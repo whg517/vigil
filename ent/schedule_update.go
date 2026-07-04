@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/kevin/vigil/ent/escalationpolicy"
+	"github.com/kevin/vigil/ent/override"
 	"github.com/kevin/vigil/ent/predicate"
 	"github.com/kevin/vigil/ent/rotation"
 	"github.com/kevin/vigil/ent/schedule"
@@ -149,6 +150,21 @@ func (_u *ScheduleUpdate) AddRotations(v ...*Rotation) *ScheduleUpdate {
 	return _u.AddRotationIDs(ids...)
 }
 
+// AddOverrideIDs adds the "overrides" edge to the Override entity by IDs.
+func (_u *ScheduleUpdate) AddOverrideIDs(ids ...int) *ScheduleUpdate {
+	_u.mutation.AddOverrideIDs(ids...)
+	return _u
+}
+
+// AddOverrides adds the "overrides" edges to the Override entity.
+func (_u *ScheduleUpdate) AddOverrides(v ...*Override) *ScheduleUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddOverrideIDs(ids...)
+}
+
 // AddEscalationPolicyIDs adds the "escalation_policies" edge to the EscalationPolicy entity by IDs.
 func (_u *ScheduleUpdate) AddEscalationPolicyIDs(ids ...int) *ScheduleUpdate {
 	_u.mutation.AddEscalationPolicyIDs(ids...)
@@ -215,6 +231,27 @@ func (_u *ScheduleUpdate) RemoveRotations(v ...*Rotation) *ScheduleUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveRotationIDs(ids...)
+}
+
+// ClearOverrides clears all "overrides" edges to the Override entity.
+func (_u *ScheduleUpdate) ClearOverrides() *ScheduleUpdate {
+	_u.mutation.ClearOverrides()
+	return _u
+}
+
+// RemoveOverrideIDs removes the "overrides" edge to Override entities by IDs.
+func (_u *ScheduleUpdate) RemoveOverrideIDs(ids ...int) *ScheduleUpdate {
+	_u.mutation.RemoveOverrideIDs(ids...)
+	return _u
+}
+
+// RemoveOverrides removes "overrides" edges to Override entities.
+func (_u *ScheduleUpdate) RemoveOverrides(v ...*Override) *ScheduleUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveOverrideIDs(ids...)
 }
 
 // ClearEscalationPolicies clears all "escalation_policies" edges to the EscalationPolicy entity.
@@ -443,6 +480,51 @@ func (_u *ScheduleUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.OverridesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   schedule.OverridesTable,
+			Columns: []string{schedule.OverridesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(override.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedOverridesIDs(); len(nodes) > 0 && !_u.mutation.OverridesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   schedule.OverridesTable,
+			Columns: []string{schedule.OverridesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(override.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.OverridesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   schedule.OverridesTable,
+			Columns: []string{schedule.OverridesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(override.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.EscalationPoliciesCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2M,
@@ -623,6 +705,21 @@ func (_u *ScheduleUpdateOne) AddRotations(v ...*Rotation) *ScheduleUpdateOne {
 	return _u.AddRotationIDs(ids...)
 }
 
+// AddOverrideIDs adds the "overrides" edge to the Override entity by IDs.
+func (_u *ScheduleUpdateOne) AddOverrideIDs(ids ...int) *ScheduleUpdateOne {
+	_u.mutation.AddOverrideIDs(ids...)
+	return _u
+}
+
+// AddOverrides adds the "overrides" edges to the Override entity.
+func (_u *ScheduleUpdateOne) AddOverrides(v ...*Override) *ScheduleUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddOverrideIDs(ids...)
+}
+
 // AddEscalationPolicyIDs adds the "escalation_policies" edge to the EscalationPolicy entity by IDs.
 func (_u *ScheduleUpdateOne) AddEscalationPolicyIDs(ids ...int) *ScheduleUpdateOne {
 	_u.mutation.AddEscalationPolicyIDs(ids...)
@@ -689,6 +786,27 @@ func (_u *ScheduleUpdateOne) RemoveRotations(v ...*Rotation) *ScheduleUpdateOne 
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveRotationIDs(ids...)
+}
+
+// ClearOverrides clears all "overrides" edges to the Override entity.
+func (_u *ScheduleUpdateOne) ClearOverrides() *ScheduleUpdateOne {
+	_u.mutation.ClearOverrides()
+	return _u
+}
+
+// RemoveOverrideIDs removes the "overrides" edge to Override entities by IDs.
+func (_u *ScheduleUpdateOne) RemoveOverrideIDs(ids ...int) *ScheduleUpdateOne {
+	_u.mutation.RemoveOverrideIDs(ids...)
+	return _u
+}
+
+// RemoveOverrides removes "overrides" edges to Override entities.
+func (_u *ScheduleUpdateOne) RemoveOverrides(v ...*Override) *ScheduleUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveOverrideIDs(ids...)
 }
 
 // ClearEscalationPolicies clears all "escalation_policies" edges to the EscalationPolicy entity.
@@ -940,6 +1058,51 @@ func (_u *ScheduleUpdateOne) sqlSave(ctx context.Context) (_node *Schedule, err 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(rotation.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.OverridesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   schedule.OverridesTable,
+			Columns: []string{schedule.OverridesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(override.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedOverridesIDs(); len(nodes) > 0 && !_u.mutation.OverridesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   schedule.OverridesTable,
+			Columns: []string{schedule.OverridesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(override.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.OverridesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   schedule.OverridesTable,
+			Columns: []string{schedule.OverridesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(override.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

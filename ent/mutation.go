@@ -24,6 +24,7 @@ import (
 	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
+	"github.com/kevin/vigil/ent/override"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/predicate"
 	"github.com/kevin/vigil/ent/rawevent"
@@ -62,6 +63,7 @@ const (
 	TypeNotification         = "Notification"
 	TypeNotificationRule     = "NotificationRule"
 	TypeNotificationTemplate = "NotificationTemplate"
+	TypeOverride             = "Override"
 	TypePostmortem           = "Postmortem"
 	TypeRawEvent             = "RawEvent"
 	TypeRole                 = "Role"
@@ -12760,6 +12762,701 @@ func (m *NotificationTemplateMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown NotificationTemplate edge %s", name)
 }
 
+// OverrideMutation represents an operation that mutates the Override nodes in the graph.
+type OverrideMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *int
+	start_time        *time.Time
+	end_time          *time.Time
+	reason            *string
+	created_at        *time.Time
+	clearedFields     map[string]struct{}
+	schedule          *int
+	clearedschedule   bool
+	user              *int
+	cleareduser       bool
+	created_by        *int
+	clearedcreated_by bool
+	done              bool
+	oldValue          func(context.Context) (*Override, error)
+	predicates        []predicate.Override
+}
+
+var _ ent.Mutation = (*OverrideMutation)(nil)
+
+// overrideOption allows management of the mutation configuration using functional options.
+type overrideOption func(*OverrideMutation)
+
+// newOverrideMutation creates new mutation for the Override entity.
+func newOverrideMutation(c config, op Op, opts ...overrideOption) *OverrideMutation {
+	m := &OverrideMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOverride,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOverrideID sets the ID field of the mutation.
+func withOverrideID(id int) overrideOption {
+	return func(m *OverrideMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Override
+		)
+		m.oldValue = func(ctx context.Context) (*Override, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Override.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOverride sets the old Override of the mutation.
+func withOverride(node *Override) overrideOption {
+	return func(m *OverrideMutation) {
+		m.oldValue = func(context.Context) (*Override, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OverrideMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OverrideMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OverrideMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OverrideMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Override.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetStartTime sets the "start_time" field.
+func (m *OverrideMutation) SetStartTime(t time.Time) {
+	m.start_time = &t
+}
+
+// StartTime returns the value of the "start_time" field in the mutation.
+func (m *OverrideMutation) StartTime() (r time.Time, exists bool) {
+	v := m.start_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartTime returns the old "start_time" field's value of the Override entity.
+// If the Override object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverrideMutation) OldStartTime(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartTime: %w", err)
+	}
+	return oldValue.StartTime, nil
+}
+
+// ResetStartTime resets all changes to the "start_time" field.
+func (m *OverrideMutation) ResetStartTime() {
+	m.start_time = nil
+}
+
+// SetEndTime sets the "end_time" field.
+func (m *OverrideMutation) SetEndTime(t time.Time) {
+	m.end_time = &t
+}
+
+// EndTime returns the value of the "end_time" field in the mutation.
+func (m *OverrideMutation) EndTime() (r time.Time, exists bool) {
+	v := m.end_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEndTime returns the old "end_time" field's value of the Override entity.
+// If the Override object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverrideMutation) OldEndTime(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEndTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEndTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEndTime: %w", err)
+	}
+	return oldValue.EndTime, nil
+}
+
+// ResetEndTime resets all changes to the "end_time" field.
+func (m *OverrideMutation) ResetEndTime() {
+	m.end_time = nil
+}
+
+// SetReason sets the "reason" field.
+func (m *OverrideMutation) SetReason(s string) {
+	m.reason = &s
+}
+
+// Reason returns the value of the "reason" field in the mutation.
+func (m *OverrideMutation) Reason() (r string, exists bool) {
+	v := m.reason
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReason returns the old "reason" field's value of the Override entity.
+// If the Override object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverrideMutation) OldReason(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReason is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReason requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReason: %w", err)
+	}
+	return oldValue.Reason, nil
+}
+
+// ClearReason clears the value of the "reason" field.
+func (m *OverrideMutation) ClearReason() {
+	m.reason = nil
+	m.clearedFields[override.FieldReason] = struct{}{}
+}
+
+// ReasonCleared returns if the "reason" field was cleared in this mutation.
+func (m *OverrideMutation) ReasonCleared() bool {
+	_, ok := m.clearedFields[override.FieldReason]
+	return ok
+}
+
+// ResetReason resets all changes to the "reason" field.
+func (m *OverrideMutation) ResetReason() {
+	m.reason = nil
+	delete(m.clearedFields, override.FieldReason)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *OverrideMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *OverrideMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Override entity.
+// If the Override object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OverrideMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *OverrideMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetScheduleID sets the "schedule" edge to the Schedule entity by id.
+func (m *OverrideMutation) SetScheduleID(id int) {
+	m.schedule = &id
+}
+
+// ClearSchedule clears the "schedule" edge to the Schedule entity.
+func (m *OverrideMutation) ClearSchedule() {
+	m.clearedschedule = true
+}
+
+// ScheduleCleared reports if the "schedule" edge to the Schedule entity was cleared.
+func (m *OverrideMutation) ScheduleCleared() bool {
+	return m.clearedschedule
+}
+
+// ScheduleID returns the "schedule" edge ID in the mutation.
+func (m *OverrideMutation) ScheduleID() (id int, exists bool) {
+	if m.schedule != nil {
+		return *m.schedule, true
+	}
+	return
+}
+
+// ScheduleIDs returns the "schedule" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ScheduleID instead. It exists only for internal usage by the builders.
+func (m *OverrideMutation) ScheduleIDs() (ids []int) {
+	if id := m.schedule; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetSchedule resets all changes to the "schedule" edge.
+func (m *OverrideMutation) ResetSchedule() {
+	m.schedule = nil
+	m.clearedschedule = false
+}
+
+// SetUserID sets the "user" edge to the User entity by id.
+func (m *OverrideMutation) SetUserID(id int) {
+	m.user = &id
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *OverrideMutation) ClearUser() {
+	m.cleareduser = true
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *OverrideMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserID returns the "user" edge ID in the mutation.
+func (m *OverrideMutation) UserID() (id int, exists bool) {
+	if m.user != nil {
+		return *m.user, true
+	}
+	return
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *OverrideMutation) UserIDs() (ids []int) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *OverrideMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// SetCreatedByID sets the "created_by" edge to the User entity by id.
+func (m *OverrideMutation) SetCreatedByID(id int) {
+	m.created_by = &id
+}
+
+// ClearCreatedBy clears the "created_by" edge to the User entity.
+func (m *OverrideMutation) ClearCreatedBy() {
+	m.clearedcreated_by = true
+}
+
+// CreatedByCleared reports if the "created_by" edge to the User entity was cleared.
+func (m *OverrideMutation) CreatedByCleared() bool {
+	return m.clearedcreated_by
+}
+
+// CreatedByID returns the "created_by" edge ID in the mutation.
+func (m *OverrideMutation) CreatedByID() (id int, exists bool) {
+	if m.created_by != nil {
+		return *m.created_by, true
+	}
+	return
+}
+
+// CreatedByIDs returns the "created_by" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CreatedByID instead. It exists only for internal usage by the builders.
+func (m *OverrideMutation) CreatedByIDs() (ids []int) {
+	if id := m.created_by; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCreatedBy resets all changes to the "created_by" edge.
+func (m *OverrideMutation) ResetCreatedBy() {
+	m.created_by = nil
+	m.clearedcreated_by = false
+}
+
+// Where appends a list predicates to the OverrideMutation builder.
+func (m *OverrideMutation) Where(ps ...predicate.Override) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OverrideMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OverrideMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Override, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OverrideMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OverrideMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Override).
+func (m *OverrideMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OverrideMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.start_time != nil {
+		fields = append(fields, override.FieldStartTime)
+	}
+	if m.end_time != nil {
+		fields = append(fields, override.FieldEndTime)
+	}
+	if m.reason != nil {
+		fields = append(fields, override.FieldReason)
+	}
+	if m.created_at != nil {
+		fields = append(fields, override.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OverrideMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case override.FieldStartTime:
+		return m.StartTime()
+	case override.FieldEndTime:
+		return m.EndTime()
+	case override.FieldReason:
+		return m.Reason()
+	case override.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OverrideMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case override.FieldStartTime:
+		return m.OldStartTime(ctx)
+	case override.FieldEndTime:
+		return m.OldEndTime(ctx)
+	case override.FieldReason:
+		return m.OldReason(ctx)
+	case override.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Override field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OverrideMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case override.FieldStartTime:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartTime(v)
+		return nil
+	case override.FieldEndTime:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEndTime(v)
+		return nil
+	case override.FieldReason:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReason(v)
+		return nil
+	case override.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Override field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OverrideMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OverrideMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OverrideMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Override numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OverrideMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(override.FieldReason) {
+		fields = append(fields, override.FieldReason)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OverrideMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OverrideMutation) ClearField(name string) error {
+	switch name {
+	case override.FieldReason:
+		m.ClearReason()
+		return nil
+	}
+	return fmt.Errorf("unknown Override nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OverrideMutation) ResetField(name string) error {
+	switch name {
+	case override.FieldStartTime:
+		m.ResetStartTime()
+		return nil
+	case override.FieldEndTime:
+		m.ResetEndTime()
+		return nil
+	case override.FieldReason:
+		m.ResetReason()
+		return nil
+	case override.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Override field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OverrideMutation) AddedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.schedule != nil {
+		edges = append(edges, override.EdgeSchedule)
+	}
+	if m.user != nil {
+		edges = append(edges, override.EdgeUser)
+	}
+	if m.created_by != nil {
+		edges = append(edges, override.EdgeCreatedBy)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OverrideMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case override.EdgeSchedule:
+		if id := m.schedule; id != nil {
+			return []ent.Value{*id}
+		}
+	case override.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	case override.EdgeCreatedBy:
+		if id := m.created_by; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OverrideMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 3)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OverrideMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OverrideMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.clearedschedule {
+		edges = append(edges, override.EdgeSchedule)
+	}
+	if m.cleareduser {
+		edges = append(edges, override.EdgeUser)
+	}
+	if m.clearedcreated_by {
+		edges = append(edges, override.EdgeCreatedBy)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OverrideMutation) EdgeCleared(name string) bool {
+	switch name {
+	case override.EdgeSchedule:
+		return m.clearedschedule
+	case override.EdgeUser:
+		return m.cleareduser
+	case override.EdgeCreatedBy:
+		return m.clearedcreated_by
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OverrideMutation) ClearEdge(name string) error {
+	switch name {
+	case override.EdgeSchedule:
+		m.ClearSchedule()
+		return nil
+	case override.EdgeUser:
+		m.ClearUser()
+		return nil
+	case override.EdgeCreatedBy:
+		m.ClearCreatedBy()
+		return nil
+	}
+	return fmt.Errorf("unknown Override unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OverrideMutation) ResetEdge(name string) error {
+	switch name {
+	case override.EdgeSchedule:
+		m.ResetSchedule()
+		return nil
+	case override.EdgeUser:
+		m.ResetUser()
+		return nil
+	case override.EdgeCreatedBy:
+		m.ResetCreatedBy()
+		return nil
+	}
+	return fmt.Errorf("unknown Override edge %s", name)
+}
+
 // PostmortemMutation represents an operation that mutates the Postmortem nodes in the graph.
 type PostmortemMutation struct {
 	config
@@ -17680,6 +18377,9 @@ type ScheduleMutation struct {
 	rotations                  map[int]struct{}
 	removedrotations           map[int]struct{}
 	clearedrotations           bool
+	overrides                  map[int]struct{}
+	removedoverrides           map[int]struct{}
+	clearedoverrides           bool
 	escalation_policies        map[int]struct{}
 	removedescalation_policies map[int]struct{}
 	clearedescalation_policies bool
@@ -18178,6 +18878,60 @@ func (m *ScheduleMutation) ResetRotations() {
 	m.removedrotations = nil
 }
 
+// AddOverrideIDs adds the "overrides" edge to the Override entity by ids.
+func (m *ScheduleMutation) AddOverrideIDs(ids ...int) {
+	if m.overrides == nil {
+		m.overrides = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.overrides[ids[i]] = struct{}{}
+	}
+}
+
+// ClearOverrides clears the "overrides" edge to the Override entity.
+func (m *ScheduleMutation) ClearOverrides() {
+	m.clearedoverrides = true
+}
+
+// OverridesCleared reports if the "overrides" edge to the Override entity was cleared.
+func (m *ScheduleMutation) OverridesCleared() bool {
+	return m.clearedoverrides
+}
+
+// RemoveOverrideIDs removes the "overrides" edge to the Override entity by IDs.
+func (m *ScheduleMutation) RemoveOverrideIDs(ids ...int) {
+	if m.removedoverrides == nil {
+		m.removedoverrides = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.overrides, ids[i])
+		m.removedoverrides[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedOverrides returns the removed IDs of the "overrides" edge to the Override entity.
+func (m *ScheduleMutation) RemovedOverridesIDs() (ids []int) {
+	for id := range m.removedoverrides {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// OverridesIDs returns the "overrides" edge IDs in the mutation.
+func (m *ScheduleMutation) OverridesIDs() (ids []int) {
+	for id := range m.overrides {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetOverrides resets all changes to the "overrides" edge.
+func (m *ScheduleMutation) ResetOverrides() {
+	m.overrides = nil
+	m.clearedoverrides = false
+	m.removedoverrides = nil
+}
+
 // AddEscalationPolicyIDs adds the "escalation_policies" edge to the EscalationPolicy entity by ids.
 func (m *ScheduleMutation) AddEscalationPolicyIDs(ids ...int) {
 	if m.escalation_policies == nil {
@@ -18459,7 +19213,7 @@ func (m *ScheduleMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ScheduleMutation) AddedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.team != nil {
 		edges = append(edges, schedule.EdgeTeam)
 	}
@@ -18468,6 +19222,9 @@ func (m *ScheduleMutation) AddedEdges() []string {
 	}
 	if m.rotations != nil {
 		edges = append(edges, schedule.EdgeRotations)
+	}
+	if m.overrides != nil {
+		edges = append(edges, schedule.EdgeOverrides)
 	}
 	if m.escalation_policies != nil {
 		edges = append(edges, schedule.EdgeEscalationPolicies)
@@ -18495,6 +19252,12 @@ func (m *ScheduleMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case schedule.EdgeOverrides:
+		ids := make([]ent.Value, 0, len(m.overrides))
+		for id := range m.overrides {
+			ids = append(ids, id)
+		}
+		return ids
 	case schedule.EdgeEscalationPolicies:
 		ids := make([]ent.Value, 0, len(m.escalation_policies))
 		for id := range m.escalation_policies {
@@ -18507,12 +19270,15 @@ func (m *ScheduleMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ScheduleMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.removedservices != nil {
 		edges = append(edges, schedule.EdgeServices)
 	}
 	if m.removedrotations != nil {
 		edges = append(edges, schedule.EdgeRotations)
+	}
+	if m.removedoverrides != nil {
+		edges = append(edges, schedule.EdgeOverrides)
 	}
 	if m.removedescalation_policies != nil {
 		edges = append(edges, schedule.EdgeEscalationPolicies)
@@ -18536,6 +19302,12 @@ func (m *ScheduleMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case schedule.EdgeOverrides:
+		ids := make([]ent.Value, 0, len(m.removedoverrides))
+		for id := range m.removedoverrides {
+			ids = append(ids, id)
+		}
+		return ids
 	case schedule.EdgeEscalationPolicies:
 		ids := make([]ent.Value, 0, len(m.removedescalation_policies))
 		for id := range m.removedescalation_policies {
@@ -18548,7 +19320,7 @@ func (m *ScheduleMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ScheduleMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.clearedteam {
 		edges = append(edges, schedule.EdgeTeam)
 	}
@@ -18557,6 +19329,9 @@ func (m *ScheduleMutation) ClearedEdges() []string {
 	}
 	if m.clearedrotations {
 		edges = append(edges, schedule.EdgeRotations)
+	}
+	if m.clearedoverrides {
+		edges = append(edges, schedule.EdgeOverrides)
 	}
 	if m.clearedescalation_policies {
 		edges = append(edges, schedule.EdgeEscalationPolicies)
@@ -18574,6 +19349,8 @@ func (m *ScheduleMutation) EdgeCleared(name string) bool {
 		return m.clearedservices
 	case schedule.EdgeRotations:
 		return m.clearedrotations
+	case schedule.EdgeOverrides:
+		return m.clearedoverrides
 	case schedule.EdgeEscalationPolicies:
 		return m.clearedescalation_policies
 	}
@@ -18603,6 +19380,9 @@ func (m *ScheduleMutation) ResetEdge(name string) error {
 		return nil
 	case schedule.EdgeRotations:
 		m.ResetRotations()
+		return nil
+	case schedule.EdgeOverrides:
+		m.ResetOverrides()
 		return nil
 	case schedule.EdgeEscalationPolicies:
 		m.ResetEscalationPolicies()

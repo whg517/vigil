@@ -36,8 +36,8 @@ var builtinRoles = []struct {
 			// 服务/集成
 			"service.view", "service.create", "service.update", "service.delete",
 			"integration.view", "integration.create", "integration.update", "integration.delete",
-			// 排班/升级
-			"schedule.view", "schedule.create", "schedule.update", "schedule.delete",
+			// 排班/升级（含换他人班：schedule.override，C5/M5.3）
+			"schedule.view", "schedule.create", "schedule.update", "schedule.delete", "schedule.override",
 			"escalation.view", "escalation.create", "escalation.update", "escalation.delete",
 			// runbook
 			"runbook.view", "runbook.create", "runbook.update", "runbook.delete", "runbook.execute",

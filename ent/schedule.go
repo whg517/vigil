@@ -47,11 +47,13 @@ type ScheduleEdges struct {
 	Services []*Service `json:"services,omitempty"`
 	// Rotations holds the value of the rotations edge.
 	Rotations []*Rotation `json:"rotations,omitempty"`
+	// Overrides holds the value of the overrides edge.
+	Overrides []*Override `json:"overrides,omitempty"`
 	// EscalationPolicies holds the value of the escalation_policies edge.
 	EscalationPolicies []*EscalationPolicy `json:"escalation_policies,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [4]bool
+	loadedTypes [5]bool
 }
 
 // TeamOrErr returns the Team value or an error if the edge
@@ -83,10 +85,19 @@ func (e ScheduleEdges) RotationsOrErr() ([]*Rotation, error) {
 	return nil, &NotLoadedError{edge: "rotations"}
 }
 
+// OverridesOrErr returns the Overrides value or an error if the edge
+// was not loaded in eager-loading.
+func (e ScheduleEdges) OverridesOrErr() ([]*Override, error) {
+	if e.loadedTypes[3] {
+		return e.Overrides, nil
+	}
+	return nil, &NotLoadedError{edge: "overrides"}
+}
+
 // EscalationPoliciesOrErr returns the EscalationPolicies value or an error if the edge
 // was not loaded in eager-loading.
 func (e ScheduleEdges) EscalationPoliciesOrErr() ([]*EscalationPolicy, error) {
-	if e.loadedTypes[3] {
+	if e.loadedTypes[4] {
 		return e.EscalationPolicies, nil
 	}
 	return nil, &NotLoadedError{edge: "escalation_policies"}
@@ -199,6 +210,11 @@ func (_m *Schedule) QueryServices() *ServiceQuery {
 // QueryRotations queries the "rotations" edge of the Schedule entity.
 func (_m *Schedule) QueryRotations() *RotationQuery {
 	return NewScheduleClient(_m.config).QueryRotations(_m)
+}
+
+// QueryOverrides queries the "overrides" edge of the Schedule entity.
+func (_m *Schedule) QueryOverrides() *OverrideQuery {
+	return NewScheduleClient(_m.config).QueryOverrides(_m)
 }
 
 // QueryEscalationPolicies queries the "escalation_policies" edge of the Schedule entity.

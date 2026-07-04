@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	entoverride "github.com/kevin/vigil/ent/override"
 	entrotation "github.com/kevin/vigil/ent/rotation"
 	entschedule "github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/schema"
@@ -94,6 +95,12 @@ func (h *Handler) Register(g *echo.Group) {
 	// 查询：某时刻在班人 + 预览
 	g.GET("/schedules/:id/oncall", h.oncall)
 	g.GET("/schedules/:id/preview", h.preview)
+	// Override 换班（C5/M5.3）：创建/查询/删除。db 非 nil 时启用。
+	if h.db != nil {
+		g.POST("/schedules/:id/overrides", h.createOverride)
+		g.GET("/schedules/:id/overrides", h.listOverrides)
+		g.DELETE("/schedules/:id/overrides/:oid", h.deleteOverride)
+	}
 }
 
 // ===== Schedule CRUD =====
@@ -309,11 +316,15 @@ func (h *Handler) get(c *echo.Context) error {
 }
 
 // updateScheduleReq 更新排班请求（全部字段可选）。
+//
+// B21：Layers 用与创建一致的 createLayerReq 形状（含 participants/rotation 配置），
+// 提供 layers 时重建 Rotation（删旧建新），使"改参与人"可经 PATCH 完成，
+// 无需删除整个 Schedule 重建。
 type updateScheduleReq struct {
-	Name     *string                 `json:"name"`
-	Type     *string                 `json:"type"`
-	Timezone *string                 `json:"timezone"`
-	Layers   *[]schema.ScheduleLayer `json:"layers"`
+	Name     *string           `json:"name"`
+	Type     *string           `json:"type"`
+	Timezone *string           `json:"timezone"`
+	Layers   *[]createLayerReq `json:"layers"`
 }
 
 // update 更新排班。
@@ -341,7 +352,17 @@ func (h *Handler) update(c *echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
-	upd := h.db.Schedule.UpdateOneID(id)
+	ctx := c.Request().Context()
+
+	// B21：提供 layers 时重建 Rotation（删旧建新）+ 写 layers JSON，用事务保证一致。
+	// 未提供 layers 时只改标量字段（无事务开销）。
+	tx, err := h.db.Tx(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	rollback := func() { _ = tx.Rollback() }
+
+	upd := tx.Schedule.UpdateOneID(id)
 	if req.Name != nil {
 		upd.SetName(*req.Name)
 	}
@@ -352,10 +373,62 @@ func (h *Handler) update(c *echo.Context) error {
 		upd.SetTimezone(*req.Timezone)
 	}
 	if req.Layers != nil {
-		upd.SetLayers(*req.Layers)
+		sched, gerr := tx.Schedule.Get(ctx, id)
+		if gerr != nil {
+			rollback()
+			if ent.IsNotFound(gerr) {
+				return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
+			}
+			return errs.Internal(c, nil, gerr)
+		}
+		// 删旧 Rotation（避免残留旧参与人被解算）。
+		oldRots, qerr := sched.QueryRotations().All(ctx)
+		if qerr != nil {
+			rollback()
+			return errs.Internal(c, nil, qerr)
+		}
+		for _, r := range oldRots {
+			if derr := tx.Rotation.DeleteOneID(r.ID).Exec(ctx); derr != nil {
+				rollback()
+				return errs.Internal(c, nil, derr)
+			}
+		}
+		// 建新 Rotation + 组装 layers JSON（与 create 一致）。
+		layers := make([]schema.ScheduleLayer, 0, len(*req.Layers))
+		newRotIDs := make([]int, 0, len(*req.Layers))
+		for _, lr := range *req.Layers {
+			if len(lr.Participants) == 0 {
+				layers = append(layers, schema.ScheduleLayer{Name: lr.Name, Priority: lr.Priority})
+				continue
+			}
+			rot, rerr := buildRotation(ctx, tx, lr)
+			if rerr != nil {
+				rollback()
+				return errs.BadRequest(c, "invalid layer "+lr.Name+": "+rerr.Error())
+			}
+			newRotIDs = append(newRotIDs, rot.ID)
+			layers = append(layers, schema.ScheduleLayer{
+				ID:         strconv.Itoa(rot.ID),
+				Name:       lr.Name,
+				Priority:   lr.Priority,
+				RotationID: strconv.Itoa(rot.ID),
+			})
+		}
+		upd.ClearRotations().SetLayers(layers)
+		if len(newRotIDs) > 0 {
+			upd.AddRotationIDs(newRotIDs...)
+		}
 	}
-	s, err := upd.Save(c.Request().Context())
+
+	s, err := upd.Save(ctx)
 	if err != nil {
+		rollback()
+		if ent.IsNotFound(err) {
+			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
+		}
+		return errs.Internal(c, nil, err)
+	}
+	if err := tx.Commit(); err != nil {
 		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, s)
@@ -469,4 +542,244 @@ func (h *Handler) preview(c *echo.Context) error {
 		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusOK, PreviewResult{ScheduleID: id, Days: res})
+}
+
+// ===== Override 换班（C5/M5.3）=====
+
+// overrideView Override 响应视图（避免直接暴露 ent 关系，含顶替人/创建人展开）。
+type overrideView struct {
+	ID          int       `json:"id"`
+	ScheduleID  int       `json:"schedule_id"`
+	UserID      int       `json:"user_id"`    // 顶替人
+	UserName    string    `json:"user_name"`  // 顶替人显示名
+	CreatedByID int       `json:"created_by"` // 创建人（自我换班=顶替对象，admin 指派=管理员）
+	StartTime   time.Time `json:"start_time"`
+	EndTime     time.Time `json:"end_time"`
+	Reason      string    `json:"reason"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func toOverrideView(o *ent.Override) overrideView {
+	v := overrideView{
+		ID: o.ID, StartTime: o.StartTime, EndTime: o.EndTime,
+		Reason: o.Reason, CreatedAt: o.CreatedAt,
+	}
+	if sched := o.Edges.Schedule; sched != nil {
+		v.ScheduleID = sched.ID
+	}
+	if u := o.Edges.User; u != nil {
+		v.UserID = u.ID
+		v.UserName = u.Name
+	}
+	if cb := o.Edges.CreatedBy; cb != nil {
+		v.CreatedByID = cb.ID
+	}
+	return v
+}
+
+// createOverrideReq 创建换班请求。
+type createOverrideReq struct {
+	UserID    int    `json:"user_id"`    // 顶替人 user id
+	StartTime string `json:"start_time"` // RFC3339
+	EndTime   string `json:"end_time"`   // RFC3339
+	Reason    string `json:"reason"`
+}
+
+// createOverride 创建临时换班（C5/M5.3）。
+//
+// 权限：schedule.override（路由守卫已校验）+ 资源级 scope（本 schedule 所属 team）。
+// 换己班（user_id==actor）仅需 schedule.override；换他人（user_id!=actor）需管理级
+// 权限（schedule.update，团队管理员/超管具备），防止值班人越权指派他人替班。
+//
+// @Summary      创建换班 Override
+// @Tags         schedule
+// @Accept       json
+// @Produce      json
+// @Param        id    path     int                true  "排班 ID"
+// @Param        body  body     createOverrideReq  true  "换班参数"
+// @Success      201   {object} schedule.overrideView
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      403   {object} httputil.ErrorResponse
+// @Failure      404   {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /schedules/{id}/overrides [post]
+func (h *Handler) createOverride(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermScheduleOverride); e != nil {
+		return e
+	}
+	ctx := c.Request().Context()
+	// schedule 须存在（避免对不存在的 schedule 建 override）。
+	if _, err := h.db.Schedule.Get(ctx, id); err != nil {
+		if ent.IsNotFound(err) {
+			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "schedule not found"})
+		}
+		return errs.Internal(c, nil, err)
+	}
+
+	var req createOverrideReq
+	if err := c.Bind(&req); err != nil {
+		return errs.BadRequest(c, "invalid body")
+	}
+	if req.UserID <= 0 {
+		return errs.BadRequest(c, "user_id required")
+	}
+	start, end, berr := parseOverrideWindow(req.StartTime, req.EndTime)
+	if berr != nil {
+		return errs.BadRequest(c, berr.Error())
+	}
+
+	actor := h.actorFromContext(c)
+	// 换他人须管理级权限（oncall 只能换己班）。actor<=0（匿名/单测）时降级放行。
+	if actor > 0 && req.UserID != actor {
+		if e := h.requireOverrideOthers(c, id); e != nil {
+			return e
+		}
+	}
+
+	b := h.db.Override.Create().
+		SetScheduleID(id).
+		SetUserID(req.UserID).
+		SetStartTime(start).
+		SetEndTime(end)
+	if req.Reason != "" {
+		b.SetReason(req.Reason)
+	}
+	if actor > 0 {
+		b.SetCreatedByID(actor)
+	}
+	ov, err := b.Save(ctx)
+	if err != nil {
+		// 顶替人不存在 / FK 冲突 → 400（客户端可纠正），非 500。
+		return errs.FailConstraint(c, nil, err, "override", "invalid user_id or schedule")
+	}
+	// 回读含关系，返回视图。
+	full, err := h.db.Override.Query().
+		Where(entoverride.IDEQ(ov.ID)).
+		WithSchedule().WithUser().WithCreatedBy().
+		Only(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	return c.JSON(http.StatusCreated, toOverrideView(full))
+}
+
+// requireOverrideOthers 校验 actor 是否有"换他人"的管理级权限（schedule.update，
+// 团队管理员/超管具备，oncall 不具备）。以本 schedule 所属 team 为 scope。
+// 无权限时已写出 403 响应，返回 errAccessDenied 让调用方中止。
+func (h *Handler) requireOverrideOthers(c *echo.Context, schedID int) error {
+	// 未注入鉴权器：降级放行（渐进/单测），与 checkAccess 一致。
+	if h.authz == nil || h.scope == nil {
+		return nil
+	}
+	allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, h.actorFromContext(c), auth.PermScheduleUpdate, "schedule", schedID)
+	if err != nil {
+		_ = errs.Internal(c, nil, err)
+		return errAccessDenied
+	}
+	if !allowed {
+		_ = errs.Forbidden(c, "assigning override for others requires schedule.update")
+		return errAccessDenied
+	}
+	return nil
+}
+
+// parseOverrideWindow 解析并校验换班时段（start<end，均 RFC3339 必填）。
+func parseOverrideWindow(startStr, endStr string) (time.Time, time.Time, error) {
+	if startStr == "" || endStr == "" {
+		return time.Time{}, time.Time{}, fmt.Errorf("start_time and end_time required (RFC3339)")
+	}
+	start, err := time.Parse(time.RFC3339, startStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid start_time (use RFC3339)")
+	}
+	end, err := time.Parse(time.RFC3339, endStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid end_time (use RFC3339)")
+	}
+	if !end.After(start) {
+		return time.Time{}, time.Time{}, fmt.Errorf("end_time must be after start_time")
+	}
+	return start, end, nil
+}
+
+// listOverrides 列出某 Schedule 的换班（C5）。按开始时刻倒序。
+//
+// @Summary      查询换班列表
+// @Tags         schedule
+// @Produce      json
+// @Param        id   path     int  true  "排班 ID"
+// @Success      200  {array}  schedule.overrideView
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /schedules/{id}/overrides [get]
+func (h *Handler) listOverrides(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermScheduleView); e != nil {
+		return e
+	}
+	ctx := c.Request().Context()
+	ovs, err := h.db.Override.Query().
+		Where(entoverride.HasScheduleWith(entschedule.IDEQ(id))).
+		WithSchedule().WithUser().WithCreatedBy().
+		Order(ent.Desc(entoverride.FieldStartTime)).
+		All(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	views := make([]overrideView, 0, len(ovs))
+	for _, o := range ovs {
+		views = append(views, toOverrideView(o))
+	}
+	return c.JSON(http.StatusOK, views)
+}
+
+// deleteOverride 删除换班（C5）。权限：schedule.override（路由守卫）+ 资源级 scope。
+//
+// @Summary      删除换班
+// @Tags         schedule
+// @Param        id   path  int  true  "排班 ID"
+// @Param        oid  path  int  true  "换班 ID"
+// @Success      204
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /schedules/{id}/overrides/{oid} [delete]
+func (h *Handler) deleteOverride(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	oid, err := strconv.Atoi(c.Param("oid"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid oid")
+	}
+	if e := h.checkAccess(c, id, auth.PermScheduleOverride); e != nil {
+		return e
+	}
+	ctx := c.Request().Context()
+	// 确认 override 属于该 schedule（避免跨 schedule 删除）。
+	exists, err := h.db.Override.Query().
+		Where(entoverride.IDEQ(oid), entoverride.HasScheduleWith(entschedule.IDEQ(id))).
+		Exist(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	if !exists {
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "override not found"})
+	}
+	if err := h.db.Override.DeleteOneID(oid).Exec(ctx); err != nil {
+		if ent.IsNotFound(err) {
+			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "override not found"})
+		}
+		return errs.Internal(c, nil, err)
+	}
+	return c.NoContent(http.StatusNoContent)
 }

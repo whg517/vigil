@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/kevin/vigil/ent/escalationpolicy"
+	"github.com/kevin/vigil/ent/override"
 	"github.com/kevin/vigil/ent/predicate"
 	"github.com/kevin/vigil/ent/rotation"
 	"github.com/kevin/vigil/ent/schedule"
@@ -30,6 +31,7 @@ type ScheduleQuery struct {
 	withTeam               *TeamQuery
 	withServices           *ServiceQuery
 	withRotations          *RotationQuery
+	withOverrides          *OverrideQuery
 	withEscalationPolicies *EscalationPolicyQuery
 	withFKs                bool
 	// intermediate query (i.e. traversal path).
@@ -127,6 +129,28 @@ func (_q *ScheduleQuery) QueryRotations() *RotationQuery {
 			sqlgraph.From(schedule.Table, schedule.FieldID, selector),
 			sqlgraph.To(rotation.Table, rotation.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, schedule.RotationsTable, schedule.RotationsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryOverrides chains the current query on the "overrides" edge.
+func (_q *ScheduleQuery) QueryOverrides() *OverrideQuery {
+	query := (&OverrideClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(schedule.Table, schedule.FieldID, selector),
+			sqlgraph.To(override.Table, override.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, schedule.OverridesTable, schedule.OverridesColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -351,6 +375,7 @@ func (_q *ScheduleQuery) Clone() *ScheduleQuery {
 		withTeam:               _q.withTeam.Clone(),
 		withServices:           _q.withServices.Clone(),
 		withRotations:          _q.withRotations.Clone(),
+		withOverrides:          _q.withOverrides.Clone(),
 		withEscalationPolicies: _q.withEscalationPolicies.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
@@ -388,6 +413,17 @@ func (_q *ScheduleQuery) WithRotations(opts ...func(*RotationQuery)) *ScheduleQu
 		opt(query)
 	}
 	_q.withRotations = query
+	return _q
+}
+
+// WithOverrides tells the query-builder to eager-load the nodes that are connected to
+// the "overrides" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ScheduleQuery) WithOverrides(opts ...func(*OverrideQuery)) *ScheduleQuery {
+	query := (&OverrideClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withOverrides = query
 	return _q
 }
 
@@ -481,10 +517,11 @@ func (_q *ScheduleQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Sch
 		nodes       = []*Schedule{}
 		withFKs     = _q.withFKs
 		_spec       = _q.querySpec()
-		loadedTypes = [4]bool{
+		loadedTypes = [5]bool{
 			_q.withTeam != nil,
 			_q.withServices != nil,
 			_q.withRotations != nil,
+			_q.withOverrides != nil,
 			_q.withEscalationPolicies != nil,
 		}
 	)
@@ -529,6 +566,13 @@ func (_q *ScheduleQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Sch
 		if err := _q.loadRotations(ctx, query, nodes,
 			func(n *Schedule) { n.Edges.Rotations = []*Rotation{} },
 			func(n *Schedule, e *Rotation) { n.Edges.Rotations = append(n.Edges.Rotations, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withOverrides; query != nil {
+		if err := _q.loadOverrides(ctx, query, nodes,
+			func(n *Schedule) { n.Edges.Overrides = []*Override{} },
+			func(n *Schedule, e *Override) { n.Edges.Overrides = append(n.Edges.Overrides, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -663,6 +707,37 @@ func (_q *ScheduleQuery) loadRotations(ctx context.Context, query *RotationQuery
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "schedule_rotations" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *ScheduleQuery) loadOverrides(ctx context.Context, query *OverrideQuery, nodes []*Schedule, init func(*Schedule), assign func(*Schedule, *Override)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Schedule)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Override(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(schedule.OverridesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.schedule_overrides
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "schedule_overrides" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "schedule_overrides" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
 	}

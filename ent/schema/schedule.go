@@ -44,8 +44,39 @@ func (Schedule) Edges() []ent.Edge {
 		edge.From("services", Service.Type).Ref("schedules"),
 		// Schedule -> Rotation（排班轮换规则）
 		edge.To("rotations", Rotation.Type),
+		// Schedule -> Override（临时换班覆盖层，C5/M5.3）
+		edge.To("overrides", Override.Type),
 		// Schedule <- EscalationPolicy（作为升级目标）
 		edge.From("escalation_policies", EscalationPolicy.Type).Ref("schedules"),
+	}
+}
+
+// Override 临时换班 —— 在某时段内以顶替人覆盖 Rotation 计算结果（能力域 5 M5.3）。
+// 对应 docs/capabilities/03-scheduling-escalation.md §2.4 Override。
+// Override 是最高优先级层：时段命中时完全覆盖该 Schedule 的 Rotation 在班人。
+// 支持自我换班（oncall 换己班，schedule.override 权限）与 admin 指派换班（换他人）。
+type Override struct {
+	ent.Schema
+}
+
+func (Override) Fields() []ent.Field {
+	return []ent.Field{
+		// start/end 覆盖时段（含 start，不含 end）；时段命中即由顶替人在班。
+		field.Time("start_time").Comment("覆盖起始（含）"),
+		field.Time("end_time").Comment("覆盖结束（不含）"),
+		field.String("reason").Optional().Comment("换班原因，如 user_a 请假"),
+		field.Time("created_at").Default(time.Now).Immutable(),
+	}
+}
+
+func (Override) Edges() []ent.Edge {
+	return []ent.Edge{
+		// Override <- Schedule（所属排班，Schedule.overrides 的反向）
+		edge.From("schedule", Schedule.Type).Ref("overrides").Unique().Required(),
+		// Override -> User（顶替人：时段内实际在班者）
+		edge.To("user", User.Type).Unique().Required(),
+		// Override -> User（创建人：自我换班时=顶替对象，admin 指派时=管理员）
+		edge.To("created_by", User.Type).Unique(),
 	}
 }
 

@@ -38,6 +38,8 @@ type Tx struct {
 	NotificationRule *NotificationRuleClient
 	// NotificationTemplate is the client for interacting with the NotificationTemplate builders.
 	NotificationTemplate *NotificationTemplateClient
+	// Override is the client for interacting with the Override builders.
+	Override *OverrideClient
 	// Postmortem is the client for interacting with the Postmortem builders.
 	Postmortem *PostmortemClient
 	// RawEvent is the client for interacting with the RawEvent builders.
@@ -206,6 +208,7 @@ func (tx *Tx) init() {
 	tx.Notification = NewNotificationClient(tx.config)
 	tx.NotificationRule = NewNotificationRuleClient(tx.config)
 	tx.NotificationTemplate = NewNotificationTemplateClient(tx.config)
+	tx.Override = NewOverrideClient(tx.config)
 	tx.Postmortem = NewPostmortemClient(tx.config)
 	tx.RawEvent = NewRawEventClient(tx.config)
 	tx.Role = NewRoleClient(tx.config)

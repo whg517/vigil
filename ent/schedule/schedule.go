@@ -33,6 +33,8 @@ const (
 	EdgeServices = "services"
 	// EdgeRotations holds the string denoting the rotations edge name in mutations.
 	EdgeRotations = "rotations"
+	// EdgeOverrides holds the string denoting the overrides edge name in mutations.
+	EdgeOverrides = "overrides"
 	// EdgeEscalationPolicies holds the string denoting the escalation_policies edge name in mutations.
 	EdgeEscalationPolicies = "escalation_policies"
 	// Table holds the table name of the schedule in the database.
@@ -56,6 +58,13 @@ const (
 	RotationsInverseTable = "rotations"
 	// RotationsColumn is the table column denoting the rotations relation/edge.
 	RotationsColumn = "schedule_rotations"
+	// OverridesTable is the table that holds the overrides relation/edge.
+	OverridesTable = "overrides"
+	// OverridesInverseTable is the table name for the Override entity.
+	// It exists in this package in order to avoid circular dependency with the "override" package.
+	OverridesInverseTable = "overrides"
+	// OverridesColumn is the table column denoting the overrides relation/edge.
+	OverridesColumn = "schedule_overrides"
 	// EscalationPoliciesTable is the table that holds the escalation_policies relation/edge. The primary key declared below.
 	EscalationPoliciesTable = "escalation_policy_schedules"
 	// EscalationPoliciesInverseTable is the table name for the EscalationPolicy entity.
@@ -209,6 +218,20 @@ func ByRotations(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByOverridesCount orders the results by overrides count.
+func ByOverridesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newOverridesStep(), opts...)
+	}
+}
+
+// ByOverrides orders the results by overrides terms.
+func ByOverrides(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newOverridesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByEscalationPoliciesCount orders the results by escalation_policies count.
 func ByEscalationPoliciesCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -241,6 +264,13 @@ func newRotationsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(RotationsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, RotationsTable, RotationsColumn),
+	)
+}
+func newOverridesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(OverridesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, OverridesTable, OverridesColumn),
 	)
 }
 func newEscalationPoliciesStep() *sqlgraph.Step {

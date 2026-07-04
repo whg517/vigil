@@ -28,6 +28,7 @@ import (
 	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
+	"github.com/kevin/vigil/ent/override"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/rawevent"
 	"github.com/kevin/vigil/ent/role"
@@ -73,6 +74,8 @@ type Client struct {
 	NotificationRule *NotificationRuleClient
 	// NotificationTemplate is the client for interacting with the NotificationTemplate builders.
 	NotificationTemplate *NotificationTemplateClient
+	// Override is the client for interacting with the Override builders.
+	Override *OverrideClient
 	// Postmortem is the client for interacting with the Postmortem builders.
 	Postmortem *PostmortemClient
 	// RawEvent is the client for interacting with the RawEvent builders.
@@ -121,6 +124,7 @@ func (c *Client) init() {
 	c.Notification = NewNotificationClient(c.config)
 	c.NotificationRule = NewNotificationRuleClient(c.config)
 	c.NotificationTemplate = NewNotificationTemplateClient(c.config)
+	c.Override = NewOverrideClient(c.config)
 	c.Postmortem = NewPostmortemClient(c.config)
 	c.RawEvent = NewRawEventClient(c.config)
 	c.Role = NewRoleClient(c.config)
@@ -238,6 +242,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Notification:         NewNotificationClient(cfg),
 		NotificationRule:     NewNotificationRuleClient(cfg),
 		NotificationTemplate: NewNotificationTemplateClient(cfg),
+		Override:             NewOverrideClient(cfg),
 		Postmortem:           NewPostmortemClient(cfg),
 		RawEvent:             NewRawEventClient(cfg),
 		Role:                 NewRoleClient(cfg),
@@ -282,6 +287,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Notification:         NewNotificationClient(cfg),
 		NotificationRule:     NewNotificationRuleClient(cfg),
 		NotificationTemplate: NewNotificationTemplateClient(cfg),
+		Override:             NewOverrideClient(cfg),
 		Postmortem:           NewPostmortemClient(cfg),
 		RawEvent:             NewRawEventClient(cfg),
 		Role:                 NewRoleClient(cfg),
@@ -325,9 +331,9 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AIInsight, c.APIKey, c.ActionItem, c.AuditLog, c.EscalationPolicy, c.Event,
 		c.IMAccountBinding, c.Incident, c.IncidentAction, c.Integration,
-		c.Notification, c.NotificationRule, c.NotificationTemplate, c.Postmortem,
-		c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook, c.Schedule,
-		c.Service, c.SuppressionRule, c.Team, c.TimelineItem, c.User,
+		c.Notification, c.NotificationRule, c.NotificationTemplate, c.Override,
+		c.Postmortem, c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook,
+		c.Schedule, c.Service, c.SuppressionRule, c.Team, c.TimelineItem, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -339,9 +345,9 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AIInsight, c.APIKey, c.ActionItem, c.AuditLog, c.EscalationPolicy, c.Event,
 		c.IMAccountBinding, c.Incident, c.IncidentAction, c.Integration,
-		c.Notification, c.NotificationRule, c.NotificationTemplate, c.Postmortem,
-		c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook, c.Schedule,
-		c.Service, c.SuppressionRule, c.Team, c.TimelineItem, c.User,
+		c.Notification, c.NotificationRule, c.NotificationTemplate, c.Override,
+		c.Postmortem, c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook,
+		c.Schedule, c.Service, c.SuppressionRule, c.Team, c.TimelineItem, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -376,6 +382,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.NotificationRule.mutate(ctx, m)
 	case *NotificationTemplateMutation:
 		return c.NotificationTemplate.mutate(ctx, m)
+	case *OverrideMutation:
+		return c.Override.mutate(ctx, m)
 	case *PostmortemMutation:
 		return c.Postmortem.mutate(ctx, m)
 	case *RawEventMutation:
@@ -2614,6 +2622,187 @@ func (c *NotificationTemplateClient) mutate(ctx context.Context, m *Notification
 	}
 }
 
+// OverrideClient is a client for the Override schema.
+type OverrideClient struct {
+	config
+}
+
+// NewOverrideClient returns a client for the Override from the given config.
+func NewOverrideClient(c config) *OverrideClient {
+	return &OverrideClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `override.Hooks(f(g(h())))`.
+func (c *OverrideClient) Use(hooks ...Hook) {
+	c.hooks.Override = append(c.hooks.Override, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `override.Intercept(f(g(h())))`.
+func (c *OverrideClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Override = append(c.inters.Override, interceptors...)
+}
+
+// Create returns a builder for creating a Override entity.
+func (c *OverrideClient) Create() *OverrideCreate {
+	mutation := newOverrideMutation(c.config, OpCreate)
+	return &OverrideCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Override entities.
+func (c *OverrideClient) CreateBulk(builders ...*OverrideCreate) *OverrideCreateBulk {
+	return &OverrideCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OverrideClient) MapCreateBulk(slice any, setFunc func(*OverrideCreate, int)) *OverrideCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OverrideCreateBulk{err: fmt.Errorf("calling to OverrideClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OverrideCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &OverrideCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Override.
+func (c *OverrideClient) Update() *OverrideUpdate {
+	mutation := newOverrideMutation(c.config, OpUpdate)
+	return &OverrideUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *OverrideClient) UpdateOne(_m *Override) *OverrideUpdateOne {
+	mutation := newOverrideMutation(c.config, OpUpdateOne, withOverride(_m))
+	return &OverrideUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *OverrideClient) UpdateOneID(id int) *OverrideUpdateOne {
+	mutation := newOverrideMutation(c.config, OpUpdateOne, withOverrideID(id))
+	return &OverrideUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Override.
+func (c *OverrideClient) Delete() *OverrideDelete {
+	mutation := newOverrideMutation(c.config, OpDelete)
+	return &OverrideDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *OverrideClient) DeleteOne(_m *Override) *OverrideDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *OverrideClient) DeleteOneID(id int) *OverrideDeleteOne {
+	builder := c.Delete().Where(override.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &OverrideDeleteOne{builder}
+}
+
+// Query returns a query builder for Override.
+func (c *OverrideClient) Query() *OverrideQuery {
+	return &OverrideQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeOverride},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Override entity by its id.
+func (c *OverrideClient) Get(ctx context.Context, id int) (*Override, error) {
+	return c.Query().Where(override.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *OverrideClient) GetX(ctx context.Context, id int) *Override {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QuerySchedule queries the schedule edge of a Override.
+func (c *OverrideClient) QuerySchedule(_m *Override) *ScheduleQuery {
+	query := (&ScheduleClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(override.Table, override.FieldID, id),
+			sqlgraph.To(schedule.Table, schedule.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, override.ScheduleTable, override.ScheduleColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUser queries the user edge of a Override.
+func (c *OverrideClient) QueryUser(_m *Override) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(override.Table, override.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, override.UserTable, override.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCreatedBy queries the created_by edge of a Override.
+func (c *OverrideClient) QueryCreatedBy(_m *Override) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(override.Table, override.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, override.CreatedByTable, override.CreatedByColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *OverrideClient) Hooks() []Hook {
+	return c.hooks.Override
+}
+
+// Interceptors returns the client interceptors.
+func (c *OverrideClient) Interceptors() []Interceptor {
+	return c.inters.Override
+}
+
+func (c *OverrideClient) mutate(ctx context.Context, m *OverrideMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OverrideCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OverrideUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OverrideUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OverrideDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Override mutation op: %q", m.Op())
+	}
+}
+
 // PostmortemClient is a client for the Postmortem schema.
 type PostmortemClient struct {
 	config
@@ -3737,6 +3926,22 @@ func (c *ScheduleClient) QueryRotations(_m *Schedule) *RotationQuery {
 			sqlgraph.From(schedule.Table, schedule.FieldID, id),
 			sqlgraph.To(rotation.Table, rotation.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, schedule.RotationsTable, schedule.RotationsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryOverrides queries the overrides edge of a Schedule.
+func (c *ScheduleClient) QueryOverrides(_m *Schedule) *OverrideQuery {
+	query := (&OverrideClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(schedule.Table, schedule.FieldID, id),
+			sqlgraph.To(override.Table, override.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, schedule.OverridesTable, schedule.OverridesColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -4887,14 +5092,14 @@ type (
 	hooks struct {
 		AIInsight, APIKey, ActionItem, AuditLog, EscalationPolicy, Event,
 		IMAccountBinding, Incident, IncidentAction, Integration, Notification,
-		NotificationRule, NotificationTemplate, Postmortem, RawEvent, Role,
+		NotificationRule, NotificationTemplate, Override, Postmortem, RawEvent, Role,
 		RoleBinding, Rotation, Runbook, Schedule, Service, SuppressionRule, Team,
 		TimelineItem, User []ent.Hook
 	}
 	inters struct {
 		AIInsight, APIKey, ActionItem, AuditLog, EscalationPolicy, Event,
 		IMAccountBinding, Incident, IncidentAction, Integration, Notification,
-		NotificationRule, NotificationTemplate, Postmortem, RawEvent, Role,
+		NotificationRule, NotificationTemplate, Override, Postmortem, RawEvent, Role,
 		RoleBinding, Rotation, Runbook, Schedule, Service, SuppressionRule, Team,
 		TimelineItem, User []ent.Interceptor
 	}
