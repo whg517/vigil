@@ -43,7 +43,8 @@ type UserHandler struct {
 	db         *ent.Client
 	imBinder   IMAccountBinder // 可选：IM 账号绑定（C6）
 	imResolver IMAccountResolver
-	authz      *Authorizer // 可选：细分「停用」为独立权限点（user.disable）用
+	authz      *Authorizer    // 可选：细分「停用」为独立权限点（user.disable）用
+	audit      *AuditRecorder // 可选：用户启停留痕（C21，nil 时跳过）
 }
 
 // NewUserHandler 创建用户 handler。
@@ -56,6 +57,9 @@ func NewUserHandler(db *ent.Client) *UserHandler {
 // 停用是更敏感的动作，需额外持有 user.disable。注入后 updateUser 做此细分校验；
 // 未注入（如测试）则退化为仅 user.update 门禁。
 func (h *UserHandler) SetAuthorizer(a *Authorizer) { h.authz = a }
+
+// SetAuditRecorder 注入审计记录器（C21：用户启停留痕，main 装配时调用）。
+func (h *UserHandler) SetAuditRecorder(r *AuditRecorder) { h.audit = r }
 
 // SetIMAccountBinder 注入 IM 账号绑定器（QA 审计 C6，main 装配时调用）。
 func (h *UserHandler) SetIMAccountBinder(b IMAccountBinder) { h.imBinder = b }
@@ -135,6 +139,16 @@ func (h *UserHandler) updateUser(c *echo.Context) error {
 			return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "forbidden: user.disable required to change status"})
 		}
 	}
+	// 改 status 前先取旧值：审计只在 status 真正发生变化（启用↔禁用）时记一条，
+	// 避免"提交相同 status"也刷审计日志（噪音）。查不到旧值时 prevStatus 为空，
+	// 后续按"有变化"处理（宁可多记一条也不漏记禁用这类高危动作）。
+	var prevStatus user.Status
+	if req.Status != nil {
+		if old, gerr := h.db.User.Get(c.Request().Context(), id); gerr == nil {
+			prevStatus = old.Status
+		}
+	}
+
 	u := h.db.User.UpdateOneID(id)
 	if req.Name != nil {
 		u.SetName(*req.Name)
@@ -149,7 +163,30 @@ func (h *UserHandler) updateUser(c *echo.Context) error {
 	if err != nil {
 		return errs.FailNotFound(c, nil, err, "user")
 	}
+	// C21：用户启停落审计（禁用是高危动作，须可追溯"谁在何时停用了谁"）。
+	if req.Status != nil && updated.Status != prevStatus {
+		h.auditStatusChange(c, updated, prevStatus)
+	}
 	return c.JSON(http.StatusOK, updated)
+}
+
+// auditStatusChange 记录用户启停审计（C21）。禁用/启用分别用不同 action 便于检索。
+func (h *UserHandler) auditStatusChange(c *echo.Context, u *ent.User, prev user.Status) {
+	if h.audit == nil {
+		return
+	}
+	action := ActionUserEnable
+	if u.Status == user.StatusDisabled {
+		action = ActionUserDisable
+	}
+	actorID, _ := UserIDFromContext(c.Request().Context())
+	e := AuditEntryFromRequest(c.Request(), actorID, "")
+	e.Action = action
+	e.ResourceType = "user"
+	e.ResourceID = u.ID
+	e.ResourceName = u.Username
+	e.Detail = map[string]any{"from": string(prev), "to": string(u.Status)}
+	h.audit.MustRecord(c.Request().Context(), e)
 }
 
 // bindIMAccountReq 绑定 IM 账号请求。

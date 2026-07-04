@@ -155,7 +155,7 @@ func TestRecorder_RecordRunbook(t *testing.T) {
 	inc := seedIncident(t, c)
 	r := NewRecorder(c)
 
-	if err := r.RecordRunbook(context.Background(), inc.ID, "查日志", "ok", true, 42); err != nil {
+	if err := r.RecordRunbook(context.Background(), inc.ID, "查日志", "ok", true, true, 42); err != nil {
 		t.Fatalf("RecordRunbook: %v", err)
 	}
 	items, _ := r.Query(context.Background(), inc.ID, timelineitem.TypeRunbookExecuted, "", 10, 0)
@@ -171,6 +171,10 @@ func TestRecorder_RecordRunbook(t *testing.T) {
 	}
 	if items[0].Source != timelineitem.SourceWeb {
 		t.Errorf("source = %q, want web", items[0].Source)
+	}
+	// approved=true 应落入 detail，供时间线区分"已审批处置"与"只读干跑"（S10/C14）。
+	if got, _ := items[0].Detail["approved"].(bool); !got {
+		t.Errorf("detail.approved = %v, want true", items[0].Detail["approved"])
 	}
 }
 

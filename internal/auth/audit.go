@@ -31,6 +31,25 @@ const (
 	AuditResultDenied  AuditResult = "denied" // 鉴权拒绝（潜在攻击探测）
 )
 
+// Action 审计操作类型集中定义（M13.5 敏感操作审计总线）。
+//
+// action 在 ent schema 里是自由字符串（非 ent enum），但语义必须收敛：
+// 各调用点统一引用这些常量，避免散落的字符串字面量拼写漂移，也便于按 action 检索/告警。
+// 已存在的登录/角色/apikey action 仍用字面量（历史范例），新增的敏感操作一律走常量。
+const (
+	// IM 越权拒绝（S9）：IM 操作未过 RBAC 时留痕（潜在越权探测）。
+	ActionIMDenied = "im.denied"
+	// Runbook 执行（S10/C14）：谁在生产上执行/审批了处置动作。
+	ActionRunbookExecute = "runbook.execute"
+	// 用户启停（C21 / S2）：禁用是高危动作，单独可检索。
+	ActionUserDisable = "user.disable"
+	ActionUserEnable  = "user.enable"
+	// 接入点配置变更（C21）：告警源接入是攻击面，创建/改动/删除都留痕。
+	ActionIntegrationCreate = "integration.create"
+	ActionIntegrationUpdate = "integration.update"
+	ActionIntegrationDelete = "integration.delete"
+)
+
 // AuditEntry 审计日志条目（调用方构造，Recorder 持久化）。
 type AuditEntry struct {
 	ActorUserID  int            // 操作者 user_id，0=系统/匿名

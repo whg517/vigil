@@ -63,7 +63,8 @@ func (r *Recorder) Record(ctx context.Context, incID int, typ timelineitem.Type,
 // RecordRunbook 实现 runbook.TimelineRecorder 接口。
 // 让 runbook 引擎无需感知 ent 类型细节，统一通过 Recorder 记录。
 // actorID 为执行发起人（0 视为系统），据此在时间线留痕"谁执行了该步"（C.5.3）。
-func (r *Recorder) RecordRunbook(ctx context.Context, incID int, stepName, output string, success bool, actorID int) error {
+// approved 记录本次执行是否经审批，让时间线可区分"已审批处置"与"只读干跑"（S10/C14）。
+func (r *Recorder) RecordRunbook(ctx context.Context, incID int, stepName, output string, success, approved bool, actorID int) error {
 	content := fmt.Sprintf("执行 Runbook 步骤 %q", stepName)
 	if !success {
 		content += "（失败）"
@@ -71,7 +72,7 @@ func (r *Recorder) RecordRunbook(ctx context.Context, incID int, stepName, outpu
 	actor, source := runbookActor(actorID)
 	return r.Record(ctx, incID, timelineitem.TypeRunbookExecuted, content,
 		actor, source,
-		map[string]any{"step": stepName, "success": success, "output": output})
+		map[string]any{"step": stepName, "success": success, "approved": approved, "output": output})
 }
 
 // RecordRunbookBlocked 实现 runbook.TimelineRecorder 接口：记录写步骤未获审批被阻断。

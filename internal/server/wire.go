@@ -181,7 +181,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		}
 		return out, nil
 	})
-	imHandler := im.NewHandler(st.DB, imRegistry, imMapper, authz, incService, imRenderer, imCards)
+	// S9：IM 越权拒绝落审计（IM 是主交互面，越权探测须与 Web 同样留痕）。
+	imHandler := im.NewHandler(st.DB, imRegistry, imMapper, authz, incService, imRenderer, imCards, auditRecorder)
 	// IM 也作为 notification 通道（升级通知走 IM 卡片送达，IM-first 闭环）。
 	notifReg := notifier.Registry() // 注册 IMChannel 到同一 registry（晚注册也能生效，notifier 实时查）
 	// FIX-H：OncallChannel 可能仍是占位配置（如 "# 值班群 chat_id..."），
@@ -272,6 +273,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	integrationH := integration.NewHandler(st.DB)
 	integrationH.SetAuthorizer(authz)
 	integrationH.SetScopeResolver(scopeResolver)
+	integrationH.SetAuditRecorder(auditRecorder) // C21：接入点配置变更留痕
 	integrationH.Register(v1)
 	escalationH := escalation.NewPolicyHandler(st.DB)
 	escalationH.SetAuthorizer(authz)
@@ -289,6 +291,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	userHandler := auth.NewUserHandler(st.DB)
 	// 审计 S2：注入鉴权器，使 PATCH /users/:id 改 status 时叠加 user.disable 校验。
 	userHandler.SetAuthorizer(authz)
+	userHandler.SetAuditRecorder(auditRecorder) // C21：用户启停留痕
 	userHandler.SetIMAccountBinder(imMapper)
 	userHandler.SetIMAccountResolver(imMapperResolver{m: imMapper})
 	userHandler.Register(v1)
@@ -304,6 +307,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	runbookH := runbook.NewHandler(st.DB, runbookEngine)
 	runbookH.SetAuthorizer(authz)
 	runbookH.SetScopeResolver(scopeResolver)
+	runbookH.SetAuditRecorder(auditRecorder) // S10/C14：Runbook 执行留痕
 	runbookH.Register(v1)
 	timelineH := timeline.NewHandler(timelineRecorder)
 	timelineH.SetAuthorizer(authz)

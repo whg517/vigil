@@ -324,17 +324,18 @@ func TestRegistry(t *testing.T) {
 
 // recCall 记录一次时间线调用（供 fakeTimeline 断言）。
 type recCall struct {
-	kind    string // "exec" | "blocked"
-	step    string
-	success bool
-	actorID int
+	kind     string // "exec" | "blocked"
+	step     string
+	success  bool
+	approved bool
+	actorID  int
 }
 
 // fakeTimeline 实现 TimelineRecorder，捕获调用便于断言 actor 透传。
 type fakeTimeline struct{ calls []recCall }
 
-func (f *fakeTimeline) RecordRunbook(_ context.Context, _ int, stepName, _ string, success bool, actorID int) error {
-	f.calls = append(f.calls, recCall{kind: "exec", step: stepName, success: success, actorID: actorID})
+func (f *fakeTimeline) RecordRunbook(_ context.Context, _ int, stepName, _ string, success, approved bool, actorID int) error {
+	f.calls = append(f.calls, recCall{kind: "exec", step: stepName, success: success, approved: approved, actorID: actorID})
 	return nil
 }
 func (f *fakeTimeline) RecordRunbookBlocked(_ context.Context, _ int, stepName string, actorID int) error {

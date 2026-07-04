@@ -39,6 +39,7 @@ type Handler struct {
 	db    *ent.Client
 	authz *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
 	scope *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
+	audit *auth.AuditRecorder // 配置变更留痕（C21，可选注入，nil 时跳过）
 }
 
 // NewHandler 创建接入点 handler。
@@ -52,6 +53,23 @@ func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
 
 // SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
 func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
+
+// SetAuditRecorder 注入审计记录器（C21：接入点配置变更留痕，main 装配时调用）。
+func (h *Handler) SetAuditRecorder(r *auth.AuditRecorder) { h.audit = r }
+
+// auditConfigChange 记录接入点配置变更审计（C21）。
+// 接入点是告警源接入面，创建/改动/删除都留痕（含 who + 对象 id/name）。
+func (h *Handler) auditConfigChange(c *echo.Context, action string, integ *ent.Integration) {
+	if h.audit == nil {
+		return
+	}
+	e := auth.AuditEntryFromRequest(c.Request(), h.actorFromContext(c), "")
+	e.Action = action
+	e.ResourceType = "integration"
+	e.ResourceID = integ.ID
+	e.ResourceName = integ.Name
+	h.audit.MustRecord(c.Request().Context(), e)
+}
 
 // actorFromContext 取当前操作人 ID。
 // 来自鉴权中间件注入的 ctxUser（auth.UserIDFromContext）。
@@ -195,6 +213,7 @@ func (h *Handler) create(c *echo.Context) error {
 	if err != nil {
 		return errs.FailConstraint(c, nil, err, "integration", "integration already exists")
 	}
+	h.auditConfigChange(c, auth.ActionIntegrationCreate, integ)
 	return c.JSON(http.StatusCreated, createResp{Integration: integ, Token: integ.Token})
 }
 
@@ -265,6 +284,7 @@ func (h *Handler) update(c *echo.Context) error {
 	if err != nil {
 		return errs.FailNotFound(c, nil, err, "integration")
 	}
+	h.auditConfigChange(c, auth.ActionIntegrationUpdate, integ)
 	return c.JSON(http.StatusOK, integ)
 }
 
@@ -285,8 +305,14 @@ func (h *Handler) delete(c *echo.Context) error {
 	if e := h.checkAccess(c, id, auth.PermIntegrationView); e != nil {
 		return e
 	}
+	// 删除前取快照：审计要记对象名，删掉后就查不到了。取不到（已不存在）用零值兜底。
+	victim, _ := h.db.Integration.Get(c.Request().Context(), id)
 	if err := h.db.Integration.DeleteOneID(id).Exec(c.Request().Context()); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
 	}
+	if victim == nil {
+		victim = &ent.Integration{ID: id}
+	}
+	h.auditConfigChange(c, auth.ActionIntegrationDelete, victim)
 	return c.NoContent(http.StatusNoContent)
 }

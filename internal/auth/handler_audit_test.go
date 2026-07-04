@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/kevin/vigil/ent/enttest"
 
@@ -82,6 +84,58 @@ func TestAuditHandler_FilterByActor(t *testing.T) {
 	e.ServeHTTP(rec, req)
 	if !contains(rec.Body.String(), `"total":2`) {
 		t.Errorf("actor filter total not 2: %s", rec.Body.String())
+	}
+}
+
+// TestAuditHandler_FilterByTime 验证 from/to 时间区间筛选（C21）。
+// 直接以受控 created_at 植入 3 条日志（昨天/今天/明天），断言各区间只返回命中的条目。
+func TestAuditHandler_FilterByTime(t *testing.T) {
+	c := enttest.Open(t, "sqlite3", "file:audit_time_test?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = c.Close() })
+	ctx := context.Background()
+	// 截到整秒：RFC3339 边界只到秒，带纳秒的 created_at 会让 to=now（LTE）漏掉"今天"这条。
+	now := time.Now().UTC().Truncate(time.Second)
+	yesterday := now.Add(-24 * time.Hour)
+	tomorrow := now.Add(24 * time.Hour)
+	for _, ts := range []time.Time{yesterday, now, tomorrow} {
+		if err := c.AuditLog.Create().
+			SetAction("x").SetResourceType("t").SetCreatedAt(ts).
+			Exec(ctx); err != nil {
+			t.Fatalf("seed audit at %v: %v", ts, err)
+		}
+	}
+
+	h := NewAuditHandler(c)
+	e := echo.New()
+	e.GET("/api/v1/audit-logs", h.list, RequireUser(true, nil))
+
+	call := func(query string) string {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/audit-logs?"+query, nil)
+		req.Header.Set("X-Vigil-User-ID", "1")
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d, body=%s", rec.Code, rec.Body.String())
+		}
+		return rec.Body.String()
+	}
+
+	// from=now（含）→ 排除昨天，命中今天+明天 = 2 条（RFC3339 边界）。
+	if body := call("from=" + now.Format(time.RFC3339)); !contains(body, `"total":2`) {
+		t.Errorf("from filter total not 2: %s", body)
+	}
+	// to=now（含）→ 排除明天，命中昨天+今天 = 2 条。
+	if body := call("to=" + now.Format(time.RFC3339)); !contains(body, `"total":2`) {
+		t.Errorf("to filter total not 2: %s", body)
+	}
+	// from+to 夹取 now±1h → 仅命中今天 1 条。
+	q := "from=" + now.Add(-time.Hour).Format(time.RFC3339) + "&to=" + now.Add(time.Hour).Format(time.RFC3339)
+	if body := call(q); !contains(body, `"total":1`) {
+		t.Errorf("from+to window total not 1: %s", body)
+	}
+	// unix 秒格式同样支持（to=昨天+1h → 仅命中昨天 1 条）。
+	if body := call("to=" + strconv.FormatInt(yesterday.Add(time.Hour).Unix(), 10)); !contains(body, `"total":1`) {
+		t.Errorf("unix to filter total not 1: %s", body)
 	}
 }
 

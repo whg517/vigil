@@ -7,6 +7,7 @@ package auth
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/auditlog"
@@ -32,7 +33,7 @@ func (h *AuditHandler) Register(g *echo.Group) {
 }
 
 // list 查询审计日志（支持筛选 + 分页，默认倒序）。
-// 查询参数：actor_user_id / action / resource_type / resource_id / limit / offset
+// 查询参数：actor_user_id / action / resource_type / resource_id / from / to / limit / offset
 //
 // @Summary      审计日志查询
 // @Tags         audit
@@ -41,6 +42,8 @@ func (h *AuditHandler) Register(g *echo.Group) {
 // @Param        action          query    string  false  "按操作类型过滤"
 // @Param        resource_type   query    string  false  "按对象类型过滤"
 // @Param        resource_id     query    int     false  "按对象 ID 过滤"
+// @Param        from            query    string  false  "起始时间（含），RFC3339 或 unix 秒"
+// @Param        to              query    string  false  "结束时间（含），RFC3339 或 unix 秒"
 // @Param        limit           query    int     false  "分页大小（默认 50，上限 200）"  default(50) maximum(200)
 // @Param        offset          query    int     false  "分页偏移"                       default(0)
 // @Success      200             {object} httputil.Paginated[ent.AuditLog]
@@ -66,6 +69,14 @@ func (h *AuditHandler) list(c *echo.Context) error {
 		if id, err := strconv.Atoi(v); err == nil {
 			q = q.Where(auditlog.ResourceIDEQ(id))
 		}
+	}
+	// 时间区间筛选（C21）：合规追溯常按"某时段内的敏感操作"检索。
+	// 解析失败（格式非法）静默忽略该边界，不阻塞查询（与上面其它参数一致的宽松风格）。
+	if t, ok := parseAuditTime(c.QueryParam("from")); ok {
+		q = q.Where(auditlog.CreatedAtGTE(t))
+	}
+	if t, ok := parseAuditTime(c.QueryParam("to")); ok {
+		q = q.Where(auditlog.CreatedAtLTE(t))
 	}
 
 	limit := 50
@@ -94,4 +105,19 @@ func (h *AuditHandler) list(c *echo.Context) error {
 	return c.JSON(http.StatusOK, httputil.Paginated[*ent.AuditLog]{
 		Items: logs, Total: total, Limit: limit, Offset: offset,
 	})
+}
+
+// parseAuditTime 解析时间边界，兼容 RFC3339（2006-01-02T15:04:05Z07:00）与 unix 秒。
+// 返回 ok=false 表示空或格式非法（调用方据此跳过该边界）。
+func parseAuditTime(v string) (time.Time, bool) {
+	if v == "" {
+		return time.Time{}, false
+	}
+	if t, err := time.Parse(time.RFC3339, v); err == nil {
+		return t, true
+	}
+	if sec, err := strconv.ParseInt(v, 10, 64); err == nil {
+		return time.Unix(sec, 0), true
+	}
+	return time.Time{}, false
 }

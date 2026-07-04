@@ -3081,6 +3081,16 @@ paths:
         name: resource_id
         schema:
           type: integer
+      - description: 起始时间（含），RFC3339 或 unix 秒
+        in: query
+        name: from
+        schema:
+          type: string
+      - description: 结束时间（含），RFC3339 或 unix 秒
+        in: query
+        name: to
+        schema:
+          type: string
       - description: 分页大小（默认 50，上限 200）
         in: query
         name: limit

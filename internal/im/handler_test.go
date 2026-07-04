@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/ent/auditlog"
 	"github.com/kevin/vigil/ent/enttest"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/role"
@@ -122,7 +123,7 @@ func seedFullSetup(t *testing.T, c *ent.Client, grantAck bool) (incID, userID, t
 	return
 }
 
-// newHandlerWith 构造完整 handler（真实 authz + incident service + stub bot）。
+// newHandlerWith 构造完整 handler（真实 authz + incident service + stub bot + 审计记录器）。
 func newHandlerWith(t *testing.T, c *ent.Client, bot *stubBot) (*Handler, *CardStore) {
 	t.Helper()
 	authz := auth.NewAuthorizer(c)
@@ -147,7 +148,8 @@ func newHandlerWith(t *testing.T, c *ent.Client, bot *stubBot) (*Handler, *CardS
 	})
 	reg := NewRegistry()
 	reg.Register(bot)
-	h := NewHandler(c, reg, mapper, authz, incSvc, renderer, cards)
+	// 注入真实审计记录器（同库），使 IM 越权拒绝落审计（S9）可断言。
+	h := NewHandler(c, reg, mapper, authz, incSvc, renderer, cards, auth.NewAuditRecorder(c))
 	return h, cards
 }
 
@@ -216,6 +218,82 @@ func TestHandleCardAction_ForbiddenNoPermission(t *testing.T) {
 	inc, _ := c.Incident.Get(context.Background(), incID)
 	if inc.Status != incident.StatusTriggered {
 		t.Errorf("incident should stay triggered, got %s", inc.Status)
+	}
+}
+
+// TestHandleCardAction_DeniedAudited 无权限越权 → 403 且落一条 denied 审计（S9）。
+// 审计须记对操作者（已解析出的 user）+ action=im.denied + result=denied + incident/im_action 上下文。
+func TestHandleCardAction_DeniedAudited(t *testing.T) {
+	c := newHandlerClient(t)
+	incID, userID, _ := seedFullSetup(t, c, false) // 绑定了 IM 但未授 ack 权限
+	bot := newStubBot("feishu", true)
+	h, _ := newHandlerWith(t, c, bot)
+
+	e := echo.New()
+	payload := mustJSON(t, IMEvent{
+		Type: EventCardAction, Platform: "feishu", UnionID: "ou_zs",
+		Action: ActionAck, IncidentID: strconv.Itoa(incID),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/im/feishu/callback", bytes.NewReader(payload))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.POST("/api/v1/im/:platform/callback", h.callback)
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status: got %d, want 403", rec.Code)
+	}
+	logs, err := c.AuditLog.Query().Where(auditlog.ActionEQ(auth.ActionIMDenied)).All(context.Background())
+	if err != nil {
+		t.Fatalf("query audit: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 im.denied audit, got %d", len(logs))
+	}
+	lg := logs[0]
+	if lg.Result != auditlog.ResultDenied {
+		t.Errorf("result = %q, want denied", lg.Result)
+	}
+	// actor 应是已解析出的 user（越权者可追溯），不是 0。
+	if lg.ActorUserID != userID {
+		t.Errorf("actor = %d, want %d (resolved user)", lg.ActorUserID, userID)
+	}
+	if lg.ResourceType != "incident" || lg.ResourceID != incID {
+		t.Errorf("resource = %s/%d, want incident/%d", lg.ResourceType, lg.ResourceID, incID)
+	}
+	if lg.Detail["im_action"] != ActionAck {
+		t.Errorf("detail.im_action = %v, want %s", lg.Detail["im_action"], ActionAck)
+	}
+}
+
+// TestHandleCardAction_NotBoundAudited 未绑定账号越权 → 落一条 actor=0 的 denied 审计（S9）。
+func TestHandleCardAction_NotBoundAudited(t *testing.T) {
+	c := newHandlerClient(t)
+	incID, _, _ := seedFullSetup(t, c, false)
+	bot := newStubBot("feishu", true)
+	h, _ := newHandlerWith(t, c, bot)
+
+	e := echo.New()
+	payload := mustJSON(t, IMEvent{
+		Type: EventCardAction, Platform: "feishu", UnionID: "ou_stranger",
+		Action: ActionAck, IncidentID: strconv.Itoa(incID),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/im/feishu/callback", bytes.NewReader(payload))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.POST("/api/v1/im/:platform/callback", h.callback)
+	e.ServeHTTP(rec, req)
+
+	logs, _ := c.AuditLog.Query().Where(auditlog.ActionEQ(auth.ActionIMDenied)).All(context.Background())
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 im.denied audit, got %d", len(logs))
+	}
+	// 账号未绑定 → actor 未知（0），靠 detail.union_id 溯源。
+	if logs[0].ActorUserID != 0 {
+		t.Errorf("actor = %d, want 0 (unbound)", logs[0].ActorUserID)
+	}
+	if logs[0].Detail["union_id"] != "ou_stranger" {
+		t.Errorf("detail.union_id = %v, want ou_stranger", logs[0].Detail["union_id"])
 	}
 }
 

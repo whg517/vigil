@@ -694,6 +694,10 @@ export interface paths {
                     resource_type?: string;
                     /** @description 按对象 ID 过滤 */
                     resource_id?: number;
+                    /** @description 起始时间（含），RFC3339 或 unix 秒 */
+                    from?: string;
+                    /** @description 结束时间（含），RFC3339 或 unix 秒 */
+                    to?: string;
                     /** @description 分页大小（默认 50，上限 200） */
                     limit?: number;
                     /** @description 分页偏移 */

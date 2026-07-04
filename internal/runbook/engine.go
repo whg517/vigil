@@ -50,7 +50,9 @@ type Engine struct {
 // TimelineRecorder 时间线记录接口（解耦 runbook 与 incident 包）。
 // actorID 为执行发起人（0 视为系统/匿名），用于在时间线留痕"谁执行/阻断了动作"。
 type TimelineRecorder interface {
-	RecordRunbook(ctx context.Context, incID int, stepName, output string, success bool, actorID int) error
+	// RecordRunbook 记录一步执行结果。approved 表示本次执行是否经审批
+	// （human-in-the-loop 闸门放行），据此在时间线区分"已审批处置"与"只读干跑"（S10/C14）。
+	RecordRunbook(ctx context.Context, incID int, stepName, output string, success, approved bool, actorID int) error
 	// RecordRunbookBlocked 记录一条"写步骤未获审批被阻断"的时间线（含 actor），
 	// 让"谁在何时尝试执行未获批的写操作"可审计。
 	RecordRunbookBlocked(ctx context.Context, incID int, stepName string, actorID int) error
@@ -182,9 +184,9 @@ func (e *Engine) executeSteps(ctx context.Context, incID int, steps []schema.Run
 			continue
 		}
 
-		// 记时间线（执行结果，含 actor）
+		// 记时间线（执行结果，含 actor + 是否经审批）
 		if e.timeline != nil && incID > 0 {
-			_ = e.timeline.RecordRunbook(ctx, incID, step.Name, sr.Output, sr.Success, actorID)
+			_ = e.timeline.RecordRunbook(ctx, incID, step.Name, sr.Output, sr.Success, approved, actorID)
 		}
 
 		// 失败处理

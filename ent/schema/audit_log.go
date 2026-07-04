@@ -32,7 +32,10 @@ func (AuditLog) Fields() []ent.Field {
 		field.Int("actor_user_id").Default(0).Comment("操作者 user_id，0=系统/匿名"),
 		// actor_name 操作者名快照（用户改名后审计仍可读）
 		field.String("actor_name").Default("system").Comment("操作者名快照"),
-		// action 操作类型（role.create/role.delete/role.assign/user.disable/apikey.create/...）
+		// action 操作类型（自由字符串，语义由 internal/auth 的 Action* 常量集中约定）：
+		// role.create/role.delete/role.assign/apikey.create/auth.login/
+		// user.disable/user.enable/runbook.execute/im.denied/
+		// integration.create/integration.update/integration.delete/...
 		field.String("action").NotEmpty().Comment("操作类型，如 role.create"),
 		// resource_type 操作对象类型（role/user/integration/api_key/...）
 		field.String("resource_type").NotEmpty().Comment("操作对象类型"),

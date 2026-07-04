@@ -32,6 +32,7 @@ type Handler struct {
 	engine *Engine
 	authz  *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
 	scope  *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
+	audit  *auth.AuditRecorder // 执行留痕（S10/C14，可选注入，nil 时跳过）
 }
 
 // NewHandler 创建 Runbook handler。
@@ -45,6 +46,9 @@ func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
 
 // SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
 func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
+
+// SetAuditRecorder 注入审计记录器（S10/C14：Runbook 执行留痕，main 装配时调用）。
+func (h *Handler) SetAuditRecorder(r *auth.AuditRecorder) { h.audit = r }
 
 // actorFromContext 取当前操作人 ID。
 // 来自鉴权中间件注入的 ctxUser（auth.UserIDFromContext）。
@@ -320,16 +324,45 @@ func (h *Handler) execute(c *echo.Context) error {
 	_ = c.Bind(&req) // approved 可缺省（默认 false，写动作会被跳过）
 
 	// 执行人身份从鉴权中间件取（留痕"谁执行/审批了写操作"，见 C.5.3）。
-	res, err := h.engine.Execute(c.Request().Context(), id, req.IncidentID, req.Approved, h.actorFromContext(c))
+	actorID := h.actorFromContext(c)
+	res, err := h.engine.Execute(c.Request().Context(), id, req.IncidentID, req.Approved, actorID)
 	if err != nil {
 		// 并发保护（C.5.1）：同一 runbook+incident 已有执行在途，连点/并发第二次冲突。
 		// 返回 409 而非 500——这是预期的幂等拒绝，不是服务端错误。
+		// 409 是幂等拒绝、未真正执行，不落审计（避免噪音）；500 是执行失败，落一条 failed。
 		if errors.Is(err, ErrExecuteInProgress) {
 			return errs.Conflict(c, "该 runbook 正在对此 incident 执行中，请勿重复触发")
 		}
+		h.auditExecute(c, actorID, id, req.IncidentID, req.Approved, auth.AuditResultFailed, err.Error())
 		return errs.Internal(c, nil, err)
 	}
+	// S10/C14：执行成功落审计（谁在生产上执行/审批了处置动作，含 incident/approved/是否有待审批阻断）。
+	detail := fmt.Sprintf("aborted=%v pending_approval=%v", res.Aborted, res.PendingApproval)
+	h.auditExecute(c, actorID, id, req.IncidentID, req.Approved, auth.AuditResultSuccess, detail)
 	return c.JSON(http.StatusOK, res)
+}
+
+// auditExecute 记录 Runbook 执行审计（S10/C14）。
+// approved 标记本次是否已审批（会触发写步骤），是审计写操作处置的核心字段。
+func (h *Handler) auditExecute(c *echo.Context, actorID, runbookID, incidentID int, approved bool, result auth.AuditResult, note string) {
+	if h.audit == nil {
+		return
+	}
+	e := auth.AuditEntryFromRequest(c.Request(), actorID, "")
+	e.Action = auth.ActionRunbookExecute
+	e.ResourceType = "runbook"
+	e.ResourceID = runbookID
+	e.Result = result
+	e.Detail = map[string]any{
+		"incident_id": incidentID,
+		"approved":    approved,
+		"note":        note,
+	}
+	// 补记 runbook 名（便于审计直读，无需再 join）。取不到不阻塞。
+	if rb, gerr := h.db.Runbook.Get(c.Request().Context(), runbookID); gerr == nil {
+		e.ResourceName = rb.Name
+	}
+	h.audit.MustRecord(c.Request().Context(), e)
 }
 
 // validateSteps 数据层兜底校验（QA 审计 C4）：

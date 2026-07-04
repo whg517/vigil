@@ -78,10 +78,12 @@ type Handler struct {
 	incSvc   *imincident.Service
 	renderer *Renderer
 	cards    *CardStore
+	audit    *auth.AuditRecorder // IM 越权拒绝留痕（S9，可选注入，nil 时跳过）
 }
 
 // NewHandler 创建 IM handler。
 // hasPermission 为权限判定回调（通常包装 auth.Authorizer.CheckAny）。
+// audit 记录 IM 越权拒绝（S9）：IM 是主交互面，越权探测必须与 Web 一样留痕；nil 时降级不记。
 func NewHandler(
 	db *ent.Client,
 	registry *Registry,
@@ -90,10 +92,11 @@ func NewHandler(
 	incSvc *imincident.Service,
 	renderer *Renderer,
 	cards *CardStore,
+	audit *auth.AuditRecorder,
 ) *Handler {
 	return &Handler{
 		db: db, registry: registry, mapper: mapper, authz: authz,
-		incSvc: incSvc, renderer: renderer, cards: cards,
+		incSvc: incSvc, renderer: renderer, cards: cards, audit: audit,
 	}
 }
 
@@ -311,15 +314,19 @@ func (h *Handler) handleMention(c *echo.Context, ctx context.Context, bot IMBot,
 
 // resolveAndCheck 账号映射 + 权限校验（IM 鉴权铁律 §6）。
 // action 为按钮/命令对应的动作（ack/escalate/resolve/detail/add_responder），用于映射权限点。
+// 每条拒绝路径（未绑定/无权限映射/越权）都落一条 denied 审计（S9）——IM 越权探测须与 Web 同样可追溯。
 func (h *Handler) resolveAndCheck(c *echo.Context, ctx context.Context, evt *IMEvent, action string) (*ent.User, error) {
 	// 1. im_unionid → User（未绑定拒绝）
 	user, err := h.mapper.ResolveUser(ctx, evt.Platform, evt.UnionID)
 	if err != nil {
+		// actor 未知（未绑定），用 platform/union_id 溯源；这是典型越权探测面。
+		h.auditDenied(c, 0, evt, action, "im account not bound")
 		return nil, fmt.Errorf("im account not bound: %w", err)
 	}
 	// 2. action → 权限点
 	perm, ok := PermissionMap[action]
 	if !ok {
+		h.auditDenied(c, user.ID, evt, action, "no permission mapping")
 		return nil, fmt.Errorf("no permission mapping for action %q", action)
 	}
 	// 3. 解析资源 scope（incident.team）
@@ -334,9 +341,32 @@ func (h *Handler) resolveAndCheck(c *echo.Context, ctx context.Context, evt *IME
 		return nil, fmt.Errorf("authz check: %w", err)
 	}
 	if !ok {
+		// 已解析出 actor（user.ID），记谁越权尝试了什么动作（S9）。
+		h.auditDenied(c, user.ID, evt, action, "no permission")
 		return nil, errors.New("forbidden: no permission")
 	}
 	return user, nil
+}
+
+// auditDenied 记录一条 IM 越权拒绝审计（S9）。
+// actorID=0 表示账号未绑定（actor 未知，用 platform/union_id 溯源）。
+func (h *Handler) auditDenied(c *echo.Context, actorID int, evt *IMEvent, action, reason string) {
+	if h.audit == nil {
+		return
+	}
+	incID, _ := strconv.Atoi(evt.IncidentID)
+	e := auth.AuditEntryFromRequest(c.Request(), actorID, "")
+	e.Action = auth.ActionIMDenied
+	e.ResourceType = "incident"
+	e.ResourceID = incID
+	e.Result = auth.AuditResultDenied
+	e.Detail = map[string]any{
+		"platform":  evt.Platform,
+		"union_id":  evt.UnionID,
+		"im_action": action,
+		"reason":    reason,
+	}
+	h.audit.MustRecord(c.Request().Context(), e)
 }
 
 // incidentTeamScope 取 incident 归属团队作为鉴权 scope。
