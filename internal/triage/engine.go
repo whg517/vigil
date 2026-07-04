@@ -55,6 +55,25 @@ type Engine struct {
 	// 普通严重度不兜底（unrouted 只标记待人工分诊，不打扰管理员）。
 	// 为 nil 时跳过（降级/测试）——保持"无配置不回归"。
 	unroutedNotifier UnroutedNotifier
+
+	// aiAnalyzer 分诊 AI 分析器（T3.2）。新建 Incident 后异步触发，
+	// 让 LLM 产出带 evidence 的 severity_adjustment / dedup_suggestion 建议（human-in-the-loop）。
+	// 为 nil 时跳过（未配置 LLM / 测试）——AI 是横向增益，缺失不影响分诊主流程。
+	// 触发为异步 best-effort：不阻塞建单，LLM 不可用时分析器内部自行降级不产出。
+	aiAnalyzer TriageAIAnalyzer
+}
+
+// TriageAIAnalyzer 分诊 AI 分析器接口（T3.2）。由装配层用 ai.TriageAIEngine 适配实现。
+// 定义在 triage 侧、由 wire 注入实现，避免 triage 反向依赖 ai 包（与 UnroutedNotifier 同款解耦）。
+// 异步触发只关心「是否出错」（best-effort 记日志），不消费产出——产出由手动端点直接取。
+type TriageAIAnalyzer interface {
+	// AnalyzeIncident 对新建 Incident 跑分诊 AI（severity/dedup 建议）。返回 error 供记日志。
+	AnalyzeIncident(ctx context.Context, incID int) error
+}
+
+// SetAIAnalyzer 注入分诊 AI 分析器（装配时调用）。为 nil 时建单后不触发 AI 分析。
+func (e *Engine) SetAIAnalyzer(a TriageAIAnalyzer) {
+	e.aiAnalyzer = a
 }
 
 // UnroutedNotifier 未路由兜底通知接口（C3）。由能力域 7/装配层实现：
@@ -464,6 +483,8 @@ func (e *Engine) aggregate(ctx context.Context, evt *ent.Event, svc *ent.Service
 	// 原由 OnIncidentCreated 回调（main 注入 escEngine）完成；现改为事件解耦——
 	// triage 只负责「绑定策略 + 发事件」，升级链启动由 escalation 订阅事件完成。
 	e.bindPolicyAndPublish(ctx, inc, svc)
+	// T3.2：新建 Incident 后异步触发分诊 AI（severity/dedup 建议），不阻塞分诊主流程。
+	e.triggerAIAnalysis(ctx, inc.ID)
 	res.Action = ActionIncidentCreated
 	res.IncidentID = inc.ID
 	res.IncidentNum = inc.Number
@@ -492,6 +513,31 @@ func (e *Engine) bindPolicyAndPublish(ctx context.Context, inc *ent.Incident, sv
 		})
 	}
 }
+
+// triggerAIAnalysis 异步触发分诊 AI 分析（T3.2）。
+//
+// 建单后在独立 goroutine 里跑 severity/dedup 建议——LLM 调用可能耗时数秒，绝不能阻塞分诊主流程
+// （分诊在 Asynq worker 里同步执行，阻塞会拖慢整条 ingestion→triage 流水线）。best-effort：
+// analyzer 为 nil（未配 LLM）时直接跳过；内部失败仅记日志，不影响已建单结果。
+// 用 context.WithoutCancel 解绑父 ctx 生命周期——worker 处理完当前任务后父 ctx 可能被取消，
+// 但 AI 分析应能独立跑完（另配超时防 goroutine 泄漏）。
+func (e *Engine) triggerAIAnalysis(ctx context.Context, incID int) {
+	if e.aiAnalyzer == nil {
+		return
+	}
+	// 解绑父 ctx 取消信号，但另设超时上限，避免 LLM 卡死导致 goroutine 泄漏。
+	bg := context.WithoutCancel(ctx)
+	go func() {
+		aiCtx, cancel := context.WithTimeout(bg, aiAnalysisTimeout)
+		defer cancel()
+		if err := e.aiAnalyzer.AnalyzeIncident(aiCtx, incID); err != nil {
+			slog.Warn("triage: ai analysis failed", "incident_id", incID, "error", err)
+		}
+	}()
+}
+
+// aiAnalysisTimeout 分诊 AI 异步分析的超时上限（防 LLM 卡死泄漏 goroutine）。
+const aiAnalysisTimeout = 90 * time.Second
 
 // createIncident 创建新 Incident，并把 Event 关联进去。
 // 编号生成并发安全：Redis INCR 原子分配；无 Redis 时 Count+1 并在 number 唯一冲突时重试。

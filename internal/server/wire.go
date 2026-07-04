@@ -377,7 +377,16 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	if st.SQL != nil {
 		aiDiagEngine.SetSQLRunner(pgvectorRunner(st.SQL))
 	}
+	// T3.2 分诊 AI：与诊断链共享 GLM provider + 时间线记录器，复用相似检索（dedup 建议）。
+	// 建单后异步触发（不阻塞分诊），也经 POST /incidents/:id/triage-ai 手动触发。
+	triageAIEngine := ai.NewTriageAIEngine(st.DB, glmProvider)
+	triageAIEngine.SetRecorder(timelineRecorder)  // 产出建议后写 ai_insight 时间线
+	triageAIEngine.SetSimilarFinder(aiDiagEngine) // dedup 建议复用诊断链的 pgvector/LIKE 相似检索
+	// 注入分诊引擎：新建 Incident 后异步跑 severity/dedup 建议（analyzer 内部 LLM 不可用自行降级）。
+	triageEngine.SetAIAnalyzer(triageAIAnalyzerAdapter{e: triageAIEngine})
+
 	aiH := ai.NewHandler(aiDiagEngine)
+	aiH.SetTriageAI(triageAIEngine) // 启用手动触发端点（T3.2）
 	aiH.SetAuthorizer(authz)
 	aiH.SetScopeResolver(scopeResolver)
 	aiH.SetAuditRecorder(auditRecorder) // S11：AI 建议采纳/拒绝留痕（谁在何时改判）
@@ -870,6 +879,19 @@ func (c incidentCloser) Close(ctx context.Context, incID int, actorID int) error
 	if errors.Is(err, incident.ErrAlreadyClosed) {
 		return nil // 已 closed：幂等成功
 	}
+	return err
+}
+
+// triageAIAnalyzerAdapter 把 *ai.TriageAIEngine 适配成 triage.TriageAIAnalyzer（T3.2）。
+// triage 侧接口只关心 error（异步 best-effort 记日志），丢弃 *ai.TriageResult 产出——
+// 产出由 AIInsight 持久化，前端经 GET /incidents/:id/insights 拉取，无需异步回传。
+// 适配器让 triage 无需依赖 ai 包（解耦，与 UnroutedNotifier 同款）。
+type triageAIAnalyzerAdapter struct {
+	e *ai.TriageAIEngine
+}
+
+func (a triageAIAnalyzerAdapter) AnalyzeIncident(ctx context.Context, incID int) error {
+	_, err := a.e.AnalyzeIncident(ctx, incID)
 	return err
 }
 

@@ -4601,6 +4601,47 @@ paths:
       summary: Add timeline item
       tags:
       - timeline
+  /incidents/{id}/triage-ai:
+    post:
+      description: 触发分诊 AI，产出严重度调整 / 合并建议（human-in-the-loop）；未启用 LLM 返回 200 disabled。
+      parameters:
+      - description: Incident ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: {}
+                type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: Trigger triage AI
+      tags:
+      - ai
   /integrations:
     get:
       responses:

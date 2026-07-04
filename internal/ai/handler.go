@@ -22,16 +22,21 @@ var errAccessDenied = errors.New("access denied (response already written)")
 
 // Handler AI 诊断 API。
 type Handler struct {
-	engine *DiagnoseEngine
-	authz  *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
-	scope  *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
-	audit  *auth.AuditRecorder // 建议改判留痕（S11，可选注入，nil 时跳过）
+	engine   *DiagnoseEngine
+	triageAI *TriageAIEngine     // 分诊 AI 引擎（T3.2，可选注入）；nil 时手动触发端点降级返回 disabled
+	authz    *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
+	scope    *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
+	audit    *auth.AuditRecorder // 建议改判留痕（S11，可选注入，nil 时跳过）
 }
 
 // NewHandler 创建 AI handler。
 func NewHandler(e *DiagnoseEngine) *Handler {
 	return &Handler{engine: e}
 }
+
+// SetTriageAI 注入分诊 AI 引擎（T3.2）：启用 POST /incidents/:id/triage-ai 手动触发端点。
+// 为 nil 时该端点降级返回 disabled（与未配置 LLM 一致）。
+func (h *Handler) SetTriageAI(t *TriageAIEngine) { h.triageAI = t }
 
 // SetAuthorizer 注入鉴权器（ARCH-02/SEC-01：资源级鉴权）。
 // 为 nil 时降级为无资源级校验（兼容渐进启用与单测）。
@@ -74,6 +79,7 @@ func (h *Handler) checkAccess(c *echo.Context, kind string, id int, perm auth.Pe
 
 // Register 挂载路由。
 // POST /incidents/:id/diagnose     触发 AI 根因诊断
+// POST /incidents/:id/triage-ai    触发分诊 AI（severity/dedup 建议，T3.2）
 // GET  /incidents/:id/similar      查询相似历史事件
 // GET  /incidents/:id/similar-postmortems  查询相似已发布复盘（知识沉淀 M12.6）
 // GET  /incidents/:id/insights     列出该 incident 的历史 AI 洞察（T3.1 可读持久化）
@@ -81,11 +87,57 @@ func (h *Handler) checkAccess(c *echo.Context, kind string, id int, perm auth.Pe
 // POST /ai-insights/:id/resolve    人确认/拒绝 AI 建议（human-in-the-loop）
 func (h *Handler) Register(g *echo.Group) {
 	g.POST("/incidents/:id/diagnose", h.diagnose)
+	g.POST("/incidents/:id/triage-ai", h.triageAIAnalyze)
 	g.GET("/incidents/:id/similar", h.similar)
 	g.GET("/incidents/:id/similar-postmortems", h.similarPostmortems)
 	g.GET("/incidents/:id/insights", h.listInsights)
 	g.GET("/ai-insights/:id", h.getInsight)
 	g.POST("/ai-insights/:id/resolve", h.resolve)
+}
+
+// TriageAIAnalyze 手动触发分诊 AI（T3.2）：产出 severity_adjustment / dedup_suggestion 建议。
+//
+// 与建单后的异步触发共用引擎；此端点供响应者在 Web/IM 主动「让 AI 再看一眼分诊」。
+// 未配置 LLM / 引擎未注入时返回 200 disabled（与 diagnose 一致，让前端走无 AI 兜底）。
+// 产出为 human-in-the-loop 建议（status=suggested），返回时告知各类建议是否产出。
+//
+// @Summary      Trigger triage AI
+// @Description  触发分诊 AI，产出严重度调整 / 合并建议（human-in-the-loop）；未启用 LLM 返回 200 disabled。
+// @Tags         ai
+// @Produce      json
+// @Param        id   path      int  true  "Incident ID"
+// @Success      200  {object}  map[string]any
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /incidents/{id}/triage-ai [post]
+// @Security     bearerAuth
+func (h *Handler) triageAIAnalyze(c *echo.Context) error {
+	incID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, "incident", incID, auth.PermIncidentView); e != nil {
+		return e
+	}
+	if h.triageAI == nil || !h.triageAI.available() {
+		// 未注入引擎 或 LLM 不可用：降级 disabled（与 diagnose 一致，不报错、不阻断）。
+		return c.JSON(http.StatusOK, map[string]string{"status": "disabled", "message": "分诊 AI 暂不可用（未配置或已降级）"})
+	}
+	res, err := h.triageAI.AnalyzeIncident(c.Request().Context(), incID)
+	if err != nil {
+		// B25 归一：不存在的 incident → 404 not_found（而非 500）。
+		return errs.FailNotFound(c, nil, err, "incident")
+	}
+	// 返回各类建议是否产出（含产出的 insight_id，前端可直接拉取）。
+	out := map[string]any{"status": "analyzed"}
+	if res.Severity != nil {
+		out["severity_insight_id"] = res.Severity.ID
+	}
+	if res.Dedup != nil {
+		out["dedup_insight_id"] = res.Dedup.ID
+	}
+	return c.JSON(http.StatusOK, out)
 }
 
 // DiagnoseIncident 触发根因诊断。
