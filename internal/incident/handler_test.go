@@ -324,6 +324,98 @@ func TestHandler_ListActions(t *testing.T) {
 	}
 }
 
+// TestHandler_PendingPostmortemFilter T4.1 待复盘可见性：
+// ?pending_postmortem=true 仅返回「critical + resolved + 未跳过 + 无 published/archived 复盘」的单。
+func TestHandler_PendingPostmortemFilter(t *testing.T) {
+	c := enttest.Open(t, "sqlite3", "file:pending_pm_test?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = c.Close() })
+	ctx := context.Background()
+	team, _ := c.Team.Create().SetName("支付").SetSlug("pay").Save(ctx)
+
+	mk := func(num string, sev incident.Severity, st incident.Status, skipped bool) *ent.Incident {
+		inc, err := c.Incident.Create().
+			SetNumber(num).SetTitle("t").SetSeverity(sev).SetStatus(st).
+			SetTeamID(team.ID).SetPostmortemSkipped(skipped).Save(ctx)
+		if err != nil {
+			t.Fatalf("create %s: %v", num, err)
+		}
+		return inc
+	}
+
+	// 待复盘（应命中）：critical + resolved + 未跳过 + 无复盘
+	pending := mk("INC-P", incident.SeverityCritical, incident.StatusResolved, false)
+	// 已跳过复盘（不命中）
+	mk("INC-SKIP", incident.SeverityCritical, incident.StatusResolved, true)
+	// 非 critical（不命中）
+	mk("INC-WARN", incident.SeverityWarning, incident.StatusResolved, false)
+	// 非 resolved（不命中）
+	mk("INC-TRIG", incident.SeverityCritical, incident.StatusTriggered, false)
+	// 已发布复盘（不命中）
+	incDone := mk("INC-DONE", incident.SeverityCritical, incident.StatusResolved, false)
+	if _, err := c.Postmortem.Create().
+		SetIncidentID(incDone.ID).SetStatus("published").
+		SetSections(map[string]any{"summary": "s"}).Save(ctx); err != nil {
+		t.Fatalf("create pm: %v", err)
+	}
+
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+	h := NewHandler(c, svc)
+	e := echo.New()
+	v1 := e.Group("/api/v1", auth.RequireUser(false, nil))
+	h.Register(v1)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents?pending_postmortem=true", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: got %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Items []*ent.Incident `json:"items"`
+		Total int             `json:"total"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.Total != 1 || len(out.Items) != 1 {
+		t.Fatalf("pending_postmortem: total=%d items=%d, want 1/1", out.Total, len(out.Items))
+	}
+	if out.Items[0].ID != pending.ID {
+		t.Errorf("pending incident: got id=%d, want %d (INC-P)", out.Items[0].ID, pending.ID)
+	}
+}
+
+// TestHandler_SkipPostmortem T4.1 显式跳过复盘端点置 postmortem_skipped=true。
+func TestHandler_SkipPostmortem(t *testing.T) {
+	c := enttest.Open(t, "sqlite3", "file:skip_pm_test?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = c.Close() })
+	ctx := context.Background()
+	team, _ := c.Team.Create().SetName("支付").SetSlug("pay").Save(ctx)
+	inc, err := c.Incident.Create().
+		SetNumber("INC-SK").SetTitle("t").SetSeverity(incident.SeverityCritical).
+		SetStatus(incident.StatusResolved).SetTeamID(team.ID).Save(ctx)
+	if err != nil {
+		t.Fatalf("create incident: %v", err)
+	}
+
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+	h := NewHandler(c, svc)
+	e := echo.New()
+	v1 := e.Group("/api/v1", auth.RequireUser(false, nil))
+	h.Register(v1)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(inc.ID)+"/skip-postmortem", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("skip-postmortem: got %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	got, _ := c.Incident.Get(ctx, inc.ID)
+	if !got.PostmortemSkipped {
+		t.Error("postmortem_skipped 应为 true")
+	}
+}
+
 // itoa 简单整数转字符串（避免引入 strconv 仅为此）。
 func itoa(n int) string {
 	const digits = "0123456789"

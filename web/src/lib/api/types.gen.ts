@@ -2569,6 +2569,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/incidents/{id}/skip-postmortem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 跳过复盘（skip postmortem gate）
+         * @description 置 postmortem_skipped=true，放行 critical 事件在未完成复盘时 close。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 事件 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Incident"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/incidents/{id}/timeline": {
         parameters: {
             query?: never;
@@ -6867,6 +6936,8 @@ export interface components {
             merged_into?: string;
             /** @description 人类可读编号，如 INC-0042 */
             number?: string;
+            /** @description 复盘闸门：显式跳过复盘则可直接 close */
+            postmortem_skipped?: boolean;
             priority?: components["schemas"]["incident.Priority"];
             /** @description ResolvedAt holds the value of the "resolved_at" field. */
             resolved_at?: string;

@@ -22,6 +22,7 @@ import (
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/timelineitem"
+	"github.com/kevin/vigil/internal/event"
 
 	"github.com/pgvector/pgvector-go"
 )
@@ -62,12 +63,27 @@ type Engine struct {
 	llm      LLMProvider    // 可为 nil（无 AI 时降级）
 	embedder Embedder       // 可为 nil（无 embedding 时 published 不入库检索）
 	closer   IncidentCloser // 可为 nil（无联动时 published 不自动关闭 incident）
+	// autoDraftWarning 控制 warning 级事件 resolved 是否自动起草复盘（T4.1）。
+	//
+	// 触发档位（docs/capabilities/08-postmortem.md §3）：
+	//   - critical：强制自动起草（无条件建 draft）——不受此开关影响。
+	//   - warning ：可配——默认 false（建议但不强制），置 true 则自动起草。
+	//   - info    ：不强制，不自动起草。
+	//
+	// 设计简化说明：文档中 warning 档为「team 级可配」，但当前无 team 级复盘配置载体
+	// （Team schema 无复盘策略字段）。为不引入过度设计，本轮以「全局默认」实现——
+	// 由 main 装配经环境变量（VIGIL_POSTMORTEM_AUTO_DRAFT_WARNING）设置。
+	// 后续若需 team 级差异化，可在此接入 Team 配置查询而不改调用方。
+	autoDraftWarning bool
 }
 
 // NewEngine 创建复盘引擎。llm 可为 nil。
 func NewEngine(db *ent.Client, llm LLMProvider) *Engine {
 	return &Engine{db: db, llm: llm}
 }
+
+// SetAutoDraftWarning 配置 warning 级事件是否自动起草复盘（T4.1，main 装配时调用）。
+func (e *Engine) SetAutoDraftWarning(v bool) { e.autoDraftWarning = v }
 
 // SetEmbedder 注入向量化器（main 装配时调用）。
 // 配置后 published 复盘计算 embedding 入库，供知识沉淀检索（M12.6）。
@@ -155,6 +171,64 @@ func (e *Engine) GenerateDraft(ctx context.Context, incID int) (*ent.Postmortem,
 		return nil, fmt.Errorf("create postmortem: %w", err)
 	}
 	return pm, nil
+}
+
+// OnIncidentResolved 订阅 IncidentResolved 领域事件，按 severity 决定是否自动起草复盘（T4.1）。
+//
+// 触发档位（docs/capabilities/08-postmortem.md §3）：
+//   - critical：强制自动起草（建 draft 复盘）。
+//   - warning ：可配（autoDraftWarning，默认不强制）。
+//   - info    ：不强制，不起草。
+//
+// 复用 GenerateDraft（幂等：已有 draft 更新，已发布/评审中的复盘被 S7 覆盖保护拒绝——
+// 此处静默容忍，自动起草不应回冲人工成果）。best-effort：起草失败仅记日志，不阻断事件派发
+// （与事件总线 best-effort 扇出契约一致）。
+//
+// 装配：bus.Subscribe(event.IncidentResolved, engine.OnIncidentResolved)。
+func (e *Engine) OnIncidentResolved(ctx context.Context, ev event.Event) error {
+	if ev.Incident == nil {
+		return nil
+	}
+	if !e.shouldAutoDraft(incident.Severity(ev.Incident.Severity)) {
+		return nil
+	}
+	_, err := e.GenerateDraft(ctx, ev.Incident.ID)
+	if err != nil {
+		// S7 覆盖保护：已脱离 draft 的复盘不重复起草——自动起草场景视为正常（人工已接管），不上报为错误。
+		if errors.Is(err, ErrPostmortemNotDraft) {
+			return nil
+		}
+		slog.Warn("postmortem auto-draft on resolve failed",
+			"incident_id", ev.Incident.ID, "severity", ev.Incident.Severity, "error", err)
+		return err
+	}
+	return nil
+}
+
+// shouldAutoDraft 按 severity 判定是否自动起草复盘（T4.1 触发档位）。
+func (e *Engine) shouldAutoDraft(sev incident.Severity) bool {
+	switch sev {
+	case incident.SeverityCritical:
+		return true // 强制
+	case incident.SeverityWarning:
+		return e.autoDraftWarning // 可配，默认 false
+	default:
+		return false // info 及其它不强制
+	}
+}
+
+// HasPublishedPostmortem 实现 incident.PostmortemGate（T4.1 复盘闸门查询）。
+//
+// 判定「该 incident 是否已完成复盘」——存在 published 或 archived 复盘即视为已完成
+// （archived 是 published 之后的归档态，同样代表复盘走完，不该再被闸门拦）。
+// draft/in_review 不算完成（复盘尚未定稿发布，闸门仍应拦 close）。
+func (e *Engine) HasPublishedPostmortem(ctx context.Context, incID int) (bool, error) {
+	return e.db.Postmortem.Query().
+		Where(
+			postmortem.HasIncidentWith(incident.IDEQ(incID)),
+			postmortem.StatusIn(postmortem.StatusPublished, postmortem.StatusArchived),
+		).
+		Exist(ctx)
 }
 
 // draftOrDraft 用 AI 起草，失败/无 LLM 则用 fallback。

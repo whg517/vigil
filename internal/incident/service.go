@@ -46,6 +46,12 @@ var ErrNotFound = errors.New("incident not found")
 // 而应让调用方（如复盘发布联动）识别为「已收口」无操作跳过。故单列哨兵供 errors.Is 判定。
 var ErrAlreadyClosed = errors.New("incident already closed")
 
+// ErrPostmortemRequired 复盘闸门（T4.1）：critical 事件 resolved 后须先完成复盘
+// （发布或显式跳过）才能 close。未满足时人工 close 被拒，让单据停在「待复盘」。
+// 与 ErrInvalidTransition 区分：状态转换本身合法（resolved→closed），只是治理前置未满足，
+// 故单列哨兵，供 handler 返回专门的可读提示（提示先完成/跳过复盘）。
+var ErrPostmortemRequired = errors.New("critical incident requires postmortem before close")
+
 // Source 动作来源，决定时间线 source 字段与回调语义。
 type Source string
 
@@ -57,17 +63,37 @@ const (
 	SourceSystem  Source = "system"  // 系统联动触发（如复盘发布 → close），时间线 source 记 system
 )
 
+// PostmortemGate 复盘闸门查询接口（T4.1）。
+//
+// 由 postmortem 引擎实现并经 SetPostmortemGate 注入，回答「该 incident 是否已完成复盘」
+// （存在 published/archived 复盘）。用接口而非直接依赖 postmortem 包，避免构建期依赖环
+// （与 IncidentCloser、runbookEscalator 同款解耦）。
+//
+// 未注入（nil）时闸门降级为放行——单测/无复盘引擎场景不阻断 close。
+type PostmortemGate interface {
+	// HasPublishedPostmortem 该 incident 是否已有已完成（published/archived）复盘。
+	// true 表示复盘闸门已满足，可放行 close。
+	HasPublishedPostmortem(ctx context.Context, incID int) (bool, error)
+}
+
 // Service 事件动作领域服务。
 //
 // 依赖：
 //   - db        ent client
 //   - recorder  时间线记录器（统一写入，nil 时跳过记录）
 //   - bus       领域事件总线（nil 时跳过事件发布——降级/测试用）
+//   - pmGate    复盘闸门（nil 时闸门放行——降级/测试用）
 type Service struct {
 	db       *ent.Client
 	recorder *timeline.Recorder
 	bus      *event.Bus
+	pmGate   PostmortemGate
 }
+
+// SetPostmortemGate 注入复盘闸门（main 装配时调用，T4.1）。
+// 配置后 critical 事件 resolved→closed 前校验复盘已完成（published/archived）或已显式跳过。
+// 未注入时降级为无闸门（任何 resolved 单可直接 close）。
+func (s *Service) SetPostmortemGate(g PostmortemGate) { s.pmGate = g }
 
 // Action 动作类型，随事件发布供订阅方区分语义。
 type Action string
@@ -158,10 +184,29 @@ func (s *Service) Resolve(ctx context.Context, incID int, actorID int, src Sourc
 // 非 resolved 状态直接 close 属非法转换（如 triggered 未处置就归档），返回 ErrInvalidTransition。
 // 已 closed 幂等返回 ErrAlreadyClosed（供复盘发布联动等调用方识别「已收口」跳过，不当失败处理）。
 //
+// 复盘闸门（T4.1）：critical 事件须先完成复盘（published/archived）或显式跳过（postmortem_skipped）
+// 才能 close，否则返回 ErrPostmortemRequired，让单据停在「待复盘」。非 critical 不受约束。
+// 本方法用于人工/API 主动 close（走闸门）；复盘发布联动收口走 CloseAfterPostmortem（绕过闸门，
+// 因发布本身即已满足复盘）。
+//
 // 触发路径：① Web/IM 人工点「关闭」；② 复盘发布联动（复盘 published → 关联 incident 收口）。
 // 与 resolve 分离的意义：resolved 表示「问题已处理」，closed 表示「复盘/归档完成，不再变更」——
 // 补 closed 终态可达，才让单据生命周期真正闭合，而非永远停在 resolved。
 func (s *Service) Close(ctx context.Context, incID int, actorID int, src Source) (*ent.Incident, error) {
+	return s.closeInternal(ctx, incID, actorID, src, false)
+}
+
+// CloseAfterPostmortem 复盘发布联动收口：resolved → closed，绕过复盘闸门。
+//
+// 为什么绕过闸门：调用方是复盘发布链路（postmortem.Engine.Transition → IncidentCloser.Close），
+// 此刻复盘刚 published，闸门本会放行；但为避免读取时序竞态（发布事务与闸门查询交错），
+// 显式绕过更稳。人工/API close 仍走 Close（受闸门约束）。
+func (s *Service) CloseAfterPostmortem(ctx context.Context, incID int, actorID int, src Source) (*ent.Incident, error) {
+	return s.closeInternal(ctx, incID, actorID, src, true)
+}
+
+// closeInternal close 的内部实现，bypassGate 决定是否跳过复盘闸门。
+func (s *Service) closeInternal(ctx context.Context, incID int, actorID int, src Source, bypassGate bool) (*ent.Incident, error) {
 	inc, err := s.db.Incident.Get(ctx, incID)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -177,6 +222,14 @@ func (s *Service) Close(ctx context.Context, incID int, actorID int, src Source)
 		return nil, fmt.Errorf("%w: close from %s", ErrInvalidTransition, st)
 	}
 
+	// 复盘闸门（T4.1）：critical 事件须先完成复盘或显式跳过。
+	// bypassGate=true（复盘发布联动）跳过；非 critical 或已跳过或已有复盘则放行。
+	if !bypassGate {
+		if err := s.checkPostmortemGate(ctx, inc); err != nil {
+			return nil, err
+		}
+	}
+
 	inc, err = s.db.Incident.UpdateOneID(inc.ID).
 		SetStatus(incident.StatusClosed).
 		Save(ctx)
@@ -188,6 +241,59 @@ func (s *Service) Close(ctx context.Context, incID int, actorID int, src Source)
 	s.record(ctx, inc, timelineitem.TypeStatusChanged, actorID, src,
 		fmt.Sprintf("%s 关闭了事件", actorLabel(actorID)), map[string]any{"status": "closed"})
 	s.publish(ctx, event.IncidentClosed, inc, ActionClose, actorID, src)
+	return inc, nil
+}
+
+// checkPostmortemGate 复盘闸门判定（T4.1）：
+//   - 非 critical：不受约束，放行。
+//   - critical + postmortem_skipped=true：已显式跳过，放行。
+//   - critical + 已有 published/archived 复盘：闸门满足，放行。
+//   - critical + 无复盘 + 未跳过：返回 ErrPostmortemRequired（停「待复盘」）。
+//
+// pmGate 未注入时降级放行（单测/无复盘引擎场景）。
+func (s *Service) checkPostmortemGate(ctx context.Context, inc *ent.Incident) error {
+	if incident.Severity(inc.Severity) != incident.SeverityCritical {
+		return nil // 非 critical 不受闸门约束
+	}
+	if inc.PostmortemSkipped {
+		return nil // 已显式跳过复盘
+	}
+	if s.pmGate == nil {
+		return nil // 未注入闸门：降级放行
+	}
+	done, err := s.pmGate.HasPublishedPostmortem(ctx, inc.ID)
+	if err != nil {
+		return fmt.Errorf("check postmortem gate: %w", err)
+	}
+	if !done {
+		return ErrPostmortemRequired
+	}
+	return nil
+}
+
+// SkipPostmortem 显式跳过复盘闸门（T4.1）：置 postmortem_skipped=true 并记时间线。
+// 用于 critical 事件确无复盘必要（如误报、演练）时放行 close，而非强制走复盘流程。
+// 幂等：重复跳过无副作用。仅对 resolved（尚未 close）的单有意义，但不硬性校验状态
+// （closed 单跳过无害，triggered 单跳过为后续 resolve→close 预留）。
+func (s *Service) SkipPostmortem(ctx context.Context, incID int, actorID int, src Source) (*ent.Incident, error) {
+	inc, err := s.db.Incident.Get(ctx, incID)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get incident: %w", err)
+	}
+	if inc.PostmortemSkipped {
+		return inc, nil // 幂等：已跳过
+	}
+	inc, err = s.db.Incident.UpdateOneID(inc.ID).
+		SetPostmortemSkipped(true).
+		Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("update incident: %w", err)
+	}
+	s.record(ctx, inc, timelineitem.TypeStatusChanged, actorID, src,
+		fmt.Sprintf("%s 跳过了复盘", actorLabel(actorID)), map[string]any{"postmortem_skipped": true})
 	return inc, nil
 }
 

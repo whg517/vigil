@@ -181,6 +181,20 @@ func (_c *IncidentCreate) SetNillableResolvedAt(v *time.Time) *IncidentCreate {
 	return _c
 }
 
+// SetPostmortemSkipped sets the "postmortem_skipped" field.
+func (_c *IncidentCreate) SetPostmortemSkipped(v bool) *IncidentCreate {
+	_c.mutation.SetPostmortemSkipped(v)
+	return _c
+}
+
+// SetNillablePostmortemSkipped sets the "postmortem_skipped" field if the given value is not nil.
+func (_c *IncidentCreate) SetNillablePostmortemSkipped(v *bool) *IncidentCreate {
+	if v != nil {
+		_c.SetPostmortemSkipped(*v)
+	}
+	return _c
+}
+
 // SetAckedAt sets the "acked_at" field.
 func (_c *IncidentCreate) SetAckedAt(v time.Time) *IncidentCreate {
 	_c.mutation.SetAckedAt(v)
@@ -483,6 +497,10 @@ func (_c *IncidentCreate) defaults() {
 		v := incident.DefaultTriggerType
 		_c.mutation.SetTriggerType(v)
 	}
+	if _, ok := _c.mutation.PostmortemSkipped(); !ok {
+		v := incident.DefaultPostmortemSkipped
+		_c.mutation.SetPostmortemSkipped(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := incident.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -543,6 +561,9 @@ func (_c *IncidentCreate) check() error {
 		if err := incident.TriggerTypeValidator(v); err != nil {
 			return &ValidationError{Name: "trigger_type", err: fmt.Errorf(`ent: validator failed for field "Incident.trigger_type": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.PostmortemSkipped(); !ok {
+		return &ValidationError{Name: "postmortem_skipped", err: errors.New(`ent: missing required field "Incident.postmortem_skipped"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Incident.created_at"`)}
@@ -627,6 +648,10 @@ func (_c *IncidentCreate) createSpec() (*Incident, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ResolvedAt(); ok {
 		_spec.SetField(incident.FieldResolvedAt, field.TypeTime, value)
 		_node.ResolvedAt = &value
+	}
+	if value, ok := _c.mutation.PostmortemSkipped(); ok {
+		_spec.SetField(incident.FieldPostmortemSkipped, field.TypeBool, value)
+		_node.PostmortemSkipped = value
 	}
 	if value, ok := _c.mutation.AckedAt(); ok {
 		_spec.SetField(incident.FieldAckedAt, field.TypeTime, value)

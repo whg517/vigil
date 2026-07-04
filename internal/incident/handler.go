@@ -11,6 +11,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
+	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
@@ -69,6 +70,7 @@ func (h *Handler) Register(g *echo.Group) {
 	g.POST("/incidents/:id/close", h.close)
 	g.POST("/incidents/:id/escalate", h.escalate)
 	g.POST("/incidents/:id/reopen", h.reopen)
+	g.POST("/incidents/:id/skip-postmortem", h.skipPostmortem) // T4.1 显式跳过复盘闸门
 }
 
 // sourceFromRequest 从请求判定动作来源（C30 归因）。
@@ -109,6 +111,19 @@ func (h *Handler) list(c *echo.Context) error {
 	}
 	if s := c.QueryParam("severity"); s != "" {
 		q = q.Where(incident.SeverityEQ(incident.Severity(s)))
+	}
+	// T4.1 待复盘可见性：?pending_postmortem=true 过滤「resolved 后停在待复盘」的 critical 单——
+	// 即 severity=critical + status=resolved + 未跳过复盘 + 尚无 published/archived 复盘。
+	// 让运营/团队能一眼看到「已解决但复盘未收口」的欠账，配合闸门推动复盘闭环。
+	if pp := c.QueryParam("pending_postmortem"); pp == "true" {
+		q = q.Where(
+			incident.SeverityEQ(incident.SeverityCritical),
+			incident.StatusEQ(incident.StatusResolved),
+			incident.PostmortemSkipped(false),
+			incident.Not(incident.HasPostmortemWith(
+				postmortem.StatusIn(postmortem.StatusPublished, postmortem.StatusArchived),
+			)),
+		)
 	}
 	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
 	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
@@ -377,6 +392,12 @@ func (h *Handler) close(c *echo.Context) error {
 			}
 			return c.JSON(http.StatusOK, cur)
 		}
+		// T4.1 复盘闸门：critical 未完成复盘不可 close → 400 failed_precondition + 明确提示
+		// （先完成复盘发布或显式跳过），前端据此引导用户走复盘/跳过路径。
+		if errors.Is(err, ErrPostmortemRequired) {
+			return errs.BadRequestWith(c, "failed_precondition",
+				"critical 事件须先完成复盘（发布）或显式跳过复盘后才能关闭")
+		}
 		// B25 归一：不存在 → 404；状态非法（如 triggered 直接 close）→ 400 failed_precondition。
 		return errs.FailActionState(c, nil, err, "incident")
 	}
@@ -433,6 +454,39 @@ func (h *Handler) reopen(c *echo.Context) error {
 	inc, err := h.svc.Reopen(c.Request().Context(), id, h.actorFromContext(c), h.sourceFromRequest(c))
 	if err != nil {
 		// B25 归一：不存在 → 404；状态非法 → 400 failed_precondition。
+		return errs.FailActionState(c, nil, err, "incident")
+	}
+	return c.JSON(http.StatusOK, inc)
+}
+
+// skipPostmortem 显式跳过复盘闸门（T4.1）。
+//
+// critical 事件 resolved 后受复盘闸门约束（未完成复盘不可 close）。确无复盘必要（误报/演练）时，
+// 有权者可显式跳过，置 postmortem_skipped=true 放行后续 close，而非强制走复盘。
+// 权限：postmortem.update——跳过复盘是复盘治理决策，须有复盘管理权（非仅 incident.close）。
+//
+// @Summary      跳过复盘（skip postmortem gate）
+// @Description  置 postmortem_skipped=true，放行 critical 事件在未完成复盘时 close。
+// @Tags         incident
+// @Produce      json
+// @Param        id   path     int  true  "事件 ID"
+// @Success      200  {object} ent.Incident
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      403  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id}/skip-postmortem [post]
+func (h *Handler) skipPostmortem(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	// 资源级鉴权：跳过复盘属复盘治理写操作，须 postmortem.update；经 incident→team 回溯归属。
+	if e := h.checkAccess(c, id, auth.PermPostmortemUpdate); e != nil {
+		return e
+	}
+	inc, err := h.svc.SkipPostmortem(c.Request().Context(), id, h.actorFromContext(c), h.sourceFromRequest(c))
+	if err != nil {
 		return errs.FailActionState(c, nil, err, "incident")
 	}
 	return c.JSON(http.StatusOK, inc)

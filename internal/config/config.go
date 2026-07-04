@@ -49,6 +49,9 @@ type Config struct {
 
 	// Notification 通知通道配置（能力域 7，邮件/电话/SMS）
 	Notification Notification `envconfig:"notification"`
+
+	// Postmortem 复盘配置（能力域 12，自动起草触发档位）
+	Postmortem Postmortem `envconfig:"postmortem"`
 }
 
 // App 应用级配置。
@@ -185,6 +188,20 @@ func (t Triage) EffectiveAggregateWindow() time.Duration {
 		return 5 * time.Minute
 	}
 	return t.AggregateWindow
+}
+
+// Postmortem 复盘配置（能力域 12，M12.7 触发档位，T4.1）。
+//
+// 触发档位（docs/capabilities/08-postmortem.md §3）：
+//   - critical：强制自动起草（无条件），不受配置影响。
+//   - warning ：AutoDraftWarning 控制，默认 false（建议但不强制）。
+//   - info    ：不强制，不起草。
+//
+// 简化说明：文档中 warning 档为「team 级可配」，但当前无 team 级复盘策略载体，
+// 本轮以全局默认实现（VIGIL_POSTMORTEM_AUTO_DRAFT_WARNING）；后续可在引擎侧接入 team 配置。
+type Postmortem struct {
+	// AutoDraftWarning warning 级事件 resolved 是否自动起草复盘。默认 false。
+	AutoDraftWarning bool `envconfig:"auto_draft_warning" default:"false"`
 }
 
 // Notification 通知通道配置（能力域 7，PRD M7.2/M7.3）。

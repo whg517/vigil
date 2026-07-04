@@ -50,6 +50,8 @@ type Incident struct {
 	WarRoom map[string]interface{} `json:"war_room,omitempty"`
 	// ResolvedAt holds the value of the "resolved_at" field.
 	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
+	// 复盘闸门：显式跳过复盘则可直接 close
+	PostmortemSkipped bool `json:"postmortem_skipped,omitempty"`
 	// 确认时间，MTTA 计算
 	AckedAt *time.Time `json:"acked_at,omitempty"`
 	// ClosedAt holds the value of the "closed_at" field.
@@ -217,6 +219,8 @@ func (*Incident) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case incident.FieldEmbedding:
 			values[i] = new(schema.NullableVector)
+		case incident.FieldPostmortemSkipped:
+			values[i] = new(sql.NullBool)
 		case incident.FieldID, incident.FieldEscalatedCount, incident.FieldCurrentLevel:
 			values[i] = new(sql.NullInt64)
 		case incident.FieldNumber, incident.FieldTitle, incident.FieldSeverity, incident.FieldStatus, incident.FieldPriority, incident.FieldSummary, incident.FieldMergedInto, incident.FieldTriggerType, incident.FieldTriggerSourceEventID:
@@ -332,6 +336,12 @@ func (_m *Incident) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ResolvedAt = new(time.Time)
 				*_m.ResolvedAt = value.Time
+			}
+		case incident.FieldPostmortemSkipped:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field postmortem_skipped", values[i])
+			} else if value.Valid {
+				_m.PostmortemSkipped = value.Bool
 			}
 		case incident.FieldAckedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -524,6 +534,9 @@ func (_m *Incident) String() string {
 		builder.WriteString("resolved_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("postmortem_skipped=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PostmortemSkipped))
 	builder.WriteString(", ")
 	if v := _m.AckedAt; v != nil {
 		builder.WriteString("acked_at=")

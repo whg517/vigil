@@ -238,6 +238,160 @@ func TestClose_NotFound(t *testing.T) {
 	}
 }
 
+// fakePMGate 复盘闸门桩：done 决定 HasPublishedPostmortem 返回值。
+type fakePMGate struct {
+	done bool
+	err  error
+}
+
+func (g fakePMGate) HasPublishedPostmortem(_ context.Context, _ int) (bool, error) {
+	return g.done, g.err
+}
+
+// seedIncidentSev 建指定 severity 的 Incident（默认 team）。
+// slug/number 带 severity 后缀避免共享内存库（cache=shared）跨调用唯一约束冲突。
+func seedIncidentSev(t *testing.T, c *ent.Client, status incident.Status, sev incident.Severity) *ent.Incident {
+	t.Helper()
+	ctx := context.Background()
+	tm, err := c.Team.Create().SetName("支付-" + string(sev)).SetSlug("pay-" + string(sev)).Save(ctx)
+	if err != nil {
+		t.Fatalf("create team: %v", err)
+	}
+	inc, err := c.Incident.Create().
+		SetNumber("INC-SEV-" + string(sev)).
+		SetTitle("事件").
+		SetSeverity(sev).
+		SetStatus(status).
+		SetTeamID(tm.ID).
+		Save(ctx)
+	if err != nil {
+		t.Fatalf("create incident: %v", err)
+	}
+	return inc
+}
+
+// TestClose_CriticalGateBlocksWithoutPostmortem T4.1 闸门：critical resolved 未复盘不可 close。
+func TestClose_CriticalGateBlocksWithoutPostmortem(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncidentSev(t, c, incident.StatusResolved, incident.SeverityCritical)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+	svc.SetPostmortemGate(fakePMGate{done: false}) // 复盘未完成
+
+	_, err := svc.Close(context.Background(), inc.ID, 1, SourceWeb)
+	if !errors.Is(err, ErrPostmortemRequired) {
+		t.Fatalf("expected ErrPostmortemRequired, got %v", err)
+	}
+	// 状态不应被改动（仍 resolved）
+	got, _ := c.Incident.Get(context.Background(), inc.ID)
+	if got.Status != incident.StatusResolved {
+		t.Errorf("闸门拦截后状态被改: got %s, want resolved", got.Status)
+	}
+}
+
+// TestClose_CriticalGatePassesWithPublishedPostmortem 复盘完成后 critical 可 close。
+func TestClose_CriticalGatePassesWithPublishedPostmortem(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncidentSev(t, c, incident.StatusResolved, incident.SeverityCritical)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+	svc.SetPostmortemGate(fakePMGate{done: true}) // 复盘已完成
+
+	updated, err := svc.Close(context.Background(), inc.ID, 1, SourceWeb)
+	if err != nil {
+		t.Fatalf("复盘完成后应可 close: %v", err)
+	}
+	if updated.Status != incident.StatusClosed {
+		t.Errorf("status: got %s, want closed", updated.Status)
+	}
+}
+
+// TestClose_CriticalSkipPostmortemAllowsClose 显式跳过复盘后 critical 可直接 close。
+func TestClose_CriticalSkipPostmortemAllowsClose(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncidentSev(t, c, incident.StatusResolved, incident.SeverityCritical)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+	svc.SetPostmortemGate(fakePMGate{done: false}) // 复盘未完成
+
+	// 先跳过复盘
+	if _, err := svc.SkipPostmortem(context.Background(), inc.ID, 1, SourceWeb); err != nil {
+		t.Fatalf("SkipPostmortem: %v", err)
+	}
+	got, _ := c.Incident.Get(context.Background(), inc.ID)
+	if !got.PostmortemSkipped {
+		t.Fatal("postmortem_skipped 未置位")
+	}
+	// 跳过后即使复盘未完成也可 close
+	updated, err := svc.Close(context.Background(), inc.ID, 1, SourceWeb)
+	if err != nil {
+		t.Fatalf("跳过复盘后应可 close: %v", err)
+	}
+	if updated.Status != incident.StatusClosed {
+		t.Errorf("status: got %s, want closed", updated.Status)
+	}
+}
+
+// TestClose_NonCriticalNotGated info/warning 不受复盘闸门约束，可直接 close。
+func TestClose_NonCriticalNotGated(t *testing.T) {
+	for _, sev := range []incident.Severity{incident.SeverityWarning, incident.SeverityInfo} {
+		c := newClient(t)
+		inc := seedIncidentSev(t, c, incident.StatusResolved, sev)
+		svc := NewService(c, timeline.NewRecorder(c), nil)
+		svc.SetPostmortemGate(fakePMGate{done: false}) // 复盘未完成，但非 critical 不该被拦
+
+		updated, err := svc.Close(context.Background(), inc.ID, 1, SourceWeb)
+		if err != nil {
+			t.Fatalf("%s 不受闸门约束，应可 close: %v", sev, err)
+		}
+		if updated.Status != incident.StatusClosed {
+			t.Errorf("%s status: got %s, want closed", sev, updated.Status)
+		}
+	}
+}
+
+// TestCloseAfterPostmortem_BypassesGate 复盘发布联动收口绕过闸门（即使闸门查询未完成）。
+func TestCloseAfterPostmortem_BypassesGate(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncidentSev(t, c, incident.StatusResolved, incident.SeverityCritical)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+	svc.SetPostmortemGate(fakePMGate{done: false}) // 即便闸门说未完成，联动路径也应绕过
+
+	updated, err := svc.CloseAfterPostmortem(context.Background(), inc.ID, 0, SourceSystem)
+	if err != nil {
+		t.Fatalf("CloseAfterPostmortem 应绕过闸门: %v", err)
+	}
+	if updated.Status != incident.StatusClosed {
+		t.Errorf("status: got %s, want closed", updated.Status)
+	}
+}
+
+// TestClose_CriticalNilGateAllows 未注入闸门（nil）时降级放行（单测/无引擎场景）。
+func TestClose_CriticalNilGateAllows(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncidentSev(t, c, incident.StatusResolved, incident.SeverityCritical)
+	svc := NewService(c, timeline.NewRecorder(c), nil) // 不注入闸门
+
+	if _, err := svc.Close(context.Background(), inc.ID, 1, SourceWeb); err != nil {
+		t.Fatalf("nil 闸门应降级放行: %v", err)
+	}
+}
+
+// TestSkipPostmortem_Idempotent 重复跳过幂等无副作用。
+func TestSkipPostmortem_Idempotent(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncidentSev(t, c, incident.StatusResolved, incident.SeverityCritical)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+
+	if _, err := svc.SkipPostmortem(context.Background(), inc.ID, 1, SourceWeb); err != nil {
+		t.Fatalf("first skip: %v", err)
+	}
+	if _, err := svc.SkipPostmortem(context.Background(), inc.ID, 1, SourceWeb); err != nil {
+		t.Fatalf("second skip should be idempotent: %v", err)
+	}
+	got, _ := c.Incident.Get(context.Background(), inc.ID)
+	if !got.PostmortemSkipped {
+		t.Error("postmortem_skipped 应为 true")
+	}
+}
+
 // TestReopen_FromClosed closed 可 reopen 回 triggered（验证终态非死路：终态 + reopen 边）。
 func TestReopen_FromClosed(t *testing.T) {
 	c := newClient(t)

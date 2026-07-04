@@ -6269,6 +6269,7 @@ type IncidentMutation struct {
 	trigger_source_event_id  *string
 	war_room                 *map[string]interface{}
 	resolved_at              *time.Time
+	postmortem_skipped       *bool
 	acked_at                 *time.Time
 	closed_at                *time.Time
 	embedding                **schema.NullableVector
@@ -6977,6 +6978,42 @@ func (m *IncidentMutation) ResolvedAtCleared() bool {
 func (m *IncidentMutation) ResetResolvedAt() {
 	m.resolved_at = nil
 	delete(m.clearedFields, incident.FieldResolvedAt)
+}
+
+// SetPostmortemSkipped sets the "postmortem_skipped" field.
+func (m *IncidentMutation) SetPostmortemSkipped(b bool) {
+	m.postmortem_skipped = &b
+}
+
+// PostmortemSkipped returns the value of the "postmortem_skipped" field in the mutation.
+func (m *IncidentMutation) PostmortemSkipped() (r bool, exists bool) {
+	v := m.postmortem_skipped
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPostmortemSkipped returns the old "postmortem_skipped" field's value of the Incident entity.
+// If the Incident object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IncidentMutation) OldPostmortemSkipped(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPostmortemSkipped is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPostmortemSkipped requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPostmortemSkipped: %w", err)
+	}
+	return oldValue.PostmortemSkipped, nil
+}
+
+// ResetPostmortemSkipped resets all changes to the "postmortem_skipped" field.
+func (m *IncidentMutation) ResetPostmortemSkipped() {
+	m.postmortem_skipped = nil
 }
 
 // SetAckedAt sets the "acked_at" field.
@@ -7751,7 +7788,7 @@ func (m *IncidentMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *IncidentMutation) Fields() []string {
-	fields := make([]string, 0, 18)
+	fields := make([]string, 0, 19)
 	if m.number != nil {
 		fields = append(fields, incident.FieldNumber)
 	}
@@ -7790,6 +7827,9 @@ func (m *IncidentMutation) Fields() []string {
 	}
 	if m.resolved_at != nil {
 		fields = append(fields, incident.FieldResolvedAt)
+	}
+	if m.postmortem_skipped != nil {
+		fields = append(fields, incident.FieldPostmortemSkipped)
 	}
 	if m.acked_at != nil {
 		fields = append(fields, incident.FieldAckedAt)
@@ -7840,6 +7880,8 @@ func (m *IncidentMutation) Field(name string) (ent.Value, bool) {
 		return m.WarRoom()
 	case incident.FieldResolvedAt:
 		return m.ResolvedAt()
+	case incident.FieldPostmortemSkipped:
+		return m.PostmortemSkipped()
 	case incident.FieldAckedAt:
 		return m.AckedAt()
 	case incident.FieldClosedAt:
@@ -7885,6 +7927,8 @@ func (m *IncidentMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldWarRoom(ctx)
 	case incident.FieldResolvedAt:
 		return m.OldResolvedAt(ctx)
+	case incident.FieldPostmortemSkipped:
+		return m.OldPostmortemSkipped(ctx)
 	case incident.FieldAckedAt:
 		return m.OldAckedAt(ctx)
 	case incident.FieldClosedAt:
@@ -7994,6 +8038,13 @@ func (m *IncidentMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetResolvedAt(v)
+		return nil
+	case incident.FieldPostmortemSkipped:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPostmortemSkipped(v)
 		return nil
 	case incident.FieldAckedAt:
 		v, ok := value.(time.Time)
@@ -8195,6 +8246,9 @@ func (m *IncidentMutation) ResetField(name string) error {
 		return nil
 	case incident.FieldResolvedAt:
 		m.ResetResolvedAt()
+		return nil
+	case incident.FieldPostmortemSkipped:
+		m.ResetPostmortemSkipped()
 		return nil
 	case incident.FieldAckedAt:
 		m.ResetAckedAt()

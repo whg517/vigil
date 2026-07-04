@@ -96,6 +96,11 @@ func ResolvedAt(v time.Time) predicate.Incident {
 	return predicate.Incident(sql.FieldEQ(FieldResolvedAt, v))
 }
 
+// PostmortemSkipped applies equality check predicate on the "postmortem_skipped" field. It's identical to PostmortemSkippedEQ.
+func PostmortemSkipped(v bool) predicate.Incident {
+	return predicate.Incident(sql.FieldEQ(FieldPostmortemSkipped, v))
+}
+
 // AckedAt applies equality check predicate on the "acked_at" field. It's identical to AckedAtEQ.
 func AckedAt(v time.Time) predicate.Incident {
 	return predicate.Incident(sql.FieldEQ(FieldAckedAt, v))
@@ -694,6 +699,16 @@ func ResolvedAtIsNil() predicate.Incident {
 // ResolvedAtNotNil applies the NotNil predicate on the "resolved_at" field.
 func ResolvedAtNotNil() predicate.Incident {
 	return predicate.Incident(sql.FieldNotNull(FieldResolvedAt))
+}
+
+// PostmortemSkippedEQ applies the EQ predicate on the "postmortem_skipped" field.
+func PostmortemSkippedEQ(v bool) predicate.Incident {
+	return predicate.Incident(sql.FieldEQ(FieldPostmortemSkipped, v))
+}
+
+// PostmortemSkippedNEQ applies the NEQ predicate on the "postmortem_skipped" field.
+func PostmortemSkippedNEQ(v bool) predicate.Incident {
+	return predicate.Incident(sql.FieldNEQ(FieldPostmortemSkipped, v))
 }
 
 // AckedAtEQ applies the EQ predicate on the "acked_at" field.

@@ -40,6 +40,11 @@ func (Incident) Fields() []ent.Field {
 		// war_room 作战室信息
 		field.JSON("war_room", map[string]any{}).Optional().Comment("作战室：im_platform/im_channel_id/created_at"),
 		field.Time("resolved_at").Optional().Nillable(),
+		// postmortem_skipped 复盘闸门跳过标记（T4.1）。
+		// critical 事件 resolved 后须先完成复盘（发布）才能 close，否则停「待复盘」。
+		// 显式跳过复盘（POST /incidents/:id/skip-postmortem）时置 true，闸门放行 close。
+		// 非 critical 事件不受闸门约束，此字段对其无意义（保持默认 false）。
+		field.Bool("postmortem_skipped").Default(false).Comment("复盘闸门：显式跳过复盘则可直接 close"),
 		// acked_at 确认时间（真实 MTTA = acked_at - created_at）。Nullable 表示未确认。
 		field.Time("acked_at").Optional().Nillable().Comment("确认时间，MTTA 计算"),
 		field.Time("closed_at").Optional().Nillable(),

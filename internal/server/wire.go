@@ -368,6 +368,14 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// 复盘发布 → 关联 incident 推进到 closed 终态（收口闭环）。
 	// 走 incService.Close（同一状态机/时间线/领域事件），复盘不反向依赖 incident 包。
 	postmortemEngine.SetIncidentCloser(incidentCloser{inc: incService})
+	// T4.1 warning 级自动起草档位（默认不强制，可经环境变量开启）。
+	postmortemEngine.SetAutoDraftWarning(cfg.Postmortem.AutoDraftWarning)
+	// T4.1 复盘闸门：incService.Close 前经此查「是否已完成复盘」，critical 未复盘不可 close。
+	// 引擎实现 incident.PostmortemGate（HasPublishedPostmortem），此处注入闭合闸门链路。
+	incService.SetPostmortemGate(postmortemEngine)
+	// T4.1 resolve 自动起草：订阅 IncidentResolved，按 severity 自动建 draft 复盘
+	// （critical 强制，warning 可配，info 不起草）。复用 GenerateDraft，best-effort 不阻断事件派发。
+	bus.Subscribe(domainevent.IncidentResolved, postmortemEngine.OnIncidentResolved)
 	postmortemH := postmortem.NewHandler(st.DB, postmortemEngine)
 	postmortemH.SetAuthorizer(authz)
 	postmortemH.SetScopeResolver(scopeResolver)
@@ -883,7 +891,9 @@ type incidentCloser struct {
 }
 
 func (c incidentCloser) Close(ctx context.Context, incID int, actorID int) error {
-	_, err := c.inc.Close(ctx, incID, actorID, incident.SourceSystem)
+	// 复盘发布联动收口走 CloseAfterPostmortem 绕过复盘闸门（T4.1）：
+	// 发布本身即已满足复盘，闸门本会放行，显式绕过避免时序竞态。
+	_, err := c.inc.CloseAfterPostmortem(ctx, incID, actorID, incident.SourceSystem)
 	if errors.Is(err, incident.ErrAlreadyClosed) {
 		return nil // 已 closed：幂等成功
 	}
@@ -955,6 +965,8 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/incidents/:id/close", auth.PermIncidentClose)
 	g.RoutePerm(http.MethodPost, "/incidents/:id/escalate", auth.PermIncidentEscalate)
 	g.RoutePerm(http.MethodPost, "/incidents/:id/reopen", auth.PermIncidentReopen)
+	// 跳过复盘闸门（T4.1）—— 复盘治理写操作，须 postmortem.update（非仅 incident.close）。
+	g.RoutePerm(http.MethodPost, "/incidents/:id/skip-postmortem", auth.PermPostmortemUpdate)
 	// 排班写操作 + override（M5.3）
 	g.RoutePerm(http.MethodPost, "/schedules", auth.PermScheduleCreate)
 	g.RoutePerm(http.MethodPatch, "/schedules/:id", auth.PermScheduleUpdate)

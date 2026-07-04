@@ -41,6 +41,8 @@ const (
 	FieldWarRoom = "war_room"
 	// FieldResolvedAt holds the string denoting the resolved_at field in the database.
 	FieldResolvedAt = "resolved_at"
+	// FieldPostmortemSkipped holds the string denoting the postmortem_skipped field in the database.
+	FieldPostmortemSkipped = "postmortem_skipped"
 	// FieldAckedAt holds the string denoting the acked_at field in the database.
 	FieldAckedAt = "acked_at"
 	// FieldClosedAt holds the string denoting the closed_at field in the database.
@@ -168,6 +170,7 @@ var Columns = []string{
 	FieldTriggerSourceEventID,
 	FieldWarRoom,
 	FieldResolvedAt,
+	FieldPostmortemSkipped,
 	FieldAckedAt,
 	FieldClosedAt,
 	FieldEmbedding,
@@ -212,6 +215,8 @@ var (
 	DefaultEscalatedCount int
 	// DefaultCurrentLevel holds the default value on creation for the "current_level" field.
 	DefaultCurrentLevel int
+	// DefaultPostmortemSkipped holds the default value on creation for the "postmortem_skipped" field.
+	DefaultPostmortemSkipped bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -394,6 +399,11 @@ func ByTriggerSourceEventID(opts ...sql.OrderTermOption) OrderOption {
 // ByResolvedAt orders the results by the resolved_at field.
 func ByResolvedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldResolvedAt, opts...).ToFunc()
+}
+
+// ByPostmortemSkipped orders the results by the postmortem_skipped field.
+func ByPostmortemSkipped(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPostmortemSkipped, opts...).ToFunc()
 }
 
 // ByAckedAt orders the results by the acked_at field.

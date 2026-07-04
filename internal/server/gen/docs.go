@@ -1083,6 +1083,10 @@ const docTemplate = `{
                         "description": "人类可读编号，如 INC-0042",
                         "type": "string"
                     },
+                    "postmortem_skipped": {
+                        "description": "复盘闸门：显式跳过复盘则可直接 close",
+                        "type": "boolean"
+                    },
                     "priority": {
                         "$ref": "#/components/schemas/incident.Priority"
                     },
@@ -6775,6 +6779,73 @@ const docTemplate = `{
                 "summary": "Find similar postmortems",
                 "tags": [
                     "ai"
+                ]
+            }
+        },
+        "/incidents/{id}/skip-postmortem": {
+            "post": {
+                "description": "置 postmortem_skipped=true，放行 critical 事件在未完成复盘时 close。",
+                "parameters": [
+                    {
+                        "description": "事件 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Incident"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "跳过复盘（skip postmortem gate）",
+                "tags": [
+                    "incident"
                 ]
             }
         },
