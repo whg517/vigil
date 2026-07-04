@@ -57,6 +57,11 @@ const (
 	ActionIntegrationCreate = "integration.create"
 	ActionIntegrationUpdate = "integration.update"
 	ActionIntegrationDelete = "integration.delete"
+	// 接入 token 轮换（T5.1）：旧 token 立即失效，等同重置接入点凭据，须可追溯。
+	ActionIntegrationRotateToken = "integration.rotate_token"
+	// 原始告警重放（T5.5）：把 parse_failed/requeued 的 raw_event 重新投入归一化，
+	// 是接入排障的写动作（会产生新 Event/触发分诊），须留痕（谁重放了哪条）。
+	ActionRawEventReplay = "raw_event.replay"
 	// 出向工单集成配置变更（T4.3）：工单集成持凭据、决定 ActionItem 往哪建单，
 	// 是外连攻击面 + 凭据面，创建/改动/删除都留痕。
 	ActionTicketIntegrationCreate = "ticket_integration.create"

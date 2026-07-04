@@ -21,6 +21,7 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/integration"
 	"github.com/kevin/vigil/ent/rawevent"
+	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/httputil"
 	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/middleware"
@@ -39,6 +40,9 @@ type Handler struct {
 	limiter          *middleware.Limiter             // 按 Integration 限流（nil 不限流）
 	backpressure     *middleware.BackpressureChecker // 队列积压背压（nil 不检查）
 	defaultRateLimit int                             // 接入点默认限流（0=用代码默认 600）
+	// 开放 API（POST /events）资源级鉴权（T5.1）：webhook 走 token 自证不用，开放 API 走 RBAC。
+	authz *auth.Authorizer
+	scope *auth.ScopeResolver
 }
 
 // NewHandler 创建接入 handler。
@@ -97,20 +101,33 @@ func (h *Handler) receiveWebhook(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errMsg("read body: "+err.Error()))
 	}
 
-	// 3. 落 RawEvent（先落库，保证不丢——即使限流/背压，payload 也必须落库，capabilities §3.3）
+	// 3-6. 落 RawEvent → 限流/背压 → 入归一化队列（webhook 与开放 API 共用同一链路）。
+	ack, status := h.ingest(c, integ, body)
+	return c.JSON(status, ack)
+}
+
+// ingest 是接入的共用核心：落 RawEvent（先落库不丢）→ 限流/背压检查 → 入归一化队列。
+// webhook（receiveWebhook）与开放 API（POST /events）共用此逻辑，保证两条入口走完全一致的
+// 归一化/分诊链路与「不丢告警」保证，不重复实现。
+//
+// 返回 (ack, httpStatus)：调用方直接 c.JSON(status, ack)。限流/背压/落库失败均由 ack.Status 区分。
+func (h *Handler) ingest(c *echo.Context, integ *ent.Integration, body []byte) (httputil.AckResponse, int) {
+	ctx := c.Request().Context()
+
+	// 落 RawEvent（先落库，保证不丢——即使限流/背压，payload 也必须落库，capabilities §3.3）
 	raw, err := h.db.RawEvent.Create().
 		SetPayload(body).
 		SetHeaders(extractHeaders(c.Request())).
 		SetStatus(rawevent.StatusReceived).
 		SetIntegration(integ).
-		Save(c.Request().Context())
+		Save(ctx)
 	if err != nil {
 		// 落库失败是最严重的——告警可能丢失。返回 5xx 让告警源重试。
-		return c.JSON(http.StatusInternalServerError, errMsg("persist failed"))
+		return httputil.AckResponse{Status: "persist_failed"}, http.StatusInternalServerError
 	}
 
-	// 4. 限流检查（按 Integration 维度）。超限仍返回 429，但 payload 已落库不丢。
-	//    告警源收到 429 应降低推送频率；Vigil 恢复后从 RawEvent 回灌。
+	// 限流检查（按 Integration 维度）。超限仍返回 429，但 payload 已落库不丢。
+	// 告警源收到 429 应降低推送频率；Vigil 恢复后从 RawEvent 回灌。
 	if h.limiter != nil && h.limiter.Available() {
 		rateLimit := h.defaultRateLimit
 		if rateLimit <= 0 {
@@ -119,48 +136,56 @@ func (h *Handler) receiveWebhook(c *echo.Context) error {
 		if configured := integrationRateLimit(integ); configured > 0 {
 			rateLimit = configured // Integration.config 覆盖
 		}
-		allowed, _ := h.limiter.Allow(c.Request().Context(), "integration:"+strconv.Itoa(integ.ID), rateLimit)
+		allowed, _ := h.limiter.Allow(ctx, "integration:"+strconv.Itoa(integ.ID), rateLimit)
 		if !allowed {
-			return c.JSON(http.StatusTooManyRequests, httputil.AckResponse{
-				Status: "rate_limited", RawEventID: raw.ID, RetryAfter: 60,
-			})
+			// 限流落库标记 requeued：告警源收到 429 后可能不再重试，须由回灌任务补投（T5.5）。
+			_ = h.db.RawEvent.UpdateOneID(raw.ID).
+				SetStatus(rawevent.StatusRequeued).
+				SetError("rate limited").
+				Exec(ctx)
+			return httputil.AckResponse{Status: "rate_limited", RawEventID: raw.ID, RetryAfter: 60}, http.StatusTooManyRequests
 		}
 	}
 
-	// 5. 背压检查（队列积压超阈值）。超限时返回 503，payload 已落库，恢复后回灌。
-	if h.backpressure != nil && h.backpressure.IsOverloaded(c.Request().Context()) {
-		return c.JSON(http.StatusServiceUnavailable, httputil.AckResponse{
-			Status: "backpressure", RawEventID: raw.ID, RetryAfter: 30,
-		})
+	// 背压检查（队列积压超阈值）。超限时返回 503，payload 已落库，恢复后回灌。
+	if h.backpressure != nil && h.backpressure.IsOverloaded(ctx) {
+		// 背压同样标记 requeued 待回灌（避免 received 卡死无人消费，T5.5）。
+		_ = h.db.RawEvent.UpdateOneID(raw.ID).
+			SetStatus(rawevent.StatusRequeued).
+			SetError("backpressure").
+			Exec(ctx)
+		return httputil.AckResponse{Status: "backpressure", RawEventID: raw.ID, RetryAfter: 30}, http.StatusServiceUnavailable
 	}
 
-	// 6. 入归一化队列（异步处理）。queue 未配置时跳过入队（RawEvent 已落库，可后续回灌）。
+	// 入归一化队列（异步处理）。queue 未配置时跳过入队（RawEvent 已落库，可后续回灌）。
 	if h.queue == nil {
-		return c.JSON(http.StatusAccepted, httputil.AckResponse{
-			Status: "accepted_no_queue", RawEventID: raw.ID,
-		})
+		return httputil.AckResponse{Status: "accepted_no_queue", RawEventID: raw.ID}, http.StatusAccepted
 	}
-	taskPayload, _ := json.Marshal(normalizePayload{
-		RawEventID:    raw.ID,
-		IntegrationID: integ.ID,
-		SourceType:    integ.Type.String(),
-	})
-	if _, err := h.queue.Client.Enqueue(
-		asynq.NewTask(TaskNormalize, taskPayload),
-		asynq.Queue("default"),
-	); err != nil {
+	if err := h.enqueueNormalize(ctx, raw.ID, integ.ID, integ.Type.String()); err != nil {
 		// 入队失败：RawEvent 已落库，标记 requeued 等待回灌（能力域 01 §6）
 		_ = h.db.RawEvent.UpdateOneID(raw.ID).
 			SetStatus(rawevent.StatusRequeued).
 			SetError("enqueue failed: " + err.Error()).
-			Exec(c.Request().Context())
+			Exec(ctx)
 		// 仍返回 202——告警源不必重试，Vigil 会从 RawEvent 回灌
 	}
 
-	// 5. 秒级返回 202 Accepted
-	return c.JSON(http.StatusAccepted, httputil.AckResponse{
-		Status: "accepted", RawEventID: raw.ID,
+	// 秒级返回 202 Accepted
+	return httputil.AckResponse{Status: "accepted", RawEventID: raw.ID}, http.StatusAccepted
+}
+
+// enqueueNormalize 把一条 RawEvent 投入归一化队列（webhook/开放 API/回灌重放共用）。
+func (h *Handler) enqueueNormalize(ctx context.Context, rawID, integID int, sourceType string) error {
+	taskPayload, _ := json.Marshal(normalizePayload{
+		RawEventID:    rawID,
+		IntegrationID: integID,
+		SourceType:    sourceType,
 	})
+	_, err := h.queue.Client.Enqueue(
+		asynq.NewTask(TaskNormalize, taskPayload),
+		asynq.Queue("default"),
+	)
+	return err
 }
 
 // extractHeaders 提取关键请求头（用于审计与排查）。

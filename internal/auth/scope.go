@@ -55,6 +55,9 @@ func NewScopeResolver(db *ent.Client) *ScopeResolver {
 	s.resolvers["notification_rule"] = resolveDirect(db.NotificationRule.Get)
 	s.resolvers["suppression_rule"] = resolveDirect(db.SuppressionRule.Get)
 	s.resolvers["notification_template"] = resolveDirect(db.NotificationTemplate.Get)
+	// —— 间接归属 team（经 integration）——
+	// raw_event → integration → team（接入排障资源，团队软隔离，T5.5）
+	s.resolvers["raw_event"] = s.resolveRawEventTeam
 	// —— 间接归属 team（经 incident）——
 	s.resolvers["postmortem"] = s.resolvePostmortemTeam
 	s.resolvers["action_item"] = s.resolveActionItemTeam
@@ -89,6 +92,20 @@ func resolveDirect[T teamQuerier](getter func(ctx context.Context, id int) (T, e
 		}
 		return queryTeamID(ctx, obj.QueryTeam())
 	}
+}
+
+// resolveRawEventTeam raw_event → integration → team（间接归属，T5.5）。
+// raw_event 无直接 team 边，其归属跟随来源接入点的 team（接入排障团队软隔离）。
+func (s *ScopeResolver) resolveRawEventTeam(ctx context.Context, id int) (*int, error) {
+	re, err := s.db.RawEvent.Get(ctx, id)
+	if err != nil {
+		return nil, nil
+	}
+	integ, err := re.QueryIntegration().Only(ctx)
+	if err != nil {
+		return nil, nil
+	}
+	return queryTeamID(ctx, integ.QueryTeam())
 }
 
 // resolvePostmortemTeam postmortem → incident → team（间接归属）。

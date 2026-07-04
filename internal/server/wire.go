@@ -317,8 +317,20 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	integrationH := integration.NewHandler(st.DB)
 	integrationH.SetAuthorizer(authz)
 	integrationH.SetScopeResolver(scopeResolver)
-	integrationH.SetAuditRecorder(auditRecorder) // C21：接入点配置变更留痕
+	integrationH.SetAuditRecorder(auditRecorder)     // C21：接入点配置变更留痕
+	integrationH.SetAdapterRegistry(adapterRegistry) // T5.1：干跑测试复用同一归一化适配器
 	integrationH.Register(v1)
+	// T5.1 开放 API：POST /api/v1/events —— 外部系统凭 X-Vigil-Key 程序化投递 Event，
+	// 走与 webhook 同一归一化/分诊链路。注入 authz/scope 做目标接入点团队软隔离（event.create）。
+	ingestHandler.SetAuthorizer(authz)
+	ingestHandler.SetScopeResolver(scopeResolver)
+	ingestHandler.RegisterOpenAPI(v1)
+	// T5.5 原始告警运维：GET /raw-events 查询 + POST /raw-events/:id/replay 重放（团队软隔离 + 留痕）。
+	rawEventH := ingestion.NewRawEventHandler(st.DB, ingestHandler)
+	rawEventH.SetAuthorizer(authz)
+	rawEventH.SetScopeResolver(scopeResolver)
+	rawEventH.SetAuditRecorder(auditRecorder)
+	rawEventH.Register(v1)
 	escalationH := escalation.NewPolicyHandler(st.DB)
 	escalationH.SetAuthorizer(authz)
 	escalationH.SetScopeResolver(scopeResolver)
@@ -462,6 +474,15 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	} else {
 		flushCancel()
 	}
+
+	// T5.5 原始告警自动回灌巡检：周期把 requeued（限流/背压/入队失败落库）的 RawEvent
+	// 重新投入归一化队列，使过载/故障恢复后自动补投（无需人工逐条重放）。纳入优雅关闭。
+	sweepCtx, sweepCancel := context.WithCancel(ctx)
+	sweeper := ingestion.NewRequeueSweeper(st.DB, ingestHandler, 0, 0) // 默认 batch=50 / interval=30s
+	go sweeper.Run(sweepCtx)
+	wired.Closers = append(wired.Closers, sweepCancel)
+	log.Info("raw_event requeue sweeper started", zap.Duration("interval", sweeper.Interval()))
+
 	return wired, nil
 }
 
@@ -1029,6 +1050,17 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/integrations", auth.PermIntegrationCreate)
 	g.RoutePerm(http.MethodPatch, "/integrations/:id", auth.PermIntegrationUpdate)
 	g.RoutePerm(http.MethodDelete, "/integrations/:id", auth.PermIntegrationDelete)
+	// 接入运维（T5.1）：干跑测试 + token 轮换。均属接入点写档，需 integration.update。
+	// 资源级 scope 在 handler 内按接入点反查 team 校验（团队软隔离）。
+	g.RoutePerm(http.MethodPost, "/integrations/:id/test", auth.PermIntegrationUpdate)
+	g.RoutePerm(http.MethodPost, "/integrations/:id/rotate-token", auth.PermIntegrationUpdate)
+	// 开放 API 投递（T5.1）：X-Vigil-Key 用户程序化投递 Event，需 event.create。
+	// 资源级 scope 在 handler 内按目标接入点反查 team 校验（防凭 API Key 往任意接入点灌）。
+	g.RoutePerm(http.MethodPost, "/events", auth.PermEventCreate)
+	// 原始告警运维（T5.5）：查询 + 重放。查询团队软隔离在 handler 内做，
+	// 重放按 raw_event → integration 反查 team 校验（raw_event.replay）。
+	g.RoutePerm(http.MethodGet, "/raw-events", auth.PermRawEventView)
+	g.RoutePerm(http.MethodPost, "/raw-events/:id/replay", auth.PermRawEventReplay)
 	// 出向工单集成写（含凭据存储，T4.3）——读端点也登记：集成配置暴露外连目标/项目映射。
 	g.RoutePerm(http.MethodGet, "/ticket-integrations", auth.PermTicketIntegrationView)
 	g.RoutePerm(http.MethodPost, "/ticket-integrations", auth.PermTicketIntegrationCreate)

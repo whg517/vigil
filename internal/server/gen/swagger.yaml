@@ -2147,6 +2147,38 @@ components:
       - ViaIm
       - ViaAPI
       - ViaAutomation
+    ingestion.listResp:
+      properties:
+        counts:
+          additionalProperties:
+            type: integer
+          description: Counts 按状态计数（received/normalized/parse_failed/requeued 分布），供排障概览。
+          type: object
+        items:
+          items:
+            $ref: '#/components/schemas/ingestion.rawEventView'
+          type: array
+          uniqueItems: false
+      type: object
+    ingestion.rawEventView:
+      properties:
+        created_at:
+          type: string
+        error:
+          type: string
+        headers:
+          additionalProperties:
+            type: string
+          type: object
+        id:
+          type: integer
+        integration_id:
+          type: integer
+        received_at:
+          type: string
+        status:
+          type: string
+      type: object
     integration.Type:
       description: Type holds the value of the "type" field.
       enum:
@@ -2210,6 +2242,60 @@ components:
         updated_at:
           description: UpdatedAt holds the value of the "updated_at" field.
           type: string
+      type: object
+    integration.rotateTokenResp:
+      properties:
+        id:
+          type: integer
+        token:
+          description: ★ 新明文 token，仅轮换时返回一次；旧 token 即失效
+          type: string
+      type: object
+    integration.testEventPreview:
+      properties:
+        dedup_key:
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        severity:
+          type: string
+        source:
+          type: string
+        source_event_id:
+          type: string
+        status:
+          type: string
+        summary:
+          type: string
+      type: object
+    integration.testReq:
+      properties:
+        payload:
+          description: Payload 样例告警 payload（原样透传给适配器）。为空时用最小占位（便于快速验证适配器可加载）。
+          items:
+            type: integer
+          type: array
+          uniqueItems: false
+      type: object
+    integration.testResp:
+      properties:
+        count:
+          description: Count 归一化产出的 Event 条数（一次 payload 可能含多条 alert）。
+          type: integer
+        error:
+          description: Error 归一化失败原因（Matched=false 时非空）。
+          type: string
+        events:
+          description: Events 归一化预览（severity/status/labels 等，供验证 labels 命中/路由是否如预期）。
+          items:
+            $ref: '#/components/schemas/integration.testEventPreview'
+          type: array
+          uniqueItems: false
+        matched:
+          description: Matched 归一化是否成功（适配器解析通过）。
+          type: boolean
       type: object
     integration.updateReq:
       properties:
@@ -4041,6 +4127,75 @@ paths:
       summary: 更新升级策略
       tags:
       - escalation
+  /events:
+    post:
+      description: 外部系统凭 X-Vigil-Key 程序化投递告警。payload 走目标接入点适配器归一化，与 webhook 同一分诊链路。幂等（重复
+        source_event_id 不产新 Event），返回 202 + raw_event_id。
+      parameters:
+      - description: 目标接入点 ID（未传则取 body.integration_id）
+        in: query
+        name: integration_id
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+          text/plain:
+            schema:
+              title: body
+              type: object
+        description: 原始告警 payload（透传给适配器归一化）
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.AckResponse'
+          description: Accepted
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.AckResponse'
+          description: Too Many Requests
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Internal Server Error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.AckResponse'
+          description: Service Unavailable
+      security:
+      - bearerAuth: []
+      summary: 开放 API 投递 Event
+      tags:
+      - ingestion
   /events/{id}/reroute:
     post:
       description: 把未路由 Event 指派到指定 Service，并按该 Service 聚合/建单。
@@ -5124,6 +5279,97 @@ paths:
       summary: 更新接入点
       tags:
       - integration
+  /integrations/{id}/rotate-token:
+    post:
+      description: 生成新的 webhook 鉴权 token，旧 token 立即失效。新 token 仅本次返回一次。
+      parameters:
+      - description: 接入点 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/integration.rotateTokenResp'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
+      security:
+      - bearerAuth: []
+      summary: 轮换接入 token
+      tags:
+      - integration
+  /integrations/{id}/test:
+    post:
+      description: 用样例 payload 走该接入点的归一化适配器，返回归一化预览（labels/severity 等），不建单不落库。
+      parameters:
+      - description: 接入点 ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/integration.testReq'
+                description: 样例 payload
+                summary: body
+        description: 样例 payload
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/integration.testResp'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
+      security:
+      - bearerAuth: []
+      summary: 接入点干跑测试
+      tags:
+      - integration
   /notification-rules:
     get:
       description: 返回全部 NotificationRule（无分页）。
@@ -5822,6 +6068,103 @@ paths:
       summary: 复盘状态流转
       tags:
       - postmortem
+  /raw-events:
+    get:
+      description: 按 integration_id/status 过滤，返回 parse_failed/received/requeued 等状态分布
+        + 明细。团队软隔离——team 级用户仅见本团队接入点的 raw_event。
+      parameters:
+      - description: 接入点 ID 过滤
+        in: query
+        name: integration_id
+        schema:
+          type: integer
+      - description: 状态过滤（received/normalized/parse_failed/requeued）
+        in: query
+        name: status
+        schema:
+          type: string
+      - description: 明细条数上限（默认 50，最大 200）
+        in: query
+        name: limit
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ingestion.listResp'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: 查询原始告警（RawEvent）
+      tags:
+      - ingestion
+  /raw-events/{id}/replay:
+    post:
+      description: 把指定 RawEvent 重新投入归一化队列（parse_failed/requeued/received 均可）。幂等——重复重放不产重复
+        Event。
+      parameters:
+      - description: RawEvent ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.AckResponse'
+          description: Accepted
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Internal Server Error
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Service Unavailable
+      security:
+      - bearerAuth: []
+      summary: 重放原始告警
+      tags:
+      - ingestion
   /role-bindings:
     get:
       responses:

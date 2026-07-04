@@ -23,9 +23,19 @@ const (
 	PermIncidentRunbookExec  Permission = "incident.runbook.execute"
 	PermIncidentDelete       Permission = "incident.delete"
 
-	// —— event 告警查看 ——
+	// —— event 告警查看 / 投递 ——
 	PermEventView         Permission = "event.view"
 	PermEventViewUnrouted Permission = "event.view_unrouted"
+	// event.create 开放 API 程序化投递 Event（T5.1，X-Vigil-Key 走同一分诊链路）。
+	// 与 webhook 的 token 鉴权正交：webhook 是接入点自证，开放 API 是登录态/API Key 用户
+	// 主动投递，须显式授权（避免任意登录用户凭 API Key 往任意接入点灌告警）。
+	PermEventCreate Permission = "event.create"
+
+	// —— raw_event 原始告警暂存（接入运维，T5.5）——
+	// 查询/重放 parse_failed/requeued/received 的原始记录属接入排障面，
+	// 与接入点管理同档（团队软隔离——只能看/重放自己团队接入点的 raw_event）。
+	PermRawEventView   Permission = "raw_event.view"
+	PermRawEventReplay Permission = "raw_event.replay"
 
 	// —— service 服务管理 ——
 	PermServiceView          Permission = "service.view"
@@ -134,7 +144,8 @@ var AllPermissions = []Permission{
 	PermIncidentView, PermIncidentCreate, PermIncidentAck, PermIncidentEscalate,
 	PermIncidentResolve, PermIncidentClose, PermIncidentReopen, PermIncidentReassign, PermIncidentSnooze,
 	PermIncidentAddResponder, PermIncidentRunbookExec, PermIncidentDelete,
-	PermEventView, PermEventViewUnrouted,
+	PermEventView, PermEventViewUnrouted, PermEventCreate,
+	PermRawEventView, PermRawEventReplay,
 	PermServiceView, PermServiceCreate, PermServiceUpdate, PermServiceDelete, PermServiceRouteOverride,
 	PermScheduleView, PermScheduleCreate, PermScheduleUpdate, PermScheduleDelete, PermScheduleOverride,
 	PermEscalationView, PermEscalationCreate, PermEscalationUpdate, PermEscalationDelete,

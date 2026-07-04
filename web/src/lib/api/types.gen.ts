@@ -1366,6 +1366,108 @@ export interface paths {
         };
         trace?: never;
     };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 开放 API 投递 Event
+         * @description 外部系统凭 X-Vigil-Key 程序化投递告警。payload 走目标接入点适配器归一化，与 webhook 同一分诊链路。幂等（重复 source_event_id 不产新 Event），返回 202 + raw_event_id。
+         */
+        post: {
+            parameters: {
+                query?: {
+                    /** @description 目标接入点 ID（未传则取 body.integration_id） */
+                    integration_id?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 原始告警 payload（透传给适配器归一化） */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never>;
+                    "text/plain": Record<string, never>;
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.AckResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.AckResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.AckResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events/{id}/reroute": {
         parameters: {
             query?: never;
@@ -3041,6 +3143,149 @@ export interface paths {
         };
         trace?: never;
     };
+    "/integrations/{id}/rotate-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 轮换接入 token
+         * @description 生成新的 webhook 鉴权 token，旧 token 立即失效。新 token 仅本次返回一次。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 接入点 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["integration.rotateTokenResp"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 接入点干跑测试
+         * @description 用样例 payload 走该接入点的归一化适配器，返回归一化预览（labels/severity 等），不建单不落库。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 接入点 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 样例 payload */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["integration.testReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["integration.testResp"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notification-rules": {
         parameters: {
             query?: never;
@@ -4091,6 +4336,157 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/raw-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询原始告警（RawEvent）
+         * @description 按 integration_id/status 过滤，返回 parse_failed/received/requeued 等状态分布 + 明细。团队软隔离——team 级用户仅见本团队接入点的 raw_event。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 接入点 ID 过滤 */
+                    integration_id?: number;
+                    /** @description 状态过滤（received/normalized/parse_failed/requeued） */
+                    status?: string;
+                    /** @description 明细条数上限（默认 50，最大 200） */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ingestion.listResp"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/raw-events/{id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重放原始告警
+         * @description 把指定 RawEvent 重新投入归一化队列（parse_failed/requeued/received 均可）。幂等——重复重放不产重复 Event。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description RawEvent ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.AckResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/role-bindings": {
@@ -8168,6 +8564,24 @@ export interface components {
          * @enum {string}
          */
         "incidentaction.Via": "web" | "im" | "api" | "automation";
+        "ingestion.listResp": {
+            /** @description Counts 按状态计数（received/normalized/parse_failed/requeued 分布），供排障概览。 */
+            counts?: {
+                [key: string]: number;
+            };
+            items?: components["schemas"]["ingestion.rawEventView"][];
+        };
+        "ingestion.rawEventView": {
+            created_at?: string;
+            error?: string;
+            headers?: {
+                [key: string]: string;
+            };
+            id?: number;
+            integration_id?: number;
+            received_at?: string;
+            status?: string;
+        };
         /**
          * @description Type holds the value of the "type" field.
          * @enum {string}
@@ -8203,6 +8617,36 @@ export interface components {
             type?: components["schemas"]["integration.Type"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
+        };
+        "integration.rotateTokenResp": {
+            id?: number;
+            /** @description ★ 新明文 token，仅轮换时返回一次；旧 token 即失效 */
+            token?: string;
+        };
+        "integration.testEventPreview": {
+            dedup_key?: string;
+            labels?: {
+                [key: string]: string;
+            };
+            severity?: string;
+            source?: string;
+            source_event_id?: string;
+            status?: string;
+            summary?: string;
+        };
+        "integration.testReq": {
+            /** @description Payload 样例告警 payload（原样透传给适配器）。为空时用最小占位（便于快速验证适配器可加载）。 */
+            payload?: number[];
+        };
+        "integration.testResp": {
+            /** @description Count 归一化产出的 Event 条数（一次 payload 可能含多条 alert）。 */
+            count?: number;
+            /** @description Error 归一化失败原因（Matched=false 时非空）。 */
+            error?: string;
+            /** @description Events 归一化预览（severity/status/labels 等，供验证 labels 命中/路由是否如预期）。 */
+            events?: components["schemas"]["integration.testEventPreview"][];
+            /** @description Matched 归一化是否成功（适配器解析通过）。 */
+            matched?: boolean;
         };
         "integration.updateReq": {
             enabled?: boolean;

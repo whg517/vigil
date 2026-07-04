@@ -9,6 +9,7 @@ package integration
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
+	"github.com/kevin/vigil/internal/ingestion"
 
 	"github.com/labstack/echo/v5"
 )
@@ -36,16 +38,20 @@ const tokenPrefix = "vig_int_"
 
 // Handler 接入点管理 API。
 type Handler struct {
-	db    *ent.Client
-	authz *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
-	scope *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
-	audit *auth.AuditRecorder // 配置变更留痕（C21，可选注入，nil 时跳过）
+	db       *ent.Client
+	authz    *auth.Authorizer           // 资源级鉴权（SEC-01，可选注入）
+	scope    *auth.ScopeResolver        // 资源→team 反查（SEC-01，可选注入）
+	audit    *auth.AuditRecorder        // 配置变更留痕（C21，可选注入，nil 时跳过）
+	adapters *ingestion.AdapterRegistry // 干跑测试用（T5.1，可选注入，nil 时 test 端点降级）
 }
 
 // NewHandler 创建接入点 handler。
 func NewHandler(db *ent.Client) *Handler {
 	return &Handler{db: db}
 }
+
+// SetAdapterRegistry 注入归一化适配器注册表（T5.1：/integrations/:id/test 干跑用同一适配器）。
+func (h *Handler) SetAdapterRegistry(r *ingestion.AdapterRegistry) { h.adapters = r }
 
 // SetAuthorizer 注入鉴权器（ARCH-02/SEC-01：资源级鉴权 + list 数据隔离）。
 // 为 nil 时降级为无资源级校验（兼容渐进启用与单测）。
@@ -114,6 +120,9 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/integrations/:id", h.get)
 	g.PATCH("/integrations/:id", h.update)
 	g.DELETE("/integrations/:id", h.delete)
+	// 接入运维（T5.1）：干跑测试（不建单）+ token 轮换（旧失效）。
+	g.POST("/integrations/:id/test", h.test)
+	g.POST("/integrations/:id/rotate-token", h.rotateToken)
 }
 
 // generateToken 生成接入 webhook 鉴权 token。
@@ -315,4 +324,147 @@ func (h *Handler) delete(c *echo.Context) error {
 	}
 	h.auditConfigChange(c, auth.ActionIntegrationDelete, victim)
 	return c.NoContent(http.StatusNoContent)
+}
+
+// testReq 干跑测试请求：样例 payload（原始告警字节，走该接入点 type 的适配器归一化）。
+type testReq struct {
+	// Payload 样例告警 payload（原样透传给适配器）。为空时用最小占位（便于快速验证适配器可加载）。
+	Payload json.RawMessage `json:"payload"`
+}
+
+// testResp 干跑响应：归一化预览（不建单，不落库）。
+type testResp struct {
+	// Matched 归一化是否成功（适配器解析通过）。
+	Matched bool `json:"matched"`
+	// Count 归一化产出的 Event 条数（一次 payload 可能含多条 alert）。
+	Count int `json:"count"`
+	// Events 归一化预览（severity/status/labels 等，供验证 labels 命中/路由是否如预期）。
+	Events []testEventPreview `json:"events"`
+	// Error 归一化失败原因（Matched=false 时非空）。
+	Error string `json:"error,omitempty"`
+}
+
+// testEventPreview 单条归一化预览（对齐 NormalizedEvent 关键字段，供人工核对）。
+type testEventPreview struct {
+	SourceEventID string            `json:"source_event_id"`
+	Source        string            `json:"source"`
+	Severity      string            `json:"severity"`
+	Status        string            `json:"status"`
+	Summary       string            `json:"summary"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	DedupKey      string            `json:"dedup_key"`
+}
+
+// test 干跑测试接入点（T5.1）：样例 payload 走归一化验证，返回预览，不真建单/不落库。
+//
+// 用途：接入配置后先验证 payload 能被正确归一化（severity/status/labels 命中），
+// 再正式接告警源，避免"接上才发现字段映射错、路由标签不命中"。
+//
+// @Summary      接入点干跑测试
+// @Description  用样例 payload 走该接入点的归一化适配器，返回归一化预览（labels/severity 等），不建单不落库。
+// @Tags         integration
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int      true  "接入点 ID"
+// @Param        body  body      testReq  true  "样例 payload"
+// @Success      200  {object} testResp
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      403  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /integrations/{id}/test [post]
+func (h *Handler) test(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	// 干跑属接入运维，需对接入点 integration.update 权限（团队软隔离）。
+	if e := h.checkAccess(c, id, auth.PermIntegrationUpdate); e != nil {
+		return e
+	}
+	integ, err := h.db.Integration.Get(c.Request().Context(), id)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "integration not found"})
+	}
+	var req testReq
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
+	}
+	if h.adapters == nil {
+		return errs.Internal(c, nil, nil, "adapter registry not configured")
+	}
+	adapter, ok := h.adapters.Get(integ.Type.String())
+	if !ok {
+		return c.JSON(http.StatusOK, testResp{Matched: false, Error: "no adapter for integration type " + integ.Type.String()})
+	}
+	payload := []byte(req.Payload)
+	if len(payload) == 0 {
+		payload = []byte("{}") // 空 payload 占位，验证适配器可加载（多数适配器会因缺字段返错，正是预期反馈）。
+	}
+	// 干跑：只调 Normalize，绝不落 RawEvent/Event/建单——纯预览。
+	evts, nerr := adapter.Normalize(c.Request().Context(), payload, integ, nil)
+	if nerr != nil {
+		return c.JSON(http.StatusOK, testResp{Matched: false, Error: nerr.Error()})
+	}
+	preview := make([]testEventPreview, 0, len(evts))
+	for _, e := range evts {
+		preview = append(preview, testEventPreview{
+			SourceEventID: e.SourceEventID,
+			Source:        e.Source,
+			Severity:      e.Severity,
+			Status:        e.Status,
+			Summary:       e.Summary,
+			Labels:        e.Labels,
+			DedupKey:      e.DedupKey,
+		})
+	}
+	return c.JSON(http.StatusOK, testResp{Matched: true, Count: len(evts), Events: preview})
+}
+
+// rotateTokenResp 轮换响应（含新 token，仅本次返回一次）。
+type rotateTokenResp struct {
+	ID    int    `json:"id"`
+	Token string `json:"token"` // ★ 新明文 token，仅轮换时返回一次；旧 token 即失效
+}
+
+// rotateToken 轮换接入点 webhook 鉴权 token（T5.1）：生成新 token，旧 token 立即失效。
+//
+// 用途：token 疑似泄露 / 定期轮换凭据。轮换后旧 token 的 webhook 请求将鉴权失败（401），
+// 接入方须换用新 token。是重置凭据的高危动作，须留痕（integration.rotate_token）。
+//
+// @Summary      轮换接入 token
+// @Description  生成新的 webhook 鉴权 token，旧 token 立即失效。新 token 仅本次返回一次。
+// @Tags         integration
+// @Produce      json
+// @Param        id   path      int  true  "接入点 ID"
+// @Success      200  {object} rotateTokenResp
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      403  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /integrations/{id}/rotate-token [post]
+func (h *Handler) rotateToken(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	// 轮换凭据需 integration.update 权限（团队软隔离）。
+	if e := h.checkAccess(c, id, auth.PermIntegrationUpdate); e != nil {
+		return e
+	}
+	newToken := generateToken()
+	integ, err := h.db.Integration.UpdateOneID(id).SetToken(newToken).Save(c.Request().Context())
+	if err != nil {
+		return errs.FailNotFound(c, nil, err, "integration")
+	}
+	// 轮换留痕（凭据重置高危动作）。
+	if h.audit != nil {
+		e := auth.AuditEntryFromRequest(c.Request(), h.actorFromContext(c), "")
+		e.Action = auth.ActionIntegrationRotateToken
+		e.ResourceType = "integration"
+		e.ResourceID = integ.ID
+		e.ResourceName = integ.Name
+		h.audit.MustRecord(c.Request().Context(), e)
+	}
+	return c.JSON(http.StatusOK, rotateTokenResp{ID: integ.ID, Token: newToken})
 }
