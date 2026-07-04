@@ -111,6 +111,24 @@ func (r *Recorder) RecordRunbookBlocked(ctx context.Context, incID int, stepName
 		map[string]any{"step": stepName, "blocked": true, "reason": "require_approval"})
 }
 
+// RecordRunbookSuggested 实现 runbook.TriggerRecorder 接口：记录「trigger 命中，自动展示关联 Runbook」。
+//
+// 语义区分（B13 安全红线）：这是「展示」而非「执行」——trigger（on_incident/on_severity/on_label_match）
+// 命中后把关联 Runbook 呈现给响应者（写 runbook_suggested 时间线，Web/IM 可见），响应者一眼看到该用
+// 哪个 Runbook，但绝不代表已执行任何步骤。actor.kind=system、source=system（引擎自动触发，非人工）。
+// autoRunnable 标记该 Runbook 是否满足「全只读诊断 + 显式 auto_run」将被自动执行（供前端区分展示态）。
+func (r *Recorder) RecordRunbookSuggested(ctx context.Context, incID, runbookID int, runbookName, triggerType string, autoRunnable bool) error {
+	content := fmt.Sprintf("触发命中（%s），自动展示关联 Runbook「%s」", triggerType, runbookName)
+	return r.Record(ctx, incID, timelineitem.TypeRunbookSuggested, content,
+		Actor{Kind: "system"}, timelineitem.SourceSystem,
+		map[string]any{
+			"runbook_id":    runbookID,
+			"runbook_name":  runbookName,
+			"trigger_type":  triggerType,
+			"auto_runnable": autoRunnable, // true=将自动执行（全只读诊断）；false=仅展示，须人工执行
+		})
+}
+
 // runbookActor 把执行发起人 ID 映射为时间线 Actor + Source。
 // actorID>0 → 人工发起（source=web，Runbook 执行入口目前仅 Web/API）；否则系统。
 func runbookActor(actorID int) (Actor, timelineitem.Source) {

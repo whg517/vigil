@@ -21,6 +21,8 @@ const (
 	FieldType = "type"
 	// FieldTrigger holds the string denoting the trigger field in the database.
 	FieldTrigger = "trigger"
+	// FieldAutoRun holds the string denoting the auto_run field in the database.
+	FieldAutoRun = "auto_run"
 	// FieldContentMarkdown holds the string denoting the content_markdown field in the database.
 	FieldContentMarkdown = "content_markdown"
 	// FieldSteps holds the string denoting the steps field in the database.
@@ -55,6 +57,7 @@ var Columns = []string{
 	FieldName,
 	FieldType,
 	FieldTrigger,
+	FieldAutoRun,
 	FieldContentMarkdown,
 	FieldSteps,
 	FieldCreatedAt,
@@ -91,6 +94,8 @@ func ValidColumn(column string) bool {
 var (
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
+	// DefaultAutoRun holds the default value on creation for the "auto_run" field.
+	DefaultAutoRun bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -138,6 +143,11 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByType orders the results by the type field.
 func ByType(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldType, opts...).ToFunc()
+}
+
+// ByAutoRun orders the results by the auto_run field.
+func ByAutoRun(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAutoRun, opts...).ToFunc()
 }
 
 // ByContentMarkdown orders the results by the content_markdown field.

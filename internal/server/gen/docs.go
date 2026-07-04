@@ -1797,6 +1797,10 @@ const docTemplate = `{
             },
             "ent.Runbook": {
                 "properties": {
+                    "auto_run": {
+                        "description": "触发命中即自动执行（仅全只读诊断 Runbook 生效，含写步骤绝不自动执行）",
+                        "type": "boolean"
+                    },
                     "content_markdown": {
                         "description": "文档式 runbook 的 Markdown 内容",
                         "type": "string"
@@ -3603,6 +3607,10 @@ const docTemplate = `{
             },
             "runbook.createReq": {
                 "properties": {
+                    "auto_run": {
+                        "description": "AutoRun 显式授权「trigger 命中即自动执行」——★ 仅对全只读诊断 Runbook 生效。\n含写步骤者即使置 true 也绝不自动执行（引擎硬守卫），只自动展示（B13）。",
+                        "type": "boolean"
+                    },
                     "content_markdown": {
                         "type": "string"
                     },
@@ -3645,6 +3653,10 @@ const docTemplate = `{
             },
             "runbook.updateReq": {
                 "properties": {
+                    "auto_run": {
+                        "description": "AutoRun 指针：nil 不改；显式 true/false 更新。含写步骤者即使 true 也不自动执行（B13 引擎守卫）。",
+                        "type": "boolean"
+                    },
                     "content_markdown": {
                         "type": "string"
                     },
@@ -4347,6 +4359,7 @@ const docTemplate = `{
                     "responder_added",
                     "note_added",
                     "runbook_executed",
+                    "runbook_suggested",
                     "ai_insight",
                     "im_message"
                 ],
@@ -4362,6 +4375,7 @@ const docTemplate = `{
                     "TypeResponderAdded",
                     "TypeNoteAdded",
                     "TypeRunbookExecuted",
+                    "TypeRunbookSuggested",
                     "TypeAiInsight",
                     "TypeImMessage"
                 ]

@@ -8263,6 +8263,8 @@ export interface components {
             schedule?: components["schemas"]["ent.Schedule"];
         };
         "ent.Runbook": {
+            /** @description 触发命中即自动执行（仅全只读诊断 Runbook 生效，含写步骤绝不自动执行） */
+            auto_run?: boolean;
             /** @description 文档式 runbook 的 Markdown 内容 */
             content_markdown?: string;
             /** @description CreatedAt holds the value of the "created_at" field. */
@@ -8979,6 +8981,11 @@ export interface components {
          */
         "runbook.Type": "document" | "executable";
         "runbook.createReq": {
+            /**
+             * @description AutoRun 显式授权「trigger 命中即自动执行」——★ 仅对全只读诊断 Runbook 生效。
+             *     含写步骤者即使置 true 也绝不自动执行（引擎硬守卫），只自动展示（B13）。
+             */
+            auto_run?: boolean;
             content_markdown?: string;
             name?: string;
             steps?: components["schemas"]["schema.RunbookStep"][];
@@ -8999,6 +9006,8 @@ export interface components {
             incident_id?: number;
         };
         "runbook.updateReq": {
+            /** @description AutoRun 指针：nil 不改；显式 true/false 更新。含写步骤者即使 true 也不自动执行（B13 引擎守卫）。 */
+            auto_run?: boolean;
             content_markdown?: string;
             name?: string;
             steps?: components["schemas"]["schema.RunbookStep"][];
@@ -9276,7 +9285,7 @@ export interface components {
          * @description Type holds the value of the "type" field.
          * @enum {string}
          */
-        "timelineitem.Type": "incident_created" | "event_attached" | "status_changed" | "escalated" | "ack" | "resolved" | "reopened" | "responder_added" | "note_added" | "runbook_executed" | "ai_insight" | "im_message";
+        "timelineitem.Type": "incident_created" | "event_attached" | "status_changed" | "escalated" | "ack" | "resolved" | "reopened" | "responder_added" | "note_added" | "runbook_executed" | "runbook_suggested" | "ai_insight" | "im_message";
         "triage.rerouteReq": {
             service_id?: number;
         };

@@ -17545,6 +17545,7 @@ type RunbookMutation struct {
 	name             *string
 	_type            *runbook.Type
 	trigger          *map[string]interface{}
+	auto_run         *bool
 	content_markdown *string
 	steps            *[]schema.RunbookStep
 	appendsteps      []schema.RunbookStep
@@ -17778,6 +17779,42 @@ func (m *RunbookMutation) TriggerCleared() bool {
 func (m *RunbookMutation) ResetTrigger() {
 	m.trigger = nil
 	delete(m.clearedFields, runbook.FieldTrigger)
+}
+
+// SetAutoRun sets the "auto_run" field.
+func (m *RunbookMutation) SetAutoRun(b bool) {
+	m.auto_run = &b
+}
+
+// AutoRun returns the value of the "auto_run" field in the mutation.
+func (m *RunbookMutation) AutoRun() (r bool, exists bool) {
+	v := m.auto_run
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAutoRun returns the old "auto_run" field's value of the Runbook entity.
+// If the Runbook object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RunbookMutation) OldAutoRun(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAutoRun is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAutoRun requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAutoRun: %w", err)
+	}
+	return oldValue.AutoRun, nil
+}
+
+// ResetAutoRun resets all changes to the "auto_run" field.
+func (m *RunbookMutation) ResetAutoRun() {
+	m.auto_run = nil
 }
 
 // SetContentMarkdown sets the "content_markdown" field.
@@ -18093,7 +18130,7 @@ func (m *RunbookMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RunbookMutation) Fields() []string {
-	fields := make([]string, 0, 7)
+	fields := make([]string, 0, 8)
 	if m.name != nil {
 		fields = append(fields, runbook.FieldName)
 	}
@@ -18102,6 +18139,9 @@ func (m *RunbookMutation) Fields() []string {
 	}
 	if m.trigger != nil {
 		fields = append(fields, runbook.FieldTrigger)
+	}
+	if m.auto_run != nil {
+		fields = append(fields, runbook.FieldAutoRun)
 	}
 	if m.content_markdown != nil {
 		fields = append(fields, runbook.FieldContentMarkdown)
@@ -18129,6 +18169,8 @@ func (m *RunbookMutation) Field(name string) (ent.Value, bool) {
 		return m.GetType()
 	case runbook.FieldTrigger:
 		return m.Trigger()
+	case runbook.FieldAutoRun:
+		return m.AutoRun()
 	case runbook.FieldContentMarkdown:
 		return m.ContentMarkdown()
 	case runbook.FieldSteps:
@@ -18152,6 +18194,8 @@ func (m *RunbookMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldType(ctx)
 	case runbook.FieldTrigger:
 		return m.OldTrigger(ctx)
+	case runbook.FieldAutoRun:
+		return m.OldAutoRun(ctx)
 	case runbook.FieldContentMarkdown:
 		return m.OldContentMarkdown(ctx)
 	case runbook.FieldSteps:
@@ -18189,6 +18233,13 @@ func (m *RunbookMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetTrigger(v)
+		return nil
+	case runbook.FieldAutoRun:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAutoRun(v)
 		return nil
 	case runbook.FieldContentMarkdown:
 		v, ok := value.(string)
@@ -18296,6 +18347,9 @@ func (m *RunbookMutation) ResetField(name string) error {
 		return nil
 	case runbook.FieldTrigger:
 		m.ResetTrigger()
+		return nil
+	case runbook.FieldAutoRun:
+		m.ResetAutoRun()
 		return nil
 	case runbook.FieldContentMarkdown:
 		m.ResetContentMarkdown()

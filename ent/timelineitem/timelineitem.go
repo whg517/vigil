@@ -87,18 +87,19 @@ type Type string
 
 // Type values.
 const (
-	TypeIncidentCreated Type = "incident_created"
-	TypeEventAttached   Type = "event_attached"
-	TypeStatusChanged   Type = "status_changed"
-	TypeEscalated       Type = "escalated"
-	TypeAck             Type = "ack"
-	TypeResolved        Type = "resolved"
-	TypeReopened        Type = "reopened"
-	TypeResponderAdded  Type = "responder_added"
-	TypeNoteAdded       Type = "note_added"
-	TypeRunbookExecuted Type = "runbook_executed"
-	TypeAiInsight       Type = "ai_insight"
-	TypeImMessage       Type = "im_message"
+	TypeIncidentCreated  Type = "incident_created"
+	TypeEventAttached    Type = "event_attached"
+	TypeStatusChanged    Type = "status_changed"
+	TypeEscalated        Type = "escalated"
+	TypeAck              Type = "ack"
+	TypeResolved         Type = "resolved"
+	TypeReopened         Type = "reopened"
+	TypeResponderAdded   Type = "responder_added"
+	TypeNoteAdded        Type = "note_added"
+	TypeRunbookExecuted  Type = "runbook_executed"
+	TypeRunbookSuggested Type = "runbook_suggested"
+	TypeAiInsight        Type = "ai_insight"
+	TypeImMessage        Type = "im_message"
 )
 
 func (_type Type) String() string {
@@ -108,7 +109,7 @@ func (_type Type) String() string {
 // TypeValidator is a validator for the "type" field enum values. It is called by the builders before save.
 func TypeValidator(_type Type) error {
 	switch _type {
-	case TypeIncidentCreated, TypeEventAttached, TypeStatusChanged, TypeEscalated, TypeAck, TypeResolved, TypeReopened, TypeResponderAdded, TypeNoteAdded, TypeRunbookExecuted, TypeAiInsight, TypeImMessage:
+	case TypeIncidentCreated, TypeEventAttached, TypeStatusChanged, TypeEscalated, TypeAck, TypeResolved, TypeReopened, TypeResponderAdded, TypeNoteAdded, TypeRunbookExecuted, TypeRunbookSuggested, TypeAiInsight, TypeImMessage:
 		return nil
 	default:
 		return fmt.Errorf("timelineitem: invalid enum value for type field: %q", _type)

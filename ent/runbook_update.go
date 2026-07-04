@@ -72,6 +72,20 @@ func (_u *RunbookUpdate) ClearTrigger() *RunbookUpdate {
 	return _u
 }
 
+// SetAutoRun sets the "auto_run" field.
+func (_u *RunbookUpdate) SetAutoRun(v bool) *RunbookUpdate {
+	_u.mutation.SetAutoRun(v)
+	return _u
+}
+
+// SetNillableAutoRun sets the "auto_run" field if the given value is not nil.
+func (_u *RunbookUpdate) SetNillableAutoRun(v *bool) *RunbookUpdate {
+	if v != nil {
+		_u.SetAutoRun(*v)
+	}
+	return _u
+}
+
 // SetContentMarkdown sets the "content_markdown" field.
 func (_u *RunbookUpdate) SetContentMarkdown(v string) *RunbookUpdate {
 	_u.mutation.SetContentMarkdown(v)
@@ -257,6 +271,9 @@ func (_u *RunbookUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.TriggerCleared() {
 		_spec.ClearField(runbook.FieldTrigger, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.AutoRun(); ok {
+		_spec.SetField(runbook.FieldAutoRun, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.ContentMarkdown(); ok {
 		_spec.SetField(runbook.FieldContentMarkdown, field.TypeString, value)
 	}
@@ -408,6 +425,20 @@ func (_u *RunbookUpdateOne) SetTrigger(v map[string]interface{}) *RunbookUpdateO
 // ClearTrigger clears the value of the "trigger" field.
 func (_u *RunbookUpdateOne) ClearTrigger() *RunbookUpdateOne {
 	_u.mutation.ClearTrigger()
+	return _u
+}
+
+// SetAutoRun sets the "auto_run" field.
+func (_u *RunbookUpdateOne) SetAutoRun(v bool) *RunbookUpdateOne {
+	_u.mutation.SetAutoRun(v)
+	return _u
+}
+
+// SetNillableAutoRun sets the "auto_run" field if the given value is not nil.
+func (_u *RunbookUpdateOne) SetNillableAutoRun(v *bool) *RunbookUpdateOne {
+	if v != nil {
+		_u.SetAutoRun(*v)
+	}
 	return _u
 }
 
@@ -625,6 +656,9 @@ func (_u *RunbookUpdateOne) sqlSave(ctx context.Context) (_node *Runbook, err er
 	}
 	if _u.mutation.TriggerCleared() {
 		_spec.ClearField(runbook.FieldTrigger, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.AutoRun(); ok {
+		_spec.SetField(runbook.FieldAutoRun, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.ContentMarkdown(); ok {
 		_spec.SetField(runbook.FieldContentMarkdown, field.TypeString, value)

@@ -133,6 +133,9 @@ type createReq struct {
 	ContentMarkdown string               `json:"content_markdown"`
 	Trigger         map[string]any       `json:"trigger"`
 	Steps           []schema.RunbookStep `json:"steps"`
+	// AutoRun 显式授权「trigger 命中即自动执行」——★ 仅对全只读诊断 Runbook 生效。
+	// 含写步骤者即使置 true 也绝不自动执行（引擎硬守卫），只自动展示（B13）。
+	AutoRun bool `json:"auto_run"`
 	// TeamID 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。
 	// 非 org 级用户只能给自己可管的 team 建（经 VisibleTeamIDs 校验，否则 403）。
 	TeamID int `json:"team_id"`
@@ -200,7 +203,7 @@ func (h *Handler) create(c *echo.Context) error {
 			return e
 		}
 	}
-	rb := h.db.Runbook.Create().SetName(req.Name).SetType(entrunbook.Type(req.Type))
+	rb := h.db.Runbook.Create().SetName(req.Name).SetType(entrunbook.Type(req.Type)).SetAutoRun(req.AutoRun)
 	if req.TeamID > 0 {
 		rb.SetTeamID(req.TeamID)
 	}
@@ -254,6 +257,8 @@ type updateReq struct {
 	ContentMarkdown *string               `json:"content_markdown"`
 	Trigger         map[string]any        `json:"trigger"`
 	Steps           *[]schema.RunbookStep `json:"steps"`
+	// AutoRun 指针：nil 不改；显式 true/false 更新。含写步骤者即使 true 也不自动执行（B13 引擎守卫）。
+	AutoRun *bool `json:"auto_run"`
 }
 
 // update 更新 Runbook。
@@ -294,6 +299,9 @@ func (h *Handler) update(c *echo.Context) error {
 	}
 	if req.Trigger != nil {
 		u.SetTrigger(req.Trigger)
+	}
+	if req.AutoRun != nil {
+		u.SetAutoRun(*req.AutoRun)
 	}
 	if req.Steps != nil {
 		// QA 审计 C4 数据层兜底：写步骤必须 RequireApproval=true。

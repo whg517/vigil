@@ -349,12 +349,16 @@ func init() {
 	runbookDescName := runbookFields[0].Descriptor()
 	// runbook.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	runbook.NameValidator = runbookDescName.Validators[0].(func(string) error)
+	// runbookDescAutoRun is the schema descriptor for auto_run field.
+	runbookDescAutoRun := runbookFields[3].Descriptor()
+	// runbook.DefaultAutoRun holds the default value on creation for the auto_run field.
+	runbook.DefaultAutoRun = runbookDescAutoRun.Default.(bool)
 	// runbookDescCreatedAt is the schema descriptor for created_at field.
-	runbookDescCreatedAt := runbookFields[5].Descriptor()
+	runbookDescCreatedAt := runbookFields[6].Descriptor()
 	// runbook.DefaultCreatedAt holds the default value on creation for the created_at field.
 	runbook.DefaultCreatedAt = runbookDescCreatedAt.Default.(func() time.Time)
 	// runbookDescUpdatedAt is the schema descriptor for updated_at field.
-	runbookDescUpdatedAt := runbookFields[6].Descriptor()
+	runbookDescUpdatedAt := runbookFields[7].Descriptor()
 	// runbook.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	runbook.DefaultUpdatedAt = runbookDescUpdatedAt.Default.(func() time.Time)
 	// runbook.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

@@ -24,7 +24,7 @@ func (TimelineItem) Fields() []ent.Field {
 			"incident_created", "event_attached", "status_changed",
 			"escalated", "ack", "resolved", "reopened",
 			"responder_added", "note_added",
-			"runbook_executed", "ai_insight", "im_message",
+			"runbook_executed", "runbook_suggested", "ai_insight", "im_message",
 		),
 		// actor 谁干的
 		field.JSON("actor", map[string]string{}).Comment("actor: kind(system/user/integration/ai) + id"),

@@ -60,6 +60,11 @@ func Name(v string) predicate.Runbook {
 	return predicate.Runbook(sql.FieldEQ(FieldName, v))
 }
 
+// AutoRun applies equality check predicate on the "auto_run" field. It's identical to AutoRunEQ.
+func AutoRun(v bool) predicate.Runbook {
+	return predicate.Runbook(sql.FieldEQ(FieldAutoRun, v))
+}
+
 // ContentMarkdown applies equality check predicate on the "content_markdown" field. It's identical to ContentMarkdownEQ.
 func ContentMarkdown(v string) predicate.Runbook {
 	return predicate.Runbook(sql.FieldEQ(FieldContentMarkdown, v))
@@ -168,6 +173,16 @@ func TriggerIsNil() predicate.Runbook {
 // TriggerNotNil applies the NotNil predicate on the "trigger" field.
 func TriggerNotNil() predicate.Runbook {
 	return predicate.Runbook(sql.FieldNotNull(FieldTrigger))
+}
+
+// AutoRunEQ applies the EQ predicate on the "auto_run" field.
+func AutoRunEQ(v bool) predicate.Runbook {
+	return predicate.Runbook(sql.FieldEQ(FieldAutoRun, v))
+}
+
+// AutoRunNEQ applies the NEQ predicate on the "auto_run" field.
+func AutoRunNEQ(v bool) predicate.Runbook {
+	return predicate.Runbook(sql.FieldNEQ(FieldAutoRun, v))
 }
 
 // ContentMarkdownEQ applies the EQ predicate on the "content_markdown" field.

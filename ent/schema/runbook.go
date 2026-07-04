@@ -22,6 +22,10 @@ func (Runbook) Fields() []ent.Field {
 		field.Enum("type").Values("document", "executable"),
 		// trigger 触发条件
 		field.JSON("trigger", map[string]any{}).Optional().Comment("触发：manual/on_incident/on_severity/on_label_match"),
+		// auto_run 显式授权「触发命中即自动执行」——★ 仅对全只读诊断 Runbook 生效（IsReadOnly==true）。
+		// 含任一写步骤的 Runbook 即使配 auto_run=true 也绝不自动执行（引擎侧硬守卫），只自动展示。
+		// 默认 false：触发命中时只「展示」关联 Runbook 给响应者，不自动执行。
+		field.Bool("auto_run").Default(false).Comment("触发命中即自动执行（仅全只读诊断 Runbook 生效，含写步骤绝不自动执行）"),
 		// document 类型用 content_markdown
 		field.Text("content_markdown").Optional().Comment("文档式 runbook 的 Markdown 内容"),
 		// executable 类型用 steps

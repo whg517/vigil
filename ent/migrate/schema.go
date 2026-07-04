@@ -729,6 +729,7 @@ var (
 		{Name: "name", Type: field.TypeString},
 		{Name: "type", Type: field.TypeEnum, Enums: []string{"document", "executable"}},
 		{Name: "trigger", Type: field.TypeJSON, Nullable: true},
+		{Name: "auto_run", Type: field.TypeBool, Default: false},
 		{Name: "content_markdown", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "steps", Type: field.TypeJSON, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
@@ -743,7 +744,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "runbooks_teams_runbooks",
-				Columns:    []*schema.Column{RunbooksColumns[8]},
+				Columns:    []*schema.Column{RunbooksColumns[9]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -960,7 +961,7 @@ var (
 	TimelineItemsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "timestamp", Type: field.TypeTime},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"incident_created", "event_attached", "status_changed", "escalated", "ack", "resolved", "reopened", "responder_added", "note_added", "runbook_executed", "ai_insight", "im_message"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"incident_created", "event_attached", "status_changed", "escalated", "ack", "resolved", "reopened", "responder_added", "note_added", "runbook_executed", "runbook_suggested", "ai_insight", "im_message"}},
 		{Name: "actor", Type: field.TypeJSON},
 		{Name: "content", Type: field.TypeString, Size: 2147483647},
 		{Name: "detail", Type: field.TypeJSON, Nullable: true},

@@ -41,6 +41,20 @@ func (_c *RunbookCreate) SetTrigger(v map[string]interface{}) *RunbookCreate {
 	return _c
 }
 
+// SetAutoRun sets the "auto_run" field.
+func (_c *RunbookCreate) SetAutoRun(v bool) *RunbookCreate {
+	_c.mutation.SetAutoRun(v)
+	return _c
+}
+
+// SetNillableAutoRun sets the "auto_run" field if the given value is not nil.
+func (_c *RunbookCreate) SetNillableAutoRun(v *bool) *RunbookCreate {
+	if v != nil {
+		_c.SetAutoRun(*v)
+	}
+	return _c
+}
+
 // SetContentMarkdown sets the "content_markdown" field.
 func (_c *RunbookCreate) SetContentMarkdown(v string) *RunbookCreate {
 	_c.mutation.SetContentMarkdown(v)
@@ -158,6 +172,10 @@ func (_c *RunbookCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *RunbookCreate) defaults() {
+	if _, ok := _c.mutation.AutoRun(); !ok {
+		v := runbook.DefaultAutoRun
+		_c.mutation.SetAutoRun(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := runbook.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -185,6 +203,9 @@ func (_c *RunbookCreate) check() error {
 		if err := runbook.TypeValidator(v); err != nil {
 			return &ValidationError{Name: "type", err: fmt.Errorf(`ent: validator failed for field "Runbook.type": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.AutoRun(); !ok {
+		return &ValidationError{Name: "auto_run", err: errors.New(`ent: missing required field "Runbook.auto_run"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Runbook.created_at"`)}
@@ -229,6 +250,10 @@ func (_c *RunbookCreate) createSpec() (*Runbook, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Trigger(); ok {
 		_spec.SetField(runbook.FieldTrigger, field.TypeJSON, value)
 		_node.Trigger = value
+	}
+	if value, ok := _c.mutation.AutoRun(); ok {
+		_spec.SetField(runbook.FieldAutoRun, field.TypeBool, value)
+		_node.AutoRun = value
 	}
 	if value, ok := _c.mutation.ContentMarkdown(); ok {
 		_spec.SetField(runbook.FieldContentMarkdown, field.TypeString, value)

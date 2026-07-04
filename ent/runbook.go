@@ -26,6 +26,8 @@ type Runbook struct {
 	Type runbook.Type `json:"type,omitempty"`
 	// 触发：manual/on_incident/on_severity/on_label_match
 	Trigger map[string]interface{} `json:"trigger,omitempty"`
+	// 触发命中即自动执行（仅全只读诊断 Runbook 生效，含写步骤绝不自动执行）
+	AutoRun bool `json:"auto_run,omitempty"`
 	// 文档式 runbook 的 Markdown 内容
 	ContentMarkdown string `json:"content_markdown,omitempty"`
 	// 可执行步骤链
@@ -79,6 +81,8 @@ func (*Runbook) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case runbook.FieldTrigger, runbook.FieldSteps:
 			values[i] = new([]byte)
+		case runbook.FieldAutoRun:
+			values[i] = new(sql.NullBool)
 		case runbook.FieldID:
 			values[i] = new(sql.NullInt64)
 		case runbook.FieldName, runbook.FieldType, runbook.FieldContentMarkdown:
@@ -127,6 +131,12 @@ func (_m *Runbook) assignValues(columns []string, values []any) error {
 				if err := json.Unmarshal(*value, &_m.Trigger); err != nil {
 					return fmt.Errorf("unmarshal field trigger: %w", err)
 				}
+			}
+		case runbook.FieldAutoRun:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field auto_run", values[i])
+			} else if value.Valid {
+				_m.AutoRun = value.Bool
 			}
 		case runbook.FieldContentMarkdown:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -215,6 +225,9 @@ func (_m *Runbook) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("trigger=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Trigger))
+	builder.WriteString(", ")
+	builder.WriteString("auto_run=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AutoRun))
 	builder.WriteString(", ")
 	builder.WriteString("content_markdown=")
 	builder.WriteString(_m.ContentMarkdown)

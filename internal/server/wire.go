@@ -386,6 +386,13 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	runbookH.SetScopeResolver(scopeResolver)
 	runbookH.SetAuditRecorder(auditRecorder) // S10/C14：Runbook 执行留痕
 	runbookH.Register(v1)
+	// B13 / T5.3：Runbook trigger 求值与自动展示。订阅 IncidentCreated，求值该 Incident 所属
+	// Service 关联 Runbook 的 trigger（on_incident/on_severity/on_label_match）——命中则自动
+	// 「展示」关联 Runbook（写 runbook_suggested 时间线，Web/IM 可见）。
+	// ★ 安全红线：默认只展示不执行；仅「显式 auto_run + 全只读诊断」Runbook 自动执行（复用
+	// runbookEngine，approved=false 写步骤守卫仍在），含写步骤者即使 auto_run 也绝不自动执行。
+	runbookTrigger := runbook.NewTriggerEvaluator(st.DB, runbookEngine, timelineRecorder)
+	bus.Subscribe(domainevent.IncidentCreated, runbookTrigger.OnIncidentCreated)
 	timelineH := timeline.NewHandler(timelineRecorder)
 	timelineH.SetAuthorizer(authz)
 	timelineH.SetScopeResolver(scopeResolver)
