@@ -179,7 +179,7 @@ func validateTicketEndpoint(endpoint string) error {
 	}
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		return fmt.Errorf("%w: parse endpoint: %v", ErrTicketBlocked, err)
+		return fmt.Errorf("%w: parse endpoint: %w", ErrTicketBlocked, err)
 	}
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "http" && scheme != "https" {

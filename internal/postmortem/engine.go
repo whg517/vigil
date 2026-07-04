@@ -274,19 +274,7 @@ func (e *Engine) HasPublishedPostmortem(ctx context.Context, incID int) (bool, e
 		Exist(ctx)
 }
 
-// draftOrFallback 用 AI 起草，失败/无 LLM 则用 fallback。
-func (e *Engine) draftOrFallback(ctx context.Context, section string, ctxMap map[string]any, fallback string) string {
-	if e.llm == nil {
-		return fallback
-	}
-	draft, err := e.llm.DraftSection(ctx, section, ctxMap)
-	if err != nil || strings.TrimSpace(draft) == "" {
-		return fallback
-	}
-	return draft
-}
-
-// draftMark 在 draftOrFallback 基础上返回段级来源标记：AI 真产出内容时把 section 名追加进
+// draftMark 用 AI 起草并返回段级来源标记：AI 真产出内容时把 section 名追加进
 // aiSections（字段级「AI 草拟」标记）；降级到 fallback 则不追加（视为人工待填）。
 func (e *Engine) draftMark(ctx context.Context, section string, ctxMap map[string]any, fallback string, aiSections []string) (string, []string) {
 	if e.llm == nil {

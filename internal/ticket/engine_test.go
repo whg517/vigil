@@ -53,7 +53,7 @@ func TestEngine_OnPublished_CreatesAndBackfills(t *testing.T) {
 	if got.TrackerURL != "https://tk/T-9" {
 		t.Fatalf("tracker_url not backfilled: got %q", got.TrackerURL)
 	}
-	if receivedCredential != "Bearer cred-xyz" {
+	if receivedCredential != "Bearer cred-xyz" { //nolint:gosec // 测试字面量,非真实凭据
 		t.Errorf("credential not sent as bearer: got %q", receivedCredential)
 	}
 }
