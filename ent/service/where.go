@@ -594,6 +594,52 @@ func HasSubscriptionsWith(preds ...predicate.Subscription) predicate.Service {
 	})
 }
 
+// HasDependents applies the HasEdge predicate on the "dependents" edge.
+func HasDependents() predicate.Service {
+	return predicate.Service(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, DependentsTable, DependentsPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasDependentsWith applies the HasEdge predicate on the "dependents" edge with a given conditions (other predicates).
+func HasDependentsWith(preds ...predicate.Service) predicate.Service {
+	return predicate.Service(func(s *sql.Selector) {
+		step := newDependentsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasDependsOn applies the HasEdge predicate on the "depends_on" edge.
+func HasDependsOn() predicate.Service {
+	return predicate.Service(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, DependsOnTable, DependsOnPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasDependsOnWith applies the HasEdge predicate on the "depends_on" edge with a given conditions (other predicates).
+func HasDependsOnWith(preds ...predicate.Service) predicate.Service {
+	return predicate.Service(func(s *sql.Selector) {
+		step := newDependsOnStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Service) predicate.Service {
 	return predicate.Service(sql.AndPredicates(predicates...))

@@ -21895,6 +21895,12 @@ type ServiceMutation struct {
 	subscriptions            map[int]struct{}
 	removedsubscriptions     map[int]struct{}
 	clearedsubscriptions     bool
+	dependents               map[int]struct{}
+	removeddependents        map[int]struct{}
+	cleareddependents        bool
+	depends_on               map[int]struct{}
+	removeddepends_on        map[int]struct{}
+	cleareddepends_on        bool
 	done                     bool
 	oldValue                 func(context.Context) (*Service, error)
 	predicates               []predicate.Service
@@ -22714,6 +22720,114 @@ func (m *ServiceMutation) ResetSubscriptions() {
 	m.removedsubscriptions = nil
 }
 
+// AddDependentIDs adds the "dependents" edge to the Service entity by ids.
+func (m *ServiceMutation) AddDependentIDs(ids ...int) {
+	if m.dependents == nil {
+		m.dependents = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.dependents[ids[i]] = struct{}{}
+	}
+}
+
+// ClearDependents clears the "dependents" edge to the Service entity.
+func (m *ServiceMutation) ClearDependents() {
+	m.cleareddependents = true
+}
+
+// DependentsCleared reports if the "dependents" edge to the Service entity was cleared.
+func (m *ServiceMutation) DependentsCleared() bool {
+	return m.cleareddependents
+}
+
+// RemoveDependentIDs removes the "dependents" edge to the Service entity by IDs.
+func (m *ServiceMutation) RemoveDependentIDs(ids ...int) {
+	if m.removeddependents == nil {
+		m.removeddependents = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.dependents, ids[i])
+		m.removeddependents[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedDependents returns the removed IDs of the "dependents" edge to the Service entity.
+func (m *ServiceMutation) RemovedDependentsIDs() (ids []int) {
+	for id := range m.removeddependents {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// DependentsIDs returns the "dependents" edge IDs in the mutation.
+func (m *ServiceMutation) DependentsIDs() (ids []int) {
+	for id := range m.dependents {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetDependents resets all changes to the "dependents" edge.
+func (m *ServiceMutation) ResetDependents() {
+	m.dependents = nil
+	m.cleareddependents = false
+	m.removeddependents = nil
+}
+
+// AddDependsOnIDs adds the "depends_on" edge to the Service entity by ids.
+func (m *ServiceMutation) AddDependsOnIDs(ids ...int) {
+	if m.depends_on == nil {
+		m.depends_on = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.depends_on[ids[i]] = struct{}{}
+	}
+}
+
+// ClearDependsOn clears the "depends_on" edge to the Service entity.
+func (m *ServiceMutation) ClearDependsOn() {
+	m.cleareddepends_on = true
+}
+
+// DependsOnCleared reports if the "depends_on" edge to the Service entity was cleared.
+func (m *ServiceMutation) DependsOnCleared() bool {
+	return m.cleareddepends_on
+}
+
+// RemoveDependsOnIDs removes the "depends_on" edge to the Service entity by IDs.
+func (m *ServiceMutation) RemoveDependsOnIDs(ids ...int) {
+	if m.removeddepends_on == nil {
+		m.removeddepends_on = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.depends_on, ids[i])
+		m.removeddepends_on[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedDependsOn returns the removed IDs of the "depends_on" edge to the Service entity.
+func (m *ServiceMutation) RemovedDependsOnIDs() (ids []int) {
+	for id := range m.removeddepends_on {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// DependsOnIDs returns the "depends_on" edge IDs in the mutation.
+func (m *ServiceMutation) DependsOnIDs() (ids []int) {
+	for id := range m.depends_on {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetDependsOn resets all changes to the "depends_on" edge.
+func (m *ServiceMutation) ResetDependsOn() {
+	m.depends_on = nil
+	m.cleareddepends_on = false
+	m.removeddepends_on = nil
+}
+
 // Where appends a list predicates to the ServiceMutation builder.
 func (m *ServiceMutation) Where(ps ...predicate.Service) {
 	m.predicates = append(m.predicates, ps...)
@@ -22981,7 +23095,7 @@ func (m *ServiceMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ServiceMutation) AddedEdges() []string {
-	edges := make([]string, 0, 8)
+	edges := make([]string, 0, 10)
 	if m.team != nil {
 		edges = append(edges, service.EdgeTeam)
 	}
@@ -23005,6 +23119,12 @@ func (m *ServiceMutation) AddedEdges() []string {
 	}
 	if m.subscriptions != nil {
 		edges = append(edges, service.EdgeSubscriptions)
+	}
+	if m.dependents != nil {
+		edges = append(edges, service.EdgeDependents)
+	}
+	if m.depends_on != nil {
+		edges = append(edges, service.EdgeDependsOn)
 	}
 	return edges
 }
@@ -23057,13 +23177,25 @@ func (m *ServiceMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case service.EdgeDependents:
+		ids := make([]ent.Value, 0, len(m.dependents))
+		for id := range m.dependents {
+			ids = append(ids, id)
+		}
+		return ids
+	case service.EdgeDependsOn:
+		ids := make([]ent.Value, 0, len(m.depends_on))
+		for id := range m.depends_on {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ServiceMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 8)
+	edges := make([]string, 0, 10)
 	if m.removedintegrations != nil {
 		edges = append(edges, service.EdgeIntegrations)
 	}
@@ -23081,6 +23213,12 @@ func (m *ServiceMutation) RemovedEdges() []string {
 	}
 	if m.removedsubscriptions != nil {
 		edges = append(edges, service.EdgeSubscriptions)
+	}
+	if m.removeddependents != nil {
+		edges = append(edges, service.EdgeDependents)
+	}
+	if m.removeddepends_on != nil {
+		edges = append(edges, service.EdgeDependsOn)
 	}
 	return edges
 }
@@ -23125,13 +23263,25 @@ func (m *ServiceMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case service.EdgeDependents:
+		ids := make([]ent.Value, 0, len(m.removeddependents))
+		for id := range m.removeddependents {
+			ids = append(ids, id)
+		}
+		return ids
+	case service.EdgeDependsOn:
+		ids := make([]ent.Value, 0, len(m.removeddepends_on))
+		for id := range m.removeddepends_on {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ServiceMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 8)
+	edges := make([]string, 0, 10)
 	if m.clearedteam {
 		edges = append(edges, service.EdgeTeam)
 	}
@@ -23156,6 +23306,12 @@ func (m *ServiceMutation) ClearedEdges() []string {
 	if m.clearedsubscriptions {
 		edges = append(edges, service.EdgeSubscriptions)
 	}
+	if m.cleareddependents {
+		edges = append(edges, service.EdgeDependents)
+	}
+	if m.cleareddepends_on {
+		edges = append(edges, service.EdgeDependsOn)
+	}
 	return edges
 }
 
@@ -23179,6 +23335,10 @@ func (m *ServiceMutation) EdgeCleared(name string) bool {
 		return m.clearedincidents
 	case service.EdgeSubscriptions:
 		return m.clearedsubscriptions
+	case service.EdgeDependents:
+		return m.cleareddependents
+	case service.EdgeDependsOn:
+		return m.cleareddepends_on
 	}
 	return false
 }
@@ -23224,6 +23384,12 @@ func (m *ServiceMutation) ResetEdge(name string) error {
 		return nil
 	case service.EdgeSubscriptions:
 		m.ResetSubscriptions()
+		return nil
+	case service.EdgeDependents:
+		m.ResetDependents()
+		return nil
+	case service.EdgeDependsOn:
+		m.ResetDependsOn()
 		return nil
 	}
 	return fmt.Errorf("unknown Service edge %s", name)

@@ -2186,6 +2186,22 @@ const docTemplate = `{
             "ent.ServiceEdges": {
                 "description": "Edges holds the relations/edges for other nodes in the graph.\nThe values are being populated by the ServiceQuery when eager-loading is set.",
                 "properties": {
+                    "dependents": {
+                        "description": "服务依赖：depends_on=依赖的下游，dependents=依赖本服务的上游（影响面）",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Service"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "depends_on": {
+                        "description": "DependsOn holds the value of the depends_on edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Service"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "escalation_policy": {
                         "$ref": "#/components/schemas/ent.EscalationPolicy"
                     },
@@ -3190,6 +3206,60 @@ const docTemplate = `{
                     "TypeCloud",
                     "TypeAPI"
                 ]
+            },
+            "integration.configField": {
+                "properties": {
+                    "example": {
+                        "description": "示例值",
+                        "type": "string"
+                    },
+                    "help": {
+                        "description": "填写说明",
+                        "type": "string"
+                    },
+                    "key": {
+                        "description": "config map 里的键",
+                        "type": "string"
+                    },
+                    "label": {
+                        "description": "展示名",
+                        "type": "string"
+                    },
+                    "required": {
+                        "description": "是否必填",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "integration.configTemplate": {
+                "properties": {
+                    "description": {
+                        "description": "该类型用途简述",
+                        "type": "string"
+                    },
+                    "display_name": {
+                        "description": "中文展示名",
+                        "type": "string"
+                    },
+                    "fields": {
+                        "description": "config 字段清单",
+                        "items": {
+                            "$ref": "#/components/schemas/integration.configField"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "setup_hint": {
+                        "description": "SetupHint 上游如何指向 Vigil 的接线指引（webhook URL 模板、告警转发配置片段等）。",
+                        "type": "string"
+                    },
+                    "type": {
+                        "description": "接入点类型",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
             },
             "integration.createReq": {
                 "properties": {
@@ -4313,6 +4383,14 @@ const docTemplate = `{
                     "auto_create_incident": {
                         "type": "boolean"
                     },
+                    "depends_on_ids": {
+                        "description": "DependsOnIDs 本服务依赖的下游服务 id（T6.2/M4.4 服务拓扑）。\n仅存依赖关系，供影响面分析基础；创建时全量设置。",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "description": {
                         "type": "string"
                     },
@@ -4357,10 +4435,59 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "service.dependenciesResp": {
+                "properties": {
+                    "dependents": {
+                        "description": "依赖本服务的上游服务（本服务故障的影响面）",
+                        "items": {
+                            "$ref": "#/components/schemas/service.dependencyNode"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "depends_on": {
+                        "description": "本服务依赖的下游服务",
+                        "items": {
+                            "$ref": "#/components/schemas/service.dependencyNode"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "service_id": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "service.dependencyNode": {
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "service.updateReq": {
                 "properties": {
                     "auto_create_incident": {
                         "type": "boolean"
+                    },
+                    "depends_on_ids": {
+                        "description": "DependsOnIDs 服务依赖，全量替换语义（同 ScheduleIDs）：nil 不改 / [] 清空 / [x,y] 替换。",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "description": {
                         "type": "string"
@@ -8442,6 +8569,51 @@ const docTemplate = `{
                 ]
             }
         },
+        "/integrations/config-template": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "接入点类型（webhook|email|prometheus|zabbix|grafana|cloud|api），空/all=全部",
+                        "in": "query",
+                        "name": "type",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/integration.configTemplate"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "集成配置模板/接线指引",
+                "tags": [
+                    "integration"
+                ]
+            }
+        },
         "/integrations/{id}": {
             "delete": {
                 "parameters": [
@@ -11780,6 +11952,72 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "更新服务",
+                "tags": [
+                    "service"
+                ]
+            }
+        },
+        "/services/{id}/dependencies": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "服务 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/service.dependenciesResp"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "服务依赖拓扑（一层）",
                 "tags": [
                     "service"
                 ]

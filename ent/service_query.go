@@ -39,6 +39,8 @@ type ServiceQuery struct {
 	withEvents           *EventQuery
 	withIncidents        *IncidentQuery
 	withSubscriptions    *SubscriptionQuery
+	withDependents       *ServiceQuery
+	withDependsOn        *ServiceQuery
 	withFKs              bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -252,6 +254,50 @@ func (_q *ServiceQuery) QuerySubscriptions() *SubscriptionQuery {
 	return query
 }
 
+// QueryDependents chains the current query on the "dependents" edge.
+func (_q *ServiceQuery) QueryDependents() *ServiceQuery {
+	query := (&ServiceClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(service.Table, service.FieldID, selector),
+			sqlgraph.To(service.Table, service.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, service.DependentsTable, service.DependentsPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryDependsOn chains the current query on the "depends_on" edge.
+func (_q *ServiceQuery) QueryDependsOn() *ServiceQuery {
+	query := (&ServiceClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(service.Table, service.FieldID, selector),
+			sqlgraph.To(service.Table, service.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, service.DependsOnTable, service.DependsOnPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first Service entity from the query.
 // Returns a *NotFoundError when no Service was found.
 func (_q *ServiceQuery) First(ctx context.Context) (*Service, error) {
@@ -452,6 +498,8 @@ func (_q *ServiceQuery) Clone() *ServiceQuery {
 		withEvents:           _q.withEvents.Clone(),
 		withIncidents:        _q.withIncidents.Clone(),
 		withSubscriptions:    _q.withSubscriptions.Clone(),
+		withDependents:       _q.withDependents.Clone(),
+		withDependsOn:        _q.withDependsOn.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -546,6 +594,28 @@ func (_q *ServiceQuery) WithSubscriptions(opts ...func(*SubscriptionQuery)) *Ser
 	return _q
 }
 
+// WithDependents tells the query-builder to eager-load the nodes that are connected to
+// the "dependents" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ServiceQuery) WithDependents(opts ...func(*ServiceQuery)) *ServiceQuery {
+	query := (&ServiceClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withDependents = query
+	return _q
+}
+
+// WithDependsOn tells the query-builder to eager-load the nodes that are connected to
+// the "depends_on" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ServiceQuery) WithDependsOn(opts ...func(*ServiceQuery)) *ServiceQuery {
+	query := (&ServiceClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withDependsOn = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -625,7 +695,7 @@ func (_q *ServiceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serv
 		nodes       = []*Service{}
 		withFKs     = _q.withFKs
 		_spec       = _q.querySpec()
-		loadedTypes = [8]bool{
+		loadedTypes = [10]bool{
 			_q.withTeam != nil,
 			_q.withIntegrations != nil,
 			_q.withEscalationPolicy != nil,
@@ -634,6 +704,8 @@ func (_q *ServiceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serv
 			_q.withEvents != nil,
 			_q.withIncidents != nil,
 			_q.withSubscriptions != nil,
+			_q.withDependents != nil,
+			_q.withDependsOn != nil,
 		}
 	)
 	if _q.withTeam != nil || _q.withEscalationPolicy != nil {
@@ -711,6 +783,20 @@ func (_q *ServiceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serv
 		if err := _q.loadSubscriptions(ctx, query, nodes,
 			func(n *Service) { n.Edges.Subscriptions = []*Subscription{} },
 			func(n *Service, e *Subscription) { n.Edges.Subscriptions = append(n.Edges.Subscriptions, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withDependents; query != nil {
+		if err := _q.loadDependents(ctx, query, nodes,
+			func(n *Service) { n.Edges.Dependents = []*Service{} },
+			func(n *Service, e *Service) { n.Edges.Dependents = append(n.Edges.Dependents, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withDependsOn; query != nil {
+		if err := _q.loadDependsOn(ctx, query, nodes,
+			func(n *Service) { n.Edges.DependsOn = []*Service{} },
+			func(n *Service, e *Service) { n.Edges.DependsOn = append(n.Edges.DependsOn, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1024,6 +1110,128 @@ func (_q *ServiceQuery) loadSubscriptions(ctx context.Context, query *Subscripti
 			return fmt.Errorf(`unexpected referenced foreign-key "service_subscriptions" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
+	}
+	return nil
+}
+func (_q *ServiceQuery) loadDependents(ctx context.Context, query *ServiceQuery, nodes []*Service, init func(*Service), assign func(*Service, *Service)) error {
+	edgeIDs := make([]driver.Value, len(nodes))
+	byID := make(map[int]*Service)
+	nids := make(map[int]map[*Service]struct{})
+	for i, node := range nodes {
+		edgeIDs[i] = node.ID
+		byID[node.ID] = node
+		if init != nil {
+			init(node)
+		}
+	}
+	query.Where(func(s *sql.Selector) {
+		joinT := sql.Table(service.DependentsTable)
+		s.Join(joinT).On(s.C(service.FieldID), joinT.C(service.DependentsPrimaryKey[0]))
+		s.Where(sql.InValues(joinT.C(service.DependentsPrimaryKey[1]), edgeIDs...))
+		columns := s.SelectedColumns()
+		s.Select(joinT.C(service.DependentsPrimaryKey[1]))
+		s.AppendSelect(columns...)
+		s.SetDistinct(false)
+	})
+	if err := query.prepareQuery(ctx); err != nil {
+		return err
+	}
+	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
+			assign := spec.Assign
+			values := spec.ScanValues
+			spec.ScanValues = func(columns []string) ([]any, error) {
+				values, err := values(columns[1:])
+				if err != nil {
+					return nil, err
+				}
+				return append([]any{new(sql.NullInt64)}, values...), nil
+			}
+			spec.Assign = func(columns []string, values []any) error {
+				outValue := int(values[0].(*sql.NullInt64).Int64)
+				inValue := int(values[1].(*sql.NullInt64).Int64)
+				if nids[inValue] == nil {
+					nids[inValue] = map[*Service]struct{}{byID[outValue]: {}}
+					return assign(columns[1:], values[1:])
+				}
+				nids[inValue][byID[outValue]] = struct{}{}
+				return nil
+			}
+		})
+	})
+	neighbors, err := withInterceptors[[]*Service](ctx, query, qr, query.inters)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected "dependents" node returned %v`, n.ID)
+		}
+		for kn := range nodes {
+			assign(kn, n)
+		}
+	}
+	return nil
+}
+func (_q *ServiceQuery) loadDependsOn(ctx context.Context, query *ServiceQuery, nodes []*Service, init func(*Service), assign func(*Service, *Service)) error {
+	edgeIDs := make([]driver.Value, len(nodes))
+	byID := make(map[int]*Service)
+	nids := make(map[int]map[*Service]struct{})
+	for i, node := range nodes {
+		edgeIDs[i] = node.ID
+		byID[node.ID] = node
+		if init != nil {
+			init(node)
+		}
+	}
+	query.Where(func(s *sql.Selector) {
+		joinT := sql.Table(service.DependsOnTable)
+		s.Join(joinT).On(s.C(service.FieldID), joinT.C(service.DependsOnPrimaryKey[1]))
+		s.Where(sql.InValues(joinT.C(service.DependsOnPrimaryKey[0]), edgeIDs...))
+		columns := s.SelectedColumns()
+		s.Select(joinT.C(service.DependsOnPrimaryKey[0]))
+		s.AppendSelect(columns...)
+		s.SetDistinct(false)
+	})
+	if err := query.prepareQuery(ctx); err != nil {
+		return err
+	}
+	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
+			assign := spec.Assign
+			values := spec.ScanValues
+			spec.ScanValues = func(columns []string) ([]any, error) {
+				values, err := values(columns[1:])
+				if err != nil {
+					return nil, err
+				}
+				return append([]any{new(sql.NullInt64)}, values...), nil
+			}
+			spec.Assign = func(columns []string, values []any) error {
+				outValue := int(values[0].(*sql.NullInt64).Int64)
+				inValue := int(values[1].(*sql.NullInt64).Int64)
+				if nids[inValue] == nil {
+					nids[inValue] = map[*Service]struct{}{byID[outValue]: {}}
+					return assign(columns[1:], values[1:])
+				}
+				nids[inValue][byID[outValue]] = struct{}{}
+				return nil
+			}
+		})
+	})
+	neighbors, err := withInterceptors[[]*Service](ctx, query, qr, query.inters)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected "depends_on" node returned %v`, n.ID)
+		}
+		for kn := range nodes {
+			assign(kn, n)
+		}
 	}
 	return nil
 }

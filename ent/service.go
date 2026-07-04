@@ -62,9 +62,13 @@ type ServiceEdges struct {
 	Incidents []*Incident `json:"incidents,omitempty"`
 	// Subscriptions holds the value of the subscriptions edge.
 	Subscriptions []*Subscription `json:"subscriptions,omitempty"`
+	// 服务依赖：depends_on=依赖的下游，dependents=依赖本服务的上游（影响面）
+	Dependents []*Service `json:"dependents,omitempty"`
+	// DependsOn holds the value of the depends_on edge.
+	DependsOn []*Service `json:"depends_on,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [8]bool
+	loadedTypes [10]bool
 }
 
 // TeamOrErr returns the Team value or an error if the edge
@@ -141,6 +145,24 @@ func (e ServiceEdges) SubscriptionsOrErr() ([]*Subscription, error) {
 		return e.Subscriptions, nil
 	}
 	return nil, &NotLoadedError{edge: "subscriptions"}
+}
+
+// DependentsOrErr returns the Dependents value or an error if the edge
+// was not loaded in eager-loading.
+func (e ServiceEdges) DependentsOrErr() ([]*Service, error) {
+	if e.loadedTypes[8] {
+		return e.Dependents, nil
+	}
+	return nil, &NotLoadedError{edge: "dependents"}
+}
+
+// DependsOnOrErr returns the DependsOn value or an error if the edge
+// was not loaded in eager-loading.
+func (e ServiceEdges) DependsOnOrErr() ([]*Service, error) {
+	if e.loadedTypes[9] {
+		return e.DependsOn, nil
+	}
+	return nil, &NotLoadedError{edge: "depends_on"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -298,6 +320,16 @@ func (_m *Service) QueryIncidents() *IncidentQuery {
 // QuerySubscriptions queries the "subscriptions" edge of the Service entity.
 func (_m *Service) QuerySubscriptions() *SubscriptionQuery {
 	return NewServiceClient(_m.config).QuerySubscriptions(_m)
+}
+
+// QueryDependents queries the "dependents" edge of the Service entity.
+func (_m *Service) QueryDependents() *ServiceQuery {
+	return NewServiceClient(_m.config).QueryDependents(_m)
+}
+
+// QueryDependsOn queries the "depends_on" edge of the Service entity.
+func (_m *Service) QueryDependsOn() *ServiceQuery {
+	return NewServiceClient(_m.config).QueryDependsOn(_m)
 }
 
 // Update returns a builder for updating this Service.

@@ -92,6 +92,8 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/services/:id", h.get)
 	g.PATCH("/services/:id", h.update)
 	g.DELETE("/services/:id", h.delete)
+	// T6.2 服务拓扑（M4.4）：一层依赖查询——本服务依赖谁（depends_on）+ 谁依赖本服务（dependents，影响面）。
+	g.GET("/services/:id/dependencies", h.dependencies)
 }
 
 // list 服务目录列表。
@@ -145,6 +147,9 @@ type createReq struct {
 	// 此处仅暴露「配置入口」，让 schema 已有的边可经 API 建立；创建时全量设置。
 	ScheduleIDs []int `json:"schedule_ids"`
 	RunbookIDs  []int `json:"runbook_ids"`
+	// DependsOnIDs 本服务依赖的下游服务 id（T6.2/M4.4 服务拓扑）。
+	// 仅存依赖关系，供影响面分析基础；创建时全量设置。
+	DependsOnIDs []int `json:"depends_on_ids"`
 }
 
 // create 创建服务。
@@ -194,6 +199,10 @@ func (h *Handler) create(c *echo.Context) error {
 	}
 	if ids := dedupIDs(req.RunbookIDs); len(ids) > 0 {
 		b.AddRunbookIDs(ids...)
+	}
+	// 服务依赖（去重 + 剔除自引用，防止服务依赖自己形成无意义自环）。
+	if ids := filterSelf(dedupIDs(req.DependsOnIDs), 0); len(ids) > 0 {
+		b.AddDependsOnIDs(ids...)
 	}
 	s, err := b.Save(c.Request().Context())
 	if err != nil {
@@ -252,6 +261,8 @@ type updateReq struct {
 	//   [x,y]   —— 替换为指定集合（先清后加，最终关联即此集合）
 	ScheduleIDs *[]int `json:"schedule_ids"`
 	RunbookIDs  *[]int `json:"runbook_ids"`
+	// DependsOnIDs 服务依赖，全量替换语义（同 ScheduleIDs）：nil 不改 / [] 清空 / [x,y] 替换。
+	DependsOnIDs *[]int `json:"depends_on_ids"`
 }
 
 // update 更新服务。
@@ -279,8 +290,8 @@ func (h *Handler) update(c *echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
-	// 关联排班/处置手册是「配置枢纽」写操作，须 service.update（仅 view 的只读角色不得改关联）。
-	if req.ScheduleIDs != nil || req.RunbookIDs != nil {
+	// 关联排班/处置手册/服务依赖是「配置枢纽」写操作，须 service.update（仅 view 的只读角色不得改关联）。
+	if req.ScheduleIDs != nil || req.RunbookIDs != nil || req.DependsOnIDs != nil {
 		if e := h.checkAccess(c, id, auth.PermServiceUpdate); e != nil {
 			return e
 		}
@@ -326,6 +337,13 @@ func (h *Handler) update(c *echo.Context) error {
 			upd.AddRunbookIDs(ids...)
 		}
 	}
+	// 服务依赖：同上全量替换，且剔除自引用（服务不能依赖自己）。
+	if req.DependsOnIDs != nil {
+		upd.ClearDependsOn()
+		if ids := filterSelf(dedupIDs(*req.DependsOnIDs), id); len(ids) > 0 {
+			upd.AddDependsOnIDs(ids...)
+		}
+	}
 	s, err := upd.Save(c.Request().Context())
 	if err != nil {
 		return errs.Internal(c, nil, err)
@@ -339,19 +357,23 @@ func (h *Handler) update(c *echo.Context) error {
 // 前端配置页需要「当前关联了哪些排班/手册」的 id 列表来回显与增删，故显式回带。
 type serviceResponse struct {
 	*ent.Service
-	ScheduleIDs []int `json:"schedule_ids"`
-	RunbookIDs  []int `json:"runbook_ids"`
+	ScheduleIDs  []int `json:"schedule_ids"`
+	RunbookIDs   []int `json:"runbook_ids"`
+	DependsOnIDs []int `json:"depends_on_ids"` // 本服务依赖的下游服务 id（T6.2 服务拓扑）
 }
 
-// withAssociations 为 Service 查出其关联的 schedule/runbook id 并包装为响应体。
+// withAssociations 为 Service 查出其关联的 schedule/runbook/depends_on id 并包装为响应体。
 // 查询失败时降级为空列表（不阻断主响应，仅关联回显缺失）。
 func (h *Handler) withAssociations(ctx context.Context, s *ent.Service) serviceResponse {
-	resp := serviceResponse{Service: s, ScheduleIDs: []int{}, RunbookIDs: []int{}}
+	resp := serviceResponse{Service: s, ScheduleIDs: []int{}, RunbookIDs: []int{}, DependsOnIDs: []int{}}
 	if ids, err := s.QuerySchedules().IDs(ctx); err == nil {
 		resp.ScheduleIDs = ids
 	}
 	if ids, err := s.QueryRunbooks().IDs(ctx); err == nil {
 		resp.RunbookIDs = ids
+	}
+	if ids, err := s.QueryDependsOn().IDs(ctx); err == nil {
+		resp.DependsOnIDs = ids
 	}
 	return resp
 }
@@ -374,6 +396,89 @@ func dedupIDs(ids []int) []int {
 		out = append(out, id)
 	}
 	return out
+}
+
+// filterSelf 剔除等于 self 的 id（防止服务依赖自己形成无意义自环）。self<=0 时不过滤。
+func filterSelf(ids []int, self int) []int {
+	if self <= 0 || len(ids) == 0 {
+		return ids
+	}
+	out := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if id == self {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out
+}
+
+// dependencyNode 依赖拓扑节点（精简回显，只需 id/name/slug/status 供前端画图/跳转）。
+type dependencyNode struct {
+	ID     int    `json:"id"`
+	Name   string `json:"name"`
+	Slug   string `json:"slug"`
+	Status string `json:"status"`
+}
+
+// dependenciesResp 一层依赖查询响应（T6.2/M4.4 服务拓扑基础）。
+type dependenciesResp struct {
+	ServiceID  int              `json:"service_id"`
+	DependsOn  []dependencyNode `json:"depends_on"` // 本服务依赖的下游服务
+	Dependents []dependencyNode `json:"dependents"` // 依赖本服务的上游服务（本服务故障的影响面）
+}
+
+// dependencies 返回服务的一层依赖拓扑：depends_on（依赖谁）+ dependents（谁依赖它=影响面）。
+//
+// 仅做一层查询，不递归展开完整拓扑（完整拓扑算法/环检测是设计目标，见 docs/PRD.md M4.4）。
+//
+// @Summary      服务依赖拓扑（一层）
+// @Tags         service
+// @Produce      json
+// @Param        id   path     int  true  "服务 ID"
+// @Success      200  {object} dependenciesResp
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /services/{id}/dependencies [get]
+func (h *Handler) dependencies(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermServiceView); e != nil {
+		return e
+	}
+	ctx := c.Request().Context()
+	s, err := h.db.Service.Get(ctx, id)
+	if ent.IsNotFound(err) {
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
+	}
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	resp := dependenciesResp{ServiceID: id, DependsOn: []dependencyNode{}, Dependents: []dependencyNode{}}
+	downstream, err := s.QueryDependsOn().All(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	for _, d := range downstream {
+		resp.DependsOn = append(resp.DependsOn, toNode(d))
+	}
+	upstream, err := s.QueryDependents().All(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	for _, u := range upstream {
+		resp.Dependents = append(resp.Dependents, toNode(u))
+	}
+	return c.JSON(http.StatusOK, resp)
+}
+
+// toNode 把 ent.Service 精简为拓扑节点。
+func toNode(s *ent.Service) dependencyNode {
+	return dependencyNode{ID: s.ID, Name: s.Name, Slug: s.Slug, Status: s.Status.String()}
 }
 
 // delete 删除服务。

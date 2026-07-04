@@ -55,6 +55,49 @@ type Config struct {
 
 	// Credential 凭据加密托管配置（能力域 9 Runbook 执行器，T6.3）
 	Credential Credential `envconfig:"credential"`
+
+	// Retention Event/RawEvent 保留清理配置（平台化长尾，T6.2/M15）
+	Retention Retention `envconfig:"retention"`
+}
+
+// Retention Event/RawEvent 保留清理配置（T6.2，能力域 15 平台化长尾）。
+//
+// 背景：Event 是海量不可变的原始信号（设计基线第 2 条），只追加不修改。
+// 无保留策略时长期堆积会持续吃存储。本配置驱动周期性清理巡检删除超过保留期的旧
+// Event/RawEvent，释放存储。
+//
+// 安全约束（在清理实现里保证，非配置项）：
+//   - 只删「关联的 Incident 已 closed（或无关联）」的 Event——活跃处理单元引用的证据不删。
+//   - 批量分页删除（每批限量），避免大事务锁表。
+//
+// 关闭：EventDays/RawEventDays <= 0 时对应清理不启用（永不删，向后兼容既有部署）。
+type Retention struct {
+	// EventDays Event 保留天数。超过此天数且关联 Incident 已 closed（或无关联）的 Event 被删。
+	// <=0 表示不清理（默认 90 天，约一个季度，覆盖多数复盘/审计回溯需求）。
+	EventDays int `envconfig:"event_days" default:"90"`
+	// RawEventDays RawEvent 保留天数。RawEvent 是原始 payload 暂存，重放窗口过后即可清理。
+	// <=0 表示不清理（默认 30 天，短于 Event——原始字节体积大且价值随时间衰减快）。
+	RawEventDays int `envconfig:"raw_event_days" default:"30"`
+	// Interval 清理巡检间隔。<=0 用默认 6h（低频后台任务，不与业务争资源）。
+	Interval time.Duration `envconfig:"interval" default:"6h"`
+	// BatchSize 单批删除上限（分页），避免大事务锁表。<=0 用默认 500。
+	BatchSize int `envconfig:"batch_size" default:"500"`
+}
+
+// EffectiveInterval 返回清理巡检间隔，零值回退 6h。
+func (r Retention) EffectiveInterval() time.Duration {
+	if r.Interval <= 0 {
+		return 6 * time.Hour
+	}
+	return r.Interval
+}
+
+// EffectiveBatchSize 返回单批删除上限，零值回退 500。
+func (r Retention) EffectiveBatchSize() int {
+	if r.BatchSize <= 0 {
+		return 500
+	}
+	return r.BatchSize
 }
 
 // App 应用级配置。

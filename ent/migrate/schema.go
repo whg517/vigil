@@ -1266,6 +1266,31 @@ var (
 			},
 		},
 	}
+	// ServiceDependsOnColumns holds the columns for the "service_depends_on" table.
+	ServiceDependsOnColumns = []*schema.Column{
+		{Name: "service_id", Type: field.TypeInt},
+		{Name: "dependent_id", Type: field.TypeInt},
+	}
+	// ServiceDependsOnTable holds the schema information for the "service_depends_on" table.
+	ServiceDependsOnTable = &schema.Table{
+		Name:       "service_depends_on",
+		Columns:    ServiceDependsOnColumns,
+		PrimaryKey: []*schema.Column{ServiceDependsOnColumns[0], ServiceDependsOnColumns[1]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "service_depends_on_service_id",
+				Columns:    []*schema.Column{ServiceDependsOnColumns[0]},
+				RefColumns: []*schema.Column{ServicesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "service_depends_on_dependent_id",
+				Columns:    []*schema.Column{ServiceDependsOnColumns[1]},
+				RefColumns: []*schema.Column{ServicesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// TeamUsersColumns holds the columns for the "team_users" table.
 	TeamUsersColumns = []*schema.Column{
 		{Name: "team_id", Type: field.TypeInt},
@@ -1354,6 +1379,7 @@ var (
 		RotationParticipantsTable,
 		ServiceSchedulesTable,
 		ServiceRunbooksTable,
+		ServiceDependsOnTable,
 		TeamUsersTable,
 		TeamRoleBindingsTable,
 	}
@@ -1408,6 +1434,8 @@ func init() {
 	ServiceSchedulesTable.ForeignKeys[1].RefTable = SchedulesTable
 	ServiceRunbooksTable.ForeignKeys[0].RefTable = ServicesTable
 	ServiceRunbooksTable.ForeignKeys[1].RefTable = RunbooksTable
+	ServiceDependsOnTable.ForeignKeys[0].RefTable = ServicesTable
+	ServiceDependsOnTable.ForeignKeys[1].RefTable = ServicesTable
 	TeamUsersTable.ForeignKeys[0].RefTable = TeamsTable
 	TeamUsersTable.ForeignKeys[1].RefTable = UsersTable
 	TeamRoleBindingsTable.ForeignKeys[0].RefTable = TeamsTable

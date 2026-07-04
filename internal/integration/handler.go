@@ -123,6 +123,8 @@ func (h *Handler) Register(g *echo.Group) {
 	// 接入运维（T5.1）：干跑测试（不建单）+ token 轮换（旧失效）。
 	g.POST("/integrations/:id/test", h.test)
 	g.POST("/integrations/:id/rotate-token", h.rotateToken)
+	// T6.2/M14.6 集成向导后端辅助：配置模板/接线指引（只读，无副作用，任何登录用户可查）。
+	g.GET("/integrations/config-template", h.configTemplate)
 }
 
 // generateToken 生成接入 webhook 鉴权 token。

@@ -3443,6 +3443,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/integrations/config-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 集成配置模板/接线指引 */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 接入点类型（webhook|email|prometheus|zabbix|grafana|cloud|api），空/all=全部 */
+                    type?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["integration.configTemplate"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/integrations/{id}": {
         parameters: {
             query?: never;
@@ -6373,6 +6421,72 @@ export interface paths {
         };
         trace?: never;
     };
+    "/services/{id}/dependencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 服务依赖拓扑（一层） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 服务 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["service.dependenciesResp"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/subscriptions": {
         parameters: {
             query?: never;
@@ -8944,6 +9058,10 @@ export interface components {
          *     The values are being populated by the ServiceQuery when eager-loading is set.
          */
         "ent.ServiceEdges": {
+            /** @description 服务依赖：depends_on=依赖的下游，dependents=依赖本服务的上游（影响面） */
+            dependents?: components["schemas"]["ent.Service"][];
+            /** @description DependsOn holds the value of the depends_on edge. */
+            depends_on?: components["schemas"]["ent.Service"][];
             escalation_policy?: components["schemas"]["ent.EscalationPolicy"];
             /** @description Events holds the value of the events edge. */
             events?: components["schemas"]["ent.Event"][];
@@ -9331,6 +9449,30 @@ export interface components {
          * @enum {string}
          */
         "integration.Type": "webhook" | "email" | "prometheus" | "zabbix" | "grafana" | "cloud" | "api";
+        "integration.configField": {
+            /** @description 示例值 */
+            example?: string;
+            /** @description 填写说明 */
+            help?: string;
+            /** @description config map 里的键 */
+            key?: string;
+            /** @description 展示名 */
+            label?: string;
+            /** @description 是否必填 */
+            required?: boolean;
+        };
+        "integration.configTemplate": {
+            /** @description 该类型用途简述 */
+            description?: string;
+            /** @description 中文展示名 */
+            display_name?: string;
+            /** @description config 字段清单 */
+            fields?: components["schemas"]["integration.configField"][];
+            /** @description SetupHint 上游如何指向 Vigil 的接线指引（webhook URL 模板、告警转发配置片段等）。 */
+            setup_hint?: string;
+            /** @description 接入点类型 */
+            type?: string;
+        };
         "integration.createReq": {
             /** @description 类型相关配置（URL/过滤/限流等） */
             config?: {
@@ -9781,6 +9923,11 @@ export interface components {
         "service.Status": "active" | "disabled";
         "service.createReq": {
             auto_create_incident?: boolean;
+            /**
+             * @description DependsOnIDs 本服务依赖的下游服务 id（T6.2/M4.4 服务拓扑）。
+             *     仅存依赖关系，供影响面分析基础；创建时全量设置。
+             */
+            depends_on_ids?: number[];
             description?: string;
             /** @description 可选，关联升级策略 */
             escalation_policy_id?: number;
@@ -9800,8 +9947,23 @@ export interface components {
             status?: string;
             team_id?: number;
         };
+        "service.dependenciesResp": {
+            /** @description 依赖本服务的上游服务（本服务故障的影响面） */
+            dependents?: components["schemas"]["service.dependencyNode"][];
+            /** @description 本服务依赖的下游服务 */
+            depends_on?: components["schemas"]["service.dependencyNode"][];
+            service_id?: number;
+        };
+        "service.dependencyNode": {
+            id?: number;
+            name?: string;
+            slug?: string;
+            status?: string;
+        };
         "service.updateReq": {
             auto_create_incident?: boolean;
+            /** @description DependsOnIDs 服务依赖，全量替换语义（同 ScheduleIDs）：nil 不改 / [] 清空 / [x,y] 替换。 */
+            depends_on_ids?: number[];
             description?: string;
             /**
              * @description EscalationPolicyID 关联升级策略。指针区分三种语义：

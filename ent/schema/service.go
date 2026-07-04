@@ -48,6 +48,13 @@ func (Service) Edges() []ent.Edge {
 		edge.To("incidents", Incident.Type),
 		// Service -> Subscription（订阅该服务 Incident 生命周期的定向订阅，T4.4）
 		edge.To("subscriptions", Subscription.Type),
+		// Service -> Service（服务依赖，自引用，T6.2/M4.4 服务拓扑）。
+		// depends_on：本服务「依赖」的下游服务（如 web 依赖 db）。
+		// dependents（反向边）：「依赖本服务」的上游服务，用于影响面分析基础
+		// （本服务故障会影响哪些上游）。仅存关系，一层查询即可，不做完整拓扑算法。
+		edge.To("depends_on", Service.Type).
+			From("dependents").
+			Comment("服务依赖：depends_on=依赖的下游，dependents=依赖本服务的上游（影响面）"),
 	}
 }
 

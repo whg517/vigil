@@ -568,6 +568,30 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	wired.Closers = append(wired.Closers, aggCancel)
 	log.Info("metrics snapshot aggregator started", zap.Duration("interval", time.Hour))
 
+	// T6.2 Event/RawEvent 保留清理巡检：周期删除超保留期的旧 Event/RawEvent 释放存储。
+	// ★ 安全：只删关联 Incident 已 closed（或无关联）的 Event——活跃处置证据不删；批量分页避免锁表。
+	// 保留期由 config.Retention 驱动（EventDays/RawEventDays<=0 表示该类不清理，向后兼容）。
+	// 触发双路径：ticker（此处）+ Asynq TaskCleanup（可外部编排），二者调同一 Sweep（幂等）。
+	retentionSweeper := domainevent.NewRetentionSweeper(
+		st.DB,
+		cfg.Retention.EventDays,
+		cfg.Retention.RawEventDays,
+		cfg.Retention.EffectiveBatchSize(),
+		cfg.Retention.EffectiveInterval(),
+	)
+	q.Register(domainevent.TaskCleanup, retentionSweeper.HandleTask)
+	if retentionSweeper.Enabled() {
+		retentionCtx, retentionCancel := context.WithCancel(ctx)
+		go retentionSweeper.Run(retentionCtx)
+		wired.Closers = append(wired.Closers, retentionCancel)
+		log.Info("event retention sweeper started",
+			zap.Int("event_days", cfg.Retention.EventDays),
+			zap.Int("raw_event_days", cfg.Retention.RawEventDays),
+			zap.Duration("interval", retentionSweeper.Interval()))
+	} else {
+		log.Info("event retention sweeper disabled (no retention period configured)")
+	}
+
 	return wired, nil
 }
 

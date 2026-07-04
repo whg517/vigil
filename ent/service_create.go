@@ -244,6 +244,36 @@ func (_c *ServiceCreate) AddSubscriptions(v ...*Subscription) *ServiceCreate {
 	return _c.AddSubscriptionIDs(ids...)
 }
 
+// AddDependentIDs adds the "dependents" edge to the Service entity by IDs.
+func (_c *ServiceCreate) AddDependentIDs(ids ...int) *ServiceCreate {
+	_c.mutation.AddDependentIDs(ids...)
+	return _c
+}
+
+// AddDependents adds the "dependents" edges to the Service entity.
+func (_c *ServiceCreate) AddDependents(v ...*Service) *ServiceCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddDependentIDs(ids...)
+}
+
+// AddDependsOnIDs adds the "depends_on" edge to the Service entity by IDs.
+func (_c *ServiceCreate) AddDependsOnIDs(ids ...int) *ServiceCreate {
+	_c.mutation.AddDependsOnIDs(ids...)
+	return _c
+}
+
+// AddDependsOn adds the "depends_on" edges to the Service entity.
+func (_c *ServiceCreate) AddDependsOn(v ...*Service) *ServiceCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddDependsOnIDs(ids...)
+}
+
 // Mutation returns the ServiceMutation object of the builder.
 func (_c *ServiceCreate) Mutation() *ServiceMutation {
 	return _c.mutation
@@ -508,6 +538,38 @@ func (_c *ServiceCreate) createSpec() (*Service, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(subscription.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.DependentsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   service.DependentsTable,
+			Columns: service.DependentsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(service.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.DependsOnIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   service.DependsOnTable,
+			Columns: service.DependsOnPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(service.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

@@ -55,5 +55,18 @@ services:
     # 首次启动需先 migrate（取消下行注释执行一次后重启）：
     # command: ["migrate"]
 
+  # Asynqmon —— Asynq 队列可视化面板（T6.2/M15 平台化长尾）。
+  # 观测异步任务队列（升级计时器/归一化/聚合/清理等）：待处理/处理中/失败/重试计数、
+  # 死信排查、手动重跑。默认注释（可选运维组件，不影响主链路）；需要时取消注释起用。
+  # ★ 安全：面板暴露队列内部状态，生产务必置于内网/加鉴权反代之后，勿直接公网暴露。
+  # asynqmon:
+  #   image: hibiken/asynqmon:latest
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   command: ["--redis-addr=redis:6379"]
+  #   ports:
+  #     - "8081:8080"
+
 volumes:
   pgdata:

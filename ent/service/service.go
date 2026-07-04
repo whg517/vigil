@@ -47,6 +47,10 @@ const (
 	EdgeIncidents = "incidents"
 	// EdgeSubscriptions holds the string denoting the subscriptions edge name in mutations.
 	EdgeSubscriptions = "subscriptions"
+	// EdgeDependents holds the string denoting the dependents edge name in mutations.
+	EdgeDependents = "dependents"
+	// EdgeDependsOn holds the string denoting the depends_on edge name in mutations.
+	EdgeDependsOn = "depends_on"
 	// Table holds the table name of the service in the database.
 	Table = "services"
 	// TeamTable is the table that holds the team relation/edge.
@@ -101,6 +105,10 @@ const (
 	SubscriptionsInverseTable = "subscriptions"
 	// SubscriptionsColumn is the table column denoting the subscriptions relation/edge.
 	SubscriptionsColumn = "service_subscriptions"
+	// DependentsTable is the table that holds the dependents relation/edge. The primary key declared below.
+	DependentsTable = "service_depends_on"
+	// DependsOnTable is the table that holds the depends_on relation/edge. The primary key declared below.
+	DependsOnTable = "service_depends_on"
 )
 
 // Columns holds all SQL columns for service fields.
@@ -130,6 +138,12 @@ var (
 	// RunbooksPrimaryKey and RunbooksColumn2 are the table columns denoting the
 	// primary key for the runbooks relation (M2M).
 	RunbooksPrimaryKey = []string{"service_id", "runbook_id"}
+	// DependentsPrimaryKey and DependentsColumn2 are the table columns denoting the
+	// primary key for the dependents relation (M2M).
+	DependentsPrimaryKey = []string{"service_id", "dependent_id"}
+	// DependsOnPrimaryKey and DependsOnColumn2 are the table columns denoting the
+	// primary key for the depends_on relation (M2M).
+	DependsOnPrimaryKey = []string{"service_id", "dependent_id"}
 )
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -326,6 +340,34 @@ func BySubscriptions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSubscriptionsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByDependentsCount orders the results by dependents count.
+func ByDependentsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newDependentsStep(), opts...)
+	}
+}
+
+// ByDependents orders the results by dependents terms.
+func ByDependents(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDependentsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByDependsOnCount orders the results by depends_on count.
+func ByDependsOnCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newDependsOnStep(), opts...)
+	}
+}
+
+// ByDependsOn orders the results by depends_on terms.
+func ByDependsOn(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDependsOnStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newTeamStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -380,5 +422,19 @@ func newSubscriptionsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SubscriptionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionsTable, SubscriptionsColumn),
+	)
+}
+func newDependentsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(Table, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, true, DependentsTable, DependentsPrimaryKey...),
+	)
+}
+func newDependsOnStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(Table, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, false, DependsOnTable, DependsOnPrimaryKey...),
 	)
 }
