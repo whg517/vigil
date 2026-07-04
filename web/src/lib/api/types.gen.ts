@@ -7222,6 +7222,148 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/webhook-deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询出站 webhook 投递记录
+         * @description 按 status/incident_id 过滤，返回 success/failed（死信）状态分布 + 明细。用于排查出站送达与重放死信。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 状态过滤（success/failed） */
+                    status?: string;
+                    /** @description 关联 incident 过滤 */
+                    incident_id?: number;
+                    /** @description 明细条数上限（默认 50，最大 200） */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["webhook.listResp"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook-deliveries/{id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重放出站 webhook 投递
+         * @description 把指定投递记录的 payload 原样重发到其 URL（复用出站签名）。用于死信补投。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description WebhookDelivery ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.AckResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Bad Gateway */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhook/{token}": {
         parameters: {
             query?: never;
@@ -8463,6 +8605,11 @@ export interface components {
         "event.Status": "firing" | "resolved";
         "httputil.AckResponse": {
             /**
+             * @description ID 通用资源 ID（如出站 webhook 投递重放的 delivery id）。
+             * @example 42
+             */
+            id?: number;
+            /**
              * @description RawEventID ingestion 落库的 RawEvent ID（限接入 webhook）。
              * @example 42
              */
@@ -9138,6 +9285,25 @@ export interface components {
          * @enum {string}
          */
         "user.Status": "active" | "disabled";
+        "webhook.deliveryView": {
+            attempts?: number;
+            created_at?: string;
+            event?: string;
+            id?: number;
+            incident_id?: number;
+            last_error?: string;
+            last_status_code?: number;
+            status?: string;
+            updated_at?: string;
+            url?: string;
+        };
+        "webhook.listResp": {
+            /** @description Counts 按状态计数（success/failed），供死信概览。 */
+            counts?: {
+                [key: string]: number;
+            };
+            items?: components["schemas"]["webhook.deliveryView"][];
+        };
     };
     responses: never;
     parameters: never;

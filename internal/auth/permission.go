@@ -37,6 +37,12 @@ const (
 	PermRawEventView   Permission = "raw_event.view"
 	PermRawEventReplay Permission = "raw_event.replay"
 
+	// —— webhook_delivery 出站 webhook 投递（死信运维，T5.2）——
+	// 出站 URL 是全局配置式订阅（非 team 资源），故查询/重放死信是 org 级运维操作，
+	// 不走团队软隔离——仅授予组织级管理角色（org_admin）。
+	PermWebhookDeliveryView   Permission = "webhook_delivery.view"
+	PermWebhookDeliveryReplay Permission = "webhook_delivery.replay"
+
 	// —— service 服务管理 ——
 	PermServiceView          Permission = "service.view"
 	PermServiceCreate        Permission = "service.create"
@@ -146,6 +152,7 @@ var AllPermissions = []Permission{
 	PermIncidentAddResponder, PermIncidentRunbookExec, PermIncidentDelete,
 	PermEventView, PermEventViewUnrouted, PermEventCreate,
 	PermRawEventView, PermRawEventReplay,
+	PermWebhookDeliveryView, PermWebhookDeliveryReplay,
 	PermServiceView, PermServiceCreate, PermServiceUpdate, PermServiceDelete, PermServiceRouteOverride,
 	PermScheduleView, PermScheduleCreate, PermScheduleUpdate, PermScheduleDelete, PermScheduleOverride,
 	PermEscalationView, PermEscalationCreate, PermEscalationUpdate, PermEscalationDelete,

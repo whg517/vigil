@@ -177,8 +177,14 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// —— Webhook 出口（能力域 14）——
 	webhookURLs := parseWebhookURLs(cfg.Webhook.OutURLs)
 	webhookDisp := webhook.NewDispatcher(webhookURLs)
+	// S13：出站签名（HMAC-SHA256 + 时间戳，接收端可验源防伪造/防重放）。
+	// 未配 VIGIL_WEBHOOK_SIGNING_SECRET 则不签（向后兼容）——生产强烈建议配置。
+	webhookDisp.SetSigningSecret(cfg.Webhook.SigningSecret)
+	// C24 死信：重试耗尽仍失败的投递落 WebhookDelivery(status=failed)，可查可重放，不再静默丢弃。
+	webhookDisp.SetDeliveryRecorder(webhook.NewEntRecorder(st.DB))
 	if webhookDisp.HasSubscriptions() {
-		log.Info("webhook out enabled", zap.Int("subscriptions", len(webhookURLs)))
+		signed := cfg.Webhook.SigningSecret != ""
+		log.Info("webhook out enabled", zap.Int("subscriptions", len(webhookURLs)), zap.Bool("signed", signed))
 	}
 
 	// —— IM 协同（能力域 8）：平台适配器 + 账号映射 + 卡片 + 回调 handler ——
@@ -331,6 +337,11 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	rawEventH.SetScopeResolver(scopeResolver)
 	rawEventH.SetAuditRecorder(auditRecorder)
 	rawEventH.Register(v1)
+	// T5.2 出站 webhook 死信运维：GET /webhook-deliveries 查询 + POST /webhook-deliveries/:id/replay 重放。
+	// org 级权限（不走 team 软隔离），重放复用 dispatcher 出站签名逻辑 + 留痕。
+	webhookH := webhook.NewHandler(st.DB, webhookDisp)
+	webhookH.SetAuditRecorder(auditRecorder)
+	webhookH.Register(v1)
 	escalationH := escalation.NewPolicyHandler(st.DB)
 	escalationH.SetAuthorizer(authz)
 	escalationH.SetScopeResolver(scopeResolver)
@@ -1061,6 +1072,10 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	// 重放按 raw_event → integration 反查 team 校验（raw_event.replay）。
 	g.RoutePerm(http.MethodGet, "/raw-events", auth.PermRawEventView)
 	g.RoutePerm(http.MethodPost, "/raw-events/:id/replay", auth.PermRawEventReplay)
+	// 出站 webhook 死信运维（T5.2）：查询/重放出站投递记录。出站 URL 是全局配置式订阅
+	// （非 team 资源），故为 org 级权限点，不走团队软隔离。
+	g.RoutePerm(http.MethodGet, "/webhook-deliveries", auth.PermWebhookDeliveryView)
+	g.RoutePerm(http.MethodPost, "/webhook-deliveries/:id/replay", auth.PermWebhookDeliveryReplay)
 	// 出向工单集成写（含凭据存储，T4.3）——读端点也登记：集成配置暴露外连目标/项目映射。
 	g.RoutePerm(http.MethodGet, "/ticket-integrations", auth.PermTicketIntegrationView)
 	g.RoutePerm(http.MethodPost, "/ticket-integrations", auth.PermTicketIntegrationCreate)

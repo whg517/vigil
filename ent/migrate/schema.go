@@ -1028,6 +1028,38 @@ var (
 			},
 		},
 	}
+	// WebhookDeliveriesColumns holds the columns for the "webhook_deliveries" table.
+	WebhookDeliveriesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "url", Type: field.TypeString},
+		{Name: "event", Type: field.TypeString},
+		{Name: "incident_id", Type: field.TypeInt, Nullable: true},
+		{Name: "payload", Type: field.TypeBytes},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"success", "failed"}, Default: "failed"},
+		{Name: "attempts", Type: field.TypeInt, Default: 0},
+		{Name: "last_error", Type: field.TypeString, Nullable: true},
+		{Name: "last_status_code", Type: field.TypeInt, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// WebhookDeliveriesTable holds the schema information for the "webhook_deliveries" table.
+	WebhookDeliveriesTable = &schema.Table{
+		Name:       "webhook_deliveries",
+		Columns:    WebhookDeliveriesColumns,
+		PrimaryKey: []*schema.Column{WebhookDeliveriesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "webhookdelivery_status",
+				Unique:  false,
+				Columns: []*schema.Column{WebhookDeliveriesColumns[5]},
+			},
+			{
+				Name:    "webhookdelivery_incident_id",
+				Unique:  false,
+				Columns: []*schema.Column{WebhookDeliveriesColumns[3]},
+			},
+		},
+	}
 	// EscalationPolicySchedulesColumns holds the columns for the "escalation_policy_schedules" table.
 	EscalationPolicySchedulesColumns = []*schema.Column{
 		{Name: "escalation_policy_id", Type: field.TypeInt},
@@ -1233,6 +1265,7 @@ var (
 		TicketIntegrationsTable,
 		TimelineItemsTable,
 		UsersTable,
+		WebhookDeliveriesTable,
 		EscalationPolicySchedulesTable,
 		IncidentRespondersTable,
 		RotationParticipantsTable,

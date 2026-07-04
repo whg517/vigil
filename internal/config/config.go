@@ -152,6 +152,11 @@ func (a Auth) EffectiveRefreshTokenTTL() time.Duration {
 // 为空则不推送。
 type Webhook struct {
 	OutURLs string `envconfig:"out_urls"` // 订阅 URL，逗号分隔
+	// SigningSecret 出站签名密钥（S13）。非空时每次出站 POST 加 HMAC-SHA256 签名头
+	// （X-Vigil-Signature = hex(HMAC(secret, timestamp + "." + body))）+ X-Vigil-Timestamp，
+	// 接收端用同一密钥重算验源、并按时间戳容忍窗口防重放。
+	// 为空则不签名（向后兼容既有订阅端）——★ 生产强烈建议配置，否则任何人可伪造出站事件投递给接收端。
+	SigningSecret string `envconfig:"signing_secret"`
 }
 
 // Ingestion 接入限流/背压配置（能力域 1，PRD M1.7）。

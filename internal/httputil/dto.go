@@ -33,6 +33,8 @@ type AckResponse struct {
 	Status string `json:"status" example:"accepted"`
 	// RawEventID ingestion 落库的 RawEvent ID（限接入 webhook）。
 	RawEventID int `json:"raw_event_id,omitempty" example:"42"`
+	// ID 通用资源 ID（如出站 webhook 投递重放的 delivery id）。
+	ID int `json:"id,omitempty" example:"42"`
 	// RetryAfter 限流/背压时建议重试秒数（限接入 webhook）。
 	RetryAfter int `json:"retry_after,omitempty" example:"60"`
 }

@@ -69,6 +69,9 @@ const (
 	ActionTicketIntegrationDelete = "ticket_integration.delete"
 	// AI 建议改判（S11）：采纳/拒绝会影响后续自动化/复盘，谁在何时改判须可审计。
 	ActionAIInsightResolve = "ai.insight.resolve"
+	// 出站 webhook 死信重放（T5.2）：把失败的出站投递重新推给订阅端，会向外部再发一次事件，
+	// 属对外写动作，须留痕（谁重放了哪条、成功与否）。
+	ActionWebhookDeliveryReplay = "webhook_delivery.replay"
 )
 
 // AuditEntry 审计日志条目（调用方构造，Recorder 持久化）。

@@ -2,6 +2,9 @@ package webhook
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,6 +16,26 @@ import (
 	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/incident"
 )
+
+// stubRecorder 内存投递记录器（测试桩）。
+type stubRecorder struct {
+	mu   sync.Mutex
+	recs []DeliveryRecord
+}
+
+func (s *stubRecorder) RecordDelivery(_ context.Context, r DeliveryRecord) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.recs = append(s.recs, r)
+}
+
+func (s *stubRecorder) all() []DeliveryRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]DeliveryRecord, len(s.recs))
+	copy(out, s.recs)
+	return out
+}
 
 // newTestIncident 构造测试用 incident（不入库）。
 func newTestIncident() *ent.Incident {
@@ -186,5 +209,149 @@ func TestDispatcher_CreatedAndEscalatedEvents(t *testing.T) {
 				t.Errorf("event: got %v, want %v", received["event"], tc.wantEvent)
 			}
 		})
+	}
+}
+
+// TestDispatcher_Signature 验证 S13：配置密钥后出站带签名头，且签名可被同一算法验源（含时间戳防重放基串）。
+func TestDispatcher_Signature(t *testing.T) {
+	const secret = "s3cr3t"
+	var mu sync.Mutex
+	var gotSig, gotTs string
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		gotSig = r.Header.Get(HeaderSignature)
+		gotTs = r.Header.Get(HeaderTimestamp)
+		gotBody = body
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	d := NewDispatcher([]string{srv.URL})
+	d.SetSigningSecret(secret)
+	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("ack"))
+	d.Close()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if gotSig == "" || gotTs == "" {
+		t.Fatalf("应带签名头: sig=%q ts=%q", gotSig, gotTs)
+	}
+	// 接收端用同一密钥 + 收到的 timestamp + body 重算，须与收到的签名一致（验源）。
+	if !verifySig(secret, gotTs, gotBody, gotSig) {
+		t.Errorf("签名重算不匹配：sig=%s ts=%s", gotSig, gotTs)
+	}
+	// 错误密钥不应通过（防伪造）。
+	if verifySig("wrong", gotTs, gotBody, gotSig) {
+		t.Error("错误密钥不应验签通过")
+	}
+}
+
+// verifySig 用与 dispatcher.sign 相同的算法（timestamp + "." + body）重算并比对。
+func verifySig(secret, ts string, body []byte, sig string) bool {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(ts))
+	mac.Write([]byte("."))
+	mac.Write(body)
+	return hex.EncodeToString(mac.Sum(nil)) == sig
+}
+
+// TestDispatcher_NoSignatureWhenSecretEmpty 验证未配密钥时不签名（向后兼容）。
+func TestDispatcher_NoSignatureWhenSecretEmpty(t *testing.T) {
+	var mu sync.Mutex
+	var gotSig, gotTs string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotSig = r.Header.Get(HeaderSignature)
+		gotTs = r.Header.Get(HeaderTimestamp)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	d := NewDispatcher([]string{srv.URL}) // 不设密钥
+	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("ack"))
+	d.Close()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if gotSig != "" || gotTs != "" {
+		t.Errorf("未配密钥不应签名: sig=%q ts=%q", gotSig, gotTs)
+	}
+}
+
+// TestDispatcher_DeadLetterOnExhaustedFailure 验证 C24：重试耗尽仍失败落死信记录（失败 payload/错误可查）。
+func TestDispatcher_DeadLetterOnExhaustedFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError) // 恒失败
+	}))
+	defer srv.Close()
+
+	rec := &stubRecorder{}
+	d := NewDispatcher([]string{srv.URL})
+	d.SetDeliveryRecorder(rec)
+	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("resolve"))
+	d.Close()
+
+	recs := rec.all()
+	if len(recs) != 1 {
+		t.Fatalf("应落 1 条投递记录，实际 %d", len(recs))
+	}
+	r := recs[0]
+	if r.Success {
+		t.Error("恒失败应记 Success=false（死信）")
+	}
+	if r.LastStatusCode != http.StatusInternalServerError {
+		t.Errorf("last status: got %d", r.LastStatusCode)
+	}
+	if r.LastError == "" {
+		t.Error("死信应含错误原因")
+	}
+	if r.Event != "incident.resolve" {
+		t.Errorf("event: got %s", r.Event)
+	}
+	if len(r.Payload) == 0 {
+		t.Error("死信应留存 payload 供重放")
+	}
+}
+
+// TestDispatcher_RecordSuccess 验证成功也落记录（送达率可观测）。
+func TestDispatcher_RecordSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	rec := &stubRecorder{}
+	d := NewDispatcher([]string{srv.URL})
+	d.SetDeliveryRecorder(rec)
+	d.OnIncidentChanged(context.Background(), newTestIncident(), incident.Action("ack"))
+	d.Close()
+
+	recs := rec.all()
+	if len(recs) != 1 || !recs[0].Success {
+		t.Fatalf("成功应落 1 条 Success=true，实际 %+v", recs)
+	}
+}
+
+// TestDispatcher_SendOnce 验证同步单发（重放复用）：成功/失败均正确反馈。
+func TestDispatcher_SendOnce(t *testing.T) {
+	okSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer okSrv.Close()
+	failSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer failSrv.Close()
+
+	d := NewDispatcher(nil) // SendOnce 不依赖订阅列表
+	if res := d.SendOnce(context.Background(), okSrv.URL, []byte(`{}`)); !res.Success || res.StatusCode != 200 {
+		t.Errorf("okSrv: got %+v", res)
+	}
+	if res := d.SendOnce(context.Background(), failSrv.URL, []byte(`{}`)); res.Success || res.StatusCode != http.StatusBadGateway {
+		t.Errorf("failSrv: got %+v", res)
 	}
 }

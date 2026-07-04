@@ -1927,6 +1927,10 @@ components:
       - StatusResolved
     httputil.AckResponse:
       properties:
+        id:
+          description: ID 通用资源 ID（如出站 webhook 投递重放的 delivery id）。
+          example: 42
+          type: integer
         raw_event_id:
           description: RawEventID ingestion 落库的 RawEvent ID（限接入 webhook）。
           example: 42
@@ -3220,6 +3224,42 @@ components:
       - DefaultStatus
       - StatusActive
       - StatusDisabled
+    webhook.deliveryView:
+      properties:
+        attempts:
+          type: integer
+        created_at:
+          type: string
+        event:
+          type: string
+        id:
+          type: integer
+        incident_id:
+          type: integer
+        last_error:
+          type: string
+        last_status_code:
+          type: integer
+        status:
+          type: string
+        updated_at:
+          type: string
+        url:
+          type: string
+      type: object
+    webhook.listResp:
+      properties:
+        counts:
+          additionalProperties:
+            type: integer
+          description: Counts 按状态计数（success/failed），供死信概览。
+          type: object
+        items:
+          items:
+            $ref: '#/components/schemas/webhook.deliveryView'
+          type: array
+          uniqueItems: false
+      type: object
   securitySchemes:
     bearerAuth:
       bearerFormat: JWT
@@ -8031,6 +8071,95 @@ paths:
       summary: 管理员重置密码
       tags:
       - user
+  /webhook-deliveries:
+    get:
+      description: 按 status/incident_id 过滤，返回 success/failed（死信）状态分布 + 明细。用于排查出站送达与重放死信。
+      parameters:
+      - description: 状态过滤（success/failed）
+        in: query
+        name: status
+        schema:
+          type: string
+      - description: 关联 incident 过滤
+        in: query
+        name: incident_id
+        schema:
+          type: integer
+      - description: 明细条数上限（默认 50，最大 200）
+        in: query
+        name: limit
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/webhook.listResp'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: 查询出站 webhook 投递记录
+      tags:
+      - webhook
+  /webhook-deliveries/{id}/replay:
+    post:
+      description: 把指定投递记录的 payload 原样重发到其 URL（复用出站签名）。用于死信补投。
+      parameters:
+      - description: WebhookDelivery ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.AckResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Internal Server Error
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Gateway
+      security:
+      - bearerAuth: []
+      summary: 重放出站 webhook 投递
+      tags:
+      - webhook
   /webhook/{token}:
     post:
       description: token 鉴权 → 限流/背压检查（payload 仍落库）→ 落 RawEvent → 入归一化队列 → 秒级返回 202。公开入口，不走
