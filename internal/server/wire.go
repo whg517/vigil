@@ -243,7 +243,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// 公开路由（自带鉴权，不走 RBAC）
 	ingestHandler.Register(public)
 	imHandler.Register(public)
-	ws.NewHandler(wsHub).Register(public)
+	// T0.5：WS 端点握手鉴权（?token= JWT + incident.view 团队软隔离）。
+	// 仍挂 public 组——鉴权在 handler 内按 query token 完成，RouteGuard 中间件读不到 query，无法复用。
+	ws.NewHandler(wsHub, authz, identityResolver, scopeResolver).Register(public)
 	log.Info("websocket ready (/ws/incidents/:id)")
 	authHandler := auth.NewAuthHandler(st.DB, jwtSigner)
 	authHandler.SetAuditRecorder(auditRecorder)

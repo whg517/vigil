@@ -34,7 +34,19 @@ export function subscribeIncident(incidentId: number, onMessage: MessageHandler)
     // 构造 ws URL：同源（生产同源 / 开发 vite proxy /api）。
     // WS 端点注册在 /api/v1 group（与 HTTP 业务路由同前缀），故需 /api/v1 前缀。
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${proto}//${window.location.host}/api/v1/ws/incidents/${incidentId}`;
+    // 握手鉴权（T0.5）：后端在 Upgrade 前校验 ?token=<jwt>——无 token/无权即 401/403 拒握手。
+    // 浏览器 WebSocket 握手无法带 Authorization 头，故令牌只能走 query。
+    // token 从 http client 同源（localStorage vigil_token）读取，与 REST 请求同一凭据。
+    //
+    // 刷新场景：token 在每次 connect() 内即时读取（非闭包捕获一次），所以断线重连
+    // （onclose → connect）总是带最新的 vigil_token。当前前端尚无自动刷新链路
+    // （access token 过期时 http 拦截器直接清凭据跳登录，authApi.refresh 未接入自动流程），
+    // 故 access token 过期后 WS 握手会被 401 拒、指数退避重试，直到用户重新登录写入新 token。
+    // TODO（依赖自动 token 刷新落地）：接入 refresh 后，刷新写回 vigil_token 即被下次重连自动采用，
+    // 本处无需改动；如需刷新后立即重连，可在刷新成功事件里主动关连接触发 onclose→connect。
+    const token = localStorage.getItem("vigil_token") ?? "";
+    const query = token ? `?token=${encodeURIComponent(token)}` : "";
+    const url = `${proto}//${window.location.host}/api/v1/ws/incidents/${incidentId}${query}`;
     ws = new WebSocket(url);
 
     ws.onmessage = (event) => {
