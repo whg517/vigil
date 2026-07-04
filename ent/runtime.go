@@ -15,6 +15,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
+	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/postmortem"
@@ -198,6 +199,24 @@ func init() {
 	integration.DefaultUpdatedAt = integrationDescUpdatedAt.Default.(func() time.Time)
 	// integration.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	integration.UpdateDefaultUpdatedAt = integrationDescUpdatedAt.UpdateDefault.(func() time.Time)
+	notificationFields := schema.Notification{}.Fields()
+	_ = notificationFields
+	// notificationDescChannel is the schema descriptor for channel field.
+	notificationDescChannel := notificationFields[0].Descriptor()
+	// notification.ChannelValidator is a validator for the "channel" field. It is called by the builders before save.
+	notification.ChannelValidator = notificationDescChannel.Validators[0].(func(string) error)
+	// notificationDescUserID is the schema descriptor for user_id field.
+	notificationDescUserID := notificationFields[2].Descriptor()
+	// notification.DefaultUserID holds the default value on creation for the user_id field.
+	notification.DefaultUserID = notificationDescUserID.Default.(int)
+	// notificationDescLevel is the schema descriptor for level field.
+	notificationDescLevel := notificationFields[5].Descriptor()
+	// notification.DefaultLevel holds the default value on creation for the level field.
+	notification.DefaultLevel = notificationDescLevel.Default.(int)
+	// notificationDescCreatedAt is the schema descriptor for created_at field.
+	notificationDescCreatedAt := notificationFields[7].Descriptor()
+	// notification.DefaultCreatedAt holds the default value on creation for the created_at field.
+	notification.DefaultCreatedAt = notificationDescCreatedAt.Default.(func() time.Time)
 	notificationruleFields := schema.NotificationRule{}.Fields()
 	_ = notificationruleFields
 	// notificationruleDescName is the schema descriptor for name field.

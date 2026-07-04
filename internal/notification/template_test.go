@@ -161,5 +161,58 @@ func TestDefaultNameForChannel(t *testing.T) {
 	}
 }
 
+// TestRender_SameNameCustomOverridesBuiltin C20：同名自定义模板覆盖内置（不再 Only 歧义降级）。
+//
+// 场景：seed 写入 builtin default_im_card，用户又建一条同名 default_im_card（builtin=false）。
+// 原实现 lookup 用 Only() 遇同名多条报 ambiguity → stored 留空 → 降级回代码内置常量，
+// 自定义不生效。修复后 pickPreferredTemplate 显式「自定义优先」，同名自定义真正覆盖。
+func TestRender_SameNameCustomOverridesBuiltin(t *testing.T) {
+	c := newTemplateTestClient(t)
+	e := NewTemplateEngine(c)
+	ctx := context.Background()
+	if err := e.SeedBuiltinTemplates(ctx); err != nil { // 写入 builtin default_im_card
+		t.Fatalf("seed: %v", err)
+	}
+	// 同名自定义（builtin 字段默认 false）
+	if _, err := c.NotificationTemplate.Create().
+		SetName(DefaultIMTemplateName).
+		SetChannel("im").
+		SetFormat("interactive_card").
+		SetTitleTemplate("CUSTOM {{.Incident.Number}}").
+		SetBodyTemplate("custom body").
+		Save(ctx); err != nil {
+		t.Fatalf("create same-name custom: %v", err)
+	}
+	e.InvalidateCache()
+	inc := makeTestIncident(t, c)
+	rendered, err := e.Render(ctx, DefaultIMTemplateName, "im", TemplateData{Incident: inc})
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if !strings.Contains(rendered.Title, "CUSTOM") {
+		t.Errorf("same-name custom template should override builtin, got title %q", rendered.Title)
+	}
+}
+
+// TestSeedBuiltin_WithSameNameCustom seed 在存在同名自定义时不因 Only 歧义失败。
+func TestSeedBuiltin_WithSameNameCustom(t *testing.T) {
+	c := newTemplateTestClient(t)
+	e := NewTemplateEngine(c)
+	ctx := context.Background()
+	if err := e.SeedBuiltinTemplates(ctx); err != nil {
+		t.Fatalf("first seed: %v", err)
+	}
+	// 建同名自定义（builtin=false）
+	if _, err := c.NotificationTemplate.Create().
+		SetName(DefaultIMTemplateName).SetChannel("im").SetFormat("text").
+		SetTitleTemplate("x").SetBodyTemplate("y").Save(ctx); err != nil {
+		t.Fatalf("create custom: %v", err)
+	}
+	// 再 seed：不应因同名多条报 ambiguity 错误
+	if err := e.SeedBuiltinTemplates(ctx); err != nil {
+		t.Fatalf("re-seed with same-name custom failed: %v", err)
+	}
+}
+
 // 防止 event 包未使用告警（模板渲染间接用 incident，event 仅类型对齐预留）。
 var _ = event.StatusFiring

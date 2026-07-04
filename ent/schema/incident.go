@@ -82,6 +82,8 @@ func (Incident) Edges() []ent.Edge {
 		edge.To("postmortem", Postmortem.Type).Unique(),
 		// Incident -> AIInsight（AI 洞察）
 		edge.To("ai_insights", AIInsight.Type),
+		// Incident -> Notification（通知送达记录，M13 / B22）
+		edge.To("notifications", Notification.Type),
 	}
 }
 

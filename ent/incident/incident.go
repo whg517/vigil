@@ -71,6 +71,8 @@ const (
 	EdgePostmortem = "postmortem"
 	// EdgeAiInsights holds the string denoting the ai_insights edge name in mutations.
 	EdgeAiInsights = "ai_insights"
+	// EdgeNotifications holds the string denoting the notifications edge name in mutations.
+	EdgeNotifications = "notifications"
 	// Table holds the table name of the incident in the database.
 	Table = "incidents"
 	// TeamTable is the table that holds the team relation/edge.
@@ -141,6 +143,13 @@ const (
 	AiInsightsInverseTable = "ai_insights"
 	// AiInsightsColumn is the table column denoting the ai_insights relation/edge.
 	AiInsightsColumn = "incident_ai_insights"
+	// NotificationsTable is the table that holds the notifications relation/edge.
+	NotificationsTable = "notifications"
+	// NotificationsInverseTable is the table name for the Notification entity.
+	// It exists in this package in order to avoid circular dependency with the "notification" package.
+	NotificationsInverseTable = "notifications"
+	// NotificationsColumn is the table column denoting the notifications relation/edge.
+	NotificationsColumn = "incident_notifications"
 )
 
 // Columns holds all SQL columns for incident fields.
@@ -516,6 +525,20 @@ func ByAiInsights(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newAiInsightsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByNotificationsCount orders the results by notifications count.
+func ByNotificationsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newNotificationsStep(), opts...)
+	}
+}
+
+// ByNotifications orders the results by notifications terms.
+func ByNotifications(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newNotificationsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newTeamStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -584,5 +607,12 @@ func newAiInsightsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AiInsightsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, AiInsightsTable, AiInsightsColumn),
+	)
+}
+func newNotificationsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(NotificationsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, NotificationsTable, NotificationsColumn),
 	)
 }

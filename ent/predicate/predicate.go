@@ -36,6 +36,9 @@ type IncidentAction func(*sql.Selector)
 // Integration is the predicate function for integration builders.
 type Integration func(*sql.Selector)
 
+// Notification is the predicate function for notification builders.
+type Notification func(*sql.Selector)
+
 // NotificationRule is the predicate function for notificationrule builders.
 type NotificationRule func(*sql.Selector)
 

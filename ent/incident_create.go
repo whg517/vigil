@@ -15,6 +15,7 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
+	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/service"
@@ -412,6 +413,21 @@ func (_c *IncidentCreate) AddAiInsights(v ...*AIInsight) *IncidentCreate {
 	return _c.AddAiInsightIDs(ids...)
 }
 
+// AddNotificationIDs adds the "notifications" edge to the Notification entity by IDs.
+func (_c *IncidentCreate) AddNotificationIDs(ids ...int) *IncidentCreate {
+	_c.mutation.AddNotificationIDs(ids...)
+	return _c
+}
+
+// AddNotifications adds the "notifications" edges to the Notification entity.
+func (_c *IncidentCreate) AddNotifications(v ...*Notification) *IncidentCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddNotificationIDs(ids...)
+}
+
 // Mutation returns the IncidentMutation object of the builder.
 func (_c *IncidentCreate) Mutation() *IncidentMutation {
 	return _c.mutation
@@ -789,6 +805,22 @@ func (_c *IncidentCreate) createSpec() (*Incident, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(aiinsight.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.NotificationsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   incident.NotificationsTable,
+			Columns: []string{incident.NotificationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(notification.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

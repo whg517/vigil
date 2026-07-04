@@ -85,6 +85,17 @@ type Message struct {
 - **电话/SMS 是升级兜底**：IM 未 ack 升级时才启用，避免无谓强打扰。
 - **多通道兜底链**：IM 失败 → 电话 → SMS → 全员，按 NotificationRule 配置。
 
+> **实现现状（T2.2）**：分发是**逐通道兜底降级链**而非并联（B7/C12/B22）：
+> - `msg.Channels` 是一条**有序降级链**（主通道在前）。通道来源优先级：
+>   ① 本层 `EscalationLevel.notify_channels`（T2.1）> ② 命中的 `NotificationRule.channels`（B7）> ③ 全局默认链 `[webhook?]+im+email+phone+sms`。
+> - 对每个 target 按链顺序逐通道尝试：**首个成功即停止**（送达），失败才降级到下一通道——
+>   而非每通道各发一份（避免重复打扰、保留「IM 优先、电话/短信仅兜底」的层次）。
+> - **规则评估**（`RuleResolver`，B7/C12）：按 incident 的 `condition`（severity/team/service）
+>   匹配规则，「条件更具体者优先」；无命中回落默认链（向后兼容）。
+> - **全链失败**（B22）：某 target 整条链全失败 → 记 `failed` + 兜底告警 org_admin（`allFailedHook`），
+>   使「有事件通知发不出去」不再静默无人知。
+> - **电话/短信**（B8）：已纳入默认链；号码来自 `User.phone`（`PATCH /users/:id` 可写）。
+
 ---
 
 ## 5. 通知规则（NotificationRule，M7.5/M7.8）
@@ -142,18 +153,28 @@ notification_template:
 ### 7.1 送达状态
 
 ```go
+// 已落地为 ent 实体（ent/schema/notification.go，T2.2 / B22 / M13）。
 type Notification struct {
-    ID            string
-    IncidentID    string
-    Target        *NotifyTarget
-    Channel       string
-    Status        NotificationStatus  // pending | sent | delivered | failed
-    Attempts      int
-    LastError     string
-    SentAt        *time.Time
-    AckedAt       *time.Time
+    ID         int
+    IncidentID int    // 关联事件，0=未路由兜底（无单）
+    UserID     int    // 关联用户，0=无（群/webhook）
+    Channel    string // im | phone | sms | email | webhook
+    Target     string // 送达目标标识：user id / email / phone / url
+    Status     string // pending | sent | failed | suppressed
+    Reason     string // 状态原因：失败错误 / 静默原因（quiet_hours）/ 兜底说明
+    Level      int    // 触发时升级层级
+    Severity   string // 严重度快照
+    CreatedAt  time.Time
 }
 ```
+
+> **送达三态 + suppressed**（B22）：每次发送/静默/失败落一条（只追加，不修改）。
+> - `sent`/`failed`：通道返回成功/失败；
+> - `suppressed`：命中 quiet_hours 被静默（**不再直接丢弃无痕**，可查、可补发）；
+> - `pending`：预留（Asynq 在途/重试中）。
+>
+> **查询端点**：`GET /incidents/:id/notifications`（权限点 `incident.view`，分页），
+> 使「通知发给了谁、走哪个通道、送达/失败/被静默」可查，为夜间打扰/送达率指标提供数据源。
 
 ### 7.2 重试
 
@@ -207,7 +228,11 @@ type Notification struct {
 |---------|---------|
 | §5 静默时段（M7.8） | `internal/notification/quiet_hours.go`（`QuietHours.ShouldSuppress`：critical/值班人穿透、跨午夜窗） |
 | §5 静默配置接入 | `internal/notification/notifier.go`（`SetQuietHoursResolver` + `NotifyEscalation` 内评估）+ `main.go`（按 NotificationRule.quiet_hours 解析） |
-| §7.2 送达记录 + 重试 | `internal/notification/notifier.go`（`sendOne` + `recordResult` 回调） |
+| §4 降级链 + 规则评估（B7/C12） | `internal/notification/notifier.go`（`deliverChain` 逐通道兜底、`resolveChannels` 通道优先级）+ `rule.go`（`RuleResolver.Resolve`：condition 匹配、更具体者优先） |
+| §7.1 送达三态落库（B22/M13） | `ent/schema/notification.go`（Notification 实体）+ `internal/notification/recorder.go`（`DeliveryRecorder.Record` + `QueryByIncident`）+ `internal/incident/handler.go`（`GET /incidents/:id/notifications`） |
+| §4 全链失败兜底告警（B22） | `internal/notification/notifier.go`（`allFailedHook`）+ `internal/server/wire.go`（`buildAllFailedHook`：解算 org_admin 走非 IM 通道告警） |
+| §4 电话/短信入链 + 号码可写（B8） | `internal/notification/channels_phone.go` + `internal/server/wire.go`（默认链含 phone/sms）+ `internal/auth/handler_user_team.go`（`updateUserReq.Phone` → `User.phone`） |
+| §7.2 送达记录 + 重试 | `internal/notification/notifier.go`（`sendOne` + `recordResult` 回调 + `recordDelivery` 落库） |
 | §8 通知聚合（M7.9） | `internal/notification/aggregator.go`（`Aggregator.Add/Flush`：Redis per-target 队列、30s 窗、critical 旁路）+ `Notifier.FlushAggregated` |
 | §4 通道可插拔 | `internal/notification/channel.go`（`Channel` 接口）+ `channels_builtin.go`（webhook/email）+ `im/notification_channel.go`（IM） |
 | §6 通知模板（M7.5） | `internal/notification/template.go`（`TemplateEngine.Render`：Go template、内置默认模板 seed、自定义覆盖、渲染失败降级兜底）+ `notifier.go`（`SetTemplateEngine` 注入）+ `handler.go`（template CRUD + `POST /:id/preview`） |

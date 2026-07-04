@@ -94,6 +94,29 @@ func TestUpdateUser_EnableAudited(t *testing.T) {
 	}
 }
 
+// TestUpdateUser_PhoneWritable B8：PATCH /users/:id 可写 User.phone（电话/短信通道解号依赖）。
+func TestUpdateUser_PhoneWritable(t *testing.T) {
+	c, h, targetID := newUserHandlerTest(t)
+	e := echo.New()
+	e.PATCH("/api/v1/users/:id", h.updateUser, RequireUser(true, nil))
+	body := strings.NewReader(`{"phone":"+8613800138000"}`)
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+strconv.Itoa(targetID), body)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set("X-Vigil-User-ID", "1")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PATCH phone = %d, want 200", rec.Code)
+	}
+	u, err := c.User.Get(context.Background(), targetID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if u.Phone != "+8613800138000" {
+		t.Errorf("phone = %q, want +8613800138000", u.Phone)
+	}
+}
+
 // TestUpdateUser_NoStatusChangeNoAudit 提交相同 status → 不记审计（避免噪音）。
 func TestUpdateUser_NoStatusChangeNoAudit(t *testing.T) {
 	c, h, targetID := newUserHandlerTest(t)

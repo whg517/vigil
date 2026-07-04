@@ -94,11 +94,14 @@ func (h *UserHandler) listUsers(c *echo.Context) error {
 	return c.JSON(http.StatusOK, users)
 }
 
-// updateUserReq 更新用户请求（name/status/timezone，不改密码）。
+// updateUserReq 更新用户请求（name/status/timezone/phone，不改密码）。
 type updateUserReq struct {
 	Name     *string `json:"name"`
 	Status   *string `json:"status"` // active|disabled
 	Timezone *string `json:"timezone"`
+	// Phone 电话号码（B8）：SMS/语音通道按 User.phone 解号，原 schema 有字段但无 API 可写，
+	// 导致电话/短信降级链虽接通却永远解不出号码。放开写入使电话兜底真正可用。
+	Phone *string `json:"phone"`
 }
 
 // updateUser 更新用户信息（启停/改名，不改密码——密码改走独立流程）。
@@ -158,6 +161,9 @@ func (h *UserHandler) updateUser(c *echo.Context) error {
 	}
 	if req.Timezone != nil {
 		u.SetTimezone(*req.Timezone)
+	}
+	if req.Phone != nil {
+		u.SetPhone(*req.Phone)
 	}
 	updated, err := u.Save(c.Request().Context())
 	if err != nil {

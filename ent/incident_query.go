@@ -17,6 +17,7 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
+	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/predicate"
 	"github.com/kevin/vigil/ent/service"
@@ -42,6 +43,7 @@ type IncidentQuery struct {
 	withActions          *IncidentActionQuery
 	withPostmortem       *PostmortemQuery
 	withAiInsights       *AIInsightQuery
+	withNotifications    *NotificationQuery
 	withFKs              bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -299,6 +301,28 @@ func (_q *IncidentQuery) QueryAiInsights() *AIInsightQuery {
 	return query
 }
 
+// QueryNotifications chains the current query on the "notifications" edge.
+func (_q *IncidentQuery) QueryNotifications() *NotificationQuery {
+	query := (&NotificationClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(incident.Table, incident.FieldID, selector),
+			sqlgraph.To(notification.Table, notification.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, incident.NotificationsTable, incident.NotificationsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first Incident entity from the query.
 // Returns a *NotFoundError when no Incident was found.
 func (_q *IncidentQuery) First(ctx context.Context) (*Incident, error) {
@@ -501,6 +525,7 @@ func (_q *IncidentQuery) Clone() *IncidentQuery {
 		withActions:          _q.withActions.Clone(),
 		withPostmortem:       _q.withPostmortem.Clone(),
 		withAiInsights:       _q.withAiInsights.Clone(),
+		withNotifications:    _q.withNotifications.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -617,6 +642,17 @@ func (_q *IncidentQuery) WithAiInsights(opts ...func(*AIInsightQuery)) *Incident
 	return _q
 }
 
+// WithNotifications tells the query-builder to eager-load the nodes that are connected to
+// the "notifications" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *IncidentQuery) WithNotifications(opts ...func(*NotificationQuery)) *IncidentQuery {
+	query := (&NotificationClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withNotifications = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -696,7 +732,7 @@ func (_q *IncidentQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Inc
 		nodes       = []*Incident{}
 		withFKs     = _q.withFKs
 		_spec       = _q.querySpec()
-		loadedTypes = [10]bool{
+		loadedTypes = [11]bool{
 			_q.withTeam != nil,
 			_q.withService != nil,
 			_q.withEscalationPolicy != nil,
@@ -707,6 +743,7 @@ func (_q *IncidentQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Inc
 			_q.withActions != nil,
 			_q.withPostmortem != nil,
 			_q.withAiInsights != nil,
+			_q.withNotifications != nil,
 		}
 	)
 	if _q.withTeam != nil || _q.withService != nil || _q.withEscalationPolicy != nil || _q.withAssignee != nil {
@@ -795,6 +832,13 @@ func (_q *IncidentQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Inc
 		if err := _q.loadAiInsights(ctx, query, nodes,
 			func(n *Incident) { n.Edges.AiInsights = []*AIInsight{} },
 			func(n *Incident, e *AIInsight) { n.Edges.AiInsights = append(n.Edges.AiInsights, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withNotifications; query != nil {
+		if err := _q.loadNotifications(ctx, query, nodes,
+			func(n *Incident) { n.Edges.Notifications = []*Notification{} },
+			func(n *Incident, e *Notification) { n.Edges.Notifications = append(n.Edges.Notifications, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1137,6 +1181,37 @@ func (_q *IncidentQuery) loadAiInsights(ctx context.Context, query *AIInsightQue
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "incident_ai_insights" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *IncidentQuery) loadNotifications(ctx context.Context, query *NotificationQuery, nodes []*Incident, init func(*Incident), assign func(*Incident, *Notification)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Incident)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Notification(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(incident.NotificationsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.incident_notifications
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "incident_notifications" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "incident_notifications" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
 	}

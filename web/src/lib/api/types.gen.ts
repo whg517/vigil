@@ -1812,6 +1812,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/incidents/{id}/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询事件通知送达记录
+         * @description 返回对该事件的通知送达记录（sent/failed/suppressed/pending），含通道/目标/原因/层级，按时间升序分页。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 分页大小（默认 100，上限 500） */
+                    limit?: number;
+                    /** @description 分页偏移 */
+                    offset?: number;
+                };
+                header?: never;
+                path: {
+                    /** @description 事件 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.Paginated-ent_Notification"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/incidents/{id}/postmortem/draft": {
         parameters: {
             query?: never;
@@ -5594,6 +5668,11 @@ export interface components {
         };
         "auth.updateUserReq": {
             name?: string;
+            /**
+             * @description Phone 电话号码（B8）：SMS/语音通道按 User.phone 解号，原 schema 有字段但无 API 可写，
+             *     导致电话/短信降级链虽接通却永远解不出号码。放开写入使电话兜底真正可用。
+             */
+            phone?: string;
             /** @description active|disabled */
             status?: string;
             timezone?: string;
@@ -5869,6 +5948,8 @@ export interface components {
             escalation_policy?: components["schemas"]["ent.EscalationPolicy"];
             /** @description Events holds the value of the events edge. */
             events?: components["schemas"]["ent.Event"][];
+            /** @description Notifications holds the value of the notifications edge. */
+            notifications?: components["schemas"]["ent.Notification"][];
             postmortem?: components["schemas"]["ent.Postmortem"];
             /** @description Responders holds the value of the responders edge. */
             responders?: components["schemas"]["ent.User"][];
@@ -5906,6 +5987,33 @@ export interface components {
             raw_events?: components["schemas"]["ent.RawEvent"][];
             service?: components["schemas"]["ent.Service"];
             team?: components["schemas"]["ent.Team"];
+        };
+        "ent.Notification": {
+            /** @description 送达通道：im|phone|sms|email|webhook */
+            channel?: string;
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            edges?: components["schemas"]["ent.NotificationEdges"];
+            /** @description ID of the ent. */
+            id?: number;
+            /** @description 升级层级，0=首轮 */
+            level?: number;
+            /** @description 状态原因：失败错误/静默原因/兜底说明 */
+            reason?: string;
+            /** @description 严重度快照 */
+            severity?: string;
+            status?: components["schemas"]["notification.Status"];
+            /** @description 送达目标标识：user id/email/phone/url */
+            target?: string;
+            /** @description 关联用户 ID，0=无（群/webhook 等） */
+            user_id?: number;
+        };
+        /**
+         * @description Edges holds the relations/edges for other nodes in the graph.
+         *     The values are being populated by the NotificationQuery when eager-loading is set.
+         */
+        "ent.NotificationEdges": {
+            incident?: components["schemas"]["ent.Incident"];
         };
         "ent.NotificationRule": {
             /** @description 启用通道 */
@@ -6417,6 +6525,12 @@ export interface components {
             offset?: number;
             total?: number;
         };
+        "httputil.Paginated-ent_Notification": {
+            items?: components["schemas"]["ent.Notification"][];
+            limit?: number;
+            offset?: number;
+            total?: number;
+        };
         "httputil.Paginated-ent_TimelineItem": {
             items?: components["schemas"]["ent.TimelineItem"][];
             limit?: number;
@@ -6511,6 +6625,11 @@ export interface components {
             enabled?: boolean;
             name?: string;
         };
+        /**
+         * @description 送达状态：pending|sent|failed|suppressed
+         * @enum {string}
+         */
+        "notification.Status": "pending" | "sent" | "failed" | "suppressed";
         "notification.createRuleReq": {
             channels?: string[];
             condition?: {

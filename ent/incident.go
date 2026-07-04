@@ -92,9 +92,11 @@ type IncidentEdges struct {
 	Postmortem *Postmortem `json:"postmortem,omitempty"`
 	// AiInsights holds the value of the ai_insights edge.
 	AiInsights []*AIInsight `json:"ai_insights,omitempty"`
+	// Notifications holds the value of the notifications edge.
+	Notifications []*Notification `json:"notifications,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [10]bool
+	loadedTypes [11]bool
 }
 
 // TeamOrErr returns the Team value or an error if the edge
@@ -195,6 +197,15 @@ func (e IncidentEdges) AiInsightsOrErr() ([]*AIInsight, error) {
 		return e.AiInsights, nil
 	}
 	return nil, &NotLoadedError{edge: "ai_insights"}
+}
+
+// NotificationsOrErr returns the Notifications value or an error if the edge
+// was not loaded in eager-loading.
+func (e IncidentEdges) NotificationsOrErr() ([]*Notification, error) {
+	if e.loadedTypes[10] {
+		return e.Notifications, nil
+	}
+	return nil, &NotLoadedError{edge: "notifications"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -443,6 +454,11 @@ func (_m *Incident) QueryPostmortem() *PostmortemQuery {
 // QueryAiInsights queries the "ai_insights" edge of the Incident entity.
 func (_m *Incident) QueryAiInsights() *AIInsightQuery {
 	return NewIncidentClient(_m.config).QueryAiInsights(_m)
+}
+
+// QueryNotifications queries the "notifications" edge of the Incident entity.
+func (_m *Incident) QueryNotifications() *NotificationQuery {
+	return NewIncidentClient(_m.config).QueryNotifications(_m)
 }
 
 // Update returns a builder for updating this Incident.

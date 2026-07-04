@@ -15,6 +15,7 @@ import (
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
+	"github.com/kevin/vigil/internal/notification"
 
 	"github.com/labstack/echo/v5"
 )
@@ -62,6 +63,7 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/incidents", h.list)
 	g.GET("/incidents/:id", h.get)
 	g.GET("/incidents/:id/actions", h.listActions)
+	g.GET("/incidents/:id/notifications", h.listNotifications)
 	g.POST("/incidents/:id/ack", h.ack)
 	g.POST("/incidents/:id/resolve", h.resolve)
 	g.POST("/incidents/:id/close", h.close)
@@ -218,6 +220,44 @@ func (h *Handler) listActions(c *echo.Context) error {
 	}
 	total, _ := h.actions.CountActions(c.Request().Context(), id)
 	return c.JSON(http.StatusOK, httputil.Paginated[*ent.IncidentAction]{
+		Items: items, Total: total, Limit: limit, Offset: offset,
+	})
+}
+
+// listNotifications 查询某事件的通知送达记录（Notification，按时间升序，分页）。
+//
+// 与操作审计（/actions）互补：actions 是「谁做了什么处置」，本端点是「通知发给了谁、
+// 走哪个通道、送达/失败/被静默」的送达账本（B22/M13），供夜间打扰/送达率等指标与排障用。
+//
+// @Summary      查询事件通知送达记录
+// @Description  返回对该事件的通知送达记录（sent/failed/suppressed/pending），含通道/目标/原因/层级，按时间升序分页。
+// @Tags         incident
+// @Produce      json
+// @Param        id      path   int  true   "事件 ID"
+// @Param        limit   query  int  false  "分页大小（默认 100，上限 500）"
+// @Param        offset  query  int  false  "分页偏移"
+// @Success      200  {object} httputil.Paginated[ent.Notification]
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      403  {object} httputil.ErrorResponse
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id}/notifications [get]
+func (h *Handler) listNotifications(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	// 与时间线/操作审计同权限：incident.view（能读事件即可读其送达记录）。
+	if e := h.checkAccess(c, id, auth.PermIncidentView); e != nil {
+		return e
+	}
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	offset, _ := strconv.Atoi(c.QueryParam("offset"))
+	items, total, err := notification.QueryByIncident(c.Request().Context(), h.db, id, limit, offset)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	return c.JSON(http.StatusOK, httputil.Paginated[*ent.Notification]{
 		Items: items, Total: total, Limit: limit, Offset: offset,
 	})
 }

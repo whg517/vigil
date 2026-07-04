@@ -107,8 +107,12 @@ func (e *TemplateEngine) SeedBuiltinTemplates(ctx context.Context) error {
 		return nil
 	}
 	for _, bt := range builtinTemplates {
+		// C20：同名可能有多条（内置 + 用户自定义）。只认「builtin=true」那条为内置模板，
+		// 用 First 而非 Only——Only 在同名多条时会报 ambiguity 错误，导致 seed 失败。
+		// 用户同名自定义模板不被 seed 触碰（其 builtin=false，覆盖逻辑在 lookup 层生效）。
 		existing, err := e.db.NotificationTemplate.Query().
-			Where(notificationtemplate.NameEQ(bt.Name)).Only(ctx)
+			Where(notificationtemplate.NameEQ(bt.Name), notificationtemplate.BuiltinEQ(true)).
+			First(ctx)
 		if ent.IsNotFound(err) {
 			// 新建
 			if _, err := e.createOne(ctx, &bt); err != nil {
@@ -206,13 +210,18 @@ func (e *TemplateEngine) lookup(ctx context.Context, name, channel string) (*com
 	if name == "" {
 		name = defaultNameForChannel(channel)
 	}
-	// 查 DB（含内置）
+	// 查 DB（含内置）。
+	// C20 修复：name 无唯一约束，同名可能有多条（内置 + 自定义）。原用 Only()——多条时返回
+	// ambiguity 错误、stored 留空，反而降级回代码内置常量，等于「自定义模板不生效」。
+	// 改为查全部同名，显式「自定义优先」：非 builtin 的用户模板 > builtin。这样同名自定义
+	// 真正覆盖内置（capabilities/04 §6「用户模板按 name 覆盖」的应有语义）。
 	var stored *ent.NotificationTemplate
 	if e.db != nil {
-		t, err := e.db.NotificationTemplate.Query().
-			Where(notificationtemplate.NameEQ(name)).Only(ctx)
-		if err == nil {
-			stored = t
+		rows, err := e.db.NotificationTemplate.Query().
+			Where(notificationtemplate.NameEQ(name)).
+			All(ctx)
+		if err == nil && len(rows) > 0 {
+			stored = pickPreferredTemplate(rows)
 		}
 	}
 	// DB 没有 → 用内置同名模板
@@ -248,6 +257,28 @@ func (e *TemplateEngine) lookup(ctx context.Context, name, channel string) (*com
 		bodySrc: stored.BodyTemplate,
 		actions: stored.Actions,
 	}, nil
+}
+
+// pickPreferredTemplate 从同名多条模板中选「自定义优先」的一条（C20）。
+// 规则：优先取最新的非 builtin（用户模板覆盖内置）；全是 builtin 时取最新一条。
+// 「最新」按 created_at 判定，保证同名多次自定义时以最后写入者为准。
+func pickPreferredTemplate(rows []*ent.NotificationTemplate) *ent.NotificationTemplate {
+	var custom, builtin *ent.NotificationTemplate
+	for _, r := range rows {
+		if r.Builtin {
+			if builtin == nil || r.CreatedAt.After(builtin.CreatedAt) {
+				builtin = r
+			}
+			continue
+		}
+		if custom == nil || r.CreatedAt.After(custom.CreatedAt) {
+			custom = r
+		}
+	}
+	if custom != nil {
+		return custom
+	}
+	return builtin
 }
 
 // bodyTmpl 编译 body 模板（缓存）。

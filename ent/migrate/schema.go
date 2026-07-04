@@ -448,6 +448,55 @@ var (
 			},
 		},
 	}
+	// NotificationsColumns holds the columns for the "notifications" table.
+	NotificationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "channel", Type: field.TypeString},
+		{Name: "target", Type: field.TypeString, Nullable: true},
+		{Name: "user_id", Type: field.TypeInt, Default: 0},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "sent", "failed", "suppressed"}, Default: "pending"},
+		{Name: "reason", Type: field.TypeString, Nullable: true},
+		{Name: "level", Type: field.TypeInt, Default: 0},
+		{Name: "severity", Type: field.TypeString, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "incident_notifications", Type: field.TypeInt, Nullable: true},
+	}
+	// NotificationsTable holds the schema information for the "notifications" table.
+	NotificationsTable = &schema.Table{
+		Name:       "notifications",
+		Columns:    NotificationsColumns,
+		PrimaryKey: []*schema.Column{NotificationsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "notifications_incidents_notifications",
+				Columns:    []*schema.Column{NotificationsColumns[9]},
+				RefColumns: []*schema.Column{IncidentsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "notification_incident_notifications",
+				Unique:  false,
+				Columns: []*schema.Column{NotificationsColumns[9]},
+			},
+			{
+				Name:    "notification_status",
+				Unique:  false,
+				Columns: []*schema.Column{NotificationsColumns[4]},
+			},
+			{
+				Name:    "notification_channel",
+				Unique:  false,
+				Columns: []*schema.Column{NotificationsColumns[1]},
+			},
+			{
+				Name:    "notification_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{NotificationsColumns[8]},
+			},
+		},
+	}
 	// NotificationRulesColumns holds the columns for the "notification_rules" table.
 	NotificationRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -1040,6 +1089,7 @@ var (
 		IncidentsTable,
 		IncidentActionsTable,
 		IntegrationsTable,
+		NotificationsTable,
 		NotificationRulesTable,
 		NotificationTemplatesTable,
 		PostmortemsTable,
@@ -1080,6 +1130,7 @@ func init() {
 	IncidentActionsTable.ForeignKeys[0].RefTable = IncidentsTable
 	IntegrationsTable.ForeignKeys[0].RefTable = ServicesTable
 	IntegrationsTable.ForeignKeys[1].RefTable = TeamsTable
+	NotificationsTable.ForeignKeys[0].RefTable = IncidentsTable
 	NotificationRulesTable.ForeignKeys[0].RefTable = TeamsTable
 	NotificationTemplatesTable.ForeignKeys[0].RefTable = TeamsTable
 	PostmortemsTable.ForeignKeys[0].RefTable = IncidentsTable

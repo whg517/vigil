@@ -516,6 +516,10 @@ const docTemplate = `{
                     "name": {
                         "type": "string"
                     },
+                    "phone": {
+                        "description": "Phone 电话号码（B8）：SMS/语音通道按 User.phone 解号，原 schema 有字段但无 API 可写，\n导致电话/短信降级链虽接通却永远解不出号码。放开写入使电话兜底真正可用。",
+                        "type": "string"
+                    },
                     "status": {
                         "description": "active|disabled",
                         "type": "string"
@@ -1078,6 +1082,14 @@ const docTemplate = `{
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "notifications": {
+                        "description": "Notifications holds the value of the notifications edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Notification"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "postmortem": {
                         "$ref": "#/components/schemas/ent.Postmortem"
                     },
@@ -1166,6 +1178,58 @@ const docTemplate = `{
                     },
                     "team": {
                         "$ref": "#/components/schemas/ent.Team"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.Notification": {
+                "properties": {
+                    "channel": {
+                        "description": "送达通道：im|phone|sms|email|webhook",
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "description": "CreatedAt holds the value of the \"created_at\" field.",
+                        "type": "string"
+                    },
+                    "edges": {
+                        "$ref": "#/components/schemas/ent.NotificationEdges"
+                    },
+                    "id": {
+                        "description": "ID of the ent.",
+                        "type": "integer"
+                    },
+                    "level": {
+                        "description": "升级层级，0=首轮",
+                        "type": "integer"
+                    },
+                    "reason": {
+                        "description": "状态原因：失败错误/静默原因/兜底说明",
+                        "type": "string"
+                    },
+                    "severity": {
+                        "description": "严重度快照",
+                        "type": "string"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/notification.Status"
+                    },
+                    "target": {
+                        "description": "送达目标标识：user id/email/phone/url",
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "description": "关联用户 ID，0=无（群/webhook 等）",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.NotificationEdges": {
+                "description": "Edges holds the relations/edges for other nodes in the graph.\nThe values are being populated by the NotificationQuery when eager-loading is set.",
+                "properties": {
+                    "incident": {
+                        "$ref": "#/components/schemas/ent.Incident"
                     }
                 },
                 "type": "object"
@@ -2330,6 +2394,27 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "httputil.Paginated-ent_Notification": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Notification"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "offset": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "httputil.Paginated-ent_TimelineItem": {
                 "properties": {
                     "items": {
@@ -2601,6 +2686,23 @@ const docTemplate = `{
                     }
                 },
                 "type": "object"
+            },
+            "notification.Status": {
+                "description": "送达状态：pending|sent|failed|suppressed",
+                "enum": [
+                    "pending",
+                    "sent",
+                    "failed",
+                    "suppressed"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultStatus",
+                    "StatusPending",
+                    "StatusSent",
+                    "StatusFailed",
+                    "StatusSuppressed"
+                ]
             },
             "notification.createRuleReq": {
                 "properties": {
@@ -5613,6 +5715,89 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "升级事件（escalate）",
+                "tags": [
+                    "incident"
+                ]
+            }
+        },
+        "/incidents/{id}/notifications": {
+            "get": {
+                "description": "返回对该事件的通知送达记录（sent/failed/suppressed/pending），含通道/目标/原因/层级，按时间升序分页。",
+                "parameters": [
+                    {
+                        "description": "事件 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "分页大小（默认 100，上限 500）",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "分页偏移",
+                        "in": "query",
+                        "name": "offset",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.Paginated-ent_Notification"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "查询事件通知送达记录",
                 "tags": [
                     "incident"
                 ]

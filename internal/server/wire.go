@@ -449,13 +449,16 @@ func buildNotifier(ctx context.Context, cfg *config.Config, log *zap.Logger, st 
 	}
 	reg.Register(phoneChan)
 	reg.Register(smsChan)
-	// 默认通道含 im（IMChannel 在 Wire 后注册，notifier 实时查 registry，晚注册也能生效）。
-	defaultChans := []string{"im", "email"}
+	// 默认降级链（B8/C12）：IM 优先（IM-first），失败降级邮件，再降级电话/短信（强打扰兜底）。
+	// 顺序即「主通道失败才启用下一通道」的降级层次，而非并联各发一份。
+	// IMChannel 在 Wire 后注册，notifier 实时查 registry，晚注册也能生效。
+	// 注：electricity/短信仅在配了云语音 webhook 时可用（未配则 Send 返回空，链自动跳过）。
+	defaultChans := []string{"im", "email", "phone", "sms"}
 	if len(notifWebhookURLs) > 0 {
 		defaultChans = append([]string{"webhook"}, defaultChans...)
 	}
 	notifier := notification.NewNotifier(reg, defaultChans)
-	// 送达结果记录（当前结构化日志，后续加 Notification 表后落库）。
+	// 送达结果记录（结构化日志/metrics 层）。
 	notifier.SetResultRecorder(func(incID int, r notification.SendResult) {
 		if r.Success {
 			log.Info("notification delivered",
@@ -466,6 +469,14 @@ func buildNotifier(ctx context.Context, cfg *config.Config, log *zap.Logger, st 
 				zap.String("target", r.Target), zap.String("error", r.Error))
 		}
 	})
+	// 送达三态落库（B22/M13）：每次 sent/failed/suppressed 落一条 Notification，
+	// 使被静默/失败的通知可查、可补发，全通道失败可被兜底告警发现。
+	notifier.SetDeliveryRecorder(notification.NewDeliveryRecorder(st.DB))
+	// 通知规则评估（B7/C12）：按 incident 的 condition 匹配规则，取其 channels/template/quiet_hours。
+	notifier.SetRuleResolver(notification.NewRuleResolver(st.DB))
+	// 全通道失败兜底告警（B22）：某 target 整条降级链全失败时，兜底通知 org_admin（走非 IM 通道）。
+	// 复用 unroutedFallbackNotifier 的 org_admin 解算能力，避免高危故障静默无人知。
+	notifier.SetAllFailedHook(buildAllFailedHook(ctx, st.DB, notifier, log))
 	// 聚合（M7.9）：30s 窗口内对同一 target 合并；critical 不聚合。无 Redis 降级为不聚合。
 	notifAggregator := notification.NewAggregator(st.Redis, 30*time.Second)
 	notifier.SetAggregator(notifAggregator)
@@ -710,6 +721,40 @@ func (u *unroutedFallbackNotifier) resolveOrgAdmins(ctx context.Context) ([]*ent
 		out = append(out, usr)
 	}
 	return out, nil
+}
+
+// buildAllFailedHook 构造「整条降级链对某 target 全失败」时的兜底告警回调（B22）。
+//
+// 场景：某响应者的 IM/邮件/电话/短信全部发送失败（网络/配置故障），若无兜底则该事件
+// 「没人被通知到」却静默无人知——这是升级链兜底失效的严重信号。本回调解算 org_admin，
+// 走 NotifyUnrouted（非 IM 通道，不再递归触发本 hook）发一条「通知投递失败」告警，
+// 使运维能第一时间发现「有事件通知发不出去」。
+//
+// best-effort：兜底告警本身失败只记日志，不再向上抛（避免故障放大）。
+func buildAllFailedHook(_ context.Context, db *ent.Client, notifier *notification.Notifier, log *zap.Logger) func(context.Context, *ent.Incident, notification.Target, string, string) {
+	resolver := &unroutedFallbackNotifier{db: db, notifier: notifier, log: log}
+	return func(cbCtx context.Context, inc *ent.Incident, failed notification.Target, title, _ string) {
+		if inc == nil {
+			return
+		}
+		admins, err := resolver.resolveOrgAdmins(cbCtx)
+		if err != nil || len(admins) == 0 {
+			log.Warn("notification all-failed fallback: no org_admin to alert",
+				zap.Int("incident", inc.ID), zap.String("failed_target", failed.Name), zap.Error(err))
+			return
+		}
+		targets := make([]notification.Target, 0, len(admins))
+		for _, a := range admins {
+			targets = append(targets, notification.Target{UserID: a.ID, Name: a.Name, Source: "user"})
+		}
+		alertTitle := fmt.Sprintf("[通知投递失败] %s", inc.Number)
+		alertSummary := fmt.Sprintf("事件 %s 对 %s 的全部通知通道（IM/邮件/电话/短信）均投递失败，请核查通道配置并手动跟进。原通知：%s",
+			inc.Number, failed.Name, title)
+		if err := notifier.NotifyUnrouted(cbCtx, targets, alertTitle, alertSummary, nil); err != nil {
+			log.Warn("notification all-failed fallback alert failed",
+				zap.Int("incident", inc.ID), zap.Error(err))
+		}
+	}
 }
 
 // runbookEscalator 实现 runbook.EscalationTrigger，包装 incident.Service.Escalate。
