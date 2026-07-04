@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/postmortem"
@@ -85,6 +86,14 @@ func (s Scope) postmortemTeamPred() predicate.Postmortem {
 		return nil
 	}
 	return postmortem.HasIncidentWith(incident.HasTeamWith(team.IDIn(s.TeamIDs...)))
+}
+
+// aiInsightTeamPred 返回 AIInsight 的团队归属谓词（AIInsight → incident → team）。
+func (s Scope) aiInsightTeamPred() predicate.AIInsight {
+	if s.OrgWide {
+		return nil
+	}
+	return aiinsight.HasIncidentWith(incident.HasTeamWith(team.IDIn(s.TeamIDs...)))
 }
 
 // AlertMetrics 告警度量（能力域 15 §B1）。
@@ -331,6 +340,88 @@ func (e *Engine) Trend(ctx context.Context, days int, r Range, scope Scope) ([]T
 		}
 	}
 	return points, nil
+}
+
+// AIFeedbackMetrics AI 反馈闭环度量（能力域 11 §B3 human-in-the-loop 反馈）。
+//
+// 让运营看清「AI 建议被采纳/拒绝的情况」——AI 是否值得信任、哪类建议噪声高。
+// 口径（对齐 AIInsight 状态机 suggested→accepted/rejected/applied）：
+//   - Total：全部已产出建议（含未改判的 suggested）。
+//   - Accepted：accepted + applied（applied 是 accepted 的终态升级，均属「被采纳」）。
+//   - Rejected：被拒绝的建议（噪声/误判信号，供后续调优 prompt 或抑制学习）。
+//   - Pending：尚未改判（suggested）。
+//   - AcceptRate/RejectRate：分母为「已改判数」(accepted+applied+rejected)，未改判不计入，
+//     避免大量 pending 稀释采纳率、误导「AI 采纳率低」。已改判数为 0 时两率为 0。
+//   - ByType：按建议类型细分同样的计数，定位「哪类建议最不被采纳」。
+type AIFeedbackMetrics struct {
+	Total      int                          `json:"total"`
+	Accepted   int                          `json:"accepted"`
+	Rejected   int                          `json:"rejected"`
+	Pending    int                          `json:"pending"`
+	AcceptRate float64                      `json:"acceptRate"` // accepted /（accepted+rejected）
+	RejectRate float64                      `json:"rejectRate"` // rejected /（accepted+rejected）
+	ByType     map[string]*AIFeedbackByType `json:"byType"`     // 按建议类型细分
+}
+
+// AIFeedbackByType 单个建议类型的反馈计数。
+type AIFeedbackByType struct {
+	Total    int `json:"total"`
+	Accepted int `json:"accepted"`
+	Rejected int `json:"rejected"`
+	Pending  int `json:"pending"`
+}
+
+// AIFeedbackMetrics 计算 AI 反馈闭环度量（团队 scope 隔离，与其它报表一致）。
+//
+// 噪声学习边界（实现现状，不夸大）：本方法只做「反馈统计」——把 reject 的建议按类型
+// 聚合成可观测指标，供运营判断 AI 建议质量、人工调优 prompt / 抑制规则的依据。
+// 它不自动改变后续 AI 行为（不回训模型、不自动生成 suppression 规则）。真正的
+// 「噪声学习闭环」（reject → 自动抑制同类建议）属更重的能力，当前边界是「记录 + 可查」。
+func (e *Engine) AIFeedbackMetrics(ctx context.Context, r Range, scope Scope) (*AIFeedbackMetrics, error) {
+	m := &AIFeedbackMetrics{ByType: map[string]*AIFeedbackByType{}}
+	if scope.empty() {
+		return m, nil
+	}
+	q := e.db.AIInsight.Query()
+	if !r.Start.IsZero() {
+		q = q.Where(aiinsight.CreatedAtGTE(r.Start))
+	}
+	if !r.End.IsZero() {
+		q = q.Where(aiinsight.CreatedAtLTE(r.End))
+	}
+	if p := scope.aiInsightTeamPred(); p != nil {
+		q = q.Where(p)
+	}
+	all, err := q.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m.Total = len(all)
+	for _, ins := range all {
+		bt := m.ByType[string(ins.Type)]
+		if bt == nil {
+			bt = &AIFeedbackByType{}
+			m.ByType[string(ins.Type)] = bt
+		}
+		bt.Total++
+		switch ins.Status {
+		case aiinsight.StatusAccepted, aiinsight.StatusApplied:
+			// applied 是 accepted 的终态升级（如 severity 已真正改动），同属「被采纳」。
+			m.Accepted++
+			bt.Accepted++
+		case aiinsight.StatusRejected:
+			m.Rejected++
+			bt.Rejected++
+		default: // suggested：尚未改判
+			m.Pending++
+			bt.Pending++
+		}
+	}
+	if resolved := m.Accepted + m.Rejected; resolved > 0 {
+		m.AcceptRate = float64(m.Accepted) / float64(resolved)
+		m.RejectRate = float64(m.Rejected) / float64(resolved)
+	}
+	return m, nil
 }
 
 // Dashboard 仪表盘汇总（一次返回各维度概览，减少前端请求）。

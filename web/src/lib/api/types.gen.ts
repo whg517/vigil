@@ -262,6 +262,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analytics/ai-feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get AI feedback metrics
+         * @description 返回 AI 建议的采纳/拒绝统计（含按类型细分与采纳率），供运营看 AI 建议质量。team scope 隔离。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 起始时间 RFC3339 */
+                    start?: string;
+                    /** @description 结束时间 RFC3339 */
+                    end?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["analytics.AIFeedbackMetrics"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/analytics/alerts": {
         parameters: {
             query?: never;
@@ -6387,6 +6440,26 @@ export interface components {
          * @enum {string}
          */
         "aiinsight.Type": "dedup_suggestion" | "severity_adjustment" | "root_cause_hint" | "similar_incident" | "draft_summary" | "postmortem_draft" | "runbook_suggestion";
+        "analytics.AIFeedbackByType": {
+            accepted?: number;
+            pending?: number;
+            rejected?: number;
+            total?: number;
+        };
+        "analytics.AIFeedbackMetrics": {
+            /** @description accepted /（accepted+rejected） */
+            acceptRate?: number;
+            accepted?: number;
+            /** @description 按建议类型细分 */
+            byType?: {
+                [key: string]: components["schemas"]["analytics.AIFeedbackByType"];
+            };
+            pending?: number;
+            /** @description rejected /（accepted+rejected） */
+            rejectRate?: number;
+            rejected?: number;
+            total?: number;
+        };
         "analytics.AlertMetrics": {
             /** @description 降噪率 = 1 - Notified/Total（0~1） */
             noiseRate?: number;

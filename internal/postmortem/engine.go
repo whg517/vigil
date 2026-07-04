@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -217,9 +218,16 @@ func (e *Engine) Transition(ctx context.Context, pmID int, target postmortem.Sta
 		return nil, fmt.Errorf("update postmortem: %w", err)
 	}
 	// 知识沉淀（M12.6）：published 时计算 embedding 入库，供相似检索反哺。
-	// embedder 未配置或计算失败不阻塞 publish（降级：复盘仍发布，但不进检索库）。
+	// embedder 未配置或计算失败不阻塞 publish（降级：复盘仍发布，但暂不进检索库）。
+	//
+	// B18 补算：计算失败不再完全静默——记 Warn 供运维排查，且失败留下的空 embedding
+	// 会在后续相似检索时被 ai 侧 backfillPostmortemEmbeddings 懒补算（检索库最终一致），
+	// 不会永久掉出向量检索。archived 复盘同样纳入检索（见 ai 侧 knowledgePostmortemStatuses）。
 	if target == postmortem.StatusPublished && e.embedder != nil {
-		_ = e.ensurePublishedEmbedding(ctx, pm)
+		if eerr := e.ensurePublishedEmbedding(ctx, pm); eerr != nil {
+			slog.Warn("postmortem publish: embedding compute failed, will be backfilled on similarity retrieval",
+				"postmortem_id", pm.ID, "error", eerr)
+		}
 	}
 	// 单据收口（closed 终态联动）：复盘发布 → 关联 incident 从 resolved 推进到 closed。
 	// best-effort：关闭失败/已 closed/不在 resolved 都不阻断复盘发布（closeLinkedIncident 内部容错）。

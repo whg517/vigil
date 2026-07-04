@@ -1015,6 +1015,8 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodGet, "/analytics/team-load", auth.PermAnalyticsView)
 	g.RoutePerm(http.MethodGet, "/analytics/postmortems", auth.PermAnalyticsView)
 	g.RoutePerm(http.MethodGet, "/analytics/trend", auth.PermAnalyticsView)
+	// T3.4 AI 反馈闭环：AI 建议采纳/拒绝统计（同 analytics.view 权限 + team scope 隔离）。
+	g.RoutePerm(http.MethodGet, "/analytics/ai-feedback", auth.PermAnalyticsView)
 }
 
 // forcePasswordGuard 强制改密守卫（QA 审计 C8 / H1.6）。

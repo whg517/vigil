@@ -67,6 +67,7 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/analytics/team-load", h.teamLoad)
 	g.GET("/analytics/postmortems", h.postmortems)
 	g.GET("/analytics/trend", h.trend)
+	g.GET("/analytics/ai-feedback", h.aiFeedback)
 }
 
 // parseRange 从 query 解析时间范围。start/end 为 RFC3339。
@@ -204,6 +205,31 @@ func (h *Handler) postmortems(c *echo.Context) error {
 		return errs.Internal(c, nil, err)
 	}
 	m, err := h.engine.PostmortemMetrics(ctx, parseRange(c), scope)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	return c.JSON(http.StatusOK, m)
+}
+
+// GetAIFeedback AI 反馈闭环度量。
+//
+// @Summary      Get AI feedback metrics
+// @Description  返回 AI 建议的采纳/拒绝统计（含按类型细分与采纳率），供运营看 AI 建议质量。team scope 隔离。
+// @Tags         analytics
+// @Produce      json
+// @Param        start  query  string  false  "起始时间 RFC3339"
+// @Param        end    query  string  false  "结束时间 RFC3339"
+// @Success      200  {object}  analytics.AIFeedbackMetrics
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /analytics/ai-feedback [get]
+// @Security     bearerAuth
+func (h *Handler) aiFeedback(c *echo.Context) error {
+	ctx := c.Request().Context()
+	scope, err := h.resolveScope(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	m, err := h.engine.AIFeedbackMetrics(ctx, parseRange(c), scope)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}

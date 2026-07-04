@@ -111,6 +111,55 @@ const docTemplate = `{
                     "TypeRunbookSuggestion"
                 ]
             },
+            "analytics.AIFeedbackByType": {
+                "properties": {
+                    "accepted": {
+                        "type": "integer"
+                    },
+                    "pending": {
+                        "type": "integer"
+                    },
+                    "rejected": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "analytics.AIFeedbackMetrics": {
+                "properties": {
+                    "acceptRate": {
+                        "description": "accepted /（accepted+rejected）",
+                        "type": "number"
+                    },
+                    "accepted": {
+                        "type": "integer"
+                    },
+                    "byType": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/analytics.AIFeedbackByType"
+                        },
+                        "description": "按建议类型细分",
+                        "type": "object"
+                    },
+                    "pending": {
+                        "type": "integer"
+                    },
+                    "rejectRate": {
+                        "description": "rejected /（accepted+rejected）",
+                        "type": "number"
+                    },
+                    "rejected": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "analytics.AlertMetrics": {
                 "properties": {
                     "noiseRate": {
@@ -4270,6 +4319,60 @@ const docTemplate = `{
                 "summary": "Resolve AI insight",
                 "tags": [
                     "ai"
+                ]
+            }
+        },
+        "/analytics/ai-feedback": {
+            "get": {
+                "description": "返回 AI 建议的采纳/拒绝统计（含按类型细分与采纳率），供运营看 AI 建议质量。team scope 隔离。",
+                "parameters": [
+                    {
+                        "description": "起始时间 RFC3339",
+                        "in": "query",
+                        "name": "start",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "结束时间 RFC3339",
+                        "in": "query",
+                        "name": "end",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/analytics.AIFeedbackMetrics"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "Get AI feedback metrics",
+                "tags": [
+                    "analytics"
                 ]
             }
         },

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/enttest"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
@@ -450,5 +451,123 @@ func TestScope_NoVisibleTeam(t *testing.T) {
 		if p.Incidents != 0 || p.Events != 0 {
 			t.Errorf("no-visible-team trend should be all zero, got %+v", p)
 		}
+	}
+}
+
+// mkInsight 建一条 AIInsight（挂 incID），指定 type/status，用于反馈统计测试。
+func mkInsight(t *testing.T, c *ent.Client, incID int, typ aiinsight.Type, st aiinsight.Status) {
+	t.Helper()
+	if _, err := c.AIInsight.Create().
+		SetIncidentID(incID).
+		SetStage(aiinsight.StageTriage).
+		SetType(typ).
+		SetContent(map[string]any{}).
+		SetConfidence(0.8).
+		SetStatus(st).
+		Save(context.Background()); err != nil {
+		t.Fatalf("create ai insight: %v", err)
+	}
+}
+
+// TestAIFeedbackMetrics_Counts 验证 T3.4 反馈统计：采纳/拒绝/待定计数与采纳率口径。
+func TestAIFeedbackMetrics_Counts(t *testing.T) {
+	c := newTestClient(t)
+	ctx := context.Background()
+	now := time.Now()
+
+	team, _ := c.Team.Create().SetName("pay").SetSlug("pay").Save(ctx)
+	inc, _ := c.Incident.Create().
+		SetNumber("INC-AI").SetTitle("t").SetSeverity(incident.SeverityCritical).
+		SetStatus(incident.StatusTriggered).SetPriority(incident.PriorityP1).
+		SetSummary("t").SetTriggerType(incident.TriggerTypeAuto).
+		SetTeamID(team.ID).SetCreatedAt(now).Save(ctx)
+
+	// 5 条建议：2 accepted + 1 applied（均属被采纳）+ 1 rejected + 1 suggested（待定）。
+	mkInsight(t, c, inc.ID, aiinsight.TypeSeverityAdjustment, aiinsight.StatusAccepted)
+	mkInsight(t, c, inc.ID, aiinsight.TypeDedupSuggestion, aiinsight.StatusAccepted)
+	mkInsight(t, c, inc.ID, aiinsight.TypeSeverityAdjustment, aiinsight.StatusApplied)
+	mkInsight(t, c, inc.ID, aiinsight.TypeDedupSuggestion, aiinsight.StatusRejected)
+	mkInsight(t, c, inc.ID, aiinsight.TypeRootCauseHint, aiinsight.StatusSuggested)
+
+	eng := NewEngine(c)
+	m, err := eng.AIFeedbackMetrics(ctx, Range{}, AllTeams())
+	if err != nil {
+		t.Fatalf("AIFeedbackMetrics: %v", err)
+	}
+	if m.Total != 5 {
+		t.Errorf("Total: got %d, want 5", m.Total)
+	}
+	if m.Accepted != 3 { // accepted+accepted+applied
+		t.Errorf("Accepted: got %d, want 3 (含 applied)", m.Accepted)
+	}
+	if m.Rejected != 1 {
+		t.Errorf("Rejected: got %d, want 1", m.Rejected)
+	}
+	if m.Pending != 1 {
+		t.Errorf("Pending: got %d, want 1", m.Pending)
+	}
+	// 采纳率分母为已改判数 4（accepted3+rejected1）→ 0.75；未改判的 suggested 不稀释。
+	if m.AcceptRate < 0.74 || m.AcceptRate > 0.76 {
+		t.Errorf("AcceptRate: got %f, want 0.75", m.AcceptRate)
+	}
+	if m.RejectRate < 0.24 || m.RejectRate > 0.26 {
+		t.Errorf("RejectRate: got %f, want 0.25", m.RejectRate)
+	}
+	// ByType：dedup_suggestion 1 accepted + 1 rejected；severity_adjustment 2 accepted。
+	dedup := m.ByType[string(aiinsight.TypeDedupSuggestion)]
+	if dedup == nil || dedup.Total != 2 || dedup.Accepted != 1 || dedup.Rejected != 1 {
+		t.Errorf("ByType[dedup]: got %+v, want total=2 accepted=1 rejected=1", dedup)
+	}
+	// reject 反馈按类型可查（噪声学习边界：记录+可查，供运营调优）。
+	if dedup == nil || dedup.Rejected != 1 {
+		t.Errorf("reject 反馈应按类型记录可查: %+v", dedup)
+	}
+}
+
+// TestAIFeedbackMetrics_TeamScope 验证反馈统计遵守团队软隔离（不跨 team 泄露）。
+func TestAIFeedbackMetrics_TeamScope(t *testing.T) {
+	c := newTestClient(t)
+	ctx := context.Background()
+	now := time.Now()
+
+	teamA, _ := c.Team.Create().SetName("A").SetSlug("a").Save(ctx)
+	teamB, _ := c.Team.Create().SetName("B").SetSlug("b").Save(ctx)
+	mkIncTeam := func(num string, tid int) int {
+		inc, _ := c.Incident.Create().
+			SetNumber(num).SetTitle(num).SetSeverity(incident.SeverityCritical).
+			SetStatus(incident.StatusTriggered).SetPriority(incident.PriorityP1).
+			SetSummary(num).SetTriggerType(incident.TriggerTypeAuto).
+			SetTeamID(tid).SetCreatedAt(now).Save(ctx)
+		return inc.ID
+	}
+	incA := mkIncTeam("A-1", teamA.ID)
+	incB := mkIncTeam("B-1", teamB.ID)
+	mkInsight(t, c, incA, aiinsight.TypeSeverityAdjustment, aiinsight.StatusAccepted)
+	mkInsight(t, c, incB, aiinsight.TypeSeverityAdjustment, aiinsight.StatusRejected)
+
+	eng := NewEngine(c)
+	// A 视角只见自己的 1 条（accepted），不含 B 的 rejected。
+	mA, err := eng.AIFeedbackMetrics(ctx, Range{}, Scope{TeamIDs: []int{teamA.ID}})
+	if err != nil {
+		t.Fatalf("AIFeedbackMetrics A: %v", err)
+	}
+	if mA.Total != 1 || mA.Accepted != 1 || mA.Rejected != 0 {
+		t.Errorf("teamA feedback: got total=%d accepted=%d rejected=%d, want 1/1/0", mA.Total, mA.Accepted, mA.Rejected)
+	}
+	// org 级看两条。
+	mAll, err := eng.AIFeedbackMetrics(ctx, Range{}, AllTeams())
+	if err != nil {
+		t.Fatalf("AIFeedbackMetrics org: %v", err)
+	}
+	if mAll.Total != 2 {
+		t.Errorf("org feedback total: got %d, want 2", mAll.Total)
+	}
+	// 无可见 team → 空。
+	mNone, err := eng.AIFeedbackMetrics(ctx, Range{}, Scope{})
+	if err != nil {
+		t.Fatalf("AIFeedbackMetrics none: %v", err)
+	}
+	if mNone.Total != 0 {
+		t.Errorf("no-visible-team feedback total: got %d, want 0", mNone.Total)
 	}
 }

@@ -232,10 +232,23 @@ func (e *DiagnoseEngine) ensureEmbedding(ctx context.Context, inc *ent.Incident)
 	return vec, nil
 }
 
-// FindSimilarPostmortems 检索与指定 incident 相似的已发布复盘（知识沉淀 M12.6）。
-// 用 incident 的 embedding 在 postmortems.embedding 上做余弦距离检索。
-// 用于"上次类似故障是怎么处理的"——published 复盘反哺新事件诊断。
-// pgvector/Embed 不可用时返回空切片（降级，不阻塞诊断）。
+// knowledgePostmortemStatuses 参与相似检索的复盘状态集（B18）。
+//
+// archived 复盘仍是有效知识——它记录的是「上次类似故障怎么处理的」，归档只表示
+// 该复盘已过时间线活跃期，不代表其经验作废。原实现硬编码 status='published' 会让
+// archived 复盘掉出检索，等于把沉淀的知识主动丢弃。故 published + archived 都纳入。
+var knowledgePostmortemStatuses = []postmortem.Status{
+	postmortem.StatusPublished,
+	postmortem.StatusArchived,
+}
+
+// FindSimilarPostmortems 检索与指定 incident 相似的复盘（知识沉淀 M12.6）。
+//
+// 检索范围：published + archived 复盘（B18：archived 仍是有效知识，不再排除）。
+// 主路径：pgvector 语义检索（用 incident 的 embedding 在 postmortems.embedding 上算余弦距离）。
+// 降级路径：pgvector/Embed 不可用（无扩展/sqlite 测试/无 LLM key）→ LIKE 文本匹配，
+//
+//	与 FindSimilar 同款兜底（B18：原实现此处静默返回 []，让知识库形同虚设）。
 func (e *DiagnoseEngine) FindSimilarPostmortems(ctx context.Context, incID int, limit int) ([]*ent.Postmortem, error) {
 	if limit <= 0 {
 		limit = 3
@@ -244,17 +257,30 @@ func (e *DiagnoseEngine) FindSimilarPostmortems(ctx context.Context, incID int, 
 	if err != nil {
 		return nil, err
 	}
-	// 复用 incident 的 embedding（确保已计算）
+	// 懒补算（B18）：检索前把 published/archived 却缺 embedding 的复盘补算入库，
+	// 使「发布时 embedding 计算失败静默」不再永久掉出向量检索——检索库最终一致。
+	// LLM/SQLRunner 不可用时内部自行跳过（不阻塞检索，走 LIKE 降级）。
+	e.backfillPostmortemEmbeddings(ctx)
+
+	// 尝试 pgvector 语义检索；任一步不可用 → 降级 LIKE。
+	if pms, err := e.findSimilarPostmortemsVector(ctx, inc, limit); err == nil && pms != nil {
+		return pms, nil
+	}
+	return e.findSimilarPostmortemsText(ctx, inc, limit)
+}
+
+// findSimilarPostmortemsVector pgvector 语义检索复盘。任一步失败返回 error 让上层降级。
+func (e *DiagnoseEngine) findSimilarPostmortemsVector(ctx context.Context, inc *ent.Incident, limit int) ([]*ent.Postmortem, error) {
+	if e.runSQL == nil {
+		return nil, fmt.Errorf("sql runner not configured")
+	}
 	vec, err := e.ensureEmbedding(ctx, inc)
 	if err != nil || len(vec) == 0 {
-		return []*ent.Postmortem{}, nil // 降级：无 embedding 无法语义检索
+		return nil, fmt.Errorf("ensure embedding: %w", err)
 	}
-	if e.runSQL == nil {
-		return []*ent.Postmortem{}, nil
-	}
-	// 检索 published 且有 embedding 的复盘，按余弦距离排序
+	// 检索 published/archived 且有 embedding 的复盘，按余弦距离排序（B18：含 archived）。
 	const q = `SELECT id FROM postmortems
-			   WHERE embedding IS NOT NULL AND status = 'published'
+			   WHERE embedding IS NOT NULL AND status IN ('published','archived')
 			   ORDER BY embedding <=> $1::vector
 			   LIMIT $2`
 	var ids []int
@@ -266,10 +292,109 @@ func (e *DiagnoseEngine) FindSimilarPostmortems(ctx context.Context, incID int, 
 		ids = append(ids, id)
 		return nil
 	})
-	if scanErr != nil || len(ids) == 0 {
+	if scanErr != nil {
+		return nil, fmt.Errorf("pgvector query: %w", scanErr)
+	}
+	if len(ids) == 0 {
 		return []*ent.Postmortem{}, nil
 	}
 	return e.db.Postmortem.Query().Where(postmortem.IDIn(ids...)).WithIncident().All(ctx)
+}
+
+// findSimilarPostmortemsText 降级路径：LIKE 文本匹配（B18，与 findSimilarText 同款兜底）。
+//
+// 复盘本身无标题/摘要字段（内容在 JSON sections 里，跨库 LIKE 不可移植），故按其关联
+// incident 的 title/summary 命中关键词——语义上即「找处理过相似故障的复盘」。
+// 仅取 published/archived（有效知识），按发布/创建时间倒序（新经验优先）。
+func (e *DiagnoseEngine) findSimilarPostmortemsText(ctx context.Context, inc *ent.Incident, limit int) ([]*ent.Postmortem, error) {
+	keyword := extractKeyword(inc.Title)
+	if keyword == "" {
+		return []*ent.Postmortem{}, nil
+	}
+	return e.db.Postmortem.Query().
+		Where(
+			postmortem.StatusIn(knowledgePostmortemStatuses...),
+			postmortem.HasIncidentWith(
+				incident.IDNEQ(inc.ID),
+				incident.Or(
+					incident.TitleContains(keyword),
+					incident.SummaryContains(keyword),
+				),
+			),
+		).
+		Order(ent.Desc(postmortem.FieldCreatedAt)).
+		Limit(limit).
+		WithIncident().
+		All(ctx)
+}
+
+// backfillPostmortemEmbeddings 懒补算：为 published/archived 却缺 embedding 的复盘补算并回写（B18）。
+//
+// 背景：复盘发布时 ensurePublishedEmbedding 失败是静默的（best-effort 不阻塞 publish），
+// 失败的复盘会永久缺 embedding、掉出向量检索。此处在检索路径按需补算，形成「懒计算 →
+// 检索库最终一致」的补偿机制（无需额外 Asynq 巡检任务）。
+//
+// 降级：provider/runSQL 不可用（无 LLM key、sqlite 测试）时直接跳过——此时检索本就走
+// LIKE 文本降级，不依赖 embedding，补算无意义。每次至多补算一批（BackfillBatchSize），
+// 避免单次检索因大量历史复盘补算而拖慢；多次检索渐进补全。
+func (e *DiagnoseEngine) backfillPostmortemEmbeddings(ctx context.Context) {
+	if e.provider == nil || !e.provider.Available() || e.runSQL == nil {
+		return // 无 LLM / 无 pgvector：检索走 LIKE 降级，补算 embedding 无意义
+	}
+	// 粗筛 embedding 为 NULL 的 published/archived 复盘（发布时静默失败留下的空洞）。
+	pending, err := e.db.Postmortem.Query().
+		Where(
+			postmortem.StatusIn(knowledgePostmortemStatuses...),
+			postmortem.EmbeddingIsNil(),
+		).
+		Limit(postmortemBackfillBatch).
+		WithIncident().
+		All(ctx)
+	if err != nil {
+		slog.Warn("postmortem embedding backfill: query pending failed", "error", err)
+		return
+	}
+	for _, pm := range pending {
+		if err := e.recomputePostmortemEmbedding(ctx, pm); err != nil {
+			// 单条失败不阻断其它补算（best-effort，下次检索再试）。
+			slog.Warn("postmortem embedding backfill: recompute failed",
+				"postmortem_id", pm.ID, "error", err)
+		}
+	}
+}
+
+// postmortemBackfillBatch 单次检索补算的复盘上限（避免拖慢检索，多次渐进补全）。
+const postmortemBackfillBatch = 10
+
+// recomputePostmortemEmbedding 为单条复盘补算 embedding 并回写。
+// 文本取关联 incident 的标题+摘要（复盘 sections 是 JSON，跨包提取语义与 diagnose 侧一致：
+// 用 incident 语义作为检索键，两侧同源可比）。无关联 incident 或 Embed 失败返回 error。
+func (e *DiagnoseEngine) recomputePostmortemEmbedding(ctx context.Context, pm *ent.Postmortem) error {
+	inc := pm.Edges.Incident
+	if inc == nil {
+		var err error
+		inc, err = pm.QueryIncident().Only(ctx)
+		if err != nil {
+			return fmt.Errorf("query incident: %w", err)
+		}
+	}
+	text := strings.TrimSpace(inc.Title)
+	if inc.Summary != "" {
+		text += " " + inc.Summary
+	}
+	if text == "" {
+		return nil // 无语义文本可算，跳过（非错误）
+	}
+	if len(text) > 2000 {
+		text = text[:2000]
+	}
+	vec, err := e.provider.Embed(ctx, text)
+	if err != nil || len(vec) == 0 {
+		return fmt.Errorf("embed: %w", err)
+	}
+	nv := &schema.NullableVector{Valid: true}
+	nv.Vector = pgvector.NewVector(vec)
+	return e.db.Postmortem.UpdateOneID(pm.ID).SetEmbedding(nv).Exec(ctx)
 }
 
 // vectorLiteral 把 []float32 转成 pgvector 文本字面量 '[0.1,0.2,...]'。
