@@ -5,7 +5,18 @@
  */
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, BookOpen, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  CheckCircle2,
+  MinusCircle,
+  Pencil,
+  Play,
+  Plus,
+  ShieldAlert,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,14 +35,16 @@ import {
   useUpdateRunbook,
 } from "@/hooks/runbooks";
 import { formatTime } from "@/lib/format";
-import type { Runbook } from "@/lib/types";
+import type { Runbook, RunbookExecuteResult, RunbookStepResult } from "@/lib/types";
 
 export function Runbooks() {
   const { data, isLoading, isError } = useRunbooks();
   const [selected, setSelected] = useState<number | undefined>(undefined);
   const [creating, setCreating] = useState(false);
 
-  if (selected) return <RunbookDetail id={selected} onBack={() => setSelected(undefined)} />;
+  // key={selected}：切换 Runbook 时强制重挂载，避免上一个 Runbook 的执行结果（exec.data）串到另一个。
+  if (selected)
+    return <RunbookDetail key={selected} id={selected} onBack={() => setSelected(undefined)} />;
 
   return (
     <div className="space-y-4 p-6">
@@ -173,6 +186,8 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
         </CardContent>
       </Card>
 
+      {exec.data && <ExecutionResult result={exec.data} />}
+
       {executing && (
         <Dialog open onClose={closeExecuting} title="执行 Runbook" description="可执行 Runbook 写操作需人确认（human-in-the-loop）。">
           <form
@@ -222,6 +237,101 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
       )}
     </div>
   );
+}
+
+/**
+ * ExecutionResult 执行结果面板：逐步渲染每步成败/输出/耗时，并高亮
+ * “写步骤未获批准被阻断（pending_approval）”与“中止（aborted）”，
+ * 呼应写审批闸门修复——让审批/阻断结果在 UI 可见（audit B20 / user-journeys C.5.2）。
+ */
+function ExecutionResult({ result }: { result: RunbookExecuteResult }) {
+  const steps = result.steps ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          执行结果
+          {result.aborted ? (
+            <Badge variant="destructive" className="text-xs">已中止</Badge>
+          ) : result.pending_approval ? (
+            <Badge variant="outline" className="border-amber-400 text-xs text-amber-700 dark:text-amber-300">
+              部分写步骤待审批
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs">已完成</Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {result.aborted && result.reason && (
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+            中止原因：{result.reason}
+          </p>
+        )}
+        {result.pending_approval && (
+          <p className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            存在写操作步骤因未获批准被阻断（human-in-the-loop 闸门）。如需执行，请重新执行并勾选“我确认执行写操作”。
+          </p>
+        )}
+        {steps.length === 0 ? (
+          <p className="text-sm text-muted-foreground">该 Runbook 无可执行步骤（文档式或空步骤）。</p>
+        ) : (
+          <ol className="space-y-2">
+            {steps.map((s, i) => (
+              <StepResultRow key={s.step_id || i} step={s} index={i} />
+            ))}
+          </ol>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** StepResultRow 单步结果行：状态图标 + 名称/动作 + 输出/错误 + 耗时。 */
+function StepResultRow({ step, index }: { step: RunbookStepResult; index: number }) {
+  // 三态：跳过（写步骤被阻断，未获批）> 失败 > 成功。
+  const skipped = step.skipped;
+  const failed = !skipped && !step.success;
+  const detail = failed ? step.error : step.output;
+  return (
+    <li className="rounded-md border p-2">
+      <div className="flex items-center gap-2">
+        {skipped ? (
+          <MinusCircle className="h-4 w-4 shrink-0 text-amber-600" />
+        ) : failed ? (
+          <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+        ) : (
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+        )}
+        <span className="font-medium">
+          {index + 1}. {step.name || step.step_id || "（未命名步骤）"}
+        </span>
+        {step.action && (
+          <Badge variant="outline" className="text-[10px]">{step.action}</Badge>
+        )}
+        {skipped && (
+          <Badge variant="outline" className="border-amber-400 text-[10px] text-amber-700 dark:text-amber-300">
+            写步骤·待审批
+          </Badge>
+        )}
+        <span className="ml-auto text-[10px] text-muted-foreground">{formatDuration(step.duration)}</span>
+      </div>
+      {detail && (
+        <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-[11px] text-muted-foreground">
+          {detail}
+        </pre>
+      )}
+    </li>
+  );
+}
+
+/** formatDuration 把 Go time.Duration（纳秒）格式化为可读耗时；0/缺省不显示。 */
+function formatDuration(ns?: number): string {
+  if (!ns || ns <= 0) return "";
+  const ms = ns / 1e6;
+  if (ms < 1000) return `${ms.toFixed(ms < 10 ? 1 : 0)}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
 }
 
 /**

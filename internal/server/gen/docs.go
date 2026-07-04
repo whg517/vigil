@@ -3193,14 +3193,18 @@ const docTemplate = `{
                         "description": "是否中止（on_failure=abort/escalate）",
                         "type": "boolean"
                     },
-                    "incidentID": {
+                    "incident_id": {
                         "type": "integer"
+                    },
+                    "pending_approval": {
+                        "description": "是否存在因未获审批被阻断的写步骤（human-in-the-loop 闸门生效）",
+                        "type": "boolean"
                     },
                     "reason": {
                         "description": "中止原因",
                         "type": "string"
                     },
-                    "runbookID": {
+                    "runbook_id": {
                         "type": "integer"
                     },
                     "steps": {
@@ -3235,7 +3239,7 @@ const docTemplate = `{
                         "description": "因 require_approval 未确认而跳过",
                         "type": "boolean"
                     },
-                    "stepID": {
+                    "step_id": {
                         "type": "string"
                     },
                     "success": {

@@ -21,15 +21,16 @@ import (
 )
 
 // StepResult 单步执行结果。
+// json tag 用 snake_case，供前端逐步渲染成败/输出；不加 tag 会序列化成 PascalCase 让前端读不到。
 type StepResult struct {
-	StepID   string
-	Name     string
-	Action   string // diagnose | execute | ...
-	Success  bool
-	Output   string // 执行输出
-	Error    string
-	Duration time.Duration
-	Skipped  bool // 因 require_approval 未确认而跳过
+	StepID   string        `json:"step_id"`
+	Name     string        `json:"name"`
+	Action   string        `json:"action"` // diagnose | execute | ...
+	Success  bool          `json:"success"`
+	Output   string        `json:"output"` // 执行输出
+	Error    string        `json:"error"`
+	Duration time.Duration `json:"duration"`
+	Skipped  bool          `json:"skipped"` // 因 require_approval 未确认而跳过
 }
 
 // Executor 执行器接口。各执行器（http/ansible/jenkins/内部）实现。

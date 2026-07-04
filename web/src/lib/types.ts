@@ -150,6 +150,11 @@ export type Runbook = Required<
   steps?: unknown[];
 };
 
+// 执行结果（POST /runbooks/:id/execute 返回体，internal_runbook.ExecuteResult）。
+// 后端补 snake_case json tag 后前端才能逐步读到成败/输出与"写步骤被阻断待审批"（audit B20）。
+export type RunbookStepResult = Schemas["internal_runbook.StepResult"];
+export type RunbookExecuteResult = Schemas["internal_runbook.ExecuteResult"];
+
 // —— Postmortem（ent/schema/postmortem.go，能力域 12）——
 export type PostmortemStatus = Schemas["github_com_kevin_vigil_ent_postmortem.Status"];
 

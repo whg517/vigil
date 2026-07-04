@@ -61,9 +61,16 @@ export function useExecuteRunbook() {
   return useMutation({
     mutationFn: (args: { id: number; incidentId: number; approved: boolean }) =>
       api.executeRunbook(args.id, { incident_id: args.incidentId, approved: args.approved }),
-    // approved 决定写操作是否真正执行；干跑（approved=false）时提示写步骤已跳过。
-    onSuccess: (_data, vars) => {
-      toast.success(vars.approved ? "执行完成" : "干跑完成：写操作步骤已跳过（未批准）");
+    // 依据后端结构化结果给出精确提示：中止 > 写步骤被阻断待审批 > 正常完成。
+    // 每步成败/输出由调用方读 mutation.data 逐步渲染（见 runbooks.tsx）。
+    onSuccess: (data) => {
+      if (data.aborted) {
+        toast.error(`执行中止：${data.reason ?? "未知原因"}`);
+      } else if (data.pending_approval) {
+        toast.warning("部分写步骤未获批准被阻断（human-in-the-loop 闸门生效）");
+      } else {
+        toast.success("执行完成");
+      }
     },
   });
 }

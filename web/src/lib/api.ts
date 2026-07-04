@@ -36,6 +36,7 @@ import type {
   Role,
   RoleBinding,
   Runbook,
+  RunbookExecuteResult,
   Schedule,
   Service,
   SuppressionRule,
@@ -240,7 +241,7 @@ export const api = {
   },
   executeRunbook(id: number, body: { incident_id: number; approved?: boolean }) {
     return http
-      .post<{ result?: string; error?: string }>(`/runbooks/${id}/execute`, body)
+      .post<RunbookExecuteResult>(`/runbooks/${id}/execute`, body)
       .then((r) => r.data);
   },
 

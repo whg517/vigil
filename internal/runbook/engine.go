@@ -89,13 +89,15 @@ func (e *Engine) SetEscalationTrigger(t EscalationTrigger) {
 }
 
 // ExecuteResult 整个 Runbook 的执行结果。
+// json tag 用 snake_case：前端据此渲染每步成败/输出与"写步骤被阻断待审批"，
+// 不加 tag 会序列化成 PascalCase 让前端读不到字段（见 docs/user-journeys.md C.5.2 / audit B20）。
 type ExecuteResult struct {
-	RunbookID       int
-	IncidentID      int
-	Steps           []StepResult
-	Aborted         bool   // 是否中止（on_failure=abort/escalate）
-	Reason          string // 中止原因
-	PendingApproval bool   // 是否存在因未获审批被阻断的写步骤（human-in-the-loop 闸门生效）
+	RunbookID       int          `json:"runbook_id"`
+	IncidentID      int          `json:"incident_id"`
+	Steps           []StepResult `json:"steps"`
+	Aborted         bool         `json:"aborted"`          // 是否中止（on_failure=abort/escalate）
+	Reason          string       `json:"reason"`           // 中止原因
+	PendingApproval bool         `json:"pending_approval"` // 是否存在因未获审批被阻断的写步骤（human-in-the-loop 闸门生效）
 }
 
 // Execute 执行一个 Runbook 的全部步骤。

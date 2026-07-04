@@ -6514,10 +6514,12 @@ export interface components {
         "internal_runbook.ExecuteResult": {
             /** @description 是否中止（on_failure=abort/escalate） */
             aborted?: boolean;
-            incidentID?: number;
+            incident_id?: number;
+            /** @description 是否存在因未获审批被阻断的写步骤（human-in-the-loop 闸门生效） */
+            pending_approval?: boolean;
             /** @description 中止原因 */
             reason?: string;
-            runbookID?: number;
+            runbook_id?: number;
             steps?: components["schemas"]["internal_runbook.StepResult"][];
         };
         "internal_runbook.StepResult": {
@@ -6530,7 +6532,7 @@ export interface components {
             output?: string;
             /** @description 因 require_approval 未确认而跳过 */
             skipped?: boolean;
-            stepID?: string;
+            step_id?: string;
             success?: boolean;
         };
         "internal_runbook.createReq": {
