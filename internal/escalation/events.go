@@ -118,5 +118,14 @@ func (e *Engine) OnManualEscalate(ctx context.Context, ev event.Event) error {
 	if ev.Incident == nil || ev.SystemTriggered {
 		return nil
 	}
+	// B6b：手动跳级前，取消目标 level 已排的自动延迟任务，避免"手动立即触发 + 延迟任务到点"
+	// 对同一 level 重复通知。repeatTimes 从策略查（决定要清几个 repeat 序号）。
+	// 查失败仅影响清理精度（可能残留一条延迟任务），不阻塞立即升级——故只记 warn。
+	if policy, perr := ev.Incident.QueryEscalationPolicy().Only(ctx); perr == nil && policy != nil {
+		if cErr := e.CancelLevelPending(ctx, ev.Incident.ID, ev.Level, policy.RepeatTimes); cErr != nil {
+			e.log().Warn("manual escalate: cancel pending level tasks failed",
+				zap.Int("incident_id", ev.Incident.ID), zap.Int("level", ev.Level), zap.Error(cErr))
+		}
+	}
 	return e.TriggerLevelNow(ctx, ev.Incident.ID, ev.Level)
 }

@@ -182,7 +182,7 @@ func TestNotifier_NotifyEscalation(t *testing.T) {
 
 	err := n.NotifyEscalation(context.Background(), inc, 0, []escalation.NotifyTarget{
 		{UserID: 1, Name: "张三", Source: "schedule"},
-	})
+	}, nil) // channels=nil：走默认通道（webhook）
 	if err != nil {
 		t.Fatalf("NotifyEscalation: %v", err)
 	}

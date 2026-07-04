@@ -61,6 +61,79 @@ func createEvent(t *testing.T, c *ent.Client, severity event.Severity, dedupKey 
 	return evt
 }
 
+// fakeUnroutedNotifier 记录 NotifyUnroutedCritical 调用，用于断言 C3 兜底是否触发。
+type fakeUnroutedNotifier struct {
+	events []int // 收到兜底通知的 event id
+}
+
+func (f *fakeUnroutedNotifier) NotifyUnroutedCritical(_ context.Context, evt *ent.Event) error {
+	f.events = append(f.events, evt.ID)
+	return nil
+}
+
+// createUnroutedEvent 建一个路由必然未命中的 Event（labels.service 指向不存在的 Service）。
+func createUnroutedEvent(t *testing.T, c *ent.Client, severity event.Severity, dedupKey string) *ent.Event {
+	t.Helper()
+	evt, err := c.Event.Create().
+		SetSourceEventID(dedupKey).
+		SetSource("prometheus").
+		SetSeverity(severity).
+		SetStatus(event.StatusFiring).
+		SetSummary("孤儿告警 " + dedupKey).
+		SetLabels(map[string]string{"service": "nonexistent-svc"}). // 无对应 Service → 未路由
+		SetDedupKey(dedupKey).
+		Save(context.Background())
+	if err != nil {
+		t.Fatalf("create unrouted event: %v", err)
+	}
+	return evt
+}
+
+// TestEngine_UnroutedCritical_Fallback 验证 C3：critical 级未路由 Event 触发兜底通知；
+// 普通严重度未路由不触发兜底（仅入 unrouted 池待人工分诊）。
+func TestEngine_UnroutedCritical_Fallback(t *testing.T) {
+	c := newTestClient(t)
+	eng := NewEngine(c, nil)
+	fake := &fakeUnroutedNotifier{}
+	eng.SetUnroutedNotifier(fake)
+
+	// critical 未路由 → 兜底
+	critEvt := createUnroutedEvent(t, c, event.SeverityCritical, "crit-1")
+	res, err := eng.Process(context.Background(), critEvt.ID)
+	if err != nil {
+		t.Fatalf("Process critical: %v", err)
+	}
+	if res.Action != ActionUnrouted {
+		t.Fatalf("critical action: got %q, want unrouted", res.Action)
+	}
+	if len(fake.events) != 1 || fake.events[0] != critEvt.ID {
+		t.Errorf("critical unrouted should trigger fallback once, got %v", fake.events)
+	}
+
+	// warning 未路由 → 不兜底
+	warnEvt := createUnroutedEvent(t, c, event.SeverityWarning, "warn-1")
+	if _, err := eng.Process(context.Background(), warnEvt.ID); err != nil {
+		t.Fatalf("Process warning: %v", err)
+	}
+	if len(fake.events) != 1 {
+		t.Errorf("warning unrouted should NOT trigger fallback, fallback events=%v", fake.events)
+	}
+}
+
+// TestEngine_UnroutedCritical_NoNotifier 未注入兜底通知器时 critical 未路由不 panic（降级）。
+func TestEngine_UnroutedCritical_NoNotifier(t *testing.T) {
+	c := newTestClient(t)
+	eng := NewEngine(c, nil) // 不注入 unroutedNotifier
+	evt := createUnroutedEvent(t, c, event.SeverityCritical, "crit-nil")
+	res, err := eng.Process(context.Background(), evt.ID)
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	if res.Action != ActionUnrouted {
+		t.Errorf("action: got %q, want unrouted", res.Action)
+	}
+}
+
 // TestEngine_RouteHitAndCreateIncident 验证：路由命中 → 创建新 Incident。
 func TestEngine_RouteHitAndCreateIncident(t *testing.T) {
 	c := newTestClient(t)

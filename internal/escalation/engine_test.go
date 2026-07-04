@@ -82,13 +82,14 @@ type fakeNotifier struct {
 }
 
 type fakeNotifyCall struct {
-	IncID  int
-	Level  int
-	Target []NotifyTarget
+	IncID    int
+	Level    int
+	Target   []NotifyTarget
+	Channels []string
 }
 
-func (f *fakeNotifier) NotifyEscalation(_ context.Context, inc *ent.Incident, level int, targets []NotifyTarget) error {
-	f.calls = append(f.calls, fakeNotifyCall{IncID: inc.ID, Level: level, Target: targets})
+func (f *fakeNotifier) NotifyEscalation(_ context.Context, inc *ent.Incident, level int, targets []NotifyTarget, channels []string) error {
+	f.calls = append(f.calls, fakeNotifyCall{IncID: inc.ID, Level: level, Target: targets, Channels: channels})
 	return nil
 }
 
@@ -234,6 +235,35 @@ func TestHandleTask_NormalPath(t *testing.T) {
 	}
 }
 
+// TestHandleTask_PerLevelChannels 验证 B6：各层按自身 notify_channels 发通知，
+// 而非固定用全局默认通道。level 0 配 [im]，level 1 配 [im,phone,sms]，
+// notifier 收到的 channels 应与该层配置一致。
+func TestHandleTask_PerLevelChannels(t *testing.T) {
+	levels := []schema.EscalationLevel{
+		{Level: 1, DelayMinutes: 0, Targets: []schema.Target{{Type: "user", TargetID: "1"}}, NotifyChannel: []string{"im"}},
+		{Level: 2, DelayMinutes: 0, Targets: []schema.Target{{Type: "user", TargetID: "1"}}, NotifyChannel: []string{"im", "phone", "sms"}},
+	}
+	env := newEscEnv(t, levels, 0)
+	id := env.incID(t)
+
+	// 触发 level 0
+	env.runEscTask(t, id, 0, 0)
+	// 触发 level 1（模拟自动链推进）
+	env.runEscTask(t, id, 1, 0)
+
+	if len(env.notifier.calls) != 2 {
+		t.Fatalf("notifier calls: got %d, want 2", len(env.notifier.calls))
+	}
+	// level 0：channels=[im]
+	if got := env.notifier.calls[0].Channels; len(got) != 1 || got[0] != "im" {
+		t.Errorf("level 0 channels: got %v, want [im]", got)
+	}
+	// level 1：channels=[im,phone,sms]
+	if got := env.notifier.calls[1].Channels; len(got) != 3 || got[0] != "im" || got[1] != "phone" || got[2] != "sms" {
+		t.Errorf("level 1 channels: got %v, want [im phone sms]", got)
+	}
+}
+
 // TestHandleTask_LevelIdxOutOfBounds levelIdx 超过 policy levels 时不动作（幂等）。
 func TestHandleTask_LevelIdxOutOfBounds(t *testing.T) {
 	levels := []schema.EscalationLevel{
@@ -248,6 +278,69 @@ func TestHandleTask_LevelIdxOutOfBounds(t *testing.T) {
 	if len(env.notifier.calls) != 0 {
 		t.Errorf("out-of-bounds level should not notify, got %d", len(env.notifier.calls))
 	}
+}
+
+// TestRepeatTimesSemantics 锁定 C6：repeat_times 是策略级——每层通知 repeat_times+1 次，
+// 重复间隔 = 该层 delay_minutes；重复用尽后才推进下一层。
+//
+// 语义（docs/capabilities/03-scheduling-escalation.md §3.5 + audit C6）：
+//   - repeat_times=2 表示某层未 ack 时，除首次外再重复 2 次 = 共 3 次通知；
+//   - 每次重复由上一次 HandleTask 结束时 scheduleLevel(同层, repeatSeq+1) 延迟 delay 入队；
+//   - repeatSeq 达到 repeat_times 后不再重复，改 scheduleLevel(下一层, 0) 推进。
+func TestRepeatTimesSemantics(t *testing.T) {
+	// 单层 + repeat_times=2；delay=10min（重复间隔应 = 该层 delay）。
+	levels := []schema.EscalationLevel{
+		{Level: 1, DelayMinutes: 10, Targets: []schema.Target{{Type: "user", TargetID: "1"}}},
+	}
+	env := newEscEnv(t, levels, 2) // repeatTimes=2
+	id := env.incID(t)
+
+	inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: env.mr.Addr()})
+	defer func() { _ = inspector.Close() }()
+
+	// 第 1 次通知（repeatSeq=0）→ 应排下一次重复 (level 0, repeatSeq 1)
+	env.runEscTask(t, id, 0, 0)
+	assertScheduledTaskID(t, inspector, escalationTaskID(id, 0, 1))
+
+	// 第 2 次通知（repeatSeq=1）→ 应排 (level 0, repeatSeq 2)
+	env.runEscTask(t, id, 0, 1)
+	assertScheduledTaskID(t, inspector, escalationTaskID(id, 0, 2))
+
+	// 第 3 次通知（repeatSeq=2）→ repeatSeq 已达 repeat_times，不再重复；
+	// 单层无下一层故不排任何 level 1 任务（越界，scheduleLevel 直接返回不入队）。
+	// 注：测试直接调 HandleTask 不消费队列，前两步排的 repeat 任务仍残留 scheduled，
+	// 故这里不断言总数为 0，而是断言"没有推进到下一层"（无 level 1 任务）。
+	env.runEscTask(t, id, 0, 2)
+	scheduled, _ := inspector.ListScheduledTasks("critical", asynq.PageSize(50))
+	for _, task := range scheduled {
+		if task.ID == escalationTaskID(id, 1, 0) {
+			t.Errorf("repeat exhausted on single level should NOT advance to next level, found %s", task.ID)
+		}
+	}
+
+	// 共 3 次通知（首次 + 2 次重复 = repeat_times+1）
+	if len(env.notifier.calls) != 3 {
+		t.Errorf("notify count: got %d, want 3 (repeat_times=2 → repeat+1)", len(env.notifier.calls))
+	}
+}
+
+// assertScheduledTaskID 断言 critical 队列的 scheduled 任务中含指定 TaskID（delay>0 的任务落 scheduled）。
+func assertScheduledTaskID(t *testing.T, inspector *asynq.Inspector, wantID string) {
+	t.Helper()
+	scheduled, err := inspector.ListScheduledTasks("critical", asynq.PageSize(50))
+	if err != nil {
+		t.Fatalf("list scheduled: %v", err)
+	}
+	for _, task := range scheduled {
+		if task.ID == wantID {
+			return
+		}
+	}
+	var ids []string
+	for _, task := range scheduled {
+		ids = append(ids, task.ID)
+	}
+	t.Errorf("scheduled task %q not found; got %v", wantID, ids)
 }
 
 // TestTriggerLevelNow 入队即时升级任务到真实 asynq（miniredis），
@@ -310,6 +403,52 @@ func TestCancelOnAck_RealInspector(t *testing.T) {
 	}
 }
 
+// TestCancelLevelPending 验证 B6b：只删指定 level 的 pending 任务（含各 repeat 序号），
+// 不误删其它 level——手动跳级取消当前层延迟任务，避免"立即触发 + 延迟到点"同层重复。
+func TestCancelLevelPending(t *testing.T) {
+	levels := []schema.EscalationLevel{
+		{Level: 1, DelayMinutes: 10, Targets: []schema.Target{{Type: "user", TargetID: "1"}}},
+		{Level: 2, DelayMinutes: 10, Targets: []schema.Target{{Type: "user", TargetID: "2"}}},
+	}
+	env := newEscEnv(t, levels, 2) // repeatTimes=2
+	id := env.incID(t)
+	ctx := context.Background()
+
+	// 手动入队 level 1 的一条延迟任务（模拟 level[0] 处理后排的下一层延迟任务）
+	if err := env.engine.scheduleLevel(ctx, id, 1, levels, 0); err != nil {
+		t.Fatalf("scheduleLevel: %v", err)
+	}
+	// 再入队 level 0 的一条（模拟同时存在的其它层任务，应不被误删）
+	if err := env.engine.scheduleLevel(ctx, id, 0, levels, 0); err != nil {
+		t.Fatalf("scheduleLevel level0: %v", err)
+	}
+
+	inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: env.mr.Addr()})
+	defer func() { _ = inspector.Close() }()
+
+	// 取消 level 1 的 pending（repeatTimes=2 → 清 repeat 0..2）
+	if err := env.engine.CancelLevelPending(ctx, id, 1, 2); err != nil {
+		t.Fatalf("CancelLevelPending: %v", err)
+	}
+
+	scheduled, _ := inspector.ListScheduledTasks("critical", asynq.PageSize(50))
+	for _, task := range scheduled {
+		if task.ID == escalationTaskID(id, 1, 0) {
+			t.Errorf("level 1 task should be cancelled, still present: %s", task.ID)
+		}
+	}
+	// level 0 的任务应仍在（未被误删）
+	foundLevel0 := false
+	for _, task := range scheduled {
+		if task.ID == escalationTaskID(id, 0, 0) {
+			foundLevel0 = true
+		}
+	}
+	if !foundLevel0 {
+		t.Error("level 0 task should NOT be cancelled by CancelLevelPending(level=1)")
+	}
+}
+
 // TestResolveTargets_UserTarget user 类型 target 解析成 NotifyTarget（去重）。
 func TestResolveTargets_UserTarget(t *testing.T) {
 	env := newEscEnv(t, nil, 0)
@@ -339,17 +478,58 @@ func TestResolveTargets_UserTarget(t *testing.T) {
 	}
 }
 
-// TestResolveTargets_TeamTarget team 类型 target 标记 source=team（通知引擎处理）。
+// TestResolveTargets_TeamTarget team 类型 target 解算为团队全体在职成员（B9）。
+// 原实现占位 UserID=0、source=team，导致邮件/电话按 user_id 解号解不出人——team 型通知全丢。
+// 现应展开为逐成员 NotifyTarget（真实 UserID），使各通道对全体成员逐一送达。
 func TestResolveTargets_TeamTarget(t *testing.T) {
 	env := newEscEnv(t, nil, 0)
-	got, err := env.engine.resolveTargets(context.Background(), []schema.Target{
-		{Type: "team", TargetID: "5"},
+	ctx := context.Background()
+	// 建团队 + 三个成员（其中一个 disabled，应被排除）
+	team, _ := env.client.Team.Create().SetName("Pay").SetSlug("pay").Save(ctx)
+	m1, _ := env.client.User.Create().SetUsername("m1").SetEmail("m1@x").SetName("M1").AddTeamIDs(team.ID).Save(ctx)
+	m2, _ := env.client.User.Create().SetUsername("m2").SetEmail("m2@x").SetName("M2").AddTeamIDs(team.ID).Save(ctx)
+	// disabled 成员不应被解算通知（B9：查 User.status 跳过禁用）
+	env.client.User.Create().SetUsername("m3").SetEmail("m3@x").SetName("M3").
+		SetStatus("disabled").AddTeamIDs(team.ID).SaveX(ctx)
+
+	got, err := env.engine.resolveTargets(ctx, []schema.Target{
+		{Type: "team", TargetID: itoa(team.ID)},
 	})
 	if err != nil {
 		t.Fatalf("resolveTargets: %v", err)
 	}
-	if len(got) != 1 || got[0].Source != "team" {
-		t.Errorf("team target: got %+v, want 1 with source=team", got)
+	// 应解出 2 个在职成员（disabled 被排除），每个带真实 UserID + source=team
+	if len(got) != 2 {
+		t.Fatalf("team target: got %d targets, want 2 active members", len(got))
+	}
+	ids := map[int]bool{}
+	for _, nt := range got {
+		if nt.Source != "team" {
+			t.Errorf("team member source: got %q, want team", nt.Source)
+		}
+		if nt.UserID == 0 {
+			t.Error("team member should have real UserID, not 0 placeholder")
+		}
+		ids[nt.UserID] = true
+	}
+	if !ids[m1.ID] || !ids[m2.ID] {
+		t.Errorf("team members: got ids %v, want m1=%d m2=%d", ids, m1.ID, m2.ID)
+	}
+}
+
+// TestResolveTargets_TeamTarget_Empty 空团队（无在职成员）解出 0 个目标（不 panic，记 warn）。
+func TestResolveTargets_TeamTarget_Empty(t *testing.T) {
+	env := newEscEnv(t, nil, 0)
+	ctx := context.Background()
+	team, _ := env.client.Team.Create().SetName("Empty").SetSlug("empty").Save(ctx)
+	got, err := env.engine.resolveTargets(ctx, []schema.Target{
+		{Type: "team", TargetID: itoa(team.ID)},
+	})
+	if err != nil {
+		t.Fatalf("resolveTargets: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("empty team: got %d, want 0", len(got))
 	}
 }
 

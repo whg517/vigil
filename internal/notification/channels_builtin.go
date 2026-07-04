@@ -40,9 +40,16 @@ func (w *WebhookChannel) Send(ctx context.Context, msg *Message) ([]SendResult, 
 	if len(urls) == 0 {
 		return nil, nil
 	}
+	// C3：未路由兜底通知无关联 Incident（msg.Incident 可为 nil），号名/编号留空，不 deref。
+	eventName, incNumber := "incident.escalated", ""
+	if msg.Incident != nil {
+		incNumber = msg.Incident.Number
+	} else {
+		eventName = "event.unrouted"
+	}
 	payload, _ := json.Marshal(map[string]any{
-		"event":      "incident.escalated",
-		"incident":   msg.Incident.Number,
+		"event":      eventName,
+		"incident":   incNumber,
 		"title":      msg.Title,
 		"summary":    msg.Summary,
 		"level":      msg.Level,
@@ -118,11 +125,11 @@ func (e *EmailChannel) Send(ctx context.Context, msg *Message) ([]SendResult, er
 		from = "vigil@localhost"
 	}
 	subject := msg.Title
-	if subject == "" {
+	if subject == "" && msg.Incident != nil {
 		subject = fmt.Sprintf("[Vigil] %s", msg.Incident.Number)
 	}
 	body := msg.Summary
-	if body == "" {
+	if body == "" && msg.Incident != nil {
 		body = msg.Incident.Summary
 	}
 

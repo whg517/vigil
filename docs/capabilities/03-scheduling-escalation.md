@@ -168,8 +168,15 @@ Enqueue level[0] 延迟任务（asynq.ProcessIn(delay_minutes[0])）
 ### 3.5 循环通知（repeat）
 
 - `repeat_times` 控制当前 level 未 ack 时的重复通知次数。
-- 每次重复间隔可配（默认同 `delay_minutes`）。
-- 防轰炸：总通知次数有上限。
+- **策略级语义（C6 澄清）**：`repeat_times` 是 **EscalationPolicy 级字段**（非各 level 独立配置）。
+  对**每一层**都生效——某层触发后，未 ack 则在该层再重复通知 `repeat_times` 次，
+  即**每层共通知 `repeat_times + 1` 次**（首次 + 重复），重复用尽后才推进下一层。
+- **重复间隔 = 该层自身的 `delay_minutes`**：重复任务复用 `scheduleLevel` 以本层 delay 延迟入队，
+  故 level A 的重复间隔取 A 的 delay，level B 的取 B 的 delay（各层可不同）。
+- 任务幂等键含 `repeat序号`（`esc:{inc}:{level}:{repeatSeq}`），重复触发不重复通知。
+- 防轰炸：`repeat_times` 有上限，且 ack/resolve 后状态守卫使残留重复任务不再动作。
+- 实现见 `internal/escalation/engine.go` HandleTask（`repeatSeq < repeat_times` 则续排同层，否则推进下一层）；
+  语义由 `TestRepeatTimesSemantics` 锁定。
 
 ### 3.6 升级事件记录（M6.6）
 

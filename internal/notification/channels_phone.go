@@ -68,9 +68,14 @@ func sendVoice(ctx context.Context, channel string, cfg VoiceProviderConfig, cli
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
+	// C3：未路由兜底通知无关联 Incident（msg.Incident 可为 nil），编号留空不 deref。
+	incNumber := ""
+	if msg.Incident != nil {
+		incNumber = msg.Incident.Number
+	}
 	payload, _ := json.Marshal(map[string]any{
 		"channel":    channel,
-		"incident":   msg.Incident.Number,
+		"incident":   incNumber,
 		"title":      msg.Title,
 		"summary":    msg.Summary,
 		"level":      msg.Level,

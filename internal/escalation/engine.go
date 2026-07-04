@@ -21,7 +21,9 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/schema"
+	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/timelineitem"
+	"github.com/kevin/vigil/ent/user"
 	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/queue"
@@ -71,8 +73,12 @@ func (e *Engine) log() *zap.Logger {
 }
 
 // Notifier 通知接口，由能力域 7 实现。升级触发时调用以送达 targets。
+//
+// B6：channels 为本层 EscalationLevel.notify_channels（如 [im,phone,sms]），
+// 通知引擎据此选择送达通道，而非固定用全局默认通道——不同层可差异化升级强度
+// （level 1 只 im、level 3 加 phone/sms）。channels 为空时由实现方降级到默认通道。
 type Notifier interface {
-	NotifyEscalation(ctx context.Context, inc *ent.Incident, level int, targets []NotifyTarget) error
+	NotifyEscalation(ctx context.Context, inc *ent.Incident, level int, targets []NotifyTarget, channels []string) error
 }
 
 // NotifyTarget 升级通知目标（已解析的"实际人"）。
@@ -182,8 +188,9 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// 4. 通知（若 Notifier 已接入）。失败不阻塞升级链。
+	// B6：透传本层 notify_channels，让各层按配置走对应通道（level 1 只 im，末级加 phone/sms）。
 	if e.notifier != nil {
-		_ = e.notifier.NotifyEscalation(ctx, inc, p.LevelIdx, targets)
+		_ = e.notifier.NotifyEscalation(ctx, inc, p.LevelIdx, targets, level.NotifyChannel)
 	}
 
 	// 5. 记时间线 + 更新 Incident 升级状态
@@ -283,8 +290,36 @@ func (e *Engine) resolveTargets(ctx context.Context, targets []schema.Target) ([
 				out = append(out, NotifyTarget{UserID: u.ID, Name: u.Name, Source: "user"})
 			}
 		case "team":
-			// team 通知全团队：查成员。简化为标记 source=team，通知引擎处理
-			out = append(out, NotifyTarget{Name: fmt.Sprintf("team:%s", t.TargetID), Source: "team"})
+			// team 通知全团队（末级兜底）：解算成团队全体在职成员（B9）。
+			// 原实现仅占位 NotifyTarget{UserID:0, source:team}——邮件/电话按 user_id 解号，
+			// UserID=0 时解不出任何人，team 型 target 的邮件/电话通知实际全丢，只有 IM 群卡片路径有效。
+			// 这里展开为逐成员 NotifyTarget（真实 UserID），使各通道对全体成员逐一送达。
+			teamID, _ := strconv.Atoi(t.TargetID)
+			if teamID == 0 {
+				e.log().Warn("escalation target: invalid team id",
+					zap.String("target_id", t.TargetID))
+				continue
+			}
+			members, err := e.db.User.Query().
+				Where(user.HasTeamsWith(team.IDEQ(teamID)), user.StatusEQ(user.StatusActive)).
+				All(ctx)
+			if err != nil {
+				e.log().Warn("escalation target: query team members failed",
+					zap.Int("team_id", teamID), zap.Error(err))
+				continue
+			}
+			if len(members) == 0 {
+				// 空团队（无在职成员）是末级兜底失效的严重信号，必须可观测。
+				e.log().Warn("escalation target: team has no active members",
+					zap.Int("team_id", teamID))
+				continue
+			}
+			for _, u := range members {
+				if !seen[u.ID] {
+					seen[u.ID] = true
+					out = append(out, NotifyTarget{UserID: u.ID, Name: u.Name, Source: "team"})
+				}
+			}
 		}
 	}
 	return out, nil
@@ -306,6 +341,26 @@ func (e *Engine) CancelOnAck(ctx context.Context, incID int, levels []schema.Esc
 			// 任务可能已触发/不存在，忽略错误（状态守卫兜底）
 			_ = inspector.DeleteTask("critical", taskID)
 		}
+	}
+	return nil
+}
+
+// CancelLevelPending 取消某一 level 所有 repeat 序号的待触发升级任务（B6b）。
+//
+// 用于手动跳级：人主动 escalate 到 level N 时，自动升级链此前已为 level N 排了延迟任务
+//（level[N-1] 处理后 scheduleLevel(N)），若不取消，手动立即触发 level N 之外，
+// 那条延迟任务到点还会再触发一次 level N —— 同层重复通知（轰炸/困惑）。
+// 这里删掉 level N 的所有 pending（repeat 0..repeatTimes），只保留手动的 now: 立即任务。
+// 复用 CancelOnAck 的删除语义（inspector.DeleteTask，任务已触发/不存在则忽略）。
+// 无 Redis（inspector=nil）时跳过——状态守卫无法防同层重复，但这是降级路径，可接受。
+func (e *Engine) CancelLevelPending(ctx context.Context, incID, levelIdx, repeatTimes int) error {
+	inspector := e.inspector()
+	if inspector == nil {
+		return nil
+	}
+	defer func() { _ = inspector.Close() }()
+	for repeatSeq := 0; repeatSeq <= repeatTimes; repeatSeq++ {
+		_ = inspector.DeleteTask("critical", escalationTaskID(incID, levelIdx, repeatSeq))
 	}
 	return nil
 }

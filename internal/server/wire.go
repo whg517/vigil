@@ -24,6 +24,8 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/notificationrule"
+	"github.com/kevin/vigil/ent/role"
+	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/ai"
 	"github.com/kevin/vigil/internal/analytics"
@@ -244,6 +246,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	triageEngine.SetBus(bus)
 	// B3：注入时间线记录器，使自动恢复（handleResolved）写 status_changed 时间线。
 	triageEngine.SetRecorder(timelineRecorder)
+	// C3：注入未路由兜底通知器——critical 级 Event 无 Service 匹配时兜底通知 org_admin，
+	// 避免高危故障因路由未命中而完全静默（既不建单、不升级、不通知）。
+	triageEngine.SetUnroutedNotifier(&unroutedFallbackNotifier{db: st.DB, notifier: notifier, log: log})
 	q.Register(triage.TaskTriage, triage.NewWorker(triageEngine).Handle)
 	log.Info("pipeline ready (ingestion → triage → escalation → notification)")
 
@@ -647,6 +652,64 @@ func resolvePhones(ctx context.Context, db *ent.Client, targets []notification.T
 		}
 	}
 	return phones
+}
+
+// unroutedFallbackNotifier 实现 triage.UnroutedNotifier（C3）。
+//
+// 未路由的 critical Event 无 Service/Incident，无法走升级链——本适配器解算 org_admin
+// 收件人，用 Notifier.NotifyUnrouted 走 email/phone/sms/webhook 兜底通知（不走 IM 卡片，
+// 无单可渲染）。org_admin 是"全组织可见"角色，无 Service 归属的漏网告警交给他们兜底最合理。
+type unroutedFallbackNotifier struct {
+	db       *ent.Client
+	notifier *notification.Notifier
+	log      *zap.Logger
+}
+
+// NotifyUnroutedCritical 兜底通知 org_admin：critical Event 路由未命中时调用。
+func (u *unroutedFallbackNotifier) NotifyUnroutedCritical(ctx context.Context, evt *ent.Event) error {
+	admins, err := u.resolveOrgAdmins(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve org admins: %w", err)
+	}
+	if len(admins) == 0 {
+		// 无 org_admin 可通知是配置缺陷（应至少有一个内置管理员），记 warn 便于运维发现。
+		u.log.Warn("unrouted critical: no org_admin to notify", zap.Int("event_id", evt.ID))
+		return nil
+	}
+	targets := make([]notification.Target, 0, len(admins))
+	for _, a := range admins {
+		targets = append(targets, notification.Target{UserID: a.ID, Name: a.Name, Source: "user"})
+	}
+	title := fmt.Sprintf("[CRITICAL] 未路由告警：%s", evt.Summary)
+	summary := fmt.Sprintf("收到 critical 告警但无匹配 Service，已入未路由池待人工分诊。dedup_key=%s。请尽快确认归属或手动建单。", evt.DedupKey)
+	return u.notifier.NotifyUnrouted(ctx, targets, title, summary, nil)
+}
+
+// resolveOrgAdmins 解算持有 org 级 org_admin 角色绑定的在职用户（去重）。
+func (u *unroutedFallbackNotifier) resolveOrgAdmins(ctx context.Context) ([]*ent.User, error) {
+	now := time.Now()
+	bindings, err := u.db.RoleBinding.Query().
+		Where(
+			rolebinding.HasRoleWith(role.NameEQ("org_admin")),
+			rolebinding.ScopeLevelEQ(rolebinding.ScopeLevelOrg),
+			rolebinding.Or(rolebinding.ExpiresAtIsNil(), rolebinding.ExpiresAtGTE(now)),
+		).
+		WithUser().
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[int]bool{}
+	var out []*ent.User
+	for _, b := range bindings {
+		usr := b.Edges.User
+		if usr == nil || seen[usr.ID] || usr.Status != user.StatusActive {
+			continue
+		}
+		seen[usr.ID] = true
+		out = append(out, usr)
+	}
+	return out, nil
 }
 
 // runbookEscalator 实现 runbook.EscalationTrigger，包装 incident.Service.Escalate。

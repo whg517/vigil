@@ -65,19 +65,26 @@ func (n *Notifier) SetTemplateEngine(e *TemplateEngine, resolver func(inc *ent.I
 
 // NotifyEscalation 实现 escalation.Notifier。
 // targets 来自升级引擎（已解析的人/team）；level 为升级层级。
-func (n *Notifier) NotifyEscalation(ctx context.Context, inc *ent.Incident, level int, targets []escalation.NotifyTarget) error {
+// channels 为本层 EscalationLevel.notify_channels（B6）：非空时按其选通道分发，
+// 为空时降级到全局默认通道（保持无配置时的行为不回归）。
+func (n *Notifier) NotifyEscalation(ctx context.Context, inc *ent.Incident, level int, targets []escalation.NotifyTarget, channels []string) error {
 	msgTargets := make([]Target, 0, len(targets))
 	for _, t := range targets {
 		msgTargets = append(msgTargets, Target{UserID: t.UserID, Name: t.Name, Source: t.Source})
 	}
 
+	// B6：本层配置了 notify_channels 就用它，否则回退默认通道。
+	chans := channels
+	if len(chans) == 0 {
+		chans = n.defaultChans
+	}
 	msg := &Message{
 		Incident: inc,
 		Targets:  msgTargets,
 		Level:    level,
 		Title:    FormatTitle(inc),
 		Summary:  FormatSummary(inc, level),
-		Channels: n.defaultChans, // 升级场景用默认通道；完整实现按 NotificationRule 解析
+		Channels: chans,
 	}
 	// 模板渲染（能力域 7 M7.5）：按 incident 解析模板名，渲染标题/正文覆盖兜底文案。
 	// 渲染失败由 TemplateEngine 内部降级，不丢通知。
@@ -86,10 +93,10 @@ func (n *Notifier) NotifyEscalation(ctx context.Context, inc *ent.Incident, leve
 		if n.templateNameResolver != nil {
 			tmplName = n.templateNameResolver(inc)
 		}
-		// 取首个启用通道决定默认模板（im/email/webhook）
+		// 取本次分发的首个启用通道决定默认模板（im/email/webhook）
 		chanForDefault := ""
-		if len(n.defaultChans) > 0 {
-			chanForDefault = n.defaultChans[0]
+		if len(chans) > 0 {
+			chanForDefault = chans[0]
 		}
 		rendered, rerr := n.templates.Render(ctx, tmplName, chanForDefault, TemplateData{
 			Incident: inc,
@@ -155,6 +162,55 @@ func (n *Notifier) NotifyEscalation(ctx context.Context, inc *ent.Incident, leve
 		n.sendOne(ctx, ch, msg, inc)
 	}
 	return firstErr
+}
+
+// NotifyUnrouted 未路由兜底通知（C3）：把一条不关联 Incident 的告警送达给指定收件人。
+//
+// 与 NotifyEscalation 的区别：无 Incident 上下文（未路由 Event 尚未建单），故不走
+// IM 卡片通道（IMChannel.Send 强依赖 Incident）；只走 email/phone/sms/webhook 这些
+// 按 target 号码/URL 送达、可容忍 nil Incident 的通道。用于 critical 告警无 Service 匹配时
+// 兜底通知 org_admin，避免高危故障静默。
+//
+// title/summary 由调用方按 Event 组装（含事件摘要/标签），channels 为空时用默认通道。
+// 不聚合、不静默（兜底通知是"必达"语义，不该被静默/聚合窗延迟）。
+func (n *Notifier) NotifyUnrouted(ctx context.Context, targets []Target, title, summary string, channels []string) error {
+	chans := channels
+	if len(chans) == 0 {
+		chans = n.defaultChans
+	}
+	msg := &Message{
+		Incident: nil, // 未路由：无关联 Incident
+		Targets:  targets,
+		Level:    0,
+		Title:    title,
+		Summary:  summary,
+		Channels: chans,
+	}
+	for _, chanName := range chans {
+		// IM 通道强依赖 Incident（渲染卡片），未路由无单可渲染，跳过。
+		if chanName == "im" {
+			continue
+		}
+		ch, ok := n.registry.Get(chanName)
+		if !ok {
+			continue
+		}
+		results, err := ch.Send(ctx, msg)
+		if err != nil {
+			results = append(results, SendResult{Channel: ch.Name(), Error: err.Error()})
+		}
+		for _, r := range results {
+			resultLabel := "success"
+			if !r.Success {
+				resultLabel = "failed"
+			}
+			metrics.NotificationsSent.WithLabelValues(r.Channel, resultLabel).Inc()
+			if n.recordResult != nil {
+				n.recordResult(0, r) // incID=0：未路由无单
+			}
+		}
+	}
+	return nil
 }
 
 // targetKey 聚合队列按 target 维度，user 用 user_id，team/source=team 用 source 名。

@@ -11,6 +11,7 @@ package triage
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/kevin/vigil/ent"
@@ -46,6 +47,25 @@ type Engine struct {
 	// recorder 时间线记录器。B3：自动恢复（handleResolved）解决 Incident 时写 status_changed
 	// 时间线（每次状态变更必产 TimelineItem 铁律）。为 nil 时跳过（降级/测试）。
 	recorder *timeline.Recorder
+
+	// unroutedNotifier 未路由兜底通知器（C3）。路由未命中且 severity=critical 时调用，
+	// 兜底通知 org_admin，避免 critical 告警因无 Service 匹配而静默无人知。
+	// 普通严重度不兜底（unrouted 只标记待人工分诊，不打扰管理员）。
+	// 为 nil 时跳过（降级/测试）——保持"无配置不回归"。
+	unroutedNotifier UnroutedNotifier
+}
+
+// UnroutedNotifier 未路由兜底通知接口（C3）。由能力域 7/装配层实现：
+// 解算 org_admin 收件人并发送兜底通知。定义在 triage 侧、由 wire 注入实现，
+// 避免 triage 反向依赖 notification/auth（与 escalation.Notifier 同款解耦模式）。
+type UnroutedNotifier interface {
+	// NotifyUnroutedCritical 对未路由的 critical Event 兜底通知 org_admin。
+	NotifyUnroutedCritical(ctx context.Context, evt *ent.Event) error
+}
+
+// SetUnroutedNotifier 注入未路由兜底通知器（装配时调用）。为 nil 时不兜底。
+func (e *Engine) SetUnroutedNotifier(n UnroutedNotifier) {
+	e.unroutedNotifier = n
 }
 
 // NewEngine 创建分诊引擎。window 参数为 0 时用默认值。
@@ -163,7 +183,15 @@ func (e *Engine) Process(ctx context.Context, evtID int) (*Result, error) {
 		return nil, fmt.Errorf("route: %w", err)
 	}
 	if svc == nil {
-		// 未命中：标记 unrouted（Event.service_id 留空），等待人工分诊
+		// 未命中：标记 unrouted（Event.service_id 留空），等待人工分诊。
+		// C3：critical 级未路由要兜底通知 org_admin——否则 critical 告警因无 Service 匹配而
+		// 完全静默（既不建单、不升级、不通知），是"漏真故障"的高危盲区。
+		// 普通严重度不兜底（仅入 unrouted 池待人工分诊，不打扰管理员）。best-effort，失败不阻塞。
+		if e.unroutedNotifier != nil && evt.Severity == event.SeverityCritical {
+			if nerr := e.unroutedNotifier.NotifyUnroutedCritical(ctx, evt); nerr != nil {
+				slog.Warn("triage: unrouted critical fallback notify failed", "event_id", evt.ID, "error", nerr)
+			}
+		}
 		return &Result{Action: ActionUnrouted, SeverityReduced: severityReduced, SuppressionRule: suppressionRule}, nil
 	}
 
