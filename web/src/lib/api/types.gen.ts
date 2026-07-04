@@ -108,6 +108,75 @@ export interface paths {
         };
         trace?: never;
     };
+    "/ai-insights/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get AI insight
+         * @description 按 id 取单条 AI 洞察。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description AI Insight ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.AIInsight"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-insights/{id}/resolve": {
         parameters: {
             query?: never;
@@ -1900,6 +1969,77 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incidents/{id}/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List AI insights of an incident
+         * @description 列出该 incident 的全部 AI 洞察（按创建时间倒序），含 status 生命周期。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Incident ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description {insights: []*ent.AIInsight} */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3898,7 +4038,71 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        patch?: never;
+        /** 编辑角色 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 角色 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 更新字段 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["auth.updateRoleReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Role"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/runbooks": {
@@ -5445,6 +5649,155 @@ export interface paths {
         };
         trace?: never;
     };
+    "/teams/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 团队成员列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 团队 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.User"][];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 加入团队成员 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 团队 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 用户 ID */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["auth.memberReq"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teams/{id}/members/{uid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 移除团队成员 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 团队 ID */
+                    id: number;
+                    /** @description 用户 ID */
+                    uid: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -5483,7 +5836,53 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /**
+         * 创建用户
+         * @description 管理员建号：username/email 必填且唯一，设初始密码（须改密），可选 name/timezone。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 用户信息 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["auth.createUserReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.User"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -5634,6 +6033,73 @@ export interface paths {
                 };
                 /** @description Internal Server Error */
                 500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 管理员重置密码
+         * @description 管理员重置指定用户密码：无需旧密码，重置后强制改密并吊销该用户所有旧 token。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 用户 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 新密码 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["auth.resetPasswordReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: string;
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -5901,7 +6367,24 @@ export interface components {
         "auth.createTeamReq": {
             description?: string;
             name?: string;
+            /**
+             * @description ParentTeamID 父团队（仅组织展示，权限不继承，见 09-admin-rbac §3）。
+             *     schema 有 parent_team_id 字段但原 API 不收，导致团队树无法通过 API 组织——本轮放开。
+             */
+            parent_team_id?: string;
             slug?: string;
+        };
+        "auth.createUserReq": {
+            /** @description 邮箱，必填，唯一 */
+            email?: string;
+            /** @description 显示名，可选 */
+            name?: string;
+            /** @description 初始密码，必填，须过强度校验 */
+            password?: string;
+            /** @description 时区，可选（缺省走 schema 默认 Asia/Shanghai） */
+            timezone?: string;
+            /** @description 登录名，必填，唯一 */
+            username?: string;
         };
         "auth.loginReq": {
             password?: string;
@@ -5922,12 +6405,27 @@ export interface components {
             status?: string;
             username?: string;
         };
+        "auth.memberReq": {
+            user_id?: number;
+        };
         "auth.refreshReq": {
             refresh_token?: string;
+        };
+        "auth.resetPasswordReq": {
+            /** @description 新密码，必填，须过强度校验 */
+            new_password?: string;
+        };
+        "auth.updateRoleReq": {
+            description?: string;
+            name?: string;
+            /** @description 非 nil 则全量替换权限集 */
+            permissions?: string[];
         };
         "auth.updateTeamReq": {
             description?: string;
             name?: string;
+            /** @description 父团队（仅组织展示，权限不继承） */
+            parent_team_id?: string;
         };
         "auth.updateUserReq": {
             name?: string;
@@ -6413,6 +6911,7 @@ export interface components {
         "ent.RawEventEdges": {
             integration?: components["schemas"]["ent.Integration"];
         };
+        /** @description Role holds the value of the role edge. */
         "ent.Role": {
             /** @description Builtin holds the value of the "builtin" field. */
             builtin?: boolean;
@@ -6521,6 +7020,7 @@ export interface components {
             services?: components["schemas"]["ent.Service"][];
             team?: components["schemas"]["ent.Team"];
         };
+        /** @description Schedule holds the value of the schedule edge. */
         "ent.Schedule": {
             /** @description CreatedAt holds the value of the "created_at" field. */
             created_at?: string;
@@ -6552,6 +7052,7 @@ export interface components {
             services?: components["schemas"]["ent.Service"][];
             team?: components["schemas"]["ent.Team"];
         };
+        /** @description Service holds the value of the service edge. */
         "ent.Service": {
             /** @description 告警进来是否自动成 Incident */
             auto_create_incident?: boolean;
@@ -6629,6 +7130,7 @@ export interface components {
         "ent.SuppressionRuleEdges": {
             team?: components["schemas"]["ent.Team"];
         };
+        /** @description Team holds the value of the team edge. */
         "ent.Team": {
             /** @description CreatedAt holds the value of the "created_at" field. */
             created_at?: string;
@@ -6702,7 +7204,7 @@ export interface components {
         "ent.TimelineItemEdges": {
             incident?: components["schemas"]["ent.Incident"];
         };
-        /** @description User holds the value of the user edge. */
+        /** @description Assignee holds the value of the assignee edge. */
         "ent.User": {
             /** @description CreatedAt holds the value of the "created_at" field. */
             created_at?: string;
@@ -6753,7 +7255,10 @@ export interface components {
             levels?: components["schemas"]["schema.EscalationLevel"][];
             name?: string;
             repeat_times?: number;
-            /** @description 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。 */
+            /**
+             * @description TeamID 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。
+             *     非 org 级用户只能给自己可管的 team 建（经 VisibleTeamIDs 校验，否则 403）。
+             */
             team_id?: number;
         };
         "escalation.updateReq": {
@@ -7092,7 +7597,10 @@ export interface components {
             content_markdown?: string;
             name?: string;
             steps?: components["schemas"]["schema.RunbookStep"][];
-            /** @description 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。 */
+            /**
+             * @description TeamID 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。
+             *     非 org 级用户只能给自己可管的 team 建（经 VisibleTeamIDs 校验，否则 403）。
+             */
             team_id?: number;
             trigger?: {
                 [key: string]: unknown;

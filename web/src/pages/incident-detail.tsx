@@ -5,6 +5,7 @@ import { useIncident, useIncidentAction, useTimeline } from "@/hooks/incidents";
 import { useIncidentWS } from "@/hooks/use-incident-ws";
 import {
   useDiagnoseIncident,
+  useIncidentInsights,
   useResolveInsight,
   useSimilarIncidents,
 } from "@/hooks/ai-diagnose";
@@ -16,7 +17,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SeverityBadge, StatusBadge } from "@/lib/badges";
 import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { DiagnoseResult, TimelineType } from "@/lib/types";
+import type {
+  AIInsight,
+  AIInsightStatus,
+  DiagnoseResult,
+  TimelineType,
+} from "@/lib/types";
 
 /**
  * IncidentDetail —— 事件详情页。
@@ -234,8 +240,9 @@ function actorLabel(actor?: { kind?: string; id?: string; name?: string }) {
  * 未启用 LLM 时后端返回 {status:"disabled"}，显示降级提示。
  */
 function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
-  const diagnose = useDiagnoseIncident();
+  const diagnose = useDiagnoseIncident(incidentId);
   const resolve = useResolveInsight(incidentId);
+  const insights = useIncidentInsights(incidentId);
   const [result, setResult] = useState<DiagnoseResult | null>(null);
   const [disabledMsg, setDisabledMsg] = useState<string | null>(null);
   const [showSimilar, setShowSimilar] = useState(false);
@@ -268,6 +275,8 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
     if (c >= 0.5) return "warning" as const;
     return "outline" as const;
   };
+
+  const historyItems = insights.data ?? [];
 
   return (
     <Card>
@@ -347,6 +356,27 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
           </div>
         )}
 
+        {/* 历史 AI 洞察（T3.1 可读持久化）：诊断产出落库后持久呈现，状态随 accept/reject 变更持久。 */}
+        {historyItems.length > 0 && (
+          <div className="space-y-2 border-t pt-3">
+            <div className="text-xs font-medium text-muted-foreground">
+              历史 AI 洞察（{historyItems.length} 条）
+            </div>
+            <ul className="space-y-2">
+              {historyItems.map((ins) => (
+                <InsightHistoryItem
+                  key={ins.id}
+                  insight={ins}
+                  onResolve={(accepted) =>
+                    resolve.mutate({ insightId: ins.id, accepted })
+                  }
+                  resolving={resolve.isPending}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* 相似历史事件 */}
         {showSimilar && (
           <div className="space-y-2 border-t pt-3">
@@ -377,5 +407,108 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** insightStatusMeta AI 洞察状态的文案与 Badge variant（human-in-the-loop 生命周期）。 */
+function insightStatusMeta(status: AIInsightStatus): {
+  label: string;
+  variant: "default" | "warning" | "outline" | "destructive";
+} {
+  switch (status) {
+    case "applied":
+      return { label: "已应用", variant: "default" };
+    case "accepted":
+      return { label: "已采纳", variant: "default" };
+    case "rejected":
+      return { label: "已拒绝", variant: "destructive" };
+    default:
+      return { label: "待确认", variant: "warning" };
+  }
+}
+
+/** insightTypeLabel AI 洞察类型中文文案。 */
+function insightTypeLabel(type: string): string {
+  switch (type) {
+    case "root_cause_hint":
+      return "根因线索";
+    case "severity_adjustment":
+      return "严重度建议";
+    case "dedup_suggestion":
+      return "去重建议";
+    case "similar_incident":
+      return "相似事件";
+    case "draft_summary":
+      return "摘要起草";
+    case "postmortem_draft":
+      return "复盘起草";
+    default:
+      return type;
+  }
+}
+
+/** insightSummary 从 content 提取一句可读摘要（root_cause / target_severity / 兜底 JSON）。 */
+function insightSummary(ins: AIInsight): string {
+  const content = ins.content ?? {};
+  if (typeof content.root_cause === "string") return content.root_cause;
+  if (typeof content.target_severity === "string")
+    return `建议调整严重度为 ${content.target_severity}`;
+  const keys = Object.keys(content);
+  return keys.length > 0 ? JSON.stringify(content) : "（无内容）";
+}
+
+/**
+ * InsightHistoryItem 单条历史 AI 洞察（T3.1）。
+ * 展示类型/置信度/状态/内容；仍处于 suggested 的可就地 accept/reject（状态持久化）。
+ */
+function InsightHistoryItem({
+  insight,
+  onResolve,
+  resolving,
+}: {
+  insight: AIInsight;
+  onResolve: (accepted: boolean) => void;
+  resolving: boolean;
+}) {
+  const meta = insightStatusMeta(insight.status);
+  const pending = insight.status === "suggested";
+  return (
+    <li className="rounded-md border p-2 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">{insightTypeLabel(insight.type)}</Badge>
+          <span className="text-xs text-muted-foreground">
+            置信度 {Math.round((insight.confidence ?? 0) * 100)}%
+          </span>
+        </div>
+        <Badge variant={meta.variant}>{meta.label}</Badge>
+      </div>
+      <p className="mt-1 text-sm">{insightSummary(insight)}</p>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">
+          {formatTime(insight.created_at)}
+        </span>
+        {pending && (
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={resolving}
+              onClick={() => onResolve(true)}
+            >
+              <Check className="mr-1 h-3.5 w-3.5" /> 采纳
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={resolving}
+              onClick={() => onResolve(false)}
+            >
+              <X className="mr-1 h-3.5 w-3.5" /> 拒绝
+            </Button>
+          </div>
+        )}
+      </div>
+    </li>
   );
 }

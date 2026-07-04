@@ -281,3 +281,17 @@ export interface DiagnoseDisabled {
   status: "disabled";
   message: string;
 }
+
+// AIInsightStatus human-in-the-loop 生命周期：suggested→accepted→applied（或 rejected）。
+export type AIInsightStatus = Schemas["aiinsight.Status"];
+export type AIInsightType = Schemas["aiinsight.Type"];
+export type AIInsightStage = Schemas["aiinsight.Stage"];
+
+// AIInsight AI 洞察（T3.1 可读持久化）。诊断产出落库，前端加载历史列表持久呈现，
+// accept/reject 后状态持久（不再刷新即丢）。
+export type AIInsight = Required<
+  Omit<Schemas["ent.AIInsight"], "edges" | "content" | "evidence">
+> & {
+  content?: Record<string, unknown>;
+  evidence?: Record<string, unknown>[];
+};

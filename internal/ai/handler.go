@@ -76,11 +76,15 @@ func (h *Handler) checkAccess(c *echo.Context, kind string, id int, perm auth.Pe
 // POST /incidents/:id/diagnose     触发 AI 根因诊断
 // GET  /incidents/:id/similar      查询相似历史事件
 // GET  /incidents/:id/similar-postmortems  查询相似已发布复盘（知识沉淀 M12.6）
+// GET  /incidents/:id/insights     列出该 incident 的历史 AI 洞察（T3.1 可读持久化）
+// GET  /ai-insights/:id            取单条 AI 洞察（T3.1）
 // POST /ai-insights/:id/resolve    人确认/拒绝 AI 建议（human-in-the-loop）
 func (h *Handler) Register(g *echo.Group) {
 	g.POST("/incidents/:id/diagnose", h.diagnose)
 	g.GET("/incidents/:id/similar", h.similar)
 	g.GET("/incidents/:id/similar-postmortems", h.similarPostmortems)
+	g.GET("/incidents/:id/insights", h.listInsights)
+	g.GET("/ai-insights/:id", h.getInsight)
 	g.POST("/ai-insights/:id/resolve", h.resolve)
 }
 
@@ -182,6 +186,66 @@ func (h *Handler) similarPostmortems(c *echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{"similar_postmortems": pms})
 }
 
+// listInsights 列出某 incident 的历史 AI 洞察（T3.1 可读持久化）。
+// 诊断产出的 AIInsight 原为 write-only（前端不重新拉取即丢失），补此端点让历史洞察可查、
+// accept/reject 状态持久呈现。按创建时间倒序（最新在前）。权限 incident.view。
+//
+// @Summary      List AI insights of an incident
+// @Description  列出该 incident 的全部 AI 洞察（按创建时间倒序），含 status 生命周期。
+// @Tags         ai
+// @Produce      json
+// @Param        id   path      int  true  "Incident ID"
+// @Success      200  {object}  map[string]any  "{insights: []*ent.AIInsight}"
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /incidents/{id}/insights [get]
+// @Security     bearerAuth
+func (h *Handler) listInsights(c *echo.Context) error {
+	incID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, "incident", incID, auth.PermIncidentView); e != nil {
+		return e
+	}
+	insights, err := h.engine.ListInsights(c.Request().Context(), incID)
+	if err != nil {
+		// B25 归一：不存在的 incident → 404 not_found（而非 500）。
+		return errs.FailNotFound(c, nil, err, "incident")
+	}
+	return c.JSON(http.StatusOK, map[string]any{"insights": insights})
+}
+
+// getInsight 取单条 AI 洞察（T3.1）。权限按 ai_insight→incident→team 反查（与 resolve 一致），
+// 但只读用 incident.view（查看即可，无需处置级 ai.insight.resolve）。
+//
+// @Summary      Get AI insight
+// @Description  按 id 取单条 AI 洞察。
+// @Tags         ai
+// @Produce      json
+// @Param        id   path      int  true  "AI Insight ID"
+// @Success      200  {object}  ent.AIInsight
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Router       /ai-insights/{id} [get]
+// @Security     bearerAuth
+func (h *Handler) getInsight(c *echo.Context) error {
+	insightID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, "ai_insight", insightID, auth.PermIncidentView); e != nil {
+		return e
+	}
+	ins, err := h.engine.GetInsight(c.Request().Context(), insightID)
+	if err != nil {
+		return errs.FailNotFound(c, nil, err, "ai insight")
+	}
+	return c.JSON(http.StatusOK, ins)
+}
+
 // resolveReq 确认/拒绝请求。
 type resolveReq struct {
 	Accepted bool `json:"accepted"`
@@ -216,7 +280,8 @@ func (h *Handler) resolve(c *echo.Context) error {
 	var req resolveReq
 	_ = c.Bind(&req)
 	actorID := h.actorFromContext(c)
-	if _, err := h.engine.ResolveInsight(c.Request().Context(), insightID, actorID, req.Accepted); err != nil {
+	ins, err := h.engine.ResolveInsight(c.Request().Context(), insightID, actorID, req.Accepted)
+	if err != nil {
 		// S11 状态前置校验：已改判的建议再改判 → 409（防反复翻转），非服务端错误。
 		if errors.Is(err, ErrInsightAlreadyResolved) {
 			return errs.Conflict(c, "该 AI 建议已被采纳/拒绝，不能重复改判")
@@ -226,7 +291,13 @@ func (h *Handler) resolve(c *echo.Context) error {
 	}
 	// S11 留痕：谁在何时 accept/reject 了哪条 AI 建议（审计总线）。
 	h.auditResolve(c, actorID, insightID, req.Accepted)
-	return c.JSON(http.StatusOK, map[string]any{"status": "resolved", "accepted": req.Accepted})
+	// 返回改判后的终态 status（accepted / applied / rejected），前端据此呈现生命周期：
+	// accept 若触发实际应用（如 severity 改动）会是 applied，否则 accepted。
+	return c.JSON(http.StatusOK, map[string]any{
+		"status":         "resolved",
+		"accepted":       req.Accepted,
+		"insight_status": string(ins.Status),
+	})
 }
 
 // auditResolve 记录 AI 建议改判审计（S11）。db 为 nil / 未注入 recorder 时跳过。

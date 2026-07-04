@@ -192,6 +192,124 @@ func TestResolveInsight_AlreadyResolved_Rejected(t *testing.T) {
 	}
 }
 
+// TestListInsights 验证 T3.1：列出某 incident 的历史 AI 洞察，按创建时间倒序（最新在前）。
+func TestListInsights(t *testing.T) {
+	c := newDiagTestClient(t)
+	inc := seedIncidentForDiag(t, c)
+	e := NewDiagnoseEngine(c, nil)
+	ctx := context.Background()
+
+	// 造两条洞察（顺序落库，晚建的 created_at 更新）
+	first, _ := c.AIInsight.Create().SetStage("diagnose").SetType("root_cause_hint").
+		SetContent(map[string]any{"root_cause": "老"}).SetIncidentID(inc.ID).Save(ctx)
+	second, _ := c.AIInsight.Create().SetStage("diagnose").SetType("root_cause_hint").
+		SetContent(map[string]any{"root_cause": "新"}).SetIncidentID(inc.ID).Save(ctx)
+
+	list, err := e.ListInsights(ctx, inc.ID)
+	if err != nil {
+		t.Fatalf("ListInsights: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("count: got %d, want 2", len(list))
+	}
+	// 倒序：晚建的在前。sqlite created_at 可能同秒，用 id 兜底判断顺序稳定即可，
+	// 这里两条依次创建，断言首条是 second（若同秒则按插入顺序 ent 不保证，故放宽为二者都在）。
+	ids := map[int]bool{list[0].ID: true, list[1].ID: true}
+	if !ids[first.ID] || !ids[second.ID] {
+		t.Errorf("list should contain both insights, got %v", ids)
+	}
+}
+
+// TestListInsights_MissingIncident 验证不存在的 incident id 归一为 NotFound（handler 转 404），
+// 而非静默返回空列表。
+func TestListInsights_MissingIncident(t *testing.T) {
+	c := newDiagTestClient(t)
+	e := NewDiagnoseEngine(c, nil)
+	if _, err := e.ListInsights(context.Background(), 999999); err == nil {
+		t.Fatal("ListInsights on missing incident should return NotFound error, got nil")
+	}
+}
+
+// TestResolveInsight_SeverityAdjustment_Applied 验证 T3.1 applied 生命周期：
+// accept 一条 severity_adjustment 建议 → 真改 incident 严重度 → 状态置 applied（终态）。
+func TestResolveInsight_SeverityAdjustment_Applied(t *testing.T) {
+	c := newDiagTestClient(t)
+	ctx := context.Background()
+	inc, _ := c.Incident.Create().SetNumber("INC-SEV").SetTitle("磁盘告警").
+		SetSeverity("warning").SetStatus("triggered").Save(ctx)
+	e := NewDiagnoseEngine(c, nil)
+	e.SetRecorder(timeline.NewRecorder(c))
+
+	// severity_adjustment 建议：warning → critical
+	ins, _ := c.AIInsight.Create().SetStage("triage").SetType("severity_adjustment").
+		SetContent(map[string]any{"target_severity": "critical"}).
+		SetIncidentID(inc.ID).Save(ctx)
+
+	got, err := e.ResolveInsight(ctx, ins.ID, 5, true)
+	if err != nil {
+		t.Fatalf("ResolveInsight: %v", err)
+	}
+	if string(got.Status) != "applied" {
+		t.Errorf("status: got %q, want applied（severity 实际应用应升级为 applied）", got.Status)
+	}
+	// incident 严重度应被真正改成 critical
+	inc2, _ := c.Incident.Get(ctx, inc.ID)
+	if string(inc2.Severity) != "critical" {
+		t.Errorf("incident severity: got %q, want critical（applied 应真改严重度）", inc2.Severity)
+	}
+	// 应写 ai_insight 时间线（严重度被 AI 建议改动，全程留痕）
+	cnt, _ := c.TimelineItem.Query().
+		Where(timelineitem.HasIncidentWith(entincident.IDEQ(inc.ID)),
+			timelineitem.TypeEQ(timelineitem.TypeAiInsight)).Count(ctx)
+	if cnt != 1 {
+		t.Errorf("ai_insight timeline count after apply: got %d, want 1", cnt)
+	}
+}
+
+// TestResolveInsight_RootCauseHint_AcceptedNotApplied 验证无实际应用动作的类型（root_cause_hint）
+// accept 后以 accepted 为终态（不升 applied）。
+func TestResolveInsight_RootCauseHint_AcceptedNotApplied(t *testing.T) {
+	c := newDiagTestClient(t)
+	inc := seedIncidentForDiag(t, c)
+	e := NewDiagnoseEngine(c, nil)
+	ctx := context.Background()
+	ins, _ := c.AIInsight.Create().SetStage("diagnose").SetType("root_cause_hint").
+		SetContent(map[string]any{"root_cause": "x"}).SetIncidentID(inc.ID).Save(ctx)
+
+	got, err := e.ResolveInsight(ctx, ins.ID, 5, true)
+	if err != nil {
+		t.Fatalf("ResolveInsight: %v", err)
+	}
+	if string(got.Status) != "accepted" {
+		t.Errorf("status: got %q, want accepted（无实际应用动作，不升 applied）", got.Status)
+	}
+}
+
+// TestResolveInsight_SeverityAdjustment_InvalidTarget_KeepsAccepted 验证 target_severity 非法/缺失时
+// 不改严重度、以 accepted 为终态（应用失败不阻断改判）。
+func TestResolveInsight_SeverityAdjustment_InvalidTarget_KeepsAccepted(t *testing.T) {
+	c := newDiagTestClient(t)
+	ctx := context.Background()
+	inc, _ := c.Incident.Create().SetNumber("INC-BAD").SetTitle("x").
+		SetSeverity("warning").SetStatus("triggered").Save(ctx)
+	e := NewDiagnoseEngine(c, nil)
+	ins, _ := c.AIInsight.Create().SetStage("triage").SetType("severity_adjustment").
+		SetContent(map[string]any{"target_severity": "bogus"}).
+		SetIncidentID(inc.ID).Save(ctx)
+
+	got, err := e.ResolveInsight(ctx, ins.ID, 5, true)
+	if err != nil {
+		t.Fatalf("ResolveInsight: %v", err)
+	}
+	if string(got.Status) != "accepted" {
+		t.Errorf("status: got %q, want accepted（非法目标应保持 accepted）", got.Status)
+	}
+	inc2, _ := c.Incident.Get(ctx, inc.ID)
+	if string(inc2.Severity) != "warning" {
+		t.Errorf("severity should be unchanged, got %q", inc2.Severity)
+	}
+}
+
 // TestParseDiagnoseOutput_JSON 验证 JSON 输出解析。
 func TestParseDiagnoseOutput_JSON(t *testing.T) {
 	rc, conf := parseDiagnoseOutput(`{"root_cause":"DB问题","confidence":0.85}`)

@@ -160,6 +160,36 @@ func TestIsolation_SimilarOtherTeam_403(t *testing.T) {
 	}
 }
 
+// TestIsolation_ListInsightsOtherTeam_403 userA 列 teamB 事件的历史 AI 洞察 → 403（T3.1 读端点隔离）。
+func TestIsolation_ListInsightsOtherTeam_403(t *testing.T) {
+	d := isoSetup(t)
+	e := newIsolatedHandler(d)
+	rec := reqAsUser(e, http.MethodGet, "/api/v1/incidents/"+strconv.Itoa(d.incB)+"/insights", d.userA, "")
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("userA list teamB insights: got %d, want 403 (cross-team isolation FAILED)", rec.Code)
+	}
+}
+
+// TestIsolation_ListInsightsOwnTeam_OK userA 列自己 team 事件的历史洞察 → 非 403（基线）。
+func TestIsolation_ListInsightsOwnTeam_OK(t *testing.T) {
+	d := isoSetup(t)
+	e := newIsolatedHandler(d)
+	rec := reqAsUser(e, http.MethodGet, "/api/v1/incidents/"+strconv.Itoa(d.incA)+"/insights", d.userA, "")
+	if rec.Code == http.StatusForbidden {
+		t.Errorf("userA list own-team insights: got 403, want non-403 (baseline should not be isolated)")
+	}
+}
+
+// TestIsolation_GetInsightOtherTeam_403 userA 取 teamB 的单条洞察 → 403（T3.1 读端点隔离）。
+func TestIsolation_GetInsightOtherTeam_403(t *testing.T) {
+	d := isoSetup(t)
+	e := newIsolatedHandler(d)
+	rec := reqAsUser(e, http.MethodGet, "/api/v1/ai-insights/"+strconv.Itoa(d.insightB), d.userA, "")
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("userA get teamB insight: got %d, want 403 (cross-team isolation FAILED)", rec.Code)
+	}
+}
+
 // TestIsolation_DiagnoseOtherTeam_Symmetric userB 触发 teamA 事件的诊断 → 403（对称）。
 func TestIsolation_DiagnoseOtherTeam_Symmetric(t *testing.T) {
 	d := isoSetup(t)

@@ -16,6 +16,7 @@
 import { http } from "@/lib/http";
 import type {
   ActionItem,
+  AIInsight,
   APIKey,
   APIKeyCreated,
   AuditLogListResponse,
@@ -115,8 +116,18 @@ export const api = {
   },
   resolveAiInsight(id: number, accepted: boolean) {
     return http
-      .post<{ status: string; accepted: boolean }>(`/ai-insights/${id}/resolve`, { accepted })
+      .post<{ status: string; accepted: boolean; insight_status: string }>(
+        `/ai-insights/${id}/resolve`,
+        { accepted },
+      )
       .then((r) => r.data);
+  },
+  // listIncidentInsights 列出某 incident 的历史 AI 洞察（T3.1 可读持久化）。
+  // 诊断产出原为 write-only（刷新即丢），此端点让历史洞察持久可查、状态持久呈现。
+  listIncidentInsights(id: number) {
+    return http
+      .get<{ insights: AIInsight[] }>(`/incidents/${id}/insights`)
+      .then((r) => r.data.insights ?? []);
   },
 
   // —— Analytics ——

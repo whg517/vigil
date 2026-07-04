@@ -434,7 +434,36 @@ const docTemplate = `{
                     "name": {
                         "type": "string"
                     },
+                    "parent_team_id": {
+                        "description": "ParentTeamID 父团队（仅组织展示，权限不继承，见 09-admin-rbac §3）。\nschema 有 parent_team_id 字段但原 API 不收，导致团队树无法通过 API 组织——本轮放开。",
+                        "type": "string"
+                    },
                     "slug": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.createUserReq": {
+                "properties": {
+                    "email": {
+                        "description": "邮箱，必填，唯一",
+                        "type": "string"
+                    },
+                    "name": {
+                        "description": "显示名，可选",
+                        "type": "string"
+                    },
+                    "password": {
+                        "description": "初始密码，必填，须过强度校验",
+                        "type": "string"
+                    },
+                    "timezone": {
+                        "description": "时区，可选（缺省走 schema 默认 Asia/Shanghai）",
+                        "type": "string"
+                    },
+                    "username": {
+                        "description": "登录名，必填，唯一",
                         "type": "string"
                     }
                 },
@@ -492,10 +521,46 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "auth.memberReq": {
+                "properties": {
+                    "user_id": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "auth.refreshReq": {
                 "properties": {
                     "refresh_token": {
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.resetPasswordReq": {
+                "properties": {
+                    "new_password": {
+                        "description": "新密码，必填，须过强度校验",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.updateRoleReq": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "permissions": {
+                        "description": "非 nil 则全量替换权限集",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -506,6 +571,10 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "name": {
+                        "type": "string"
+                    },
+                    "parent_team_id": {
+                        "description": "父团队（仅组织展示，权限不继承）",
                         "type": "string"
                     }
                 },
@@ -1503,6 +1572,7 @@ const docTemplate = `{
                 "type": "object"
             },
             "ent.Role": {
+                "description": "Role holds the value of the role edge.",
                 "properties": {
                     "builtin": {
                         "description": "Builtin holds the value of the \"builtin\" field.",
@@ -1732,6 +1802,7 @@ const docTemplate = `{
                 "type": "object"
             },
             "ent.Schedule": {
+                "description": "Schedule holds the value of the schedule edge.",
                 "properties": {
                     "created_at": {
                         "description": "CreatedAt holds the value of the \"created_at\" field.",
@@ -1812,6 +1883,7 @@ const docTemplate = `{
                 "type": "object"
             },
             "ent.Service": {
+                "description": "Service holds the value of the service edge.",
                 "properties": {
                     "auto_create_incident": {
                         "description": "告警进来是否自动成 Incident",
@@ -1982,6 +2054,7 @@ const docTemplate = `{
                 "type": "object"
             },
             "ent.Team": {
+                "description": "Team holds the value of the team edge.",
                 "properties": {
                     "created_at": {
                         "description": "CreatedAt holds the value of the \"created_at\" field.",
@@ -2163,7 +2236,7 @@ const docTemplate = `{
                 "type": "object"
             },
             "ent.User": {
-                "description": "User holds the value of the user edge.",
+                "description": "Assignee holds the value of the assignee edge.",
                 "properties": {
                     "created_at": {
                         "description": "CreatedAt holds the value of the \"created_at\" field.",
@@ -2300,7 +2373,7 @@ const docTemplate = `{
                         "type": "integer"
                     },
                     "team_id": {
-                        "description": "归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。",
+                        "description": "TeamID 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。\n非 org 级用户只能给自己可管的 team 建（经 VisibleTeamIDs 校验，否则 403）。",
                         "type": "integer"
                     }
                 },
@@ -3221,7 +3294,7 @@ const docTemplate = `{
                         "uniqueItems": false
                     },
                     "team_id": {
-                        "description": "归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。",
+                        "description": "TeamID 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。\n非 org 级用户只能给自己可管的 team 建（经 VisibleTeamIDs 校验，否则 403）。",
                         "type": "integer"
                     },
                     "trigger": {
@@ -4030,6 +4103,73 @@ const docTemplate = `{
                 "summary": "更新改进项",
                 "tags": [
                     "postmortem"
+                ]
+            }
+        },
+        "/ai-insights/{id}": {
+            "get": {
+                "description": "按 id 取单条 AI 洞察。",
+                "parameters": [
+                    {
+                        "description": "AI Insight ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.AIInsight"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "Get AI insight",
+                "tags": [
+                    "ai"
                 ]
             }
         },
@@ -5989,6 +6129,74 @@ const docTemplate = `{
                 "summary": "升级事件（escalate）",
                 "tags": [
                     "incident"
+                ]
+            }
+        },
+        "/incidents/{id}/insights": {
+            "get": {
+                "description": "列出该 incident 的全部 AI 洞察（按创建时间倒序），含 status 生命周期。",
+                "parameters": [
+                    {
+                        "description": "Incident ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "{insights: []*ent.AIInsight}"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "List AI insights of an incident",
+                "tags": [
+                    "ai"
                 ]
             }
         },
@@ -8213,6 +8421,100 @@ const docTemplate = `{
                 "tags": [
                     "rbac"
                 ]
+            },
+            "patch": {
+                "parameters": [
+                    {
+                        "description": "角色 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/auth.updateRoleReq",
+                                        "description": "更新字段",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "更新字段",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Role"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "编辑角色",
+                "tags": [
+                    "rbac"
+                ]
             }
         },
         "/runbooks": {
@@ -10021,6 +10323,180 @@ const docTemplate = `{
                 ]
             }
         },
+        "/teams/{id}/members": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "团队 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ent.User"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "团队成员列表",
+                "tags": [
+                    "team"
+                ]
+            },
+            "post": {
+                "parameters": [
+                    {
+                        "description": "团队 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/auth.memberReq",
+                                        "description": "用户 ID",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "用户 ID",
+                    "required": true
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "加入团队成员",
+                "tags": [
+                    "team"
+                ]
+            }
+        },
+        "/teams/{id}/members/{uid}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "团队 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "用户 ID",
+                        "in": "path",
+                        "name": "uid",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "移除团队成员",
+                "tags": [
+                    "team"
+                ]
+            }
+        },
         "/users": {
             "get": {
                 "responses": {
@@ -10054,6 +10530,70 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "用户列表",
+                "tags": [
+                    "user"
+                ]
+            },
+            "post": {
+                "description": "管理员建号：username/email 必填且唯一，设初始密码（须改密），可选 name/timezone。",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/auth.createUserReq",
+                                        "description": "用户信息",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "用户信息",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.User"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "创建用户",
                 "tags": [
                     "user"
                 ]
@@ -10254,6 +10794,86 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "绑定 IM 账号",
+                "tags": [
+                    "user"
+                ]
+            }
+        },
+        "/users/{id}/reset-password": {
+            "post": {
+                "description": "管理员重置指定用户密码：无需旧密码，重置后强制改密并吊销该用户所有旧 token。",
+                "parameters": [
+                    {
+                        "description": "用户 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/auth.resetPasswordReq",
+                                        "description": "新密码",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "新密码",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "管理员重置密码",
                 "tags": [
                     "user"
                 ]

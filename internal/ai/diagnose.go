@@ -310,6 +310,25 @@ func (e *DiagnoseEngine) findSimilarText(ctx context.Context, inc *ent.Incident,
 // 破坏 human-in-the-loop 决策的可信度与审计留痕的准确性。handler 据此返回 409。
 var ErrInsightAlreadyResolved = errors.New("ai insight already resolved")
 
+// ListInsights 列出某 incident 的全部 AIInsight，按创建时间倒序（最新在前）。
+// T3.1：诊断产出的 AIInsight 原为 write-only（刷新即丢），补读取端点使其可持久查看。
+func (e *DiagnoseEngine) ListInsights(ctx context.Context, incID int) ([]*ent.AIInsight, error) {
+	// 先确认 incident 存在，使不存在的 id 归一为 NotFound（handler 转 404），
+	// 而非静默返回空列表（掩盖调用方传错 id）。
+	if _, err := e.db.Incident.Get(ctx, incID); err != nil {
+		return nil, err
+	}
+	return e.db.AIInsight.Query().
+		Where(aiinsight.HasIncidentWith(incident.IDEQ(incID))).
+		Order(ent.Desc(aiinsight.FieldCreatedAt)).
+		All(ctx)
+}
+
+// GetInsight 按 id 取单条 AIInsight（不存在返回 ent NotFound，handler 转 404）。
+func (e *DiagnoseEngine) GetInsight(ctx context.Context, insightID int) (*ent.AIInsight, error) {
+	return e.db.AIInsight.Get(ctx, insightID)
+}
+
 // ResolveInsight 人确认/拒绝 AI 建议（human-in-the-loop，S11）。
 // accepted=true → status=accepted，false → rejected。
 //
@@ -317,6 +336,11 @@ var ErrInsightAlreadyResolved = errors.New("ai insight already resolved")
 // 的再改判返回 ErrInsightAlreadyResolved（防反复翻转）。
 // 改判时留痕 resolved_by/resolved_at（谁在何时改判），供审计追溯。
 // actorID<=0（匿名/渐进阶段）时不写 resolved_by（避免记入伪造身份）。
+//
+// applied 生命周期（T3.1）：accept 后，若该建议类型有「实际应用动作」（当前仅
+// severity_adjustment：把 incident 严重度真正改成建议值），应用成功则终态置 applied，
+// 形成 suggested→accepted→applied 完整闭环；应用失败或无实际动作的类型（如 root_cause_hint
+// 只读线索、similar_incident 展示用）以 accepted 为终态。reject 恒为 rejected 终态。
 func (e *DiagnoseEngine) ResolveInsight(ctx context.Context, insightID, actorID int, accepted bool) (*ent.AIInsight, error) {
 	ins, err := e.db.AIInsight.Get(ctx, insightID)
 	if err != nil {
@@ -329,6 +353,11 @@ func (e *DiagnoseEngine) ResolveInsight(ctx context.Context, insightID, actorID 
 	st := aiinsight.StatusRejected
 	if accepted {
 		st = aiinsight.StatusAccepted
+		// 尝试实际应用建议：成功则升级为 applied（终态）。
+		// 应用失败不阻断改判（仍记 accepted），失败原因记日志供排查。
+		if e.applyInsight(ctx, ins) {
+			st = aiinsight.StatusApplied
+		}
 	}
 	upd := e.db.AIInsight.UpdateOneID(insightID).
 		SetStatus(st).
@@ -337,6 +366,50 @@ func (e *DiagnoseEngine) ResolveInsight(ctx context.Context, insightID, actorID 
 		upd = upd.SetResolvedBy(actorID)
 	}
 	return upd.Save(ctx)
+}
+
+// applyInsight 执行建议的「实际应用动作」，返回是否真正应用了副作用。
+//
+// 当前仅 severity_adjustment 有实际动作：把关联 incident 的 severity 改成建议值。
+// content 期望形如 {"target_severity":"critical"}（LLM 分诊建议产出，T3.2 补齐产出侧）。
+// 目标严重度非法/缺失、与当前一致、或 incident 缺失时不改（返回 false，保持 accepted）。
+// 其余类型（root_cause_hint/similar_incident/draft_summary/...）无自动副作用，返回 false，
+// accept 即终态——这些是只读线索/展示建议，采纳与否由人后续手动落地。
+func (e *DiagnoseEngine) applyInsight(ctx context.Context, ins *ent.AIInsight) bool {
+	if ins.Type != aiinsight.TypeSeverityAdjustment {
+		return false // 无实际应用动作的类型：accept=终态
+	}
+	target, _ := ins.Content["target_severity"].(string)
+	if target != string(incident.SeverityCritical) &&
+		target != string(incident.SeverityWarning) &&
+		target != string(incident.SeverityInfo) {
+		slog.Warn("ai insight apply: invalid target_severity, skip",
+			"insight_id", ins.ID, "target", target)
+		return false
+	}
+	inc, err := ins.QueryIncident().Only(ctx)
+	if err != nil {
+		slog.Warn("ai insight apply: query incident failed, skip",
+			"insight_id", ins.ID, "error", err)
+		return false
+	}
+	if string(inc.Severity) == target { // 已是目标严重度，无需改（视为无副作用）
+		return false
+	}
+	if err := e.db.Incident.UpdateOneID(inc.ID).
+		SetSeverity(incident.Severity(target)).Exec(ctx); err != nil {
+		slog.Warn("ai insight apply: update severity failed, keep accepted",
+			"insight_id", ins.ID, "incident_id", inc.ID, "error", err)
+		return false
+	}
+	// 应用成功写 ai_insight 时间线（严重度被 AI 建议改动，全程留痕）。
+	if e.recorder != nil {
+		_ = e.recorder.Record(ctx, inc.ID, timelineitem.TypeAiInsight,
+			fmt.Sprintf("采纳 AI 严重度建议：%s → %s", string(inc.Severity), target),
+			timeline.Actor{Kind: "ai"}, timelineitem.SourceAi,
+			map[string]any{"insight_id": ins.ID, "from": string(inc.Severity), "to": target})
+	}
+	return true
 }
 
 // buildDiagnosePrompt 构造根因诊断 prompt。
