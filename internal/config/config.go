@@ -52,6 +52,9 @@ type Config struct {
 
 	// Postmortem 复盘配置（能力域 12，自动起草触发档位）
 	Postmortem Postmortem `envconfig:"postmortem"`
+
+	// Credential 凭据加密托管配置（能力域 9 Runbook 执行器，T6.3）
+	Credential Credential `envconfig:"credential"`
 }
 
 // App 应用级配置。
@@ -207,6 +210,17 @@ func (t Triage) EffectiveAggregateWindow() time.Duration {
 type Postmortem struct {
 	// AutoDraftWarning warning 级事件 resolved 是否自动起草复盘。默认 false。
 	AutoDraftWarning bool `envconfig:"auto_draft_warning" default:"false"`
+}
+
+// Credential 凭据加密托管配置（能力域 9 Runbook 执行器，T6.3/S16）。
+//
+// EncryptionKey 为 AES-256 对称密钥，托管 Runbook 执行器访问外部平台（Ansible/Jenkins）
+// 的 token 等凭据（DB 存密文，执行时解密注入）。以 base64 或 hex 编码传入（32 字节原始密钥）。
+// ⚠️ 仅从环境变量读取（VIGIL_CREDENTIAL_ENCRYPTION_KEY），绝不硬编码/提交 git。
+// 为空时凭据托管未启用：创建/更新凭据端点返回 503（不允许明文兜底），既有加密数据不受影响。
+// 生成：`openssl rand -base64 32` 或 `openssl rand -hex 32`。
+type Credential struct {
+	EncryptionKey string `envconfig:"encryption_key"` // AES-256 密钥（base64/hex，32 字节），空=托管未启用
 }
 
 // Notification 通知通道配置（能力域 7，PRD M7.2/M7.3）。

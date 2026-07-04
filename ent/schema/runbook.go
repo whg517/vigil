@@ -59,6 +59,11 @@ type StepTarget struct {
 	Kind     string `json:"kind"` // http | ansible | jenkins | internal
 	Endpoint string `json:"endpoint"`
 	Readonly bool   `json:"readonly"` // diagnose 类强制只读
+	// CredentialRef 引用托管凭据的 id（T6.3/S16）：>0 时执行器在执行前解密该凭据
+	// 并注入 Authorization/自定义头，明文绝不写进 step/日志/时间线。
+	// 替代此前把 Ansible/Jenkins token 明文塞进 endpoint/params 的高风险做法。
+	// 为 0（默认）时不注入凭据（无鉴权目标或凭据由 endpoint 自带）。
+	CredentialRef int `json:"credential_ref,omitempty"`
 }
 
 func (Runbook) Edges() []ent.Edge {

@@ -1366,6 +1366,218 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 凭据列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Credential"][];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 创建凭据 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 凭据（含明文 secret，加密存储） */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["credential.createReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Credential"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/credentials/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 凭据详情 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 凭据 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Credential"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** 删除凭据 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 凭据 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** 更新凭据 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 凭据 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 更新字段 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["credential.updateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Credential"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/escalation-policies": {
         parameters: {
             query?: never;
@@ -7988,6 +8200,32 @@ export interface components {
             status?: string;
             timezone?: string;
         };
+        /**
+         * @description 注入方式：bearer/token/basic/header
+         * @enum {string}
+         */
+        "credential.Type": "bearer" | "token" | "basic" | "header";
+        "credential.createReq": {
+            /** @description header 类型的头名等 */
+            config?: {
+                [key: string]: unknown;
+            };
+            name?: string;
+            /** @description 明文凭据，加密后落库，永不回显 */
+            secret?: string;
+            team_id?: number;
+            /** @description bearer|token|basic|header（默认 bearer） */
+            type?: string;
+        };
+        "credential.updateReq": {
+            config?: {
+                [key: string]: unknown;
+            };
+            name?: string;
+            /** @description 传则更新明文（重加密），不回显 */
+            secret?: string;
+            type?: string;
+        };
         "ent.AIInsight": {
             /** @description 置信度 0.0~1.0 */
             confidence?: number;
@@ -8097,6 +8335,29 @@ export interface components {
             result?: components["schemas"]["auditlog.Result"];
             /** @description 来源 User-Agent */
             user_agent?: string;
+        };
+        "ent.Credential": {
+            /** @description 类型相关配置（如 header 类型的头名） */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            edges?: components["schemas"]["ent.CredentialEdges"];
+            /** @description ID of the ent. */
+            id?: number;
+            /** @description 凭据名（引用标识，如 jenkins-prod-token） */
+            name?: string;
+            type?: components["schemas"]["credential.Type"];
+            /** @description UpdatedAt holds the value of the "updated_at" field. */
+            updated_at?: string;
+        };
+        /**
+         * @description Edges holds the relations/edges for other nodes in the graph.
+         *     The values are being populated by the CredentialQuery when eager-loading is set.
+         */
+        "ent.CredentialEdges": {
+            team?: components["schemas"]["ent.Team"];
         };
         /** @description EscalationPolicy holds the value of the escalation_policy edge. */
         "ent.EscalationPolicy": {
@@ -8779,6 +9040,8 @@ export interface components {
          *     The values are being populated by the TeamQuery when eager-loading is set.
          */
         "ent.TeamEdges": {
+            /** @description Credentials holds the value of the credentials edge. */
+            credentials?: components["schemas"]["ent.Credential"][];
             /** @description EscalationPolicies holds the value of the escalation_policies edge. */
             escalation_policies?: components["schemas"]["ent.EscalationPolicy"][];
             /** @description Incidents holds the value of the incidents edge. */
@@ -9486,6 +9749,13 @@ export interface components {
             type?: string;
         };
         "schema.StepTarget": {
+            /**
+             * @description CredentialRef 引用托管凭据的 id（T6.3/S16）：>0 时执行器在执行前解密该凭据
+             *     并注入 Authorization/自定义头，明文绝不写进 step/日志/时间线。
+             *     替代此前把 Ansible/Jenkins token 明文塞进 endpoint/params 的高风险做法。
+             *     为 0（默认）时不注入凭据（无鉴权目标或凭据由 endpoint 自带）。
+             */
+            credential_ref?: number;
             endpoint?: string;
             /** @description http | ansible | jenkins | internal */
             kind?: string;

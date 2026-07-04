@@ -13,6 +13,7 @@ import (
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/ticketintegration"
 	"github.com/kevin/vigil/internal/auth"
+	"github.com/kevin/vigil/internal/crypto"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
 
@@ -25,14 +26,28 @@ var errAccessDenied = errors.New("access denied (response already written)")
 
 // Handler 工单集成配置 API。
 type Handler struct {
-	db    *ent.Client
-	authz *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
-	scope *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
-	audit *auth.AuditRecorder // 配置变更留痕（C21，可选注入）
+	db     *ent.Client
+	cipher *crypto.Cipher      // 凭据加密器（T6.3，可选）：非 nil 时凭据加密后落库
+	authz  *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
+	scope  *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
+	audit  *auth.AuditRecorder // 配置变更留痕（C21，可选注入）
 }
 
 // NewHandler 创建工单集成 handler。
 func NewHandler(db *ent.Client) *Handler { return &Handler{db: db} }
+
+// SetCipher 注入凭据加密器（T6.3）：非 nil 时 create/update 收到的明文凭据加密后落库
+// （与 Runbook 执行器凭据复用同一 AES-256-GCM 机制）；nil 时按原样存储（向后兼容）。
+func (h *Handler) SetCipher(c *crypto.Cipher) { h.cipher = c }
+
+// encryptCredential 加密明文凭据（cipher 非 nil 时）；nil 时原样返回（向后兼容）。
+// 加密失败返回 error（调用方按 500 处理），错误不含明文。
+func (h *Handler) encryptCredential(plaintext string) (string, error) {
+	if h.cipher == nil || plaintext == "" {
+		return plaintext, nil
+	}
+	return h.cipher.Encrypt(plaintext)
+}
 
 // SetAuthorizer 注入鉴权器。为 nil 时降级为无资源级校验（兼容渐进/单测）。
 func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
@@ -178,7 +193,12 @@ func (h *Handler) create(c *echo.Context) error {
 		SetEndpoint(req.Endpoint).
 		SetEnabled(true)
 	if req.Credential != "" {
-		b.SetCredential(req.Credential)
+		// T6.3：明文凭据加密后落库（cipher 未配时按原样存，向后兼容）。
+		enc, err := h.encryptCredential(req.Credential)
+		if err != nil {
+			return errs.Internal(c, nil, err)
+		}
+		b.SetCredential(enc)
 	}
 	if req.Config != nil {
 		b.SetConfig(req.Config)
@@ -283,7 +303,12 @@ func (h *Handler) update(c *echo.Context) error {
 		u.SetEndpoint(*req.Endpoint)
 	}
 	if req.Credential != nil {
-		u.SetCredential(*req.Credential)
+		// T6.3：更新凭据同样加密后落库。
+		enc, err := h.encryptCredential(*req.Credential)
+		if err != nil {
+			return errs.Internal(c, nil, err)
+		}
+		u.SetCredential(enc)
 	}
 	if req.Config != nil {
 		u.SetConfig(*req.Config)

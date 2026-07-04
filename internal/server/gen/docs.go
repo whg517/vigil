@@ -650,6 +650,66 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "credential.Type": {
+                "description": "注入方式：bearer/token/basic/header",
+                "enum": [
+                    "bearer",
+                    "token",
+                    "basic",
+                    "header"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultType",
+                    "TypeBearer",
+                    "TypeToken",
+                    "TypeBasic",
+                    "TypeHeader"
+                ]
+            },
+            "credential.createReq": {
+                "properties": {
+                    "config": {
+                        "additionalProperties": {},
+                        "description": "header 类型的头名等",
+                        "type": "object"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "secret": {
+                        "description": "明文凭据，加密后落库，永不回显",
+                        "type": "string"
+                    },
+                    "team_id": {
+                        "type": "integer"
+                    },
+                    "type": {
+                        "description": "bearer|token|basic|header（默认 bearer）",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "credential.updateReq": {
+                "properties": {
+                    "config": {
+                        "additionalProperties": {},
+                        "type": "object"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "secret": {
+                        "description": "传则更新明文（重加密），不回显",
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "ent.AIInsight": {
                 "properties": {
                     "confidence": {
@@ -863,6 +923,47 @@ const docTemplate = `{
                     "user_agent": {
                         "description": "来源 User-Agent",
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.Credential": {
+                "properties": {
+                    "config": {
+                        "additionalProperties": {},
+                        "description": "类型相关配置（如 header 类型的头名）",
+                        "type": "object"
+                    },
+                    "created_at": {
+                        "description": "CreatedAt holds the value of the \"created_at\" field.",
+                        "type": "string"
+                    },
+                    "edges": {
+                        "$ref": "#/components/schemas/ent.CredentialEdges"
+                    },
+                    "id": {
+                        "description": "ID of the ent.",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "description": "凭据名（引用标识，如 jenkins-prod-token）",
+                        "type": "string"
+                    },
+                    "type": {
+                        "$ref": "#/components/schemas/credential.Type"
+                    },
+                    "updated_at": {
+                        "description": "UpdatedAt holds the value of the \"updated_at\" field.",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.CredentialEdges": {
+                "description": "Edges holds the relations/edges for other nodes in the graph.\nThe values are being populated by the CredentialQuery when eager-loading is set.",
+                "properties": {
+                    "team": {
+                        "$ref": "#/components/schemas/ent.Team"
                     }
                 },
                 "type": "object"
@@ -2300,6 +2401,14 @@ const docTemplate = `{
             "ent.TeamEdges": {
                 "description": "Edges holds the relations/edges for other nodes in the graph.\nThe values are being populated by the TeamQuery when eager-loading is set.",
                 "properties": {
+                    "credentials": {
+                        "description": "Credentials holds the value of the credentials edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Credential"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "escalation_policies": {
                         "description": "EscalationPolicies holds the value of the escalation_policies edge.",
                         "items": {
@@ -4142,6 +4251,10 @@ const docTemplate = `{
             },
             "schema.StepTarget": {
                 "properties": {
+                    "credential_ref": {
+                        "description": "CredentialRef 引用托管凭据的 id（T6.3/S16）：\u003e0 时执行器在执行前解密该凭据\n并注入 Authorization/自定义头，明文绝不写进 step/日志/时间线。\n替代此前把 Ansible/Jenkins token 明文塞进 endpoint/params 的高风险做法。\n为 0（默认）时不注入凭据（无鉴权目标或凭据由 endpoint 自带）。",
+                        "type": "integer"
+                    },
                     "endpoint": {
                         "type": "string"
                     },
@@ -6053,6 +6166,264 @@ const docTemplate = `{
                 "summary": "刷新 token",
                 "tags": [
                     "auth"
+                ]
+            }
+        },
+        "/credentials": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ent.Credential"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "凭据列表",
+                "tags": [
+                    "credential"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/credential.createReq",
+                                        "description": "凭据（含明文 secret，加密存储）",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "凭据（含明文 secret，加密存储）",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Credential"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "创建凭据",
+                "tags": [
+                    "credential"
+                ]
+            }
+        },
+        "/credentials/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "凭据 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "删除凭据",
+                "tags": [
+                    "credential"
+                ]
+            },
+            "get": {
+                "parameters": [
+                    {
+                        "description": "凭据 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Credential"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "凭据详情",
+                "tags": [
+                    "credential"
+                ]
+            },
+            "patch": {
+                "parameters": [
+                    {
+                        "description": "凭据 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/credential.updateReq",
+                                        "description": "更新字段",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "更新字段",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Credential"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "更新凭据",
+                "tags": [
+                    "credential"
                 ]
             }
         },

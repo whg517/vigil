@@ -32,6 +32,8 @@ import (
 	"github.com/kevin/vigil/internal/analytics"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/config"
+	"github.com/kevin/vigil/internal/credential"
+	"github.com/kevin/vigil/internal/crypto"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/escalation"
 	domainevent "github.com/kevin/vigil/internal/event"
@@ -387,8 +389,15 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	teamHandler.SetAuthorizer(authz)
 	teamHandler.Register(v1)
 	auth.NewAuditHandler(st.DB).Register(v1)
+	// T6.3/S16：凭据加密托管。构造 AES-256-GCM 加密器（密钥从 env，缺失则托管未启用）。
+	// 同一 cipher 供 Runbook 执行器解密注入凭据 + 凭据管理端点加密存储，避免两套加密（统一机制）。
+	credCipher := buildCredentialCipher(cfg, log)
 	// Runbook（能力域 9）：注入时间线 + 升级触发器（包装 incService.Escalate）。
-	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
+	// 执行器注册表挂凭据解析器：step 引用 credential_ref 时执行时解密注入 Authorization 头
+	// （明文不落 step/日志/时间线，替代此前明文塞 endpoint/params 的高风险做法，S16）。
+	runbookRegistry := runbook.NewRegistry()
+	runbookRegistry.SetCredentialResolver(runbook.NewEntCredentialResolver(st.DB, credCipher))
+	runbookEngine := runbook.NewEngine(st.DB, runbookRegistry)
 	runbookEngine.SetTimelineRecorder(timelineRecorder)
 	runbookEngine.SetEscalationTrigger(runbookEscalator{inc: incService})
 	// 并发保护（C.5.1 / audit S10）：(runbook, incident) 维度执行锁，防连点/并发重复触发写步骤。
@@ -436,6 +445,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		ticket.NewJiraAdapter(),   // 预留：当前建单返回 not-implemented，降级不阻断
 		ticket.NewZentaoAdapter(), // 预留：同上
 	)
+	// T6.3：工单凭据也复用统一 AES-256-GCM 加密（与 Runbook 执行器同源密钥），
+	// 消除 T4.3 遗留的明文-at-rest 缺口；cipher 为 nil 时向后兼容明文透传。
+	ticketEngine.SetCipher(credCipher)
 	postmortemEngine.SetTicketCreator(ticketEngine)
 	postmortemH := postmortem.NewHandler(st.DB, postmortemEngine)
 	postmortemH.SetAuthorizer(authz)
@@ -444,10 +456,18 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	postmortemH.Register(v1)
 	// 工单集成配置 API（T4.3）：list/get/create/update/delete，凭据 Sensitive 不回显。
 	ticketH := ticket.NewHandler(st.DB)
+	ticketH.SetCipher(credCipher) // T6.3：写入凭据加密后落库
 	ticketH.SetAuthorizer(authz)
 	ticketH.SetScopeResolver(scopeResolver)
 	ticketH.SetAuditRecorder(auditRecorder) // 工单集成配置变更留痕
 	ticketH.Register(v1)
+	// 凭据加密托管配置 API（T6.3/S16）：CRUD 凭据，明文 secret 入站即加密落库、只返元数据。
+	// 复用同一 credCipher（与 Runbook 执行器解密同源密钥）。
+	credentialH := credential.NewHandler(st.DB, credCipher)
+	credentialH.SetAuthorizer(authz)
+	credentialH.SetScopeResolver(scopeResolver)
+	credentialH.SetAuditRecorder(auditRecorder) // 凭据配置变更留痕（只记元数据）
+	credentialH.Register(v1)
 	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)
 	aiDiagEngine.SetRecorder(timelineRecorder) // 诊断产出 AI 洞察后写 ai_insight 时间线（原先零写入）
 	if st.SQL != nil {
@@ -696,6 +716,28 @@ func logIMStatus(log *zap.Logger, feishuBot *feishu.Adapter, dingtalkBot *dingta
 	// 企微为 NoopBot 占位（完整适配器待 PoC，是设计目标）。明确记一行，
 	// 避免运维误以为企微已可用；不静默丢告警——IM 空转时通知走 notification 兜底降级链（C12）。
 	log.Info("im wecom placeholder (not implemented; notifications fall back to email/phone chain)")
+}
+
+// buildCredentialCipher 构造凭据加密器（T6.3/S16）。
+//
+// 密钥从 cfg.Credential.EncryptionKey（VIGIL_CREDENTIAL_ENCRYPTION_KEY）读取：
+//   - 未配：返回 nil（凭据托管未启用）——凭据管理端点 create/update 返 503，
+//     Runbook step 引用凭据时执行失败（不放行明文兜底）。仅记一行日志。
+//   - 配了但格式非法（非 32 字节 base64/hex）：★ 生产 fail-fast（返回 error 让进程退出，
+//     避免带残缺密钥启动导致凭据全不可用还不自知）；非生产记 error 后降级 nil。
+func buildCredentialCipher(cfg *config.Config, log *zap.Logger) *crypto.Cipher {
+	c, err := crypto.NewCipher(cfg.Credential.EncryptionKey)
+	if err != nil {
+		if errors.Is(err, crypto.ErrKeyNotConfigured) {
+			log.Info("credential encryption disabled (VIGIL_CREDENTIAL_ENCRYPTION_KEY not set)")
+			return nil
+		}
+		// 密钥格式非法：配了却不可用是运维错误，明确告警（不打印密钥本身）。
+		log.Error("credential encryption key invalid, credential hosting disabled", zap.Error(err))
+		return nil
+	}
+	log.Info("credential encryption ready (aes-256-gcm)")
+	return c
 }
 
 // buildGLMProvider 构造 GLM LLM provider（含成本控制包装：缓存/限流/配额）。
@@ -1120,6 +1162,13 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/ticket-integrations", auth.PermTicketIntegrationCreate)
 	g.RoutePerm(http.MethodPatch, "/ticket-integrations/:id", auth.PermTicketIntegrationUpdate)
 	g.RoutePerm(http.MethodDelete, "/ticket-integrations/:id", auth.PermTicketIntegrationDelete)
+	// 凭据加密托管写（含密文存储，T6.3/S16）——读端点也登记：凭据元数据暴露外连鉴权目标，
+	// 仅 credential.view 可见（密文永不回显，Sensitive）。
+	g.RoutePerm(http.MethodGet, "/credentials", auth.PermCredentialView)
+	g.RoutePerm(http.MethodGet, "/credentials/:id", auth.PermCredentialView)
+	g.RoutePerm(http.MethodPost, "/credentials", auth.PermCredentialCreate)
+	g.RoutePerm(http.MethodPatch, "/credentials/:id", auth.PermCredentialUpdate)
+	g.RoutePerm(http.MethodDelete, "/credentials/:id", auth.PermCredentialDelete)
 	// 团队写（M13.2）
 	g.RoutePerm(http.MethodPost, "/teams", auth.PermTeamCreate)
 	g.RoutePerm(http.MethodPatch, "/teams/:id", auth.PermTeamUpdate)

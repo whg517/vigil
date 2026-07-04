@@ -13,6 +13,7 @@ import (
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/ticketintegration"
+	"github.com/kevin/vigil/internal/crypto"
 )
 
 // Engine 工单集成引擎：解析 ActionItem 适用的工单集成 → 调适配器建单 → 回写 tracker_url。
@@ -21,6 +22,9 @@ import (
 type Engine struct {
 	db       *ent.Client
 	adapters map[string]Adapter // type → 适配器（webhook 已实现，jira/zentao 预留）
+	// cipher 凭据加密器（T6.3 统一加密机制，可选）。非 nil 时把 integ.Credential 视为密文解密后
+	// 再传给适配器；nil 或解密失败时按明文透传（向后兼容 T4.3 既有明文凭据）。
+	cipher *crypto.Cipher
 }
 
 // NewEngine 创建工单引擎。adapters 为 type→适配器映射；缺失类型建单时降级（记日志不建）。
@@ -32,6 +36,23 @@ func NewEngine(db *ent.Client, adapters ...Adapter) *Engine {
 		}
 	}
 	return &Engine{db: db, adapters: m}
+}
+
+// SetCipher 注入凭据加密器（T6.3）：让工单凭据也复用统一 AES-256-GCM 机制加密存储。
+// 装配层与 Runbook 执行器共用同一 cipher（同源密钥），避免两套加密。
+func (e *Engine) SetCipher(c *crypto.Cipher) { e.cipher = c }
+
+// resolveCredential 把存储的凭据解成明文（仅内存传给适配器）。
+// cipher 非 nil 且能解密 → 返回明文；否则（无 cipher / 解密失败）按明文透传，
+// 兼容 T4.3 迁移前落库的明文凭据（新写入的经 handler 加密，旧数据仍可用）。
+func (e *Engine) resolveCredential(stored string) string {
+	if stored == "" || e.cipher == nil {
+		return stored
+	}
+	if plain, err := e.cipher.Decrypt(stored); err == nil {
+		return plain
+	}
+	return stored // 解密失败：视为历史明文（不打印，不报错）
 }
 
 // OnPostmortemPublished 复盘发布联动：为该复盘下未建单的 ActionItem 建外部工单，回写 tracker_url。
@@ -94,7 +115,7 @@ func (e *Engine) createForActionItem(ctx context.Context, integ *ent.TicketInteg
 	req := buildTicketRequest(ai, pmID)
 	cfg := AdapterConfig{
 		Endpoint:   integ.Endpoint,
-		Credential: integ.Credential, // 明文凭据仅内存传递给适配器，不落日志
+		Credential: e.resolveCredential(integ.Credential), // 解密后明文仅内存传给适配器，不落日志
 		Config:     integ.Config,
 	}
 	res, err := adapter.CreateTicket(ctx, cfg, req)
@@ -151,7 +172,7 @@ func (e *Engine) SyncStatus(ctx context.Context, ai *ent.ActionItem) bool {
 	}
 	req := buildTicketRequest(ai, pmID)
 	req.Title = "[status] " + req.Title
-	cfg := AdapterConfig{Endpoint: integ.Endpoint, Credential: integ.Credential, Config: integ.Config}
+	cfg := AdapterConfig{Endpoint: integ.Endpoint, Credential: e.resolveCredential(integ.Credential), Config: integ.Config}
 	// 复用 webhook 通道推状态：payload 带 status=done 语义由 description 标注。
 	req.Description = fmt.Sprintf("ActionItem #%d 状态更新为 done。%s", ai.ID, req.Description)
 	if _, serr := wa.CreateTicket(ctx, cfg, req); serr != nil {

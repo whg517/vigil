@@ -18,6 +18,9 @@ type ActionItem func(*sql.Selector)
 // AuditLog is the predicate function for auditlog builders.
 type AuditLog func(*sql.Selector)
 
+// Credential is the predicate function for credential builders.
+type Credential func(*sql.Selector)
+
 // EscalationPolicy is the predicate function for escalationpolicy builders.
 type EscalationPolicy func(*sql.Selector)
 

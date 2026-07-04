@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/kevin/vigil/ent/credential"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/integration"
@@ -49,6 +50,7 @@ type TeamQuery struct {
 	withIncidents             *IncidentQuery
 	withIntegrations          *IntegrationQuery
 	withTicketIntegrations    *TicketIntegrationQuery
+	withCredentials           *CredentialQuery
 	withSubscriptions         *SubscriptionQuery
 	withMetricsSnapshots      *MetricsSnapshotQuery
 	// intermediate query (i.e. traversal path).
@@ -351,6 +353,28 @@ func (_q *TeamQuery) QueryTicketIntegrations() *TicketIntegrationQuery {
 	return query
 }
 
+// QueryCredentials chains the current query on the "credentials" edge.
+func (_q *TeamQuery) QueryCredentials() *CredentialQuery {
+	query := (&CredentialClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, selector),
+			sqlgraph.To(credential.Table, credential.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, team.CredentialsTable, team.CredentialsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // QuerySubscriptions chains the current query on the "subscriptions" edge.
 func (_q *TeamQuery) QuerySubscriptions() *SubscriptionQuery {
 	query := (&SubscriptionClient{config: _q.config}).Query()
@@ -599,6 +623,7 @@ func (_q *TeamQuery) Clone() *TeamQuery {
 		withIncidents:             _q.withIncidents.Clone(),
 		withIntegrations:          _q.withIntegrations.Clone(),
 		withTicketIntegrations:    _q.withTicketIntegrations.Clone(),
+		withCredentials:           _q.withCredentials.Clone(),
 		withSubscriptions:         _q.withSubscriptions.Clone(),
 		withMetricsSnapshots:      _q.withMetricsSnapshots.Clone(),
 		// clone intermediate query.
@@ -739,6 +764,17 @@ func (_q *TeamQuery) WithTicketIntegrations(opts ...func(*TicketIntegrationQuery
 	return _q
 }
 
+// WithCredentials tells the query-builder to eager-load the nodes that are connected to
+// the "credentials" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TeamQuery) WithCredentials(opts ...func(*CredentialQuery)) *TeamQuery {
+	query := (&CredentialClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withCredentials = query
+	return _q
+}
+
 // WithSubscriptions tells the query-builder to eager-load the nodes that are connected to
 // the "subscriptions" edge. The optional arguments are used to configure the query builder of the edge.
 func (_q *TeamQuery) WithSubscriptions(opts ...func(*SubscriptionQuery)) *TeamQuery {
@@ -839,7 +875,7 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 	var (
 		nodes       = []*Team{}
 		_spec       = _q.querySpec()
-		loadedTypes = [14]bool{
+		loadedTypes = [15]bool{
 			_q.withUsers != nil,
 			_q.withServices != nil,
 			_q.withSchedules != nil,
@@ -852,6 +888,7 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 			_q.withIncidents != nil,
 			_q.withIntegrations != nil,
 			_q.withTicketIntegrations != nil,
+			_q.withCredentials != nil,
 			_q.withSubscriptions != nil,
 			_q.withMetricsSnapshots != nil,
 		}
@@ -959,6 +996,13 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 			func(n *Team, e *TicketIntegration) {
 				n.Edges.TicketIntegrations = append(n.Edges.TicketIntegrations, e)
 			}); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withCredentials; query != nil {
+		if err := _q.loadCredentials(ctx, query, nodes,
+			func(n *Team) { n.Edges.Credentials = []*Credential{} },
+			func(n *Team, e *Credential) { n.Edges.Credentials = append(n.Edges.Credentials, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1406,6 +1450,37 @@ func (_q *TeamQuery) loadTicketIntegrations(ctx context.Context, query *TicketIn
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "team_ticket_integrations" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *TeamQuery) loadCredentials(ctx context.Context, query *CredentialQuery, nodes []*Team, init func(*Team), assign func(*Team, *Credential)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Team)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Credential(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(team.CredentialsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.team_credentials
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "team_credentials" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "team_credentials" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
 	}

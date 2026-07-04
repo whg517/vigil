@@ -20,6 +20,8 @@ type Tx struct {
 	ActionItem *ActionItemClient
 	// AuditLog is the client for interacting with the AuditLog builders.
 	AuditLog *AuditLogClient
+	// Credential is the client for interacting with the Credential builders.
+	Credential *CredentialClient
 	// EscalationPolicy is the client for interacting with the EscalationPolicy builders.
 	EscalationPolicy *EscalationPolicyClient
 	// Event is the client for interacting with the Event builders.
@@ -207,6 +209,7 @@ func (tx *Tx) init() {
 	tx.APIKey = NewAPIKeyClient(tx.config)
 	tx.ActionItem = NewActionItemClient(tx.config)
 	tx.AuditLog = NewAuditLogClient(tx.config)
+	tx.Credential = NewCredentialClient(tx.config)
 	tx.EscalationPolicy = NewEscalationPolicyClient(tx.config)
 	tx.Event = NewEventClient(tx.config)
 	tx.IMAccountBinding = NewIMAccountBindingClient(tx.config)

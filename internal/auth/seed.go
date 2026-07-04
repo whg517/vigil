@@ -40,6 +40,8 @@ var builtinRoles = []struct {
 			"event.create", "raw_event.view", "raw_event.replay",
 			// 出向工单集成（复盘 ActionItem 自动建单目标，T4.3，团队级配置）
 			"ticket_integration.view", "ticket_integration.create", "ticket_integration.update", "ticket_integration.delete",
+			// Runbook 执行器加密托管凭据（T6.3/S16，团队级配置）
+			"credential.view", "credential.create", "credential.update", "credential.delete",
 			// 排班/升级（含换他人班：schedule.override，C5/M5.3）
 			"schedule.view", "schedule.create", "schedule.update", "schedule.delete", "schedule.override",
 			"escalation.view", "escalation.create", "escalation.update", "escalation.delete",

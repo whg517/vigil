@@ -174,6 +174,38 @@ var (
 			},
 		},
 	}
+	// CredentialsColumns holds the columns for the "credentials" table.
+	CredentialsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"bearer", "token", "basic", "header"}, Default: "bearer"},
+		{Name: "secret_ciphertext", Type: field.TypeString},
+		{Name: "config", Type: field.TypeJSON, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "team_credentials", Type: field.TypeInt, Nullable: true},
+	}
+	// CredentialsTable holds the schema information for the "credentials" table.
+	CredentialsTable = &schema.Table{
+		Name:       "credentials",
+		Columns:    CredentialsColumns,
+		PrimaryKey: []*schema.Column{CredentialsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "credentials_teams_credentials",
+				Columns:    []*schema.Column{CredentialsColumns[7]},
+				RefColumns: []*schema.Column{TeamsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "credential_name",
+				Unique:  false,
+				Columns: []*schema.Column{CredentialsColumns[1]},
+			},
+		},
+	}
 	// EscalationPoliciesColumns holds the columns for the "escalation_policies" table.
 	EscalationPoliciesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -1290,6 +1322,7 @@ var (
 		APIKeysTable,
 		ActionItemsTable,
 		AuditLogsTable,
+		CredentialsTable,
 		EscalationPoliciesTable,
 		EventsTable,
 		ImAccountBindingsTable,
@@ -1330,6 +1363,7 @@ func init() {
 	AiInsightsTable.ForeignKeys[0].RefTable = IncidentsTable
 	APIKeysTable.ForeignKeys[0].RefTable = UsersTable
 	ActionItemsTable.ForeignKeys[0].RefTable = PostmortemsTable
+	CredentialsTable.ForeignKeys[0].RefTable = TeamsTable
 	EscalationPoliciesTable.ForeignKeys[0].RefTable = TeamsTable
 	EventsTable.ForeignKeys[0].RefTable = IncidentsTable
 	EventsTable.ForeignKeys[1].RefTable = IntegrationsTable

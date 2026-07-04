@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/kevin/vigil/ent/credential"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/integration"
@@ -280,6 +281,21 @@ func (_c *TeamCreate) AddTicketIntegrations(v ...*TicketIntegration) *TeamCreate
 		ids[i] = v[i].ID
 	}
 	return _c.AddTicketIntegrationIDs(ids...)
+}
+
+// AddCredentialIDs adds the "credentials" edge to the Credential entity by IDs.
+func (_c *TeamCreate) AddCredentialIDs(ids ...int) *TeamCreate {
+	_c.mutation.AddCredentialIDs(ids...)
+	return _c
+}
+
+// AddCredentials adds the "credentials" edges to the Credential entity.
+func (_c *TeamCreate) AddCredentials(v ...*Credential) *TeamCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddCredentialIDs(ids...)
 }
 
 // AddSubscriptionIDs adds the "subscriptions" edge to the Subscription entity by IDs.
@@ -611,6 +627,22 @@ func (_c *TeamCreate) createSpec() (*Team, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(ticketintegration.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.CredentialsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.CredentialsTable,
+			Columns: []string{team.CredentialsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(credential.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

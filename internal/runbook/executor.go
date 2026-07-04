@@ -51,7 +51,8 @@ type Executor interface {
 // 生产默认 false（拒绝私网）；测试场景（httptest 绑定 127.0.0.1）设 true。
 type HTTPExecutor struct {
 	Client       *http.Client
-	AllowPrivate bool // 放行私网地址（仅测试用，生产保持 false）
+	AllowPrivate bool               // 放行私网地址（仅测试用，生产保持 false）
+	creds        CredentialResolver // 凭据解析器（T6.3，可选注入；nil 则不注入凭据）
 }
 
 // NewHTTPExecutor 创建 HTTP 执行器（生产用，AllowPrivate=false，SSRF 防护生效）。
@@ -67,6 +68,9 @@ func (h *HTTPExecutor) SetAllowPrivate(allow bool) {
 }
 
 func (HTTPExecutor) Kind() string { return "http" }
+
+// SetCredentialResolver 注入凭据解析器（T6.3）。装配层与注册表统一调用。
+func (h *HTTPExecutor) SetCredentialResolver(r CredentialResolver) { h.creds = r }
 
 func (h *HTTPExecutor) Execute(ctx context.Context, target schema.StepTarget, params map[string]any) (string, error) {
 	if target.Endpoint == "" {
@@ -87,6 +91,10 @@ func (h *HTTPExecutor) Execute(ctx context.Context, target schema.StepTarget, pa
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// T6.3：若 step 引用了托管凭据，解密后注入头（明文只在此处短暂持有，不落日志/时间线）。
+	if err := injectCredential(ctx, h.creds, target.CredentialRef, req); err != nil {
+		return "", err
+	}
 	resp, err := h.Client.Do(req)
 	if err != nil {
 		return "", err
@@ -110,6 +118,23 @@ func jsonQuote(s string) string {
 	return string(b)
 }
 
+// injectCredential 若 credRef>0 且配了 resolver，解密凭据并注入 HTTP 头（T6.3）。
+// resolver 为 nil（未装配）或 credRef<=0（无引用）时无操作。
+// ★ 明文只在 req.Header.Set 这一瞬间写入请求头，不返回、不打印、不落任何持久化。
+func injectCredential(ctx context.Context, r CredentialResolver, credRef int, req *http.Request) error {
+	if r == nil || credRef <= 0 {
+		return nil
+	}
+	hdr, err := r.ResolveHeader(ctx, credRef)
+	if err != nil {
+		return err // 已脱敏（不含明文），调用方按执行失败处理
+	}
+	if hdr != nil {
+		req.Header.Set(hdr.name, hdr.value)
+	}
+	return nil
+}
+
 // InternalExecutor 内置诊断执行器（只读安全动作，能力域 9 M9.4）。
 //
 // 根据 params.action 执行不同诊断：
@@ -119,7 +144,8 @@ func jsonQuote(s string) string {
 // 全部只读，不修改外部状态。后续可扩展 query_metrics（查 Prometheus）等。
 type InternalExecutor struct {
 	client       *http.Client
-	AllowPrivate bool // 放行私网（仅测试用，生产保持 false）
+	AllowPrivate bool               // 放行私网（仅测试用，生产保持 false）
+	creds        CredentialResolver // 凭据解析器（T6.3，可选注入）
 }
 
 // NewInternalExecutor 创建内置执行器（生产用，AllowPrivate=false，SSRF 防护生效）。
@@ -139,6 +165,9 @@ func (e *InternalExecutor) SetAllowPrivate(allow bool) {
 
 func (*InternalExecutor) Kind() string { return "internal" }
 
+// SetCredentialResolver 注入凭据解析器（T6.3，供 check_http 诊断带鉴权访问外部只读 API）。
+func (e *InternalExecutor) SetCredentialResolver(r CredentialResolver) { e.creds = r }
+
 func (e *InternalExecutor) Execute(ctx context.Context, target schema.StepTarget, params map[string]any) (string, error) {
 	action, _ := params["action"].(string)
 	if action == "" {
@@ -147,7 +176,7 @@ func (e *InternalExecutor) Execute(ctx context.Context, target schema.StepTarget
 
 	switch action {
 	case "check_http":
-		return e.checkHTTP(ctx, target.Endpoint)
+		return e.checkHTTP(ctx, target)
 	default:
 		// info：返回 target 元信息（结构化，非纯模拟）
 		return fmt.Sprintf(`{"action":"info","target":{"kind":%q,"endpoint":%q,"readonly":%t}}`,
@@ -156,7 +185,8 @@ func (e *InternalExecutor) Execute(ctx context.Context, target schema.StepTarget
 }
 
 // checkHTTP 对 endpoint 做 GET 探活，返回状态码与耗时。
-func (e *InternalExecutor) checkHTTP(ctx context.Context, endpoint string) (string, error) {
+func (e *InternalExecutor) checkHTTP(ctx context.Context, target schema.StepTarget) (string, error) {
+	endpoint := target.Endpoint
 	if endpoint == "" {
 		return "", fmt.Errorf("check_http requires endpoint")
 	}
@@ -168,6 +198,10 @@ func (e *InternalExecutor) checkHTTP(ctx context.Context, endpoint string) (stri
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return "", fmt.Errorf("build request: %w", err)
+	}
+	// T6.3：诊断探活也可带托管凭据（访问需鉴权的只读 API），明文只在此处注入。
+	if err := injectCredential(ctx, e.creds, target.CredentialRef, req); err != nil {
+		return "", err
 	}
 	resp, err := e.client.Do(req)
 	if err != nil {
@@ -190,6 +224,21 @@ func NewRegistry() *Registry {
 	r.Register(NewHTTPExecutor())
 	r.Register(NewInternalExecutor())
 	return r
+}
+
+// credentialAware 执行器可接收凭据解析器的能力接口（T6.3）。
+type credentialAware interface {
+	SetCredentialResolver(r CredentialResolver)
+}
+
+// SetCredentialResolver 把凭据解析器注入所有支持的已注册执行器（T6.3）。
+// 装配层构造 crypto.Cipher + resolver 后调用一次即可；不支持凭据的执行器自动跳过。
+func (r *Registry) SetCredentialResolver(res CredentialResolver) {
+	for _, e := range r.executors {
+		if ca, ok := e.(credentialAware); ok {
+			ca.SetCredentialResolver(res)
+		}
+	}
 }
 
 // Register 注册执行器。

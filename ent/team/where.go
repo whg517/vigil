@@ -721,6 +721,29 @@ func HasTicketIntegrationsWith(preds ...predicate.TicketIntegration) predicate.T
 	})
 }
 
+// HasCredentials applies the HasEdge predicate on the "credentials" edge.
+func HasCredentials() predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, CredentialsTable, CredentialsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasCredentialsWith applies the HasEdge predicate on the "credentials" edge with a given conditions (other predicates).
+func HasCredentialsWith(preds ...predicate.Credential) predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := newCredentialsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasSubscriptions applies the HasEdge predicate on the "subscriptions" edge.
 func HasSubscriptions() predicate.Team {
 	return predicate.Team(func(s *sql.Selector) {

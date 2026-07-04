@@ -83,6 +83,14 @@ const (
 	PermTicketIntegrationUpdate Permission = "ticket_integration.update"
 	PermTicketIntegrationDelete Permission = "ticket_integration.delete"
 
+	// —— credential 加密托管凭据（能力域 9 Runbook 执行器，T6.3/S16）——
+	// 凭据持 Runbook 执行器访问外部平台（Ansible/Jenkins）的 token，加密存储。
+	// 管理是高敏动作（能建凭据 = 能让执行器带任意鉴权访问外部），与工单集成同档授给管理角色。
+	PermCredentialView   Permission = "credential.view"   //nolint:gosec // G101 误报：RBAC 权限点标识符，非密钥
+	PermCredentialCreate Permission = "credential.create" //nolint:gosec // G101 误报：RBAC 权限点标识符，非密钥
+	PermCredentialUpdate Permission = "credential.update" //nolint:gosec // G101 误报：RBAC 权限点标识符，非密钥
+	PermCredentialDelete Permission = "credential.delete" //nolint:gosec // G101 误报：RBAC 权限点标识符，非密钥
+
 	// —— postmortem 复盘 ——
 	PermPostmortemView             Permission = "postmortem.view"
 	PermPostmortemCreate           Permission = "postmortem.create"
@@ -159,6 +167,7 @@ var AllPermissions = []Permission{
 	PermRunbookView, PermRunbookCreate, PermRunbookUpdate, PermRunbookDelete, PermRunbookExecute,
 	PermIntegrationView, PermIntegrationCreate, PermIntegrationUpdate, PermIntegrationDelete,
 	PermTicketIntegrationView, PermTicketIntegrationCreate, PermTicketIntegrationUpdate, PermTicketIntegrationDelete,
+	PermCredentialView, PermCredentialCreate, PermCredentialUpdate, PermCredentialDelete,
 	PermPostmortemView, PermPostmortemCreate, PermPostmortemUpdate, PermPostmortemPublish, PermPostmortemActionItemManage,
 	PermTeamView, PermTeamCreate, PermTeamUpdate, PermTeamDelete, PermTeamMemberManage,
 	PermUserView, PermUserCreate, PermUserUpdate, PermUserDisable, PermUserIMBind,

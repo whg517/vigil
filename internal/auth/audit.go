@@ -69,6 +69,11 @@ const (
 	ActionTicketIntegrationCreate = "ticket_integration.create"
 	ActionTicketIntegrationUpdate = "ticket_integration.update"
 	ActionTicketIntegrationDelete = "ticket_integration.delete"
+	// 加密托管凭据配置变更（T6.3/S16）：凭据持外部平台鉴权 token，创建/改动/删除都留痕。
+	// ★ 审计只记元数据（名/类型/id），绝不含密文/明文（明文不进审计）。
+	ActionCredentialCreate = "credential.create" //nolint:gosec // G101 误报：审计 action 标识符，非密钥
+	ActionCredentialUpdate = "credential.update" //nolint:gosec // G101 误报：审计 action 标识符，非密钥
+	ActionCredentialDelete = "credential.delete" //nolint:gosec // G101 误报：审计 action 标识符，非密钥
 	// AI 建议改判（S11）：采纳/拒绝会影响后续自动化/复盘，谁在何时改判须可审计。
 	ActionAIInsightResolve = "ai.insight.resolve"
 	// 出站 webhook 死信重放（T5.2）：把失败的出站投递重新推给订阅端，会向外部再发一次事件，

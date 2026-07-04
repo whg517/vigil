@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/kevin/vigil/ent/credential"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/integration"
@@ -294,6 +295,21 @@ func (_u *TeamUpdate) AddTicketIntegrations(v ...*TicketIntegration) *TeamUpdate
 		ids[i] = v[i].ID
 	}
 	return _u.AddTicketIntegrationIDs(ids...)
+}
+
+// AddCredentialIDs adds the "credentials" edge to the Credential entity by IDs.
+func (_u *TeamUpdate) AddCredentialIDs(ids ...int) *TeamUpdate {
+	_u.mutation.AddCredentialIDs(ids...)
+	return _u
+}
+
+// AddCredentials adds the "credentials" edges to the Credential entity.
+func (_u *TeamUpdate) AddCredentials(v ...*Credential) *TeamUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCredentialIDs(ids...)
 }
 
 // AddSubscriptionIDs adds the "subscriptions" edge to the Subscription entity by IDs.
@@ -581,6 +597,27 @@ func (_u *TeamUpdate) RemoveTicketIntegrations(v ...*TicketIntegration) *TeamUpd
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveTicketIntegrationIDs(ids...)
+}
+
+// ClearCredentials clears all "credentials" edges to the Credential entity.
+func (_u *TeamUpdate) ClearCredentials() *TeamUpdate {
+	_u.mutation.ClearCredentials()
+	return _u
+}
+
+// RemoveCredentialIDs removes the "credentials" edge to Credential entities by IDs.
+func (_u *TeamUpdate) RemoveCredentialIDs(ids ...int) *TeamUpdate {
+	_u.mutation.RemoveCredentialIDs(ids...)
+	return _u
+}
+
+// RemoveCredentials removes "credentials" edges to Credential entities.
+func (_u *TeamUpdate) RemoveCredentials(v ...*Credential) *TeamUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCredentialIDs(ids...)
 }
 
 // ClearSubscriptions clears all "subscriptions" edges to the Subscription entity.
@@ -1244,6 +1281,51 @@ func (_u *TeamUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.CredentialsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.CredentialsTable,
+			Columns: []string{team.CredentialsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(credential.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCredentialsIDs(); len(nodes) > 0 && !_u.mutation.CredentialsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.CredentialsTable,
+			Columns: []string{team.CredentialsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(credential.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CredentialsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.CredentialsTable,
+			Columns: []string{team.CredentialsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(credential.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.SubscriptionsCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -1608,6 +1690,21 @@ func (_u *TeamUpdateOne) AddTicketIntegrations(v ...*TicketIntegration) *TeamUpd
 	return _u.AddTicketIntegrationIDs(ids...)
 }
 
+// AddCredentialIDs adds the "credentials" edge to the Credential entity by IDs.
+func (_u *TeamUpdateOne) AddCredentialIDs(ids ...int) *TeamUpdateOne {
+	_u.mutation.AddCredentialIDs(ids...)
+	return _u
+}
+
+// AddCredentials adds the "credentials" edges to the Credential entity.
+func (_u *TeamUpdateOne) AddCredentials(v ...*Credential) *TeamUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCredentialIDs(ids...)
+}
+
 // AddSubscriptionIDs adds the "subscriptions" edge to the Subscription entity by IDs.
 func (_u *TeamUpdateOne) AddSubscriptionIDs(ids ...int) *TeamUpdateOne {
 	_u.mutation.AddSubscriptionIDs(ids...)
@@ -1893,6 +1990,27 @@ func (_u *TeamUpdateOne) RemoveTicketIntegrations(v ...*TicketIntegration) *Team
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveTicketIntegrationIDs(ids...)
+}
+
+// ClearCredentials clears all "credentials" edges to the Credential entity.
+func (_u *TeamUpdateOne) ClearCredentials() *TeamUpdateOne {
+	_u.mutation.ClearCredentials()
+	return _u
+}
+
+// RemoveCredentialIDs removes the "credentials" edge to Credential entities by IDs.
+func (_u *TeamUpdateOne) RemoveCredentialIDs(ids ...int) *TeamUpdateOne {
+	_u.mutation.RemoveCredentialIDs(ids...)
+	return _u
+}
+
+// RemoveCredentials removes "credentials" edges to Credential entities.
+func (_u *TeamUpdateOne) RemoveCredentials(v ...*Credential) *TeamUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCredentialIDs(ids...)
 }
 
 // ClearSubscriptions clears all "subscriptions" edges to the Subscription entity.
@@ -2579,6 +2697,51 @@ func (_u *TeamUpdateOne) sqlSave(ctx context.Context) (_node *Team, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(ticketintegration.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.CredentialsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.CredentialsTable,
+			Columns: []string{team.CredentialsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(credential.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCredentialsIDs(); len(nodes) > 0 && !_u.mutation.CredentialsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.CredentialsTable,
+			Columns: []string{team.CredentialsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(credential.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CredentialsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.CredentialsTable,
+			Columns: []string{team.CredentialsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(credential.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

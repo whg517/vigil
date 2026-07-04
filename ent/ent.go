@@ -16,6 +16,7 @@ import (
 	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/apikey"
 	"github.com/kevin/vigil/ent/auditlog"
+	"github.com/kevin/vigil/ent/credential"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/imaccountbinding"
@@ -106,6 +107,7 @@ func checkColumn(t, c string) error {
 			apikey.Table:               apikey.ValidColumn,
 			actionitem.Table:           actionitem.ValidColumn,
 			auditlog.Table:             auditlog.ValidColumn,
+			credential.Table:           credential.ValidColumn,
 			escalationpolicy.Table:     escalationpolicy.ValidColumn,
 			event.Table:                event.ValidColumn,
 			imaccountbinding.Table:     imaccountbinding.ValidColumn,

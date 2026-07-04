@@ -9,6 +9,7 @@ import (
 	"github.com/kevin/vigil/ent/aiinsight"
 	"github.com/kevin/vigil/ent/apikey"
 	"github.com/kevin/vigil/ent/auditlog"
+	"github.com/kevin/vigil/ent/credential"
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/imaccountbinding"
@@ -110,6 +111,26 @@ func init() {
 	auditlogDescCreatedAt := auditlogFields[10].Descriptor()
 	// auditlog.DefaultCreatedAt holds the default value on creation for the created_at field.
 	auditlog.DefaultCreatedAt = auditlogDescCreatedAt.Default.(func() time.Time)
+	credentialFields := schema.Credential{}.Fields()
+	_ = credentialFields
+	// credentialDescName is the schema descriptor for name field.
+	credentialDescName := credentialFields[0].Descriptor()
+	// credential.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	credential.NameValidator = credentialDescName.Validators[0].(func(string) error)
+	// credentialDescSecretCiphertext is the schema descriptor for secret_ciphertext field.
+	credentialDescSecretCiphertext := credentialFields[2].Descriptor()
+	// credential.SecretCiphertextValidator is a validator for the "secret_ciphertext" field. It is called by the builders before save.
+	credential.SecretCiphertextValidator = credentialDescSecretCiphertext.Validators[0].(func(string) error)
+	// credentialDescCreatedAt is the schema descriptor for created_at field.
+	credentialDescCreatedAt := credentialFields[4].Descriptor()
+	// credential.DefaultCreatedAt holds the default value on creation for the created_at field.
+	credential.DefaultCreatedAt = credentialDescCreatedAt.Default.(func() time.Time)
+	// credentialDescUpdatedAt is the schema descriptor for updated_at field.
+	credentialDescUpdatedAt := credentialFields[5].Descriptor()
+	// credential.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	credential.DefaultUpdatedAt = credentialDescUpdatedAt.Default.(func() time.Time)
+	// credential.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	credential.UpdateDefaultUpdatedAt = credentialDescUpdatedAt.UpdateDefault.(func() time.Time)
 	escalationpolicyFields := schema.EscalationPolicy{}.Fields()
 	_ = escalationpolicyFields
 	// escalationpolicyDescName is the schema descriptor for name field.

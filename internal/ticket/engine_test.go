@@ -2,6 +2,8 @@ package ticket
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +12,24 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/enttest"
+	"github.com/kevin/vigil/internal/crypto"
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+// newTicketTestCipher 生成随机密钥的加密器（T6.3 测试用）。
+func newTicketTestCipher(t *testing.T) *crypto.Cipher {
+	t.Helper()
+	k := make([]byte, 32)
+	if _, err := rand.Read(k); err != nil {
+		t.Fatal(err)
+	}
+	c, err := crypto.NewCipher(base64.StdEncoding.EncodeToString(k))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
 
 // setupPM 建 team + incident + postmortem + 1 个未建单 ActionItem，返回 client / pmID / actionItemID / teamID。
 func setupPM(t *testing.T) (*ent.Client, int, int, int) {
@@ -171,5 +188,71 @@ func TestCredentialNotPlaintext(t *testing.T) {
 	}
 	if strings.Contains(string(raw), "credential") {
 		t.Errorf("credential field present in JSON (should be json:\"-\"): %s", raw)
+	}
+}
+
+// TestEngine_EncryptedCredential_DecryptedForAdapter T6.3：工单凭据以密文存储，
+// 引擎经 cipher 解密后以 Bearer 发出；DB 里不含明文（复用统一加密机制）。
+func TestEngine_EncryptedCredential_DecryptedForAdapter(t *testing.T) {
+	c, pmID, aiID, teamID := setupPM(t)
+	ctx := context.Background()
+
+	var receivedAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"tracker_url":"https://tk/E-1"}`))
+	}))
+	defer srv.Close()
+
+	cipher := newTicketTestCipher(t)
+	plaintext := "encrypted-jira-token"
+	ciphertext, err := cipher.Encrypt(plaintext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 存密文（模拟 handler 加密后落库）。
+	c.TicketIntegration.Create().SetName("jira").SetType("webhook").
+		SetEndpoint(srv.URL).SetCredential(ciphertext).SetTeamID(teamID).SetEnabled(true).SaveX(ctx)
+
+	eng := NewEngine(c, NewWebhookAdapter(true))
+	eng.SetCipher(cipher) // 引擎持同一 cipher → 解密后发出
+	eng.OnPostmortemPublished(ctx, pmID)
+
+	if receivedAuth != "Bearer "+plaintext {
+		t.Fatalf("expected decrypted credential as bearer, got %q", receivedAuth)
+	}
+	// DB 里凭据是密文，不含明文。
+	ti := c.TicketIntegration.Query().FirstX(ctx)
+	if strings.Contains(ti.Credential, plaintext) {
+		t.Fatalf("plaintext credential stored in DB: %q", ti.Credential)
+	}
+	_ = aiID
+}
+
+// TestEngine_LegacyPlaintextCredential_BackwardCompat T6.3 向后兼容：既有明文凭据
+// （cipher 解密失败）按明文透传，不破坏 T4.3 迁移前数据。
+func TestEngine_LegacyPlaintextCredential_BackwardCompat(t *testing.T) {
+	c, pmID, _, teamID := setupPM(t)
+	ctx := context.Background()
+
+	var receivedAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"tracker_url":"https://tk/L-1"}`))
+	}))
+	defer srv.Close()
+
+	// 历史明文凭据（未加密），引擎虽持 cipher 但解密失败 → 按明文透传。
+	c.TicketIntegration.Create().SetName("jira").SetType("webhook").
+		SetEndpoint(srv.URL).SetCredential("legacy-plain-token").SetTeamID(teamID).SetEnabled(true).SaveX(ctx)
+
+	eng := NewEngine(c, NewWebhookAdapter(true))
+	eng.SetCipher(newTicketTestCipher(t))
+	eng.OnPostmortemPublished(ctx, pmID)
+
+	if receivedAuth != "Bearer legacy-plain-token" {
+		t.Fatalf("legacy plaintext credential not passed through: got %q", receivedAuth)
 	}
 }
