@@ -348,7 +348,7 @@ func (e *Engine) CancelOnAck(ctx context.Context, incID int, levels []schema.Esc
 // CancelLevelPending 取消某一 level 所有 repeat 序号的待触发升级任务（B6b）。
 //
 // 用于手动跳级：人主动 escalate 到 level N 时，自动升级链此前已为 level N 排了延迟任务
-//（level[N-1] 处理后 scheduleLevel(N)），若不取消，手动立即触发 level N 之外，
+// （level[N-1] 处理后 scheduleLevel(N)），若不取消，手动立即触发 level N 之外，
 // 那条延迟任务到点还会再触发一次 level N —— 同层重复通知（轰炸/困惑）。
 // 这里删掉 level N 的所有 pending（repeat 0..repeatTimes），只保留手动的 now: 立即任务。
 // 复用 CancelOnAck 的删除语义（inspector.DeleteTask，任务已触发/不存在则忽略）。
