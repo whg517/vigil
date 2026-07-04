@@ -148,6 +148,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	bus.Subscribe(domainevent.IncidentCreated, escEngine.OnCreated)
 	bus.Subscribe(domainevent.IncidentAcked, escEngine.OnAcked)
 	bus.Subscribe(domainevent.IncidentEscalated, escEngine.OnManualEscalate)
+	// reopen（resolved/closed → triggered）后从首层重启升级链：不订阅则 incident 静默停在
+	// triggered，不重发通知、不再升级，等于「重开了但没人管」。见 escEngine.OnReopened。
+	bus.Subscribe(domainevent.IncidentReopened, escEngine.OnReopened)
 
 	// —— 鉴权（能力域 13）：RBAC + 审计 ——
 	authz := auth.NewAuthorizer(st.DB)

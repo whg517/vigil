@@ -12,8 +12,11 @@ package escalation
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/kevin/vigil/internal/event"
+
+	"go.uber.org/zap"
 )
 
 // OnAcked 处理 IncidentAcked 事件：取消该 Incident 所有待触发升级任务。
@@ -50,6 +53,57 @@ func (e *Engine) OnCreated(ctx context.Context, ev event.Event) error {
 	if err != nil || len(policy.Levels) == 0 {
 		return nil
 	}
+	return e.StartEscalation(ctx, inc.ID, policy.Levels)
+}
+
+// OnReopened 处理 IncidentReopened 事件：从升级策略首层重启升级链。
+//
+// 缺陷背景：incident reopen（resolved/closed → triggered）后若不重启升级链，
+// 会静默停在 triggered——不重发通知、不再升级，等于「重开了但没人管」。
+// escalation 原先只订阅 Created/Acked/Escalated，reopen 事件无人消费，故补此订阅。
+//
+// 为什么从首层重启（而非续接旧 level）：reopen 是「问题复现/误解决后重新响应」，
+// 语义上是一次全新的响应周期，应从 level 0 重新走完整升级路径，而不是接着上次
+// 停下的层级。故先把 current_level/escalated_count 归零，再入队 level[0]。
+//
+// 幂等/去重：reopen 前该 incident 通常已 resolved/closed，残留 pending 升级任务
+// 应已被 ack/resolve 时的 CancelOnAck 清掉；但为防御「残留任务撞 TaskID」
+// （StartEscalation 入队 esc:{id}:0:0 时若旧任务同 key 未清会 ErrTaskIDConflict），
+// 这里先 CancelOnAck 清一遍所有 level×repeat 组合，再排新的首层任务，确保不重复升级。
+//
+// 无升级策略 / 查询失败时跳过（该 incident 无需升级，与 OnCreated 一致）。
+func (e *Engine) OnReopened(ctx context.Context, ev event.Event) error {
+	if ev.Incident == nil {
+		return nil
+	}
+	// 按 ID 重取最新 incident（事件载荷快照可能未加载 policy edge，与 OnCreated 同源）。
+	inc, err := e.db.Incident.Get(ctx, ev.Incident.ID)
+	if err != nil {
+		return err
+	}
+	policy, err := inc.QueryEscalationPolicy().Only(ctx)
+	if err != nil || len(policy.Levels) == 0 {
+		return nil // 无升级策略，无需重启升级链
+	}
+
+	// 1. 清残留：删掉所有可能仍待触发的旧升级任务（防撞 TaskID / 防重复升级）。
+	//    失败不阻塞——HandleTask 的状态守卫兜底，且新首层任务用同 TaskID 会覆盖同一 key。
+	if cErr := e.CancelOnAck(ctx, inc.ID, policy.Levels, policy.RepeatTimes); cErr != nil {
+		e.log().Warn("reopen: cancel residual escalation tasks failed",
+			zap.Int("incident_id", inc.ID), zap.Error(cErr))
+	}
+
+	// 2. 升级层级归零：从首层重启，回到「待响应」计数起点。
+	//    reopen 已把 status 置回 triggered，这里补齐 current_level/escalated_count，
+	//    使后续手动升级的 targetLevelIdx 计算（=current_level）也从 0 起。
+	if _, uErr := e.db.Incident.UpdateOneID(inc.ID).
+		SetCurrentLevel(0).
+		SetEscalatedCount(0).
+		Save(ctx); uErr != nil {
+		return fmt.Errorf("reset incident level on reopen: %w", uErr)
+	}
+
+	// 3. 从首层重新启动升级链（复用 StartEscalation，与 OnCreated 同款调度）。
 	return e.StartEscalation(ctx, inc.ID, policy.Levels)
 }
 

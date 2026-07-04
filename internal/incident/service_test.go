@@ -405,6 +405,61 @@ func TestEscalate_NoPolicyWithoutEscEngine(t *testing.T) {
 	}
 }
 
+// TestReopen_FromResolved_PublishesEvent resolved → triggered，
+// 且发布 IncidentReopened 事件（escalation 据此重启升级链的前置条件）。
+func TestReopen_FromResolved_PublishesEvent(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusResolved)
+	bus := event.New()
+	svc := NewService(c, timeline.NewRecorder(c), bus)
+
+	var captured []event.Event
+	bus.Subscribe(event.IncidentReopened, func(_ context.Context, e event.Event) error {
+		captured = append(captured, e)
+		return nil
+	})
+
+	updated, err := svc.Reopen(context.Background(), inc.ID, 7, SourceWeb)
+	if err != nil {
+		t.Fatalf("Reopen: %v", err)
+	}
+	if updated.Status != incident.StatusTriggered {
+		t.Errorf("status: got %s, want triggered", updated.Status)
+	}
+	if updated.ResolvedAt != nil {
+		t.Error("resolved_at should be cleared on reopen")
+	}
+	if len(captured) != 1 {
+		t.Fatalf("IncidentReopened events: got %d, want 1", len(captured))
+	}
+	ev := captured[0]
+	if ev.Incident == nil || ev.Incident.ID != inc.ID {
+		t.Errorf("event incident: got %+v, want id=%d", ev.Incident, inc.ID)
+	}
+	// 事件载荷携带最新状态（triggered），escalation 订阅方据此重取并重启升级链。
+	if ev.Incident.Status != incident.StatusTriggered {
+		t.Errorf("event incident status: got %q, want triggered", ev.Incident.Status)
+	}
+	if string(ev.Action) != string(ActionReopen) {
+		t.Errorf("event action: got %q, want %q", ev.Action, ActionReopen)
+	}
+	if ev.ActorID != 7 {
+		t.Errorf("event actor id: got %d, want 7", ev.ActorID)
+	}
+}
+
+// TestReopen_FromTriggered_Rejected 活跃态（triggered）reopen 无意义，应被状态机拒绝。
+func TestReopen_FromTriggered_Rejected(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusTriggered)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+
+	_, err := svc.Reopen(context.Background(), inc.ID, 1, SourceWeb)
+	if !errors.Is(err, ErrInvalidTransition) {
+		t.Errorf("expected ErrInvalidTransition, got %v", err)
+	}
+}
+
 // toInt 把 interface{} 转 int（json detail 里数字可能是 float64）。
 func toInt(v any) (int, bool) {
 	switch n := v.(type) {
