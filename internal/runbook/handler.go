@@ -133,6 +133,39 @@ type createReq struct {
 	ContentMarkdown string               `json:"content_markdown"`
 	Trigger         map[string]any       `json:"trigger"`
 	Steps           []schema.RunbookStep `json:"steps"`
+	// TeamID 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。
+	// 非 org 级用户只能给自己可管的 team 建（经 VisibleTeamIDs 校验，否则 403）。
+	TeamID int `json:"team_id"`
+}
+
+// checkCreateTeam 创建归属校验（B26）：非 org 级用户只能给自己可见/可管的 team 建资源。
+//
+// 返回 echo error 形式，非 nil 时 handler 直接 return（已写响应）。
+// authz 未注入时放行（兼容渐进/单测）。org 级用户（orgWide）可给任意 team 建。
+func (h *Handler) checkCreateTeam(c *echo.Context, teamID int) error {
+	if h.authz == nil {
+		return nil // 未注入：降级放行（渐进/单测）
+	}
+	uid := h.actorFromContext(c)
+	if uid <= 0 {
+		return nil // 匿名/系统：不校验（与 list 一致）
+	}
+	teamIDs, orgWide, err := h.authz.VisibleTeamIDs(c.Request().Context(), uid)
+	if err != nil {
+		_ = errs.Internal(c, nil, err)
+		return errAccessDenied
+	}
+	if orgWide {
+		return nil // org 级：可给任意 team 建
+	}
+	// team 级：仅当 teamID 在可见集合内才放行。
+	for _, id := range teamIDs {
+		if id == teamID {
+			return nil
+		}
+	}
+	_ = errs.Forbidden(c, "无权在该团队下创建 Runbook")
+	return errAccessDenied
 }
 
 // CreateRunbook 创建 Runbook。
@@ -161,7 +194,16 @@ func (h *Handler) create(c *echo.Context) error {
 	if err := validateSteps(req.Steps); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
 	}
+	// B26：team 级用户只能给可管 team 建（否则建完自己都看不到，且越权占用别团队命名空间）。
+	if req.TeamID > 0 {
+		if e := h.checkCreateTeam(c, req.TeamID); e != nil {
+			return e
+		}
+	}
 	rb := h.db.Runbook.Create().SetName(req.Name).SetType(entrunbook.Type(req.Type))
+	if req.TeamID > 0 {
+		rb.SetTeamID(req.TeamID)
+	}
 	if req.ContentMarkdown != "" {
 		rb.SetContentMarkdown(req.ContentMarkdown)
 	}

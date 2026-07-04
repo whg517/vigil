@@ -304,3 +304,38 @@ func TestIsolation_OrgWideUserSeesAll(t *testing.T) {
 		t.Errorf("org-wide userA should access teamB runbook, got %d", rec.Code)
 	}
 }
+
+// TestIsolation_CreateOwnTeam_OK userA 给自己 team 建 runbook → 201 且落 team 归属（B26）。
+func TestIsolation_CreateOwnTeam_OK(t *testing.T) {
+	d := isoSetup(t)
+	e := newIsolatedHandler(d)
+	body := `{"name":"rb-new","type":"document","team_id":` + strconv.Itoa(d.teamA) + `}`
+	rec := reqAsUser(e, http.MethodPost, "/api/v1/runbooks", d.userA, body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("userA create in own team: got %d, want 201, body=%s", rec.Code, rec.Body.String())
+	}
+	// 回读：新 runbook 应归属 teamA（否则 list 会看不到，B26 未修复）。
+	rb, err := d.c.Runbook.Query().Where(entrunbook.NameEQ("rb-new")).WithTeam().Only(t.Context())
+	if err != nil {
+		t.Fatalf("reload rb-new: %v", err)
+	}
+	if rb.Edges.Team == nil || rb.Edges.Team.ID != d.teamA {
+		t.Errorf("rb-new team ownership not set to teamA (B26 not fixed)")
+	}
+}
+
+// TestIsolation_CreateOtherTeam_403 userA 给 teamB 建 runbook → 403 且不落库（B26 越权占位）。
+func TestIsolation_CreateOtherTeam_403(t *testing.T) {
+	d := isoSetup(t)
+	e := newIsolatedHandler(d)
+	body := `{"name":"rb-cross","type":"document","team_id":` + strconv.Itoa(d.teamB) + `}`
+	rec := reqAsUser(e, http.MethodPost, "/api/v1/runbooks", d.userA, body)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("userA create in teamB: got %d, want 403 (cross-team create isolation FAILED)", rec.Code)
+	}
+	if exist, err := d.c.Runbook.Query().Where(entrunbook.NameEQ("rb-cross")).Exist(t.Context()); err != nil {
+		t.Fatalf("check rb-cross exist: %v", err)
+	} else if exist {
+		t.Error("rb-cross created despite 403 (403-but-persisted bug)")
+	}
+}

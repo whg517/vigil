@@ -212,3 +212,37 @@ func TestIsolation_OrgWideUserSeesAll(t *testing.T) {
 		t.Errorf("org-wide userA should access teamB policy, got %d", rec.Code)
 	}
 }
+
+// TestIsolation_CreateOwnTeamPolicy_OK userA 给自己 team 建策略 → 201 且落 team 归属（B26）。
+func TestIsolation_CreateOwnTeamPolicy_OK(t *testing.T) {
+	d := isoSetup(t)
+	e := newIsolatedHandler(d)
+	body := `{"name":"pol-new","team_id":` + strconv.Itoa(d.teamA) + `}`
+	rec := reqAsUser(e, http.MethodPost, "/api/v1/escalation-policies", d.userA, body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("userA create in own team: got %d, want 201, body=%s", rec.Code, rec.Body.String())
+	}
+	p, err := d.c.EscalationPolicy.Query().Where(entpolicy.NameEQ("pol-new")).WithTeam().Only(t.Context())
+	if err != nil {
+		t.Fatalf("reload pol-new: %v", err)
+	}
+	if p.Edges.Team == nil || p.Edges.Team.ID != d.teamA {
+		t.Errorf("pol-new team ownership not set to teamA (B26 not fixed)")
+	}
+}
+
+// TestIsolation_CreateOtherTeamPolicy_403 userA 给 teamB 建策略 → 403 且不落库（B26 越权占位）。
+func TestIsolation_CreateOtherTeamPolicy_403(t *testing.T) {
+	d := isoSetup(t)
+	e := newIsolatedHandler(d)
+	body := `{"name":"pol-cross","team_id":` + strconv.Itoa(d.teamB) + `}`
+	rec := reqAsUser(e, http.MethodPost, "/api/v1/escalation-policies", d.userA, body)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("userA create in teamB: got %d, want 403 (cross-team create isolation FAILED)", rec.Code)
+	}
+	if exist, err := d.c.EscalationPolicy.Query().Where(entpolicy.NameEQ("pol-cross")).Exist(t.Context()); err != nil {
+		t.Fatalf("check pol-cross exist: %v", err)
+	} else if exist {
+		t.Error("pol-cross created despite 403 (403-but-persisted bug)")
+	}
+}

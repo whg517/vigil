@@ -2298,6 +2298,10 @@ const docTemplate = `{
                     },
                     "repeat_times": {
                         "type": "integer"
+                    },
+                    "team_id": {
+                        "description": "归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。",
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -3215,6 +3219,10 @@ const docTemplate = `{
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "team_id": {
+                        "description": "归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。",
+                        "type": "integer"
                     },
                     "trigger": {
                         "additionalProperties": {},

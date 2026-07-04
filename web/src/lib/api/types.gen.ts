@@ -6753,6 +6753,8 @@ export interface components {
             levels?: components["schemas"]["schema.EscalationLevel"][];
             name?: string;
             repeat_times?: number;
+            /** @description 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。 */
+            team_id?: number;
         };
         "escalation.updateReq": {
             levels?: components["schemas"]["schema.EscalationLevel"][];
@@ -7090,6 +7092,8 @@ export interface components {
             content_markdown?: string;
             name?: string;
             steps?: components["schemas"]["schema.RunbookStep"][];
+            /** @description 归属团队（B26）：不设则为无主资源，team 级用户按 SEC-01 过滤后 list 看不到。 */
+            team_id?: number;
             trigger?: {
                 [key: string]: unknown;
             };
