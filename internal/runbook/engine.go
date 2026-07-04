@@ -253,12 +253,15 @@ func (e *Engine) executeStep(ctx context.Context, step schema.RunbookStep, appro
 	}
 	output, err := executor.Execute(ctx, step.Action.Target, step.Action.Params)
 	sr.Duration = time.Since(start)
+	// 无条件保留执行器返回的结构化输出：HTTP 状态码≥400 等失败时执行器会同时返回
+	// result（含 status_code/body）和 error，若只记 error 就丢了状态码/响应体等诊断信息，
+	// 前端只剩一句 "http 500" 无从定位（强化 FIX-E）。故先透传 output，再按成败设 Error。
+	sr.Output = output
 	if err != nil {
 		sr.Error = err.Error()
 		return sr
 	}
 	sr.Success = true
-	sr.Output = output
 	return sr
 }
 

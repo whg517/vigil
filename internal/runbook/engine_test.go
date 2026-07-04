@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/kevin/vigil/ent"
@@ -150,6 +151,52 @@ func TestExecute_WriteBypass_ConfigNoApproval(t *testing.T) {
 	}
 	if len(res.Steps) != 1 || !res.Steps[0].Skipped {
 		t.Fatalf("expected step skipped (write without approval), got %+v", res.Steps)
+	}
+}
+
+// TestExecute_FailedStepKeepsStructuredOutput 强化 FIX-E：某步执行失败（HTTP≥400）时，
+// StepResult 除 Error 外还应保留执行器返回的结构化 Output（含 status_code/body），
+// 否则前端只看到一句 "http 500" 无从定位。
+func TestExecute_FailedStepKeepsStructuredOutput(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"msg":"boom"}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t)
+	rb := createExecRunbook(t, c, []schema.RunbookStep{
+		{
+			ID: "s1", Name: "查依赖服务",
+			Action: schema.StepAction{
+				Type:   "diagnose",
+				Target: schema.StepTarget{Kind: "http", Endpoint: srv.URL, Readonly: true},
+			},
+			OnFailure: "continue",
+		},
+	})
+	eng := NewEngine(c, newTestRegistry())
+
+	res, err := eng.Execute(context.Background(), rb.ID, 0, true, 0)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(res.Steps) != 1 {
+		t.Fatalf("expected 1 step, got %d", len(res.Steps))
+	}
+	sr := res.Steps[0]
+	if sr.Success {
+		t.Fatal("HTTP 500 步骤不应标记为 Success")
+	}
+	if sr.Error == "" {
+		t.Error("失败步骤应有 Error")
+	}
+	// ★ 核心断言：失败分支必须保留结构化 Output，且含 status_code
+	if sr.Output == "" {
+		t.Fatal("FIX-E: 失败步骤 Output 不应为空（丢了状态码/响应体诊断信息）")
+	}
+	if !strings.Contains(sr.Output, `"status_code":500`) {
+		t.Errorf("FIX-E: Output 应含 status_code:500，got %q", sr.Output)
 	}
 }
 

@@ -293,6 +293,7 @@ function StepResultRow({ step, index }: { step: RunbookStepResult; index: number
   // 三态：跳过（写步骤被阻断，未获批）> 失败 > 成功。
   const skipped = step.skipped;
   const failed = !skipped && !step.success;
+  // 成功/跳过只有一条信息用 detail 渲染；失败则单独渲染 error + output（见下）。
   const detail = failed ? step.error : step.output;
   return (
     <li className="rounded-md border p-2">
@@ -317,10 +318,27 @@ function StepResultRow({ step, index }: { step: RunbookStepResult; index: number
         )}
         <span className="ml-auto text-[10px] text-muted-foreground">{formatDuration(step.duration)}</span>
       </div>
-      {detail && (
-        <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-[11px] text-muted-foreground">
-          {detail}
-        </pre>
+      {failed ? (
+        // 失败时同时展示 error（一句话原因）与 output（执行器返回的结构化诊断，
+        // 如 HTTP status_code/body）；只显 error 会丢掉状态码/响应体等定位信息（强化 FIX-E）。
+        <>
+          {step.error && (
+            <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-destructive/10 p-2 text-[11px] text-destructive">
+              {step.error}
+            </pre>
+          )}
+          {step.output && (
+            <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-[11px] text-muted-foreground">
+              {step.output}
+            </pre>
+          )}
+        </>
+      ) : (
+        detail && (
+          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 text-[11px] text-muted-foreground">
+            {detail}
+          </pre>
+        )
       )}
     </li>
   );

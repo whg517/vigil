@@ -98,3 +98,30 @@ func TestHTTPExecutor_StructuredOutput(t *testing.T) {
 		t.Errorf("output should contain 200, got %q", out)
 	}
 }
+
+// TestHTTPExecutor_ErrorStatusKeepsOutput 强化 FIX-E：HTTP 状态码≥400 时，Execute
+// 应同时返回 error 与结构化 output（含 status_code/body），供上层透传到 StepResult.Output，
+// 让前端在失败时仍能看到状态码/响应体，而非只有一句 error。
+func TestHTTPExecutor_ErrorStatusKeepsOutput(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"msg":"boom"}`))
+	}))
+	defer srv.Close()
+
+	h := NewHTTPExecutor()
+	h.SetAllowPrivate(true) // httptest 绑定 127.0.0.1
+	out, err := h.Execute(context.Background(), schema.StepTarget{Kind: "http", Endpoint: srv.URL, Readonly: true}, nil)
+	if err == nil {
+		t.Fatal("HTTP 500 应返回 error")
+	}
+	if out == "" {
+		t.Fatal("FIX-E: 失败时 output 不应为空（含状态码/响应体的结构化诊断）")
+	}
+	if !strings.Contains(out, `"status_code":500`) {
+		t.Errorf("FIX-E: output 应含 status_code:500，got %q", out)
+	}
+	if !strings.Contains(out, "boom") {
+		t.Errorf("output 应含响应体 body，got %q", out)
+	}
+}
