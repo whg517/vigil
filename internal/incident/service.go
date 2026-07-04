@@ -41,6 +41,11 @@ var ErrInvalidTransition = errors.New("invalid incident status transition")
 // ErrNotFound Incident 不存在。
 var ErrNotFound = errors.New("incident not found")
 
+// ErrAlreadyClosed Incident 已是 closed 终态。
+// 与 ErrInvalidTransition 区分：closed 是幂等友好的终态——重复 close 不该被当成「非法转换」报错，
+// 而应让调用方（如复盘发布联动）识别为「已收口」无操作跳过。故单列哨兵供 errors.Is 判定。
+var ErrAlreadyClosed = errors.New("incident already closed")
+
 // Source 动作来源，决定时间线 source 字段与回调语义。
 type Source string
 
@@ -49,6 +54,7 @@ const (
 	SourceIM      Source = "im"
 	SourceAPI     Source = "api"
 	SourceRunbook Source = "runbook" // Runbook on_failure=escalate 自动触发
+	SourceSystem  Source = "system"  // 系统联动触发（如复盘发布 → close），时间线 source 记 system
 )
 
 // Service 事件动作领域服务。
@@ -69,6 +75,7 @@ type Action string
 const (
 	ActionAck          Action = "ack"
 	ActionResolve      Action = "resolve"
+	ActionClose        Action = "close"
 	ActionReopen       Action = "reopen"
 	ActionEscalate     Action = "escalate"
 	ActionAddResponder Action = "add_responder"
@@ -142,6 +149,45 @@ func (s *Service) Resolve(ctx context.Context, incID int, actorID int, src Sourc
 	s.record(ctx, inc, timelineitem.TypeResolved, actorID, src,
 		fmt.Sprintf("%s 解决了事件", actorLabel(actorID)), map[string]any{"status": "resolved"})
 	s.publish(ctx, event.IncidentResolved, inc, ActionResolve, actorID, src)
+	return inc, nil
+}
+
+// Close 关闭事件：resolved → closed（进入终态）。
+//
+// 状态机约束：closed 是终态，唯一入边是 resolved → closed（见 data-model.md 状态机）。
+// 非 resolved 状态直接 close 属非法转换（如 triggered 未处置就归档），返回 ErrInvalidTransition。
+// 已 closed 幂等返回 ErrAlreadyClosed（供复盘发布联动等调用方识别「已收口」跳过，不当失败处理）。
+//
+// 触发路径：① Web/IM 人工点「关闭」；② 复盘发布联动（复盘 published → 关联 incident 收口）。
+// 与 resolve 分离的意义：resolved 表示「问题已处理」，closed 表示「复盘/归档完成，不再变更」——
+// 补 closed 终态可达，才让单据生命周期真正闭合，而非永远停在 resolved。
+func (s *Service) Close(ctx context.Context, incID int, actorID int, src Source) (*ent.Incident, error) {
+	inc, err := s.db.Incident.Get(ctx, incID)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get incident: %w", err)
+	}
+	st := incident.Status(inc.Status)
+	if st == incident.StatusClosed {
+		return nil, ErrAlreadyClosed
+	}
+	if st != incident.StatusResolved {
+		return nil, fmt.Errorf("%w: close from %s", ErrInvalidTransition, st)
+	}
+
+	inc, err = s.db.Incident.UpdateOneID(inc.ID).
+		SetStatus(incident.StatusClosed).
+		Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("update incident: %w", err)
+	}
+
+	// 记 status_changed 时间线（closed 无独立 timeline type，复用状态变更条目，detail.status 标注终态）。
+	s.record(ctx, inc, timelineitem.TypeStatusChanged, actorID, src,
+		fmt.Sprintf("%s 关闭了事件", actorLabel(actorID)), map[string]any{"status": "closed"})
+	s.publish(ctx, event.IncidentClosed, inc, ActionClose, actorID, src)
 	return inc, nil
 }
 

@@ -15,6 +15,7 @@ const (
 	PermIncidentAck          Permission = "incident.ack"
 	PermIncidentEscalate     Permission = "incident.escalate"
 	PermIncidentResolve      Permission = "incident.resolve"
+	PermIncidentClose        Permission = "incident.close"
 	PermIncidentReopen       Permission = "incident.reopen"
 	PermIncidentReassign     Permission = "incident.reassign"
 	PermIncidentSnooze       Permission = "incident.snooze"
@@ -124,7 +125,7 @@ const (
 // 角色配置权限时，必须从此集合中选取。
 var AllPermissions = []Permission{
 	PermIncidentView, PermIncidentCreate, PermIncidentAck, PermIncidentEscalate,
-	PermIncidentResolve, PermIncidentReopen, PermIncidentReassign, PermIncidentSnooze,
+	PermIncidentResolve, PermIncidentClose, PermIncidentReopen, PermIncidentReassign, PermIncidentSnooze,
 	PermIncidentAddResponder, PermIncidentRunbookExec, PermIncidentDelete,
 	PermEventView, PermEventViewUnrouted,
 	PermServiceView, PermServiceCreate, PermServiceUpdate, PermServiceDelete, PermServiceRouteOverride,

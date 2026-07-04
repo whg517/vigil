@@ -43,7 +43,7 @@ var builtinRoles = []struct {
 			"runbook.view", "runbook.create", "runbook.update", "runbook.delete", "runbook.execute",
 			// 事件全管理（团队范围内）
 			"incident.view", "incident.create", "incident.ack", "incident.escalate",
-			"incident.resolve", "incident.reopen", "incident.reassign", "incident.snooze",
+			"incident.resolve", "incident.close", "incident.reopen", "incident.reassign", "incident.snooze",
 			"incident.add_responder", "incident.runbook.execute",
 			// AI 建议采纳/拒绝（处置级，非只读）
 			"ai.insight.resolve",
@@ -83,7 +83,7 @@ var builtinRoles = []struct {
 		Scope:       role.ScopeLevelTeam,
 		Permissions: []string{
 			"incident.view", "incident.ack", "incident.escalate", "incident.resolve",
-			"incident.reopen", "incident.reassign", "incident.snooze", "incident.add_responder",
+			"incident.close", "incident.reopen", "incident.reassign", "incident.snooze", "incident.add_responder",
 			"incident.runbook.execute",
 			"event.view",
 			"runbook.view", "runbook.execute",

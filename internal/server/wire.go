@@ -16,6 +16,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -221,6 +222,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		domainevent.IncidentCreated,
 		domainevent.IncidentAcked,
 		domainevent.IncidentResolved,
+		domainevent.IncidentClosed,
 		domainevent.IncidentReopened,
 		domainevent.IncidentEscalated,
 		domainevent.IncidentResponderAdded,
@@ -335,6 +337,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	if glmProvider.Available() {
 		postmortemEngine.SetEmbedder(glmProvider) // 知识沉淀：published 复盘计算 embedding
 	}
+	// 复盘发布 → 关联 incident 推进到 closed 终态（收口闭环）。
+	// 走 incService.Close（同一状态机/时间线/领域事件），复盘不反向依赖 incident 包。
+	postmortemEngine.SetIncidentCloser(incidentCloser{inc: incService})
 	postmortemH := postmortem.NewHandler(st.DB, postmortemEngine)
 	postmortemH.SetAuthorizer(authz)
 	postmortemH.SetScopeResolver(scopeResolver)
@@ -647,6 +652,22 @@ func (r runbookEscalator) Trigger(ctx context.Context, incID int, reason string,
 	return err
 }
 
+// incidentCloser 实现 postmortem.IncidentCloser，包装 incident.Service.Close。
+// 复盘发布（→published）时联动把关联 incident 从 resolved 推进到 closed 终态。
+// 幂等：已 closed（ErrAlreadyClosed）视为成功无操作——复盘可能被重复发布/联动，
+// 不该因「已收口」把幂等场景当失败上抛，避免 best-effort 联动误记错误日志。
+type incidentCloser struct {
+	inc *incident.Service
+}
+
+func (c incidentCloser) Close(ctx context.Context, incID int, actorID int) error {
+	_, err := c.inc.Close(ctx, incID, actorID, incident.SourceSystem)
+	if errors.Is(err, incident.ErrAlreadyClosed) {
+		return nil // 已 closed：幂等成功
+	}
+	return err
+}
+
 // imMapperResolver 把 im.Mapper 适配成 auth.IMAccountResolver（QA 审计 C6）。
 // im.Mapper.ListBindings 返回 []im.IMBindingView，这里转成 []auth.IMAccountInfo。
 type imMapperResolver struct {
@@ -691,6 +712,7 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	// incident 生命周期操作（M6.5 手动升级等）
 	g.RoutePerm(http.MethodPost, "/incidents/:id/ack", auth.PermIncidentAck)
 	g.RoutePerm(http.MethodPost, "/incidents/:id/resolve", auth.PermIncidentResolve)
+	g.RoutePerm(http.MethodPost, "/incidents/:id/close", auth.PermIncidentClose)
 	g.RoutePerm(http.MethodPost, "/incidents/:id/escalate", auth.PermIncidentEscalate)
 	g.RoutePerm(http.MethodPost, "/incidents/:id/reopen", auth.PermIncidentReopen)
 	// 排班写操作 + override（M5.3）

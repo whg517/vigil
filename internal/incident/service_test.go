@@ -8,6 +8,7 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/enttest"
 	"github.com/kevin/vigil/ent/incident"
+	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/timeline"
 
@@ -123,6 +124,132 @@ func TestResolve_Twice(t *testing.T) {
 	_, err := svc.Resolve(context.Background(), inc.ID, 1, SourceWeb)
 	if err == nil {
 		t.Fatal("expected ErrInvalidTransition, got nil")
+	}
+}
+
+// TestClose_FromResolved resolved → closed，写 status_changed 时间线，发 IncidentClosed 事件。
+func TestClose_FromResolved(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusResolved)
+	user, err := c.User.Create().SetUsername("closer").SetEmail("closer@x.com").Save(context.Background())
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	rec := timeline.NewRecorder(c)
+	bus := event.New()
+	svc := NewService(c, rec, bus)
+
+	// 订阅 IncidentClosed，断言事件被发布。
+	var gotAction Action
+	var gotActorID int
+	var gotStatus incident.Status
+	bus.Subscribe(event.IncidentClosed, func(_ context.Context, e event.Event) error {
+		gotAction = Action(e.Action)
+		gotActorID = e.ActorID
+		if e.Incident != nil {
+			gotStatus = incident.Status(e.Incident.Status)
+		}
+		return nil
+	})
+
+	updated, err := svc.Close(context.Background(), inc.ID, user.ID, SourceWeb)
+	if err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if updated.Status != incident.StatusClosed {
+		t.Errorf("status: got %s, want closed", updated.Status)
+	}
+	if gotAction != ActionClose {
+		t.Errorf("event action: got %s, want %s", gotAction, ActionClose)
+	}
+	if gotActorID != user.ID {
+		t.Errorf("event actor id: got %d, want %d", gotActorID, user.ID)
+	}
+	if gotStatus != incident.StatusClosed {
+		t.Errorf("event incident status: got %s, want closed", gotStatus)
+	}
+	// 应写一条 status_changed 时间线，detail.status=closed
+	items, err := rec.Query(context.Background(), inc.ID, timelineitem.TypeStatusChanged, "", 10, 0)
+	if err != nil {
+		t.Fatalf("query timeline: %v", err)
+	}
+	var foundClosed bool
+	for _, it := range items {
+		if s, _ := it.Detail["status"].(string); s == "closed" {
+			foundClosed = true
+		}
+	}
+	if !foundClosed {
+		t.Error("no status_changed timeline item with detail.status=closed")
+	}
+}
+
+// TestClose_FromTriggered 非 resolved 状态（triggered）直接 close 应被状态机拒绝。
+func TestClose_FromTriggered(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusTriggered)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+
+	_, err := svc.Close(context.Background(), inc.ID, 1, SourceWeb)
+	if err == nil {
+		t.Fatal("expected ErrInvalidTransition, got nil")
+	}
+	if !errors.Is(err, ErrInvalidTransition) {
+		t.Errorf("expected ErrInvalidTransition, got %v", err)
+	}
+	// 状态不应被改动
+	got, _ := c.Incident.Get(context.Background(), inc.ID)
+	if got.Status != incident.StatusTriggered {
+		t.Errorf("status changed on invalid close: got %s, want triggered", got.Status)
+	}
+}
+
+// TestClose_FromAcked acked 直接 close（跳过 resolved）也应被拒绝。
+func TestClose_FromAcked(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusAcked)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+
+	_, err := svc.Close(context.Background(), inc.ID, 1, SourceWeb)
+	if !errors.Is(err, ErrInvalidTransition) {
+		t.Errorf("expected ErrInvalidTransition, got %v", err)
+	}
+}
+
+// TestClose_Idempotent 已 closed 再 close 返回 ErrAlreadyClosed（幂等哨兵），非普通非法转换。
+func TestClose_Idempotent(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusClosed)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+
+	_, err := svc.Close(context.Background(), inc.ID, 1, SourceWeb)
+	if !errors.Is(err, ErrAlreadyClosed) {
+		t.Errorf("expected ErrAlreadyClosed, got %v", err)
+	}
+}
+
+// TestClose_NotFound 不存在的 incident 返回 ErrNotFound。
+func TestClose_NotFound(t *testing.T) {
+	c := newClient(t)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+	_, err := svc.Close(context.Background(), 9999, 1, SourceWeb)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+// TestReopen_FromClosed closed 可 reopen 回 triggered（验证终态非死路：终态 + reopen 边）。
+func TestReopen_FromClosed(t *testing.T) {
+	c := newClient(t)
+	inc := seedIncident(t, c, incident.StatusClosed)
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+
+	updated, err := svc.Reopen(context.Background(), inc.ID, 1, SourceWeb)
+	if err != nil {
+		t.Fatalf("Reopen from closed: %v", err)
+	}
+	if updated.Status != incident.StatusTriggered {
+		t.Errorf("status: got %s, want triggered", updated.Status)
 	}
 }
 

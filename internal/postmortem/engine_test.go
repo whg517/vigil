@@ -246,6 +246,94 @@ func TestIsValidTransition(t *testing.T) {
 	}
 }
 
+// fakeCloser 记录 Close 调用并按 incident.Service.Close 语义推进 incident 状态。
+// resolved → closed；已 closed 幂等（返回 nil，不重复）；非 resolved 记录调用但不改状态（容错）。
+type fakeCloser struct {
+	c          *ent.Client
+	calledIncs []int
+}
+
+func (f *fakeCloser) Close(ctx context.Context, incID int, _ int) error {
+	f.calledIncs = append(f.calledIncs, incID)
+	inc, err := f.c.Incident.Get(ctx, incID)
+	if err != nil {
+		return err
+	}
+	if inc.Status == "closed" {
+		return nil // 幂等
+	}
+	if inc.Status != "resolved" {
+		return nil // 非 resolved：容错跳过（模拟 wire.go 吞掉非法转换）
+	}
+	return f.c.Incident.UpdateOneID(incID).SetStatus("closed").Exec(ctx)
+}
+
+// TestTransition_PublishClosesIncident 复盘发布（→published）联动把关联 resolved incident 推进到 closed。
+func TestTransition_PublishClosesIncident(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c) // resolved
+	eng := NewEngine(c, nil)
+	fc := &fakeCloser{c: c}
+	eng.SetIncidentCloser(fc)
+
+	pm, _ := eng.GenerateDraft(context.Background(), inc.ID)
+	if _, err := eng.Transition(context.Background(), pm.ID, postmortem.StatusInReview); err != nil {
+		t.Fatalf("→in_review: %v", err)
+	}
+	// in_review → published：应触发联动关闭 incident
+	if _, err := eng.Transition(context.Background(), pm.ID, postmortem.StatusPublished); err != nil {
+		t.Fatalf("→published: %v", err)
+	}
+	if len(fc.calledIncs) != 1 || fc.calledIncs[0] != inc.ID {
+		t.Errorf("closer 未按预期被调用: %v", fc.calledIncs)
+	}
+	got, _ := c.Incident.Get(context.Background(), inc.ID)
+	if got.Status != "closed" {
+		t.Errorf("incident status: got %q, want closed（复盘发布应联动收口）", got.Status)
+	}
+}
+
+// TestTransition_PublishNoCloserDoesNotBlock 未注入 closer 时发布不联动，也不报错（降级）。
+func TestTransition_PublishNoCloserDoesNotBlock(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c)
+	eng := NewEngine(c, nil) // 不注入 closer
+
+	pm, _ := eng.GenerateDraft(context.Background(), inc.ID)
+	if _, err := eng.Transition(context.Background(), pm.ID, postmortem.StatusInReview); err != nil {
+		t.Fatalf("→in_review: %v", err)
+	}
+	if _, err := eng.Transition(context.Background(), pm.ID, postmortem.StatusPublished); err != nil {
+		t.Fatalf("→published without closer: %v", err)
+	}
+	// 无联动：incident 停在 resolved（复盘照常发布）
+	got, _ := c.Incident.Get(context.Background(), inc.ID)
+	if got.Status != "resolved" {
+		t.Errorf("incident status: got %q, want resolved（无 closer 不应改动）", got.Status)
+	}
+}
+
+// TestTransition_NonPublishDoesNotClose 非发布流转（draft→in_review）不触发联动关闭。
+func TestTransition_NonPublishDoesNotClose(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c)
+	eng := NewEngine(c, nil)
+	fc := &fakeCloser{c: c}
+	eng.SetIncidentCloser(fc)
+
+	pm, _ := eng.GenerateDraft(context.Background(), inc.ID)
+	if _, err := eng.Transition(context.Background(), pm.ID, postmortem.StatusInReview); err != nil {
+		t.Fatalf("→in_review: %v", err)
+	}
+	if len(fc.calledIncs) != 0 {
+		t.Errorf("非发布流转不应调用 closer: %v", fc.calledIncs)
+	}
+	got, _ := c.Incident.Get(context.Background(), inc.ID)
+	if got.Status != "resolved" {
+		t.Errorf("incident status: got %q, want resolved", got.Status)
+	}
+}
+
 // TestFallbackImpact 验证无 AI 时影响估算（含持续时间）。
 func TestFallbackImpact(t *testing.T) {
 	c := newTestClient(t)

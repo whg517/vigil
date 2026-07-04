@@ -32,6 +32,10 @@ const (
 	IncidentEscalated Type = "incident.escalated"
 	// IncidentResolved Incident 被解决。
 	IncidentResolved Type = "incident.resolved"
+	// IncidentClosed Incident 被关闭（终态）。
+	// resolved → closed 是状态机唯一进入终态的边（人工 close 或复盘发布联动触发）。
+	// 补它是为了让「已解决」的单据能真正归档收口，而非停在 resolved 无处可去。
+	IncidentClosed Type = "incident.closed"
 	// IncidentReopened Incident 被重新打开。
 	IncidentReopened Type = "incident.reopened"
 	// IncidentResponderAdded 拉入响应者。

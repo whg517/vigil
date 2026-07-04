@@ -101,6 +101,81 @@ func TestHandler_AckNoUser_NoActor(t *testing.T) {
 	}
 }
 
+// closeTestHandler 建库 + 一个指定状态的 incident + 挂好路由的 echo，返回 (client, echo, incID)。
+func closeTestHandler(t *testing.T, dbName string, status incident.Status) (*ent.Client, *echo.Echo, int) {
+	t.Helper()
+	c := enttest.Open(t, "sqlite3", "file:"+dbName+"?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = c.Close() })
+	ctx := context.Background()
+	team, err := c.Team.Create().SetName("支付").SetSlug("pay").Save(ctx)
+	if err != nil {
+		t.Fatalf("create team: %v", err)
+	}
+	inc, err := c.Incident.Create().
+		SetNumber("INC-0001").SetTitle("5xx").SetSeverity(incident.SeverityCritical).
+		SetStatus(status).SetTeamID(team.ID).Save(ctx)
+	if err != nil {
+		t.Fatalf("create incident: %v", err)
+	}
+	svc := NewService(c, timeline.NewRecorder(c), nil)
+	h := NewHandler(c, svc)
+	e := echo.New()
+	h.Register(e.Group("/api/v1", auth.RequireUser(false, nil)))
+	return c, e, inc.ID
+}
+
+// TestHandler_Close_FromResolved resolved incident close 成功，返回 200 + status=closed。
+func TestHandler_Close_FromResolved(t *testing.T) {
+	c, e, incID := closeTestHandler(t, "close_handler_ok", incident.StatusResolved)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(incID)+"/close", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("close: got %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var got ent.Incident
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Status != incident.StatusClosed {
+		t.Errorf("status: got %s, want closed", got.Status)
+	}
+	// 落库确认
+	after, _ := c.Incident.Get(context.Background(), incID)
+	if after.Status != incident.StatusClosed {
+		t.Errorf("persisted status: got %s, want closed", after.Status)
+	}
+}
+
+// TestHandler_Close_FromTriggered 非 resolved（triggered）close 返回 400 failed_precondition。
+func TestHandler_Close_FromTriggered(t *testing.T) {
+	_, e, incID := closeTestHandler(t, "close_handler_bad", incident.StatusTriggered)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(incID)+"/close", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("close from triggered: got %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestHandler_Close_Idempotent 已 closed 再 close 幂等返回 200（不当 400 失败）。
+func TestHandler_Close_Idempotent(t *testing.T) {
+	_, e, incID := closeTestHandler(t, "close_handler_idem", incident.StatusClosed)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(incID)+"/close", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("close already-closed: got %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var got ent.Incident
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Status != incident.StatusClosed {
+		t.Errorf("status: got %s, want closed", got.Status)
+	}
+}
+
 // itoa 简单整数转字符串（避免引入 strconv 仅为此）。
 func itoa(n int) string {
 	const digits = "0123456789"

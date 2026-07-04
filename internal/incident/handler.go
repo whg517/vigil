@@ -59,6 +59,7 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/incidents/:id", h.get)
 	g.POST("/incidents/:id/ack", h.ack)
 	g.POST("/incidents/:id/resolve", h.resolve)
+	g.POST("/incidents/:id/close", h.close)
 	g.POST("/incidents/:id/escalate", h.escalate)
 	g.POST("/incidents/:id/reopen", h.reopen)
 }
@@ -238,6 +239,40 @@ func (h *Handler) resolve(c *echo.Context) error {
 	}
 	inc, err := h.svc.Resolve(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
+		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
+	}
+	return c.JSON(http.StatusOK, inc)
+}
+
+// close 关闭事件（推进到终态 closed）。
+//
+// @Summary      关闭事件（close）
+// @Description  把 resolved 事件推进到终态 closed；非 resolved 状态（含 triggered/acked/escalated）关闭返回 400。
+// @Tags         incident
+// @Produce      json
+// @Param        id   path     int  true  "事件 ID"
+// @Success      200  {object} ent.Incident
+// @Failure      400  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id}/close [post]
+func (h *Handler) close(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermIncidentClose); e != nil {
+		return e
+	}
+	inc, err := h.svc.Close(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
+	if err != nil {
+		// 已 closed 幂等：不当失败——直接回读当前单据以 200 返回，让重复点击/并发关闭表现一致。
+		if errors.Is(err, ErrAlreadyClosed) {
+			cur, gerr := h.db.Incident.Get(c.Request().Context(), id)
+			if gerr != nil {
+				return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
+			}
+			return c.JSON(http.StatusOK, cur)
+		}
 		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
 	}
 	return c.JSON(http.StatusOK, inc)

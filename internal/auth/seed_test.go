@@ -114,6 +114,43 @@ func TestSeed_SubscriberReadOnly(t *testing.T) {
 	}
 }
 
+// TestPermIncidentClose_Valid 新增权限点 incident.close 应在 AllPermissions 内（IsValid）。
+func TestPermIncidentClose_Valid(t *testing.T) {
+	if !PermIncidentClose.IsValid() {
+		t.Error("incident.close 应是合法权限点（未登记到 AllPermissions?）")
+	}
+}
+
+// TestSeed_IncidentCloseGrants 验证 incident.close 授予处置负责人类角色，未泄漏给只读干系人。
+// 补 closed 终态时新增的权限点：team_admin/responder_lead/org_admin 可关闭，subscriber 不可。
+func TestSeed_IncidentCloseGrants(t *testing.T) {
+	c := newSeedTestClient(t)
+	ctx := context.Background()
+	_ = SeedBuiltinRoles(ctx, c)
+
+	has := func(roleName, perm string) bool {
+		rl, err := c.Role.Query().Where(role.NameEQ(roleName)).Only(ctx)
+		if err != nil {
+			t.Fatalf("get role %q: %v", roleName, err)
+		}
+		for _, p := range rl.Permissions {
+			if p == perm {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, r := range []string{"team_admin", "responder_lead", "org_admin"} {
+		if !has(r, "incident.close") {
+			t.Errorf("%s 应拥有 incident.close", r)
+		}
+	}
+	if has("subscriber", "incident.close") {
+		t.Error("subscriber 只读角色不应拥有 incident.close")
+	}
+}
+
 // TestSeed_ScopeLevel 验证 org_admin 是 org 级，其他是 team 级。
 func TestSeed_ScopeLevel(t *testing.T) {
 	c := newSeedTestClient(t)

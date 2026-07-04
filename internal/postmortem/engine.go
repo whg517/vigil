@@ -44,11 +44,23 @@ type Embedder interface {
 	Embed(ctx context.Context, text string) ([]float32, error)
 }
 
+// IncidentCloser 复盘发布联动关闭 incident 的接口（由 incident.Service.Close 适配注入）。
+//
+// 为什么用接口而非直接依赖 incident.Service：postmortem 不反向依赖 incident 包，
+// 避免构建期依赖环——与 runbook→incident 升级触发同款解耦（见 wire.go runbookEscalator）。
+// nil 时复盘发布不联动关闭 incident（降级：单据仍停 resolved，需人工 close）。
+type IncidentCloser interface {
+	// Close 把 incID 推进到 closed 终态。actorID 为发起人（0=系统）。
+	// 幂等语义由实现方保证：已 closed / 非 resolved 时不应阻断复盘发布（best-effort）。
+	Close(ctx context.Context, incID int, actorID int) error
+}
+
 // Engine 复盘引擎。
 type Engine struct {
 	db       *ent.Client
-	llm      LLMProvider // 可为 nil（无 AI 时降级）
-	embedder Embedder    // 可为 nil（无 embedding 时 published 不入库检索）
+	llm      LLMProvider    // 可为 nil（无 AI 时降级）
+	embedder Embedder       // 可为 nil（无 embedding 时 published 不入库检索）
+	closer   IncidentCloser // 可为 nil（无联动时 published 不自动关闭 incident）
 }
 
 // NewEngine 创建复盘引擎。llm 可为 nil。
@@ -59,6 +71,11 @@ func NewEngine(db *ent.Client, llm LLMProvider) *Engine {
 // SetEmbedder 注入向量化器（main 装配时调用）。
 // 配置后 published 复盘计算 embedding 入库，供知识沉淀检索（M12.6）。
 func (e *Engine) SetEmbedder(em Embedder) { e.embedder = em }
+
+// SetIncidentCloser 注入 incident 关闭器（main 装配时调用）。
+// 配置后复盘发布（→published）联动把关联 incident 从 resolved 推进到 closed 终态，
+// 实现「复盘完成 → 单据收口」闭环。未注入时降级为不联动（单据停 resolved）。
+func (e *Engine) SetIncidentCloser(c IncidentCloser) { e.closer = c }
 
 // GenerateDraft 为某 Incident 生成复盘草稿。
 // 流程：取事件 + 时间线 → 填 timeline 章节 → AI/规则填其他章节 → 落 Postmortem。
@@ -204,7 +221,35 @@ func (e *Engine) Transition(ctx context.Context, pmID int, target postmortem.Sta
 	if target == postmortem.StatusPublished && e.embedder != nil {
 		_ = e.ensurePublishedEmbedding(ctx, pm)
 	}
+	// 单据收口（closed 终态联动）：复盘发布 → 关联 incident 从 resolved 推进到 closed。
+	// best-effort：关闭失败/已 closed/不在 resolved 都不阻断复盘发布（closeLinkedIncident 内部容错）。
+	if target == postmortem.StatusPublished && e.closer != nil {
+		e.closeLinkedIncident(ctx, pm)
+	}
 	return pm, nil
+}
+
+// closeLinkedIncident 复盘发布时把关联 incident 推进到 closed 终态（best-effort）。
+//
+// 容错要点（不阻断复盘发布）：
+//   - 查不到关联 incident：跳过（复盘可能无 incident 边，理论上不该发生但防御）。
+//   - incident 不在 resolved（如已 closed、或被 reopen 回 triggered）：Close 内部按状态机处理，
+//     已 closed 返回 ErrAlreadyClosed（幂等无操作），其它非法转换仅记日志不上抛。
+//
+// 联动是「复盘完成 → 收口」的锦上添花，绝不能因关闭失败让复盘卡在无法发布。
+func (e *Engine) closeLinkedIncident(ctx context.Context, pm *ent.Postmortem) {
+	inc, err := pm.QueryIncident().Only(ctx)
+	if err != nil {
+		// 无关联 incident 或查询失败：不阻断，仅当无联动。
+		return
+	}
+	// actorID=0：复盘发布联动属系统触发，time line/事件 actor 记为系统。
+	if cerr := e.closer.Close(ctx, inc.ID, 0); cerr != nil {
+		// ErrAlreadyClosed（幂等）与其它非法转换均视为「无需/无法收口」，best-effort 忽略。
+		// closer 实现（wire.go incidentCloser）已把 ErrAlreadyClosed 吞掉返回 nil，
+		// 走到这里的多是「incident 不在 resolved」等场景，静默即可（复盘已发布成功）。
+		_ = cerr
+	}
 }
 
 // ensurePublishedEmbedding 计算复盘内容的 embedding 并回写。
