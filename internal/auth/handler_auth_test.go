@@ -151,7 +151,7 @@ func TestRefresh_ValidRefresh(t *testing.T) {
 	e := echo.New()
 	e.POST("/api/v1/auth/refresh", h.refresh)
 
-	refresh, _ := s.GenerateRefreshToken(1)
+	refresh, _ := s.GenerateRefreshToken(1, 0)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, postJSON("/api/v1/auth/refresh", refreshReq{RefreshToken: refresh}))
 	if rec.Code != http.StatusOK {
@@ -174,7 +174,7 @@ func TestRefresh_DisabledUser(t *testing.T) {
 	e.POST("/api/v1/auth/refresh", h.refresh)
 
 	bob, _ := c.User.Query().Where(user.UsernameEQ("bob")).Only(context.Background())
-	refresh, _ := s.GenerateRefreshToken(bob.ID)
+	refresh, _ := s.GenerateRefreshToken(bob.ID, 0)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, postJSON("/api/v1/auth/refresh", refreshReq{RefreshToken: refresh}))
 	if rec.Code != http.StatusUnauthorized {
@@ -190,7 +190,7 @@ func TestRefresh_UserDeleted(t *testing.T) {
 	e := echo.New()
 	e.POST("/api/v1/auth/refresh", h.refresh)
 
-	refresh, _ := s.GenerateRefreshToken(9999) // 无此用户
+	refresh, _ := s.GenerateRefreshToken(9999, 0) // 无此用户
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, postJSON("/api/v1/auth/refresh", refreshReq{RefreshToken: refresh}))
 	if rec.Code != http.StatusUnauthorized {
@@ -206,7 +206,7 @@ func TestRefresh_WithAccessToken(t *testing.T) {
 	e := echo.New()
 	e.POST("/api/v1/auth/refresh", h.refresh)
 
-	access, _ := s.GenerateAccessToken(1, "alice")
+	access, _ := s.GenerateAccessToken(1, "alice", 0)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, postJSON("/api/v1/auth/refresh", refreshReq{RefreshToken: access}))
 	if rec.Code != http.StatusUnauthorized {
@@ -329,6 +329,89 @@ func TestChangePassword_Success(t *testing.T) {
 	}
 	if updated.MustChangePassword {
 		t.Error("must_change_password not cleared after change")
+	}
+}
+
+// TestChangePassword_RevokesOldTokens 改密后 token_version 自增，旧 access/refresh 立即失效（T0.4）。
+// 覆盖核心安全属性：改密前签发的 token 在改密后被 resolver（access）与 refresh 端点判为吊销。
+func TestChangePassword_RevokesOldTokens(t *testing.T) {
+	c := newAuthTestClient(t) // alice 密码 "pw"，token_version=0
+	s := newTestSigner1m()
+	h := NewAuthHandler(c, s)
+	ctx := context.Background()
+	alice, _ := c.User.Query().Where(user.UsernameEQ("alice")).Only(ctx)
+
+	// 改密前用当前版本（0）签发 access + refresh。
+	oldAccess, _ := s.GenerateAccessToken(alice.ID, alice.Username, alice.TokenVersion)
+	oldRefresh, _ := s.GenerateRefreshToken(alice.ID, alice.TokenVersion)
+
+	// 改密前：resolver 认可旧 access。
+	resolver := NewIdentityResolver(s, nil, false, c)
+	hdr := http.Header{}
+	hdr.Set("Authorization", "Bearer "+oldAccess)
+	if uid, ok := resolver.Resolve(ctx, hdr); !ok || uid != alice.ID {
+		t.Fatalf("改密前旧 access 应有效: uid=%d ok=%v", uid, ok)
+	}
+
+	// 执行改密。
+	e := echo.New()
+	e.POST("/api/v1/auth/change-password", h.changePassword, RequireUser(true, nil))
+	req := postJSON("/api/v1/auth/change-password",
+		changePasswordReq{OldPassword: "pw", NewPassword: "alice-new-123"})
+	req.Header.Set("X-Vigil-User-ID", strconv.Itoa(alice.ID))
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("改密 status %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+
+	// token_version 应已自增。
+	updated, _ := c.User.Get(ctx, alice.ID)
+	if updated.TokenVersion != alice.TokenVersion+1 {
+		t.Errorf("token_version=%d, want %d", updated.TokenVersion, alice.TokenVersion+1)
+	}
+
+	// 改密后：旧 access 被 resolver 判为吊销（版本不匹配）。
+	if _, ok := resolver.Resolve(ctx, hdr); ok {
+		t.Error("改密后旧 access 仍有效，应被吊销")
+	}
+
+	// 改密后：旧 refresh 换 access → 401（版本不匹配）。
+	er := echo.New()
+	er.POST("/api/v1/auth/refresh", h.refresh)
+	rrec := httptest.NewRecorder()
+	er.ServeHTTP(rrec, postJSON("/api/v1/auth/refresh", refreshReq{RefreshToken: oldRefresh}))
+	if rrec.Code != http.StatusUnauthorized {
+		t.Errorf("改密后旧 refresh status %d, want 401; body=%s", rrec.Code, rrec.Body.String())
+	}
+
+	// 用新密码重新登录，换发的 token 版本与库一致 → resolver 认可。
+	el := echo.New()
+	el.POST("/api/v1/auth/login", h.login)
+	lrec := httptest.NewRecorder()
+	el.ServeHTTP(lrec, postJSON("/api/v1/auth/login", loginReq{Username: "alice", Password: "alice-new-123"}))
+	if lrec.Code != http.StatusOK {
+		t.Fatalf("改密后重新登录 status %d, want 200; body=%s", lrec.Code, lrec.Body.String())
+	}
+	var lresp loginResp
+	_ = json.Unmarshal(lrec.Body.Bytes(), &lresp)
+	nhdr := http.Header{}
+	nhdr.Set("Authorization", "Bearer "+lresp.AccessToken)
+	if uid, ok := resolver.Resolve(ctx, nhdr); !ok || uid != alice.ID {
+		t.Errorf("改密后新 access 应有效: uid=%d ok=%v", uid, ok)
+	}
+}
+
+// TestResolver_TokenVersionNilDB db 为 nil 时跳过吊销校验（无状态回退，向后兼容）。
+func TestResolver_TokenVersionNilDB(t *testing.T) {
+	s := newTestSigner1m()
+	// 用非 0 版本签发；db=nil 应跳过版本比对直接放行。
+	tok, _ := s.GenerateAccessToken(42, "alice", 7)
+	resolver := NewIdentityResolver(s, nil, false, nil)
+	hdr := http.Header{}
+	hdr.Set("Authorization", "Bearer "+tok)
+	if uid, ok := resolver.Resolve(context.Background(), hdr); !ok || uid != 42 {
+		t.Errorf("db=nil 应跳过版本校验: uid=%d ok=%v", uid, ok)
 	}
 }
 

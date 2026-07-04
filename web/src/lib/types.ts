@@ -60,8 +60,10 @@ export interface ListResponse<T> {
 // —— 引用实体（User 完整字段，登录态与管理页共用）——
 // ENG-02：User 从 Schemas 派生（原手写易与后端 ent.User drift）。
 // status 用 Schemas 的 enum 引用（与 ent_user.Status 一致："active"|"disabled"）。
+// must_change_password 放开（T0.4）：驱动首登强制改密重定向（RequireAuth / 登录后跳转）。
+// ent JSON 总会输出该布尔字段，故并入 Required<> 收紧为必填。
 export type User = Required<
-  Omit<Schemas["ent.User"], "edges" | "im_accounts" | "must_change_password">
+  Omit<Schemas["ent.User"], "edges" | "im_accounts">
 >;
 
 export type Event = Required<

@@ -14,7 +14,7 @@ func newTestSigner(accessTTL, refreshTTL time.Duration) *JWTSigner {
 
 func TestJWT_AccessRoundTrip(t *testing.T) {
 	s := newTestSigner(time.Minute, time.Hour)
-	tok, err := s.GenerateAccessToken(42, "alice")
+	tok, err := s.GenerateAccessToken(42, "alice", 0)
 	if err != nil {
 		t.Fatalf("GenerateAccessToken: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestJWT_AccessRoundTrip(t *testing.T) {
 
 func TestJWT_RefreshRoundTrip(t *testing.T) {
 	s := newTestSigner(time.Minute, time.Hour)
-	tok, err := s.GenerateRefreshToken(7)
+	tok, err := s.GenerateRefreshToken(7, 0)
 	if err != nil {
 		t.Fatalf("GenerateRefreshToken: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestJWT_RefreshRoundTrip(t *testing.T) {
 func TestJWT_ExpiredRejected(t *testing.T) {
 	// TTL 1ms，签发后睡 5ms 确保过期
 	s := newTestSigner(time.Millisecond, time.Millisecond)
-	tok, err := s.GenerateAccessToken(1, "bob")
+	tok, err := s.GenerateAccessToken(1, "bob", 0)
 	if err != nil {
 		t.Fatalf("GenerateAccessToken: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestJWT_ExpiredRejected(t *testing.T) {
 
 func TestJWT_TamperedRejected(t *testing.T) {
 	s := newTestSigner(time.Minute, time.Hour)
-	tok, err := s.GenerateAccessToken(1, "bob")
+	tok, err := s.GenerateAccessToken(1, "bob", 0)
 	if err != nil {
 		t.Fatalf("GenerateAccessToken: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestJWT_TamperedRejected(t *testing.T) {
 
 func TestJWT_EmptySecretFails(t *testing.T) {
 	s := NewJWTSigner("", time.Minute, time.Hour)
-	if _, err := s.GenerateAccessToken(1, "x"); err == nil {
+	if _, err := s.GenerateAccessToken(1, "x", 0); err == nil {
 		t.Error("GenerateAccessToken with empty secret succeeded, want error")
 	}
 	if _, err := s.ParseToken("any"); err == nil {
@@ -94,7 +94,7 @@ func TestJWT_RefreshCannotBeUsedAsAccess(t *testing.T) {
 	// 设计约束：refresh 的 token_type 不能当 access 用（虽 token 本身合法）。
 	// 中间件/handler 通过 claims.TokenType == TokenTypeAccess 判断，此处仅验证类型字段可区分。
 	s := newTestSigner(time.Minute, time.Hour)
-	refresh, _ := s.GenerateRefreshToken(1)
+	refresh, _ := s.GenerateRefreshToken(1, 0)
 	claims, err := s.ParseToken(refresh)
 	if err != nil {
 		t.Fatalf("ParseToken refresh: %v", err)
@@ -119,7 +119,7 @@ func TestJWT_DifferentSignersRejectCrossToken(t *testing.T) {
 	// A 签发的 token 不能被 B 的密钥校验通过（密钥隔离）。
 	a := NewJWTSigner("secret-a-xxxxxxxxxxxxxxxxxxxxxx", time.Minute, time.Hour)
 	b := NewJWTSigner("secret-b-xxxxxxxxxxxxxxxxxxxxxx", time.Minute, time.Hour)
-	tok, _ := a.GenerateAccessToken(1, "x")
+	tok, _ := a.GenerateAccessToken(1, "x", 0)
 	if _, err := b.ParseToken(tok); err == nil {
 		t.Error("token signed by A accepted by B, want error")
 	}
@@ -128,7 +128,7 @@ func TestJWT_DifferentSignersRejectCrossToken(t *testing.T) {
 // 确保 token 是三段式（header.payload.signature），符合 JWT 格式预期。
 func TestJWT_TokenFormat(t *testing.T) {
 	s := newTestSigner(time.Minute, time.Hour)
-	tok, _ := s.GenerateAccessToken(1, "x")
+	tok, _ := s.GenerateAccessToken(1, "x", 0)
 	if parts := strings.Split(tok, "."); len(parts) != 3 {
 		t.Errorf("token has %d parts, want 3", len(parts))
 	}

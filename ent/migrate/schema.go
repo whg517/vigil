@@ -836,6 +836,7 @@ var (
 		{Name: "timezone", Type: field.TypeString, Default: "Asia/Shanghai"},
 		{Name: "password_hash", Type: field.TypeString, Nullable: true},
 		{Name: "must_change_password", Type: field.TypeBool, Default: false},
+		{Name: "token_version", Type: field.TypeInt, Default: 0},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

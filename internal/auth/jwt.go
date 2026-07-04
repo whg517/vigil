@@ -30,6 +30,9 @@ type Claims struct {
 	UserID    int       `json:"uid"`
 	Username  string    `json:"usr"`
 	TokenType TokenType `json:"typ"`
+	// TokenVersion 签发时用户的 token_version 快照（T0.4 改密令牌吊销）。
+	// 鉴权时与库中当前 token_version 比对，不一致视为已吊销——改密后所有旧 token 立即失效。
+	TokenVersion int `json:"tv"`
 	jwt.RegisteredClaims
 }
 
@@ -50,15 +53,17 @@ func NewJWTSigner(secret string, accessTTL, refreshTTL time.Duration) *JWTSigner
 func (s *JWTSigner) Available() bool { return len(s.secret) > 0 }
 
 // GenerateAccessToken 签发 access token（含 username，用于业务展示）。
-func (s *JWTSigner) GenerateAccessToken(userID int, username string) (string, error) {
+// tokenVersion 为签发时用户的 token_version 快照（改密令牌吊销依据，T0.4）。
+func (s *JWTSigner) GenerateAccessToken(userID int, username string, tokenVersion int) (string, error) {
 	if !s.Available() {
 		return "", errors.New("jwt secret not configured")
 	}
 	now := time.Now()
 	claims := &Claims{
-		UserID:    userID,
-		Username:  username,
-		TokenType: TokenTypeAccess,
+		UserID:       userID,
+		Username:     username,
+		TokenType:    TokenTypeAccess,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.accessTTL)),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -70,14 +75,16 @@ func (s *JWTSigner) GenerateAccessToken(userID int, username string) (string, er
 }
 
 // GenerateRefreshToken 签发 refresh token（仅用于换发 access，不含 username）。
-func (s *JWTSigner) GenerateRefreshToken(userID int) (string, error) {
+// tokenVersion 同 access：改密后旧 refresh 也失效，杜绝凭旧 refresh 换新 access 的旁路。
+func (s *JWTSigner) GenerateRefreshToken(userID int, tokenVersion int) (string, error) {
 	if !s.Available() {
 		return "", errors.New("jwt secret not configured")
 	}
 	now := time.Now()
 	claims := &Claims{
-		UserID:    userID,
-		TokenType: TokenTypeRefresh,
+		UserID:       userID,
+		TokenType:    TokenTypeRefresh,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.refreshTTL)),
 			IssuedAt:  jwt.NewNumericDate(now),

@@ -56,6 +56,8 @@ type loginUser struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Status   string `json:"status"`
+	// MustChangePassword 首登强制改密标志：前端据此把用户重定向到改密页（T0.4 闭环）。
+	MustChangePassword bool `json:"must_change_password"`
 }
 
 type loginResp struct {
@@ -123,9 +125,13 @@ func (h *AuthHandler) changePassword(c *echo.Context) error {
 	if !VerifyPassword(req.OldPassword, u.PasswordHash) {
 		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid old password"})
 	}
+	// AddTokenVersion(1)：改密即自增令牌版本，使该用户所有已签发的 access/refresh token
+	// （其 claims 里的 token_version 停留在旧值）在下次鉴权时因版本不匹配被判为吊销（T0.4）。
+	// 这是"改密后旧 token 立即失效"的核心动作——旧密码泄露时，攻击者持有的既有 token 一并作废。
 	if err := h.db.User.UpdateOneID(uid).
 		SetPasswordHash(HashPassword(req.NewPassword)).
 		SetMustChangePassword(false).
+		AddTokenVersion(1).
 		Exec(c.Request().Context()); err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -137,6 +143,7 @@ func toLoginUser(u *ent.User) loginUser {
 	return loginUser{
 		ID: u.ID, Username: u.Username, Name: u.Name,
 		Email: u.Email, Status: string(u.Status),
+		MustChangePassword: u.MustChangePassword,
 	}
 }
 
@@ -187,11 +194,12 @@ func (h *AuthHandler) login(c *echo.Context) error {
 		h.auditLogin(c, u.ID, u.Username, AuditResultDenied, map[string]any{"reason": "user_disabled"})
 		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "user disabled"})
 	}
-	access, err := h.signer.GenerateAccessToken(u.ID, u.Username)
+	// 用最新 token_version 签发：改密后重新登录换发的 token 版本与库一致，正常放行。
+	access, err := h.signer.GenerateAccessToken(u.ID, u.Username, u.TokenVersion)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
-	refresh, err := h.signer.GenerateRefreshToken(u.ID)
+	refresh, err := h.signer.GenerateRefreshToken(u.ID, u.TokenVersion)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -262,14 +270,18 @@ func (h *AuthHandler) refresh(c *echo.Context) error {
 	if err != nil || claims.TokenType != TokenTypeRefresh {
 		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid refresh token"})
 	}
-	// 为什么在此查库：refresh token 默认 30 天有效，若期间用户被禁用（status=disabled），
-	// 无状态 JWT 无法感知。必须实时查 User.status，否则禁用用户可凭旧 refresh 持续换取
-	// access token 旁路访问（安全审计 S3）。用户不存在同样拒绝。
+	// 为什么在此查库：refresh token 默认 30 天有效，若期间用户被禁用（status=disabled）
+	// 或改了密（token_version 自增），无状态 JWT 无法感知。必须实时查 User：
+	//   - status != active：禁用用户可凭旧 refresh 持续换 access 旁路访问（安全审计 S3）；
+	//   - token_version 不匹配：改密后旧 refresh 必须失效，否则攻击者持旧 refresh 仍能换新 access
+	//     绕过改密吊销（T0.4 —— access 与 refresh 都要失效才算真吊销）。
+	// 用户不存在同样拒绝。
 	u, err := h.db.User.Get(c.Request().Context(), claims.UserID)
-	if err != nil || u.Status != user.StatusActive {
+	if err != nil || u.Status != user.StatusActive || u.TokenVersion != claims.TokenVersion {
 		return c.JSON(http.StatusUnauthorized, httputil.ErrorResponse{Error: "invalid refresh token"})
 	}
-	access, err := h.signer.GenerateAccessToken(claims.UserID, claims.Username)
+	// 新 access 用库中当前 token_version（与 refresh 一致），保证换发链一致。
+	access, err := h.signer.GenerateAccessToken(claims.UserID, claims.Username, u.TokenVersion)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}

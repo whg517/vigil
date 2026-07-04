@@ -26,7 +26,17 @@ export function Login() {
     e.preventDefault();
     login.mutate(
       { username, password },
-      { onSuccess: () => navigate("/", { replace: true }) },
+      {
+        onSuccess: (data) => {
+          // 首登强制改密（T0.4）：后端标记 must_change_password 时先去改密页，
+          // 未改密前后端会 403 拦截所有业务 API，故直接引导到改密流程。
+          if (data.user.must_change_password) {
+            navigate("/change-password", { replace: true });
+            return;
+          }
+          navigate("/", { replace: true });
+        },
+      },
     );
   };
 

@@ -116,7 +116,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// 身份解析（三轨：JWT/APIKey/X-Vigil-User-ID），中间件用。
 	// SEC-02：生产环境禁用 X-Vigil-User-ID 头回退（可伪造），仅承认 JWT/API Key。
 	apiKeyVerifier := auth.NewAPIKeyVerifier(st.DB)
-	identityResolver := auth.NewIdentityResolver(jwtSigner, apiKeyVerifier, !cfg.App.IsProduction())
+	// T0.4：传入 db，使 JWT 分支校验 token_version（改密后旧 token 立即失效）。
+	identityResolver := auth.NewIdentityResolver(jwtSigner, apiKeyVerifier, !cfg.App.IsProduction(), st.DB)
 
 	// —— 接入（能力域 1-2）：webhook 接收 + 归一化 worker ——
 	adapterRegistry := ingestion.NewAdapterRegistry()

@@ -33,6 +33,11 @@ func (User) Fields() []ent.Field {
 		// must_change_password 强制改密标志（H1.6 默认安全）：
 		// 默认管理员 seed 时置 true，登录后必须改密才能访问业务 API，杜绝 admin/changeme 长期可用。
 		field.Bool("must_change_password").Default(false).Comment("强制改密标志（默认 admin seed 置 true）"),
+		// token_version 令牌版本号（T0.4 改密令牌吊销）：
+		// 每次改密自增 1，签发 JWT 时写入 claims，鉴权时与库中当前值比对——不一致即视为已吊销。
+		// 无状态 JWT 无法主动作废；靠版本号让"改密"这一动作立即使所有旧 access/refresh token 失效
+		//（防旧密码泄露后攻击者持既有 token 长期访问）。
+		field.Int("token_version").Default(0).Comment("令牌版本号（改密自增，旧 token 失效凭据）"),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}

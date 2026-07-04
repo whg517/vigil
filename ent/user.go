@@ -37,6 +37,8 @@ type User struct {
 	PasswordHash string `json:"-"`
 	// 强制改密标志（默认 admin seed 置 true）
 	MustChangePassword bool `json:"must_change_password,omitempty"`
+	// 令牌版本号（改密自增，旧 token 失效凭据）
+	TokenVersion int `json:"token_version,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -140,7 +142,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case user.FieldMustChangePassword:
 			values[i] = new(sql.NullBool)
-		case user.FieldID:
+		case user.FieldID, user.FieldTokenVersion:
 			values[i] = new(sql.NullInt64)
 		case user.FieldUsername, user.FieldName, user.FieldEmail, user.FieldPhone, user.FieldStatus, user.FieldTimezone, user.FieldPasswordHash:
 			values[i] = new(sql.NullString)
@@ -222,6 +224,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field must_change_password", values[i])
 			} else if value.Valid {
 				_m.MustChangePassword = value.Bool
+			}
+		case user.FieldTokenVersion:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field token_version", values[i])
+			} else if value.Valid {
+				_m.TokenVersion = int(value.Int64)
 			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -331,6 +339,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("must_change_password=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MustChangePassword))
+	builder.WriteString(", ")
+	builder.WriteString("token_version=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TokenVersion))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

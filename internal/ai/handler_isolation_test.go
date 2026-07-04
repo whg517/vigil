@@ -113,7 +113,7 @@ func newIsolatedHandler(d isoData) *echo.Echo {
 	h.SetAuthorizer(auth.NewAuthorizer(d.c))
 	h.SetScopeResolver(auth.NewScopeResolver(d.c))
 	e := echo.New()
-	v1 := e.Group("/api/v1", auth.RequireUser(false, auth.NewIdentityResolver(nil, nil, true)))
+	v1 := e.Group("/api/v1", auth.RequireUser(false, auth.NewIdentityResolver(nil, nil, true, nil)))
 	h.Register(v1)
 	return e
 }
