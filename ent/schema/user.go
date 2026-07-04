@@ -66,6 +66,8 @@ func (User) Edges() []ent.Edge {
 		edge.From("responding_incidents", Incident.Type).Ref("responders"),
 		// User <- Rotation（参与排班轮换）
 		edge.From("rotations", Rotation.Type).Ref("participants"),
+		// User -> Subscription（定向订阅关系，T4.4）
+		edge.To("subscriptions", Subscription.Type),
 	}
 }
 

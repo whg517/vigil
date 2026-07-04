@@ -815,6 +815,60 @@ var (
 			},
 		},
 	}
+	// SubscriptionsColumns holds the columns for the "subscriptions" table.
+	SubscriptionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "channels", Type: field.TypeJSON, Nullable: true},
+		{Name: "min_severity", Type: field.TypeEnum, Enums: []string{"critical", "warning", "info"}, Default: "warning"},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "service_subscriptions", Type: field.TypeInt, Nullable: true},
+		{Name: "team_subscriptions", Type: field.TypeInt, Nullable: true},
+		{Name: "user_subscriptions", Type: field.TypeInt},
+	}
+	// SubscriptionsTable holds the schema information for the "subscriptions" table.
+	SubscriptionsTable = &schema.Table{
+		Name:       "subscriptions",
+		Columns:    SubscriptionsColumns,
+		PrimaryKey: []*schema.Column{SubscriptionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "subscriptions_services_subscriptions",
+				Columns:    []*schema.Column{SubscriptionsColumns[5]},
+				RefColumns: []*schema.Column{ServicesColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "subscriptions_teams_subscriptions",
+				Columns:    []*schema.Column{SubscriptionsColumns[6]},
+				RefColumns: []*schema.Column{TeamsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "subscriptions_users_subscriptions",
+				Columns:    []*schema.Column{SubscriptionsColumns[7]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "subscription_user_subscriptions",
+				Unique:  false,
+				Columns: []*schema.Column{SubscriptionsColumns[7]},
+			},
+			{
+				Name:    "subscription_team_subscriptions",
+				Unique:  false,
+				Columns: []*schema.Column{SubscriptionsColumns[6]},
+			},
+			{
+				Name:    "subscription_service_subscriptions",
+				Unique:  false,
+				Columns: []*schema.Column{SubscriptionsColumns[5]},
+			},
+		},
+	}
 	// SuppressionRulesColumns holds the columns for the "suppression_rules" table.
 	SuppressionRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -1173,6 +1227,7 @@ var (
 		RunbooksTable,
 		SchedulesTable,
 		ServicesTable,
+		SubscriptionsTable,
 		SuppressionRulesTable,
 		TeamsTable,
 		TicketIntegrationsTable,
@@ -1219,6 +1274,9 @@ func init() {
 	SchedulesTable.ForeignKeys[0].RefTable = TeamsTable
 	ServicesTable.ForeignKeys[0].RefTable = EscalationPoliciesTable
 	ServicesTable.ForeignKeys[1].RefTable = TeamsTable
+	SubscriptionsTable.ForeignKeys[0].RefTable = ServicesTable
+	SubscriptionsTable.ForeignKeys[1].RefTable = TeamsTable
+	SubscriptionsTable.ForeignKeys[2].RefTable = UsersTable
 	SuppressionRulesTable.ForeignKeys[0].RefTable = TeamsTable
 	TicketIntegrationsTable.ForeignKeys[0].RefTable = TeamsTable
 	TimelineItemsTable.ForeignKeys[0].RefTable = IncidentsTable

@@ -34,6 +34,7 @@ import (
 	"github.com/kevin/vigil/ent/runbook"
 	"github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/subscription"
 	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/ticketintegration"
@@ -121,6 +122,7 @@ func checkColumn(t, c string) error {
 			runbook.Table:              runbook.ValidColumn,
 			schedule.Table:             schedule.ValidColumn,
 			service.Table:              service.ValidColumn,
+			subscription.Table:         subscription.ValidColumn,
 			suppressionrule.Table:      suppressionrule.ValidColumn,
 			team.Table:                 team.ValidColumn,
 			ticketintegration.Table:    ticketintegration.ValidColumn,

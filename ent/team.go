@@ -61,9 +61,11 @@ type TeamEdges struct {
 	Integrations []*Integration `json:"integrations,omitempty"`
 	// TicketIntegrations holds the value of the ticket_integrations edge.
 	TicketIntegrations []*TicketIntegration `json:"ticket_integrations,omitempty"`
+	// Subscriptions holds the value of the subscriptions edge.
+	Subscriptions []*Subscription `json:"subscriptions,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [12]bool
+	loadedTypes [13]bool
 }
 
 // UsersOrErr returns the Users value or an error if the edge
@@ -172,6 +174,15 @@ func (e TeamEdges) TicketIntegrationsOrErr() ([]*TicketIntegration, error) {
 		return e.TicketIntegrations, nil
 	}
 	return nil, &NotLoadedError{edge: "ticket_integrations"}
+}
+
+// SubscriptionsOrErr returns the Subscriptions value or an error if the edge
+// was not loaded in eager-loading.
+func (e TeamEdges) SubscriptionsOrErr() ([]*Subscription, error) {
+	if e.loadedTypes[12] {
+		return e.Subscriptions, nil
+	}
+	return nil, &NotLoadedError{edge: "subscriptions"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -313,6 +324,11 @@ func (_m *Team) QueryIntegrations() *IntegrationQuery {
 // QueryTicketIntegrations queries the "ticket_integrations" edge of the Team entity.
 func (_m *Team) QueryTicketIntegrations() *TicketIntegrationQuery {
 	return NewTeamClient(_m.config).QueryTicketIntegrations(_m)
+}
+
+// QuerySubscriptions queries the "subscriptions" edge of the Team entity.
+func (_m *Team) QuerySubscriptions() *SubscriptionQuery {
+	return NewTeamClient(_m.config).QuerySubscriptions(_m)
 }
 
 // Update returns a builder for updating this Team.

@@ -72,6 +72,9 @@ type Schedule func(*sql.Selector)
 // Service is the predicate function for service builders.
 type Service func(*sql.Selector)
 
+// Subscription is the predicate function for subscription builders.
+type Subscription func(*sql.Selector)
+
 // SuppressionRule is the predicate function for suppressionrule builders.
 type SuppressionRule func(*sql.Selector)
 

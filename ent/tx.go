@@ -56,6 +56,8 @@ type Tx struct {
 	Schedule *ScheduleClient
 	// Service is the client for interacting with the Service builders.
 	Service *ServiceClient
+	// Subscription is the client for interacting with the Subscription builders.
+	Subscription *SubscriptionClient
 	// SuppressionRule is the client for interacting with the SuppressionRule builders.
 	SuppressionRule *SuppressionRuleClient
 	// Team is the client for interacting with the Team builders.
@@ -219,6 +221,7 @@ func (tx *Tx) init() {
 	tx.Runbook = NewRunbookClient(tx.config)
 	tx.Schedule = NewScheduleClient(tx.config)
 	tx.Service = NewServiceClient(tx.config)
+	tx.Subscription = NewSubscriptionClient(tx.config)
 	tx.SuppressionRule = NewSuppressionRuleClient(tx.config)
 	tx.Team = NewTeamClient(tx.config)
 	tx.TicketIntegration = NewTicketIntegrationClient(tx.config)

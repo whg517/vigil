@@ -18,6 +18,7 @@ import (
 	"github.com/kevin/vigil/ent/predicate"
 	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/rotation"
+	"github.com/kevin/vigil/ent/subscription"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/user"
 )
@@ -36,6 +37,7 @@ type UserQuery struct {
 	withAssignedIncidents   *IncidentQuery
 	withRespondingIncidents *IncidentQuery
 	withRotations           *RotationQuery
+	withSubscriptions       *SubscriptionQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -219,6 +221,28 @@ func (_q *UserQuery) QueryRotations() *RotationQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(rotation.Table, rotation.FieldID),
 			sqlgraph.Edge(sqlgraph.M2M, true, user.RotationsTable, user.RotationsPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QuerySubscriptions chains the current query on the "subscriptions" edge.
+func (_q *UserQuery) QuerySubscriptions() *SubscriptionQuery {
+	query := (&SubscriptionClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(subscription.Table, subscription.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.SubscriptionsTable, user.SubscriptionsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -425,6 +449,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withAssignedIncidents:   _q.withAssignedIncidents.Clone(),
 		withRespondingIncidents: _q.withRespondingIncidents.Clone(),
 		withRotations:           _q.withRotations.Clone(),
+		withSubscriptions:       _q.withSubscriptions.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -508,6 +533,17 @@ func (_q *UserQuery) WithRotations(opts ...func(*RotationQuery)) *UserQuery {
 	return _q
 }
 
+// WithSubscriptions tells the query-builder to eager-load the nodes that are connected to
+// the "subscriptions" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithSubscriptions(opts ...func(*SubscriptionQuery)) *UserQuery {
+	query := (&SubscriptionClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSubscriptions = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -586,7 +622,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [7]bool{
+		loadedTypes = [8]bool{
 			_q.withTeams != nil,
 			_q.withRoleBindings != nil,
 			_q.withImBindings != nil,
@@ -594,6 +630,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withAssignedIncidents != nil,
 			_q.withRespondingIncidents != nil,
 			_q.withRotations != nil,
+			_q.withSubscriptions != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -660,6 +697,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadRotations(ctx, query, nodes,
 			func(n *User) { n.Edges.Rotations = []*Rotation{} },
 			func(n *User, e *Rotation) { n.Edges.Rotations = append(n.Edges.Rotations, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withSubscriptions; query != nil {
+		if err := _q.loadSubscriptions(ctx, query, nodes,
+			func(n *User) { n.Edges.Subscriptions = []*Subscription{} },
+			func(n *User, e *Subscription) { n.Edges.Subscriptions = append(n.Edges.Subscriptions, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -970,6 +1014,37 @@ func (_q *UserQuery) loadRotations(ctx context.Context, query *RotationQuery, no
 		for kn := range nodes {
 			assign(kn, n)
 		}
+	}
+	return nil
+}
+func (_q *UserQuery) loadSubscriptions(ctx context.Context, query *SubscriptionQuery, nodes []*User, init func(*User), assign func(*User, *Subscription)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Subscription(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.SubscriptionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.user_subscriptions
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "user_subscriptions" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_subscriptions" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
 	}
 	return nil
 }

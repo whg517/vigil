@@ -50,6 +50,8 @@ const (
 	EdgeIntegrations = "integrations"
 	// EdgeTicketIntegrations holds the string denoting the ticket_integrations edge name in mutations.
 	EdgeTicketIntegrations = "ticket_integrations"
+	// EdgeSubscriptions holds the string denoting the subscriptions edge name in mutations.
+	EdgeSubscriptions = "subscriptions"
 	// Table holds the table name of the team in the database.
 	Table = "teams"
 	// UsersTable is the table that holds the users relation/edge. The primary key declared below.
@@ -132,6 +134,13 @@ const (
 	TicketIntegrationsInverseTable = "ticket_integrations"
 	// TicketIntegrationsColumn is the table column denoting the ticket_integrations relation/edge.
 	TicketIntegrationsColumn = "team_ticket_integrations"
+	// SubscriptionsTable is the table that holds the subscriptions relation/edge.
+	SubscriptionsTable = "subscriptions"
+	// SubscriptionsInverseTable is the table name for the Subscription entity.
+	// It exists in this package in order to avoid circular dependency with the "subscription" package.
+	SubscriptionsInverseTable = "subscriptions"
+	// SubscriptionsColumn is the table column denoting the subscriptions relation/edge.
+	SubscriptionsColumn = "team_subscriptions"
 )
 
 // Columns holds all SQL columns for team fields.
@@ -380,6 +389,20 @@ func ByTicketIntegrations(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOptio
 		sqlgraph.OrderByNeighborTerms(s, newTicketIntegrationsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// BySubscriptionsCount orders the results by subscriptions count.
+func BySubscriptionsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSubscriptionsStep(), opts...)
+	}
+}
+
+// BySubscriptions orders the results by subscriptions terms.
+func BySubscriptions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSubscriptionsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newUsersStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -462,5 +485,12 @@ func newTicketIntegrationsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(TicketIntegrationsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, TicketIntegrationsTable, TicketIntegrationsColumn),
+	)
+}
+func newSubscriptionsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SubscriptionsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionsTable, SubscriptionsColumn),
 	)
 }

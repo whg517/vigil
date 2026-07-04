@@ -2024,8 +2024,62 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "subscriptions": {
+                        "description": "Subscriptions holds the value of the subscriptions edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Subscription"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "team": {
                         "$ref": "#/components/schemas/ent.Team"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.Subscription": {
+                "properties": {
+                    "channels": {
+                        "description": "通道偏好（有序降级链），空=默认链",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "created_at": {
+                        "description": "CreatedAt holds the value of the \"created_at\" field.",
+                        "type": "string"
+                    },
+                    "edges": {
+                        "$ref": "#/components/schemas/ent.SubscriptionEdges"
+                    },
+                    "id": {
+                        "description": "ID of the ent.",
+                        "type": "integer"
+                    },
+                    "min_severity": {
+                        "$ref": "#/components/schemas/subscription.MinSeverity"
+                    },
+                    "updated_at": {
+                        "description": "UpdatedAt holds the value of the \"updated_at\" field.",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.SubscriptionEdges": {
+                "description": "Edges holds the relations/edges for other nodes in the graph.\nThe values are being populated by the SubscriptionQuery when eager-loading is set.",
+                "properties": {
+                    "service": {
+                        "$ref": "#/components/schemas/ent.Service"
+                    },
+                    "team": {
+                        "$ref": "#/components/schemas/ent.Team"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/ent.User"
                     }
                 },
                 "type": "object"
@@ -2210,6 +2264,14 @@
                         "description": "Services holds the value of the services edge.",
                         "items": {
                             "$ref": "#/components/schemas/ent.Service"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "subscriptions": {
+                        "description": "Subscriptions holds the value of the subscriptions edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Subscription"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -2448,6 +2510,14 @@
                         "description": "Rotations holds the value of the rotations edge.",
                         "items": {
                             "$ref": "#/components/schemas/ent.Rotation"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "subscriptions": {
+                        "description": "Subscriptions holds the value of the subscriptions edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Subscription"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -3950,6 +4020,46 @@
                     },
                     "status": {
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "subscription.MinSeverity": {
+                "description": "最低告知严重度，低于此不定向通知",
+                "enum": [
+                    "warning",
+                    "critical",
+                    "info"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultMinSeverity",
+                    "MinSeverityCritical",
+                    "MinSeverityWarning",
+                    "MinSeverityInfo"
+                ]
+            },
+            "subscription.createReq": {
+                "properties": {
+                    "channels": {
+                        "description": "通道偏好（有序降级链），空=默认链",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "min_severity": {
+                        "description": "最低告知严重度（critical|warning|info），空=warning",
+                        "type": "string"
+                    },
+                    "service_id": {
+                        "description": "订阅的服务（与 team_id 二选一）",
+                        "type": "integer"
+                    },
+                    "team_id": {
+                        "description": "订阅的团队（与 service_id 二选一）",
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -10338,6 +10448,166 @@
                 "summary": "更新服务",
                 "tags": [
                     "service"
+                ]
+            }
+        },
+        "/subscriptions": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ent.Subscription"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "我的订阅列表",
+                "tags": [
+                    "subscription"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/subscription.createReq",
+                                        "description": "订阅配置",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "订阅配置",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Subscription"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "新建订阅",
+                "tags": [
+                    "subscription"
+                ]
+            }
+        },
+        "/subscriptions/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "订阅 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "删除订阅",
+                "tags": [
+                    "subscription"
                 ]
             }
         },

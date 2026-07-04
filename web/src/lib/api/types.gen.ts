@@ -5553,6 +5553,158 @@ export interface paths {
         };
         trace?: never;
     };
+    "/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 我的订阅列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Subscription"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 新建订阅 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 订阅配置 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["subscription.createReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Subscription"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscriptions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除订阅 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 订阅 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/suppression-rules": {
         parameters: {
             query?: never;
@@ -7672,7 +7824,30 @@ export interface components {
             runbooks?: components["schemas"]["ent.Runbook"][];
             /** @description Schedules holds the value of the schedules edge. */
             schedules?: components["schemas"]["ent.Schedule"][];
+            /** @description Subscriptions holds the value of the subscriptions edge. */
+            subscriptions?: components["schemas"]["ent.Subscription"][];
             team?: components["schemas"]["ent.Team"];
+        };
+        "ent.Subscription": {
+            /** @description 通道偏好（有序降级链），空=默认链 */
+            channels?: string[];
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            edges?: components["schemas"]["ent.SubscriptionEdges"];
+            /** @description ID of the ent. */
+            id?: number;
+            min_severity?: components["schemas"]["subscription.MinSeverity"];
+            /** @description UpdatedAt holds the value of the "updated_at" field. */
+            updated_at?: string;
+        };
+        /**
+         * @description Edges holds the relations/edges for other nodes in the graph.
+         *     The values are being populated by the SubscriptionQuery when eager-loading is set.
+         */
+        "ent.SubscriptionEdges": {
+            service?: components["schemas"]["ent.Service"];
+            team?: components["schemas"]["ent.Team"];
+            user?: components["schemas"]["ent.User"];
         };
         "ent.SuppressionRule": {
             action?: components["schemas"]["suppressionrule.Action"];
@@ -7752,6 +7927,8 @@ export interface components {
             schedules?: components["schemas"]["ent.Schedule"][];
             /** @description Services holds the value of the services edge. */
             services?: components["schemas"]["ent.Service"][];
+            /** @description Subscriptions holds the value of the subscriptions edge. */
+            subscriptions?: components["schemas"]["ent.Subscription"][];
             /** @description SuppressionRules holds the value of the suppression_rules edge. */
             suppression_rules?: components["schemas"]["ent.SuppressionRule"][];
             /** @description TicketIntegrations holds the value of the ticket_integrations edge. */
@@ -7858,6 +8035,8 @@ export interface components {
             role_bindings?: components["schemas"]["ent.RoleBinding"][];
             /** @description Rotations holds the value of the rotations edge. */
             rotations?: components["schemas"]["ent.Rotation"][];
+            /** @description Subscriptions holds the value of the subscriptions edge. */
+            subscriptions?: components["schemas"]["ent.Subscription"][];
             /** @description Teams holds the value of the teams edge. */
             teams?: components["schemas"]["ent.Team"][];
         };
@@ -8438,6 +8617,21 @@ export interface components {
             schedule_ids?: number[];
             slug?: string;
             status?: string;
+        };
+        /**
+         * @description 最低告知严重度，低于此不定向通知
+         * @enum {string}
+         */
+        "subscription.MinSeverity": "warning" | "critical" | "info";
+        "subscription.createReq": {
+            /** @description 通道偏好（有序降级链），空=默认链 */
+            channels?: string[];
+            /** @description 最低告知严重度（critical|warning|info），空=warning */
+            min_severity?: string;
+            /** @description 订阅的服务（与 team_id 二选一） */
+            service_id?: number;
+            /** @description 订阅的团队（与 service_id 二选一） */
+            team_id?: number;
         };
         /**
          * @description Action holds the value of the "action" field.

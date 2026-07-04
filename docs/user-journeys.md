@@ -2886,18 +2886,18 @@ probe /health != 200                                        # PG/Redis 任一 do
 
 > ⚠️ 纠偏：发绑定需要 `role.assign`，内置角色中**只有 org_admin 持有**（team_admin 只有 `role.view`）——"team_admin 给自己团队 Leader 发订阅"当前做不到，须 org_admin 代发。开放问题候选（团队级授权下放）。
 
-### E.2 「第一时间被告知」的机制核实 — ⚠️ 当前没有"订阅"
+### E.2 「第一时间被告知」的机制核实 — ✅ 定向订阅已落地（T4.4）
 
 **当前行为**（对照代码，逐条如实）：
 
 | 渠道 | subscriber 能否被主动告知 | 依据 |
 |------|------|------|
-| IM 群卡片 | 🟡 **唯一现实途径 = 身处值班群**。卡片发到全局唯一的 `VIGIL_IM_ONCALL_CHANNEL`（不分团队，`wire.go`）——Leader 在这个群里就能看到全组织告警卡片 | C.3.1 |
-| 邮件 | ❌ 默认收不到。邮件目标 = 升级层 targets 解算出的 user 的 `User.email`（`resolveEmails`），subscriber 的 RoleBinding **不参与** targets 解算 | B.6 |
-| 邮件（变通） | 🟡 让 team_admin 把 Leader 加为升级某层的显式 `user` 型 target——之后每次触达该层就发邮件。⚠️ 注意 `team` 型 target **不解算成员**（`resolveTargets` 只产 `{Name:"team:N", UserID:0}` 占位），对邮件/电话等按 user_id 解析的通道**等于不发**，别指望"target=team 全team收邮件" | `escalation/engine.go` |
-| Web/WS 主动推送 | ❌ 无订阅实体（ent 17 实体无 subscription/watcher）、无定向推送；WS 只有单 Incident 粒度（C.3.6） | schema 全集 |
+| **定向订阅通知** | ✅ **已实现（T4.4）**。`Subscription` 实体（`ent/schema/subscription.go`）：按 team 或 service 订阅其 Incident 生命周期；`internal/subscription` 引擎订阅领域事件，事件发生时按 team/service 反查订阅者，走 T2.2 通知链定向送达（复用降级链 + 送达记录）。端点 `GET\|POST\|DELETE /subscriptions`（登录用户自管） | `internal/subscription` |
+| IM 群卡片 | 🟡 **另一途径 = 身处值班群**。卡片发到全局唯一的 `VIGIL_IM_ONCALL_CHANNEL`（不分团队，`wire.go`）——Leader 在这个群里就能看到全组织告警卡片 | C.3.1 |
+| 邮件（定向） | ✅ 订阅后走 `notification.Notifier.NotifyTargeted`，按订阅者 `channels` 偏好（默认链含 email）定向发。**quiet_hours 对订阅者生效**（一律按非值班人判定，夜间非 critical 抑制记 suppressed，critical 穿透） | `notification/notifier.go` |
+| 邮件（升级 target 变通，历史） | 🟡 仍可让 team_admin 把 Leader 加为升级某层的显式 `user` 型 target——但定向订阅已是首选，无需此变通 | `escalation/engine.go` |
 
-> 📋 **设计目标**（M7.3 / personas P4"订阅"）：按服务/团队/severity 的订阅关系 + 邮件/IM 定向通知。当前形态是"进群围观"，不是订阅。开放问题候选。
+> ✅ **设计目标达成**（M7.3 / personas P4"订阅"）：按团队/服务的订阅关系 + 邮件/IM 定向通知已实现（T4.4）。severity 维度经订阅的 `min_severity` 偏好过滤（低于阈值不告知），非独立订阅维度。可见性受限：订阅 scope 须对用户可见（防越权窥探不可见团队/服务的 Incident 摘要）。
 
 ### E.3 Web 只读旅程（登录 → 看全貌 → 看复盘）
 

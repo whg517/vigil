@@ -49,6 +49,7 @@ import (
 	"github.com/kevin/vigil/internal/schedule"
 	"github.com/kevin/vigil/internal/service"
 	"github.com/kevin/vigil/internal/store"
+	"github.com/kevin/vigil/internal/subscription"
 	"github.com/kevin/vigil/internal/ticket"
 	"github.com/kevin/vigil/internal/timeline"
 	"github.com/kevin/vigil/internal/triage"
@@ -246,6 +247,12 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		bus.Subscribe(typ, wsHub.OnIncidentEvent)
 	}
 
+	// —— 定向订阅通知（T4.4）——
+	// 订阅者（subscriber / 团队 Leader）订阅了某 team/service → 其 Incident 生命周期变更时
+	// 定向告知（复用 T2.2 通知链 + 送达记录；quiet_hours 对非值班订阅者夜间非 critical 生效）。
+	// 与升级 target 正交：这是「多一类通知接收人来源」，best-effort 不阻断事件派发。
+	subscription.NewNotifier(st.DB, notifier).Subscribe(bus)
+
 	// —— 分诊（能力域 3-4）：创建 Incident 后发事件（escalation 已订阅启动升级链）——
 	triageEngine := triage.NewEngine(st.DB, st.Redis)
 	// C9：去重/聚合窗口从配置注入（替代硬编码 5min），支持按告警源特性调窗防裂单。
@@ -434,6 +441,11 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	notifHandler.SetAuthorizer(authz)
 	notifHandler.SetScopeResolver(scopeResolver)
 	notifHandler.Register(v1)
+	// 定向订阅管理（T4.4）：登录用户管理自己的订阅（GET/POST/DELETE /subscriptions）。
+	// authz 注入用于订阅 scope 可见性校验（防越权订阅不可见团队/服务）。
+	subscriptionH := subscription.NewHandler(st.DB)
+	subscriptionH.SetAuthorizer(authz)
+	subscriptionH.Register(v1)
 
 	// QA 审计 C3：通知聚合 flush ticker。原实现 FlushAggregated 从未被调用 → 非 critical
 	// 聚合通知成死信（永滞 Redis）。周期扫 pending targets 合并发送，间隔 ≤ 聚合窗口。

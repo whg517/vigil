@@ -46,6 +46,8 @@ func (Service) Edges() []ent.Edge {
 		edge.To("events", Event.Type),
 		// Service -> Incident（归属事件）
 		edge.To("incidents", Incident.Type),
+		// Service -> Subscription（订阅该服务 Incident 生命周期的定向订阅，T4.4）
+		edge.To("subscriptions", Subscription.Type),
 	}
 }
 

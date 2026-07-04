@@ -60,9 +60,11 @@ type ServiceEdges struct {
 	Events []*Event `json:"events,omitempty"`
 	// Incidents holds the value of the incidents edge.
 	Incidents []*Incident `json:"incidents,omitempty"`
+	// Subscriptions holds the value of the subscriptions edge.
+	Subscriptions []*Subscription `json:"subscriptions,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [7]bool
+	loadedTypes [8]bool
 }
 
 // TeamOrErr returns the Team value or an error if the edge
@@ -130,6 +132,15 @@ func (e ServiceEdges) IncidentsOrErr() ([]*Incident, error) {
 		return e.Incidents, nil
 	}
 	return nil, &NotLoadedError{edge: "incidents"}
+}
+
+// SubscriptionsOrErr returns the Subscriptions value or an error if the edge
+// was not loaded in eager-loading.
+func (e ServiceEdges) SubscriptionsOrErr() ([]*Subscription, error) {
+	if e.loadedTypes[7] {
+		return e.Subscriptions, nil
+	}
+	return nil, &NotLoadedError{edge: "subscriptions"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -282,6 +293,11 @@ func (_m *Service) QueryEvents() *EventQuery {
 // QueryIncidents queries the "incidents" edge of the Service entity.
 func (_m *Service) QueryIncidents() *IncidentQuery {
 	return NewServiceClient(_m.config).QueryIncidents(_m)
+}
+
+// QuerySubscriptions queries the "subscriptions" edge of the Service entity.
+func (_m *Service) QuerySubscriptions() *SubscriptionQuery {
+	return NewServiceClient(_m.config).QuerySubscriptions(_m)
 }
 
 // Update returns a builder for updating this Service.

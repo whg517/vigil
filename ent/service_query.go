@@ -20,6 +20,7 @@ import (
 	"github.com/kevin/vigil/ent/runbook"
 	"github.com/kevin/vigil/ent/schedule"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/subscription"
 	"github.com/kevin/vigil/ent/team"
 )
 
@@ -37,6 +38,7 @@ type ServiceQuery struct {
 	withRunbooks         *RunbookQuery
 	withEvents           *EventQuery
 	withIncidents        *IncidentQuery
+	withSubscriptions    *SubscriptionQuery
 	withFKs              bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -221,6 +223,28 @@ func (_q *ServiceQuery) QueryIncidents() *IncidentQuery {
 			sqlgraph.From(service.Table, service.FieldID, selector),
 			sqlgraph.To(incident.Table, incident.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, service.IncidentsTable, service.IncidentsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QuerySubscriptions chains the current query on the "subscriptions" edge.
+func (_q *ServiceQuery) QuerySubscriptions() *SubscriptionQuery {
+	query := (&SubscriptionClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(service.Table, service.FieldID, selector),
+			sqlgraph.To(subscription.Table, subscription.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, service.SubscriptionsTable, service.SubscriptionsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -427,6 +451,7 @@ func (_q *ServiceQuery) Clone() *ServiceQuery {
 		withRunbooks:         _q.withRunbooks.Clone(),
 		withEvents:           _q.withEvents.Clone(),
 		withIncidents:        _q.withIncidents.Clone(),
+		withSubscriptions:    _q.withSubscriptions.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -510,6 +535,17 @@ func (_q *ServiceQuery) WithIncidents(opts ...func(*IncidentQuery)) *ServiceQuer
 	return _q
 }
 
+// WithSubscriptions tells the query-builder to eager-load the nodes that are connected to
+// the "subscriptions" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ServiceQuery) WithSubscriptions(opts ...func(*SubscriptionQuery)) *ServiceQuery {
+	query := (&SubscriptionClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSubscriptions = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -589,7 +625,7 @@ func (_q *ServiceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serv
 		nodes       = []*Service{}
 		withFKs     = _q.withFKs
 		_spec       = _q.querySpec()
-		loadedTypes = [7]bool{
+		loadedTypes = [8]bool{
 			_q.withTeam != nil,
 			_q.withIntegrations != nil,
 			_q.withEscalationPolicy != nil,
@@ -597,6 +633,7 @@ func (_q *ServiceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serv
 			_q.withRunbooks != nil,
 			_q.withEvents != nil,
 			_q.withIncidents != nil,
+			_q.withSubscriptions != nil,
 		}
 	)
 	if _q.withTeam != nil || _q.withEscalationPolicy != nil {
@@ -667,6 +704,13 @@ func (_q *ServiceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serv
 		if err := _q.loadIncidents(ctx, query, nodes,
 			func(n *Service) { n.Edges.Incidents = []*Incident{} },
 			func(n *Service, e *Incident) { n.Edges.Incidents = append(n.Edges.Incidents, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withSubscriptions; query != nil {
+		if err := _q.loadSubscriptions(ctx, query, nodes,
+			func(n *Service) { n.Edges.Subscriptions = []*Subscription{} },
+			func(n *Service, e *Subscription) { n.Edges.Subscriptions = append(n.Edges.Subscriptions, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -947,6 +991,37 @@ func (_q *ServiceQuery) loadIncidents(ctx context.Context, query *IncidentQuery,
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "service_incidents" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *ServiceQuery) loadSubscriptions(ctx context.Context, query *SubscriptionQuery, nodes []*Service, init func(*Service), assign func(*Service, *Subscription)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Service)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Subscription(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(service.SubscriptionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.service_subscriptions
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "service_subscriptions" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "service_subscriptions" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
 	}

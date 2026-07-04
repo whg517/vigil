@@ -54,6 +54,8 @@ func (Team) Edges() []ent.Edge {
 		edge.To("integrations", Integration.Type),
 		// Team -> TicketIntegration（归属出向工单集成，T4.3）
 		edge.To("ticket_integrations", TicketIntegration.Type),
+		// Team -> Subscription（订阅该团队 Incident 生命周期的定向订阅，T4.4）
+		edge.To("subscriptions", Subscription.Type),
 	}
 }
 

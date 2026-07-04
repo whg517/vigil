@@ -290,6 +290,72 @@ func (n *Notifier) NotifyUnrouted(ctx context.Context, targets []Target, title, 
 	return nil
 }
 
+// NotifyTargeted 定向订阅通知（T4.4）：把某 Incident 的生命周期变更告知订阅了它的干系人。
+//
+// 与 NotifyEscalation 的区别：
+//   - 收件人来源不是升级链 target（处置责任人），而是订阅关系解算出的干系人（只读订阅者）。
+//   - 订阅者一律视为「非值班人」（isOncall=false）——他们不是排班解算出的值班人，
+//     故 quiet_hours 对非 critical 夜间通知生效（抑制打扰，与 E.6 语义一致）。
+//   - 有 Incident 上下文（走 IM 卡片可渲染），走完整降级链 + 送达记录。
+//
+// 复用 T2.2 全套分发：规则评估（channels/template/quiet_hours）、降级链、送达三态落库。
+// channels 为订阅者的通道偏好（空则回落规则/默认链）。不聚合（订阅告知即时性优先，条数有限）。
+func (n *Notifier) NotifyTargeted(ctx context.Context, inc *ent.Incident, targets []Target, channels []string) error {
+	if inc == nil || len(targets) == 0 {
+		return nil
+	}
+	// 规则评估（B7/C12）：与升级通知同一套规则解析，取 channels/template/quiet_hours。
+	var rule *MatchedRule
+	if n.ruleResolver != nil {
+		rule = n.ruleResolver.Resolve(ctx, inc)
+	}
+	// 通道优先级：订阅者显式偏好 > 规则 channels > 默认链。
+	chans := n.resolveChannels(channels, rule)
+
+	msg := &Message{
+		Incident: inc,
+		Targets:  targets,
+		Level:    0, // 订阅告知无升级层级概念
+		Title:    FormatTitle(inc),
+		Summary:  FormatSummary(inc, 0),
+		Channels: chans,
+	}
+	// 模板渲染（M7.5）：与升级通知同款，渲染失败内部降级不丢通知。
+	if n.templates != nil {
+		tmplName := n.resolveTemplateName(inc, rule)
+		chanForDefault := firstChan(chans)
+		rendered, rerr := n.templates.Render(ctx, tmplName, chanForDefault, TemplateData{
+			Incident: inc, Targets: targets, Level: 0,
+		})
+		if rerr == nil && rendered != nil {
+			if rendered.Title != "" {
+				msg.Title = rendered.Title
+			}
+			if rendered.Body != "" {
+				msg.Summary = rendered.Body
+			}
+		}
+	}
+
+	severity := string(inc.Severity)
+	qh := n.resolveQuietHours(inc, rule)
+
+	for _, t := range targets {
+		// 订阅者一律非值班人：quiet_hours 命中则记 suppressed，不发也不丢（B22，可查/可补发）。
+		if qh != nil && qh.ShouldSuppress(severity, false, nil) {
+			n.recordDelivery(ctx, DeliveryRecord{
+				IncidentID: incID(inc), UserID: t.UserID, Channel: firstChan(chans),
+				Target: targetKey(t), Status: StatusSuppressed,
+				Reason: "quiet_hours", Level: 0, Severity: severity,
+			})
+			continue
+		}
+		// 立即走降级链（订阅告知不聚合）。
+		n.deliverChain(ctx, inc, msg, t, chans, 0, severity)
+	}
+	return nil
+}
+
 // targetKey 聚合队列/送达记录按 target 维度，user 用 user_id，team/source=team 用 source 名。
 func targetKey(t Target) string {
 	if t.UserID > 0 {
