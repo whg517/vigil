@@ -22,6 +22,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
+	"github.com/kevin/vigil/ent/metricssnapshot"
 	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
@@ -111,6 +112,7 @@ func checkColumn(t, c string) error {
 			incident.Table:             incident.ValidColumn,
 			incidentaction.Table:       incidentaction.ValidColumn,
 			integration.Table:          integration.ValidColumn,
+			metricssnapshot.Table:      metricssnapshot.ValidColumn,
 			notification.Table:         notification.ValidColumn,
 			notificationrule.Table:     notificationrule.ValidColumn,
 			notificationtemplate.Table: notificationtemplate.ValidColumn,

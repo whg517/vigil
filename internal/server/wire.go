@@ -477,7 +477,14 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	aiH.Register(v1)
 	// 报表（能力域 15）：注入 authz 启用团队 scope 数据隔离（S14）——
 	// team 级 Leader 只见本团队指标，org 级角色看全组织。
-	analytics.NewHandler(analytics.NewEngine(st.DB)).SetAuthorizer(authz).Register(v1)
+	// T6.1：注入定时聚合快照读取器，启用 CSV 导出 + source=snapshot 加速旁路。
+	analyticsSnapshotter := analytics.NewSnapshotter(st.DB)
+	analytics.NewHandler(analytics.NewEngine(st.DB)).
+		SetAuthorizer(authz).
+		SetSnapshotter(analyticsSnapshotter).
+		Register(v1)
+	// T6.1 定时聚合任务：Asynq 低优先级 worker 消费聚合任务（每小时/日预计算指标快照）。
+	q.Register(analytics.TaskAggregate, analyticsSnapshotter.HandleTask)
 	// 通知配置（能力域 7 + 3 抑制）：Rule/Suppression/Template CRUD + dry-run。
 	notifHandler := notification.NewHandler(st.DB, notifier, notifAggregator)
 	notifHandler.SetTemplateEngine(notifTemplates)
@@ -513,6 +520,15 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	go sweeper.Run(sweepCtx)
 	wired.Closers = append(wired.Closers, sweepCancel)
 	log.Info("raw_event requeue sweeper started", zap.Duration("interval", sweeper.Interval()))
+
+	// T6.1 报表定时聚合：周期把各团队 + org 全局指标预计算成 MetricsSnapshot 存库，
+	// 报表端点可选读快照（source=snapshot）加速。幂等，重跑覆盖当日快照。纳入优雅关闭。
+	// ticker 兜底（无需外部 cron/Asynq scheduler 也能定期聚合）；Asynq TaskAggregate
+	// 亦可由外部编排触发，二者调同一 Aggregate（幂等）互不冲突。
+	aggCtx, aggCancel := context.WithCancel(ctx)
+	go analyticsSnapshotter.Run(aggCtx, time.Hour) // 每小时聚合一次 daily 快照
+	wired.Closers = append(wired.Closers, aggCancel)
+	log.Info("metrics snapshot aggregator started", zap.Duration("interval", time.Hour))
 
 	return wired, nil
 }
@@ -1134,6 +1150,11 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodGet, "/analytics/trend", auth.PermAnalyticsView)
 	// T3.4 AI 反馈闭环：AI 建议采纳/拒绝统计（同 analytics.view 权限 + team scope 隔离）。
 	g.RoutePerm(http.MethodGet, "/analytics/ai-feedback", auth.PermAnalyticsView)
+	// T6.1 报表 CSV 导出：与对应实时端点同权限（analytics.view）+ 同 team scope。
+	g.RoutePerm(http.MethodGet, "/analytics/alerts/export", auth.PermAnalyticsView)
+	g.RoutePerm(http.MethodGet, "/analytics/incidents/export", auth.PermAnalyticsView)
+	g.RoutePerm(http.MethodGet, "/analytics/team-load/export", auth.PermAnalyticsView)
+	g.RoutePerm(http.MethodGet, "/analytics/postmortems/export", auth.PermAnalyticsView)
 }
 
 // forcePasswordGuard 强制改密守卫（QA 审计 C8 / H1.6）。

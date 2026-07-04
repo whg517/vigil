@@ -32,6 +32,8 @@ type Tx struct {
 	IncidentAction *IncidentActionClient
 	// Integration is the client for interacting with the Integration builders.
 	Integration *IntegrationClient
+	// MetricsSnapshot is the client for interacting with the MetricsSnapshot builders.
+	MetricsSnapshot *MetricsSnapshotClient
 	// Notification is the client for interacting with the Notification builders.
 	Notification *NotificationClient
 	// NotificationRule is the client for interacting with the NotificationRule builders.
@@ -211,6 +213,7 @@ func (tx *Tx) init() {
 	tx.Incident = NewIncidentClient(tx.config)
 	tx.IncidentAction = NewIncidentActionClient(tx.config)
 	tx.Integration = NewIntegrationClient(tx.config)
+	tx.MetricsSnapshot = NewMetricsSnapshotClient(tx.config)
 	tx.Notification = NewNotificationClient(tx.config)
 	tx.NotificationRule = NewNotificationRuleClient(tx.config)
 	tx.NotificationTemplate = NewNotificationTemplateClient(tx.config)

@@ -449,6 +449,54 @@ var (
 			},
 		},
 	}
+	// MetricsSnapshotsColumns holds the columns for the "metrics_snapshots" table.
+	MetricsSnapshotsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "period", Type: field.TypeEnum, Enums: []string{"hourly", "daily"}, Default: "daily"},
+		{Name: "period_start", Type: field.TypeTime},
+		{Name: "period_end", Type: field.TypeTime},
+		{Name: "alerts_total", Type: field.TypeInt, Default: 0},
+		{Name: "alerts_notified", Type: field.TypeInt, Default: 0},
+		{Name: "alerts_unrouted", Type: field.TypeInt, Default: 0},
+		{Name: "noise_rate", Type: field.TypeFloat64, Default: 0},
+		{Name: "incidents_total", Type: field.TypeInt, Default: 0},
+		{Name: "incidents_resolved", Type: field.TypeInt, Default: 0},
+		{Name: "mtta_seconds", Type: field.TypeFloat64, Default: 0},
+		{Name: "mttr_seconds", Type: field.TypeFloat64, Default: 0},
+		{Name: "by_severity", Type: field.TypeJSON, Nullable: true},
+		{Name: "by_status", Type: field.TypeJSON, Nullable: true},
+		{Name: "postmortems_total", Type: field.TypeInt, Default: 0},
+		{Name: "postmortems_published", Type: field.TypeInt, Default: 0},
+		{Name: "completion_rate", Type: field.TypeFloat64, Default: 0},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "team_metrics_snapshots", Type: field.TypeInt, Nullable: true},
+	}
+	// MetricsSnapshotsTable holds the schema information for the "metrics_snapshots" table.
+	MetricsSnapshotsTable = &schema.Table{
+		Name:       "metrics_snapshots",
+		Columns:    MetricsSnapshotsColumns,
+		PrimaryKey: []*schema.Column{MetricsSnapshotsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "metrics_snapshots_teams_metrics_snapshots",
+				Columns:    []*schema.Column{MetricsSnapshotsColumns[18]},
+				RefColumns: []*schema.Column{TeamsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "metricssnapshot_period_period_start_team_metrics_snapshots",
+				Unique:  true,
+				Columns: []*schema.Column{MetricsSnapshotsColumns[1], MetricsSnapshotsColumns[2], MetricsSnapshotsColumns[18]},
+			},
+			{
+				Name:    "metricssnapshot_period_period_start",
+				Unique:  false,
+				Columns: []*schema.Column{MetricsSnapshotsColumns[1], MetricsSnapshotsColumns[2]},
+			},
+		},
+	}
 	// NotificationsColumns holds the columns for the "notifications" table.
 	NotificationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -1248,6 +1296,7 @@ var (
 		IncidentsTable,
 		IncidentActionsTable,
 		IntegrationsTable,
+		MetricsSnapshotsTable,
 		NotificationsTable,
 		NotificationRulesTable,
 		NotificationTemplatesTable,
@@ -1293,6 +1342,7 @@ func init() {
 	IncidentActionsTable.ForeignKeys[0].RefTable = IncidentsTable
 	IntegrationsTable.ForeignKeys[0].RefTable = ServicesTable
 	IntegrationsTable.ForeignKeys[1].RefTable = TeamsTable
+	MetricsSnapshotsTable.ForeignKeys[0].RefTable = TeamsTable
 	NotificationsTable.ForeignKeys[0].RefTable = IncidentsTable
 	NotificationRulesTable.ForeignKeys[0].RefTable = TeamsTable
 	NotificationTemplatesTable.ForeignKeys[0].RefTable = TeamsTable

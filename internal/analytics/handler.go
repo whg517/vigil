@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/kevin/vigil/ent/metricssnapshot"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 
@@ -17,6 +18,7 @@ import (
 type Handler struct {
 	engine *Engine
 	authz  *auth.Authorizer // 团队数据隔离（S14）：解析当前用户可见 team 集合
+	snap   *Snapshotter     // 可选：定时聚合快照读取器（source=snapshot 时用），nil 则只支持实时
 }
 
 // NewHandler 创建报表 handler。
@@ -28,6 +30,13 @@ func NewHandler(e *Engine) *Handler {
 // 未注入时退化为看全组织（AllTeams），仅用于测试桩/未装配场景。
 func (h *Handler) SetAuthorizer(a *auth.Authorizer) *Handler {
 	h.authz = a
+	return h
+}
+
+// SetSnapshotter 注入定时聚合快照读取器，启用 source=snapshot 加速旁路（T6.1）。
+// 未注入时端点恒读实时（source 参数被忽略）。
+func (h *Handler) SetSnapshotter(s *Snapshotter) *Handler {
+	h.snap = s
 	return h
 }
 
@@ -68,6 +77,17 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/analytics/postmortems", h.postmortems)
 	g.GET("/analytics/trend", h.trend)
 	g.GET("/analytics/ai-feedback", h.aiFeedback)
+	// T6.1 CSV 导出（各维度附件下载，权限 + team scope 同上）。
+	g.GET("/analytics/alerts/export", h.exportAlerts)
+	g.GET("/analytics/incidents/export", h.exportIncidents)
+	g.GET("/analytics/team-load/export", h.exportTeamLoad)
+	g.GET("/analytics/postmortems/export", h.exportPostmortems)
+}
+
+// wantSnapshot 判断请求是否要求读预计算快照（source=snapshot）。
+// 默认 realtime（保准确）；仅当显式 ?source=snapshot 且已注入 snapshotter 时读快照。
+func (h *Handler) wantSnapshot(c *echo.Context) bool {
+	return h.snap != nil && c.QueryParam("source") == "snapshot"
 }
 
 // parseRange 从 query 解析时间范围。start/end 为 RFC3339。
@@ -129,6 +149,14 @@ func (h *Handler) alerts(c *echo.Context) error {
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
+	// source=snapshot：优先读定时聚合快照（快）；无快照则降级实时（保有数据）。
+	if h.wantSnapshot(c) {
+		if m, err := h.snap.LatestAlertFromSnapshot(ctx, scope, metricssnapshot.PeriodDaily); err != nil {
+			return errs.Internal(c, nil, err)
+		} else if m != nil {
+			return c.JSON(http.StatusOK, m)
+		}
+	}
 	m, err := h.engine.AlertMetrics(ctx, parseRange(c), scope)
 	if err != nil {
 		return errs.Internal(c, nil, err)
@@ -153,6 +181,13 @@ func (h *Handler) incidents(c *echo.Context) error {
 	scope, err := h.resolveScope(ctx)
 	if err != nil {
 		return errs.Internal(c, nil, err)
+	}
+	if h.wantSnapshot(c) {
+		if m, err := h.snap.LatestIncidentFromSnapshot(ctx, scope, metricssnapshot.PeriodDaily); err != nil {
+			return errs.Internal(c, nil, err)
+		} else if m != nil {
+			return c.JSON(http.StatusOK, m)
+		}
 	}
 	m, err := h.engine.IncidentMetrics(ctx, parseRange(c), scope)
 	if err != nil {
@@ -203,6 +238,13 @@ func (h *Handler) postmortems(c *echo.Context) error {
 	scope, err := h.resolveScope(ctx)
 	if err != nil {
 		return errs.Internal(c, nil, err)
+	}
+	if h.wantSnapshot(c) {
+		if m, err := h.snap.LatestPostmortemFromSnapshot(ctx, scope, metricssnapshot.PeriodDaily); err != nil {
+			return errs.Internal(c, nil, err)
+		} else if m != nil {
+			return c.JSON(http.StatusOK, m)
+		}
 	}
 	m, err := h.engine.PostmortemMetrics(ctx, parseRange(c), scope)
 	if err != nil {

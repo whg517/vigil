@@ -1306,6 +1306,100 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "ent.MetricsSnapshot": {
+                "properties": {
+                    "alerts_notified": {
+                        "description": "触发通知的（非噪音）",
+                        "type": "integer"
+                    },
+                    "alerts_total": {
+                        "description": "接入总量",
+                        "type": "integer"
+                    },
+                    "alerts_unrouted": {
+                        "description": "未命中路由",
+                        "type": "integer"
+                    },
+                    "by_severity": {
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "description": "severity 分布",
+                        "type": "object"
+                    },
+                    "by_status": {
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "description": "status 分布",
+                        "type": "object"
+                    },
+                    "completion_rate": {
+                        "description": "复盘完成率 0~1",
+                        "type": "number"
+                    },
+                    "created_at": {
+                        "description": "CreatedAt holds the value of the \"created_at\" field.",
+                        "type": "string"
+                    },
+                    "edges": {
+                        "$ref": "#/components/schemas/ent.MetricsSnapshotEdges"
+                    },
+                    "id": {
+                        "description": "ID of the ent.",
+                        "type": "integer"
+                    },
+                    "incidents_resolved": {
+                        "description": "已解决数",
+                        "type": "integer"
+                    },
+                    "incidents_total": {
+                        "description": "Incident 总数",
+                        "type": "integer"
+                    },
+                    "mtta_seconds": {
+                        "description": "平均确认时长（秒）",
+                        "type": "number"
+                    },
+                    "mttr_seconds": {
+                        "description": "平均解决时长（秒）",
+                        "type": "number"
+                    },
+                    "noise_rate": {
+                        "description": "降噪率 0~1",
+                        "type": "number"
+                    },
+                    "period": {
+                        "$ref": "#/components/schemas/metricssnapshot.Period"
+                    },
+                    "period_end": {
+                        "description": "快照窗口终点（不含）",
+                        "type": "string"
+                    },
+                    "period_start": {
+                        "description": "快照窗口起点（含）",
+                        "type": "string"
+                    },
+                    "postmortems_published": {
+                        "description": "已发布/归档数",
+                        "type": "integer"
+                    },
+                    "postmortems_total": {
+                        "description": "复盘总数",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.MetricsSnapshotEdges": {
+                "description": "Edges holds the relations/edges for other nodes in the graph.\nThe values are being populated by the MetricsSnapshotQuery when eager-loading is set.",
+                "properties": {
+                    "team": {
+                        "$ref": "#/components/schemas/ent.Team"
+                    }
+                },
+                "type": "object"
+            },
             "ent.Notification": {
                 "properties": {
                     "channel": {
@@ -2230,6 +2324,14 @@ const docTemplate = `{
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "metrics_snapshots": {
+                        "description": "MetricsSnapshots holds the value of the metrics_snapshots edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.MetricsSnapshot"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "notification_rules": {
                         "description": "NotificationRules holds the value of the notification_rules edge.",
                         "items": {
@@ -3132,6 +3234,19 @@ const docTemplate = `{
                     }
                 },
                 "type": "object"
+            },
+            "metricssnapshot.Period": {
+                "description": "聚合粒度：hourly 每小时 / daily 每日",
+                "enum": [
+                    "daily",
+                    "hourly"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultPeriod",
+                    "PeriodHourly",
+                    "PeriodDaily"
+                ]
             },
             "notification.Status": {
                 "description": "送达状态：pending|sent|failed|suppressed",
@@ -4876,6 +4991,60 @@ const docTemplate = `{
                 ]
             }
         },
+        "/analytics/alerts/export": {
+            "get": {
+                "description": "按 start/end 时间范围导出告警度量 CSV（附件下载）。权限与 team scope 同 /analytics/alerts。",
+                "parameters": [
+                    {
+                        "description": "起始时间 RFC3339",
+                        "in": "query",
+                        "name": "start",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "结束时间 RFC3339",
+                        "in": "query",
+                        "name": "end",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "CSV 文件"
+                    },
+                    "500": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "Export alert metrics as CSV",
+                "tags": [
+                    "analytics"
+                ]
+            }
+        },
         "/analytics/dashboard": {
             "get": {
                 "description": "返回近 N 天的仪表盘汇总（默认 N=7）。",
@@ -4976,6 +5145,60 @@ const docTemplate = `{
                 ]
             }
         },
+        "/analytics/incidents/export": {
+            "get": {
+                "description": "按 start/end 时间范围导出事件度量 CSV（含 severity/status 分布）。权限与 team scope 同 /analytics/incidents。",
+                "parameters": [
+                    {
+                        "description": "起始时间 RFC3339",
+                        "in": "query",
+                        "name": "start",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "结束时间 RFC3339",
+                        "in": "query",
+                        "name": "end",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "CSV 文件"
+                    },
+                    "500": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "Export incident metrics as CSV",
+                "tags": [
+                    "analytics"
+                ]
+            }
+        },
         "/analytics/postmortems": {
             "get": {
                 "description": "按 start/end（RFC3339）时间范围返回复盘度量。",
@@ -5025,6 +5248,60 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "Get postmortem metrics",
+                "tags": [
+                    "analytics"
+                ]
+            }
+        },
+        "/analytics/postmortems/export": {
+            "get": {
+                "description": "按 start/end 时间范围导出复盘度量 CSV。权限与 team scope 同 /analytics/postmortems。",
+                "parameters": [
+                    {
+                        "description": "起始时间 RFC3339",
+                        "in": "query",
+                        "name": "start",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "结束时间 RFC3339",
+                        "in": "query",
+                        "name": "end",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "CSV 文件"
+                    },
+                    "500": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "Export postmortem metrics as CSV",
                 "tags": [
                     "analytics"
                 ]
@@ -5082,6 +5359,60 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "Get team load",
+                "tags": [
+                    "analytics"
+                ]
+            }
+        },
+        "/analytics/team-load/export": {
+            "get": {
+                "description": "按 start/end 时间范围导出各团队负载 CSV（每团队一行）。权限与 team scope 同 /analytics/team-load。",
+                "parameters": [
+                    {
+                        "description": "起始时间 RFC3339",
+                        "in": "query",
+                        "name": "start",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "结束时间 RFC3339",
+                        "in": "query",
+                        "name": "end",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "CSV 文件"
+                    },
+                    "500": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "Export team load as CSV",
                 "tags": [
                     "analytics"
                 ]

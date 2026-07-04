@@ -25,6 +25,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
+	"github.com/kevin/vigil/ent/metricssnapshot"
 	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
@@ -71,6 +72,8 @@ type Client struct {
 	IncidentAction *IncidentActionClient
 	// Integration is the client for interacting with the Integration builders.
 	Integration *IntegrationClient
+	// MetricsSnapshot is the client for interacting with the MetricsSnapshot builders.
+	MetricsSnapshot *MetricsSnapshotClient
 	// Notification is the client for interacting with the Notification builders.
 	Notification *NotificationClient
 	// NotificationRule is the client for interacting with the NotificationRule builders.
@@ -130,6 +133,7 @@ func (c *Client) init() {
 	c.Incident = NewIncidentClient(c.config)
 	c.IncidentAction = NewIncidentActionClient(c.config)
 	c.Integration = NewIntegrationClient(c.config)
+	c.MetricsSnapshot = NewMetricsSnapshotClient(c.config)
 	c.Notification = NewNotificationClient(c.config)
 	c.NotificationRule = NewNotificationRuleClient(c.config)
 	c.NotificationTemplate = NewNotificationTemplateClient(c.config)
@@ -251,6 +255,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Incident:             NewIncidentClient(cfg),
 		IncidentAction:       NewIncidentActionClient(cfg),
 		Integration:          NewIntegrationClient(cfg),
+		MetricsSnapshot:      NewMetricsSnapshotClient(cfg),
 		Notification:         NewNotificationClient(cfg),
 		NotificationRule:     NewNotificationRuleClient(cfg),
 		NotificationTemplate: NewNotificationTemplateClient(cfg),
@@ -299,6 +304,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Incident:             NewIncidentClient(cfg),
 		IncidentAction:       NewIncidentActionClient(cfg),
 		Integration:          NewIntegrationClient(cfg),
+		MetricsSnapshot:      NewMetricsSnapshotClient(cfg),
 		Notification:         NewNotificationClient(cfg),
 		NotificationRule:     NewNotificationRuleClient(cfg),
 		NotificationTemplate: NewNotificationTemplateClient(cfg),
@@ -349,9 +355,9 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AIInsight, c.APIKey, c.ActionItem, c.AuditLog, c.EscalationPolicy, c.Event,
 		c.IMAccountBinding, c.Incident, c.IncidentAction, c.Integration,
-		c.Notification, c.NotificationRule, c.NotificationTemplate, c.Override,
-		c.Postmortem, c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook,
-		c.Schedule, c.Service, c.Subscription, c.SuppressionRule, c.Team,
+		c.MetricsSnapshot, c.Notification, c.NotificationRule, c.NotificationTemplate,
+		c.Override, c.Postmortem, c.RawEvent, c.Role, c.RoleBinding, c.Rotation,
+		c.Runbook, c.Schedule, c.Service, c.Subscription, c.SuppressionRule, c.Team,
 		c.TicketIntegration, c.TimelineItem, c.User, c.WebhookDelivery,
 	} {
 		n.Use(hooks...)
@@ -364,9 +370,9 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AIInsight, c.APIKey, c.ActionItem, c.AuditLog, c.EscalationPolicy, c.Event,
 		c.IMAccountBinding, c.Incident, c.IncidentAction, c.Integration,
-		c.Notification, c.NotificationRule, c.NotificationTemplate, c.Override,
-		c.Postmortem, c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook,
-		c.Schedule, c.Service, c.Subscription, c.SuppressionRule, c.Team,
+		c.MetricsSnapshot, c.Notification, c.NotificationRule, c.NotificationTemplate,
+		c.Override, c.Postmortem, c.RawEvent, c.Role, c.RoleBinding, c.Rotation,
+		c.Runbook, c.Schedule, c.Service, c.Subscription, c.SuppressionRule, c.Team,
 		c.TicketIntegration, c.TimelineItem, c.User, c.WebhookDelivery,
 	} {
 		n.Intercept(interceptors...)
@@ -396,6 +402,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.IncidentAction.mutate(ctx, m)
 	case *IntegrationMutation:
 		return c.Integration.mutate(ctx, m)
+	case *MetricsSnapshotMutation:
+		return c.MetricsSnapshot.mutate(ctx, m)
 	case *NotificationMutation:
 		return c.Notification.mutate(ctx, m)
 	case *NotificationRuleMutation:
@@ -2198,6 +2206,155 @@ func (c *IntegrationClient) mutate(ctx context.Context, m *IntegrationMutation) 
 		return (&IntegrationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Integration mutation op: %q", m.Op())
+	}
+}
+
+// MetricsSnapshotClient is a client for the MetricsSnapshot schema.
+type MetricsSnapshotClient struct {
+	config
+}
+
+// NewMetricsSnapshotClient returns a client for the MetricsSnapshot from the given config.
+func NewMetricsSnapshotClient(c config) *MetricsSnapshotClient {
+	return &MetricsSnapshotClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `metricssnapshot.Hooks(f(g(h())))`.
+func (c *MetricsSnapshotClient) Use(hooks ...Hook) {
+	c.hooks.MetricsSnapshot = append(c.hooks.MetricsSnapshot, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `metricssnapshot.Intercept(f(g(h())))`.
+func (c *MetricsSnapshotClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MetricsSnapshot = append(c.inters.MetricsSnapshot, interceptors...)
+}
+
+// Create returns a builder for creating a MetricsSnapshot entity.
+func (c *MetricsSnapshotClient) Create() *MetricsSnapshotCreate {
+	mutation := newMetricsSnapshotMutation(c.config, OpCreate)
+	return &MetricsSnapshotCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MetricsSnapshot entities.
+func (c *MetricsSnapshotClient) CreateBulk(builders ...*MetricsSnapshotCreate) *MetricsSnapshotCreateBulk {
+	return &MetricsSnapshotCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MetricsSnapshotClient) MapCreateBulk(slice any, setFunc func(*MetricsSnapshotCreate, int)) *MetricsSnapshotCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MetricsSnapshotCreateBulk{err: fmt.Errorf("calling to MetricsSnapshotClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MetricsSnapshotCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MetricsSnapshotCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MetricsSnapshot.
+func (c *MetricsSnapshotClient) Update() *MetricsSnapshotUpdate {
+	mutation := newMetricsSnapshotMutation(c.config, OpUpdate)
+	return &MetricsSnapshotUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MetricsSnapshotClient) UpdateOne(_m *MetricsSnapshot) *MetricsSnapshotUpdateOne {
+	mutation := newMetricsSnapshotMutation(c.config, OpUpdateOne, withMetricsSnapshot(_m))
+	return &MetricsSnapshotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MetricsSnapshotClient) UpdateOneID(id int) *MetricsSnapshotUpdateOne {
+	mutation := newMetricsSnapshotMutation(c.config, OpUpdateOne, withMetricsSnapshotID(id))
+	return &MetricsSnapshotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MetricsSnapshot.
+func (c *MetricsSnapshotClient) Delete() *MetricsSnapshotDelete {
+	mutation := newMetricsSnapshotMutation(c.config, OpDelete)
+	return &MetricsSnapshotDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MetricsSnapshotClient) DeleteOne(_m *MetricsSnapshot) *MetricsSnapshotDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MetricsSnapshotClient) DeleteOneID(id int) *MetricsSnapshotDeleteOne {
+	builder := c.Delete().Where(metricssnapshot.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MetricsSnapshotDeleteOne{builder}
+}
+
+// Query returns a query builder for MetricsSnapshot.
+func (c *MetricsSnapshotClient) Query() *MetricsSnapshotQuery {
+	return &MetricsSnapshotQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMetricsSnapshot},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MetricsSnapshot entity by its id.
+func (c *MetricsSnapshotClient) Get(ctx context.Context, id int) (*MetricsSnapshot, error) {
+	return c.Query().Where(metricssnapshot.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MetricsSnapshotClient) GetX(ctx context.Context, id int) *MetricsSnapshot {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryTeam queries the team edge of a MetricsSnapshot.
+func (c *MetricsSnapshotClient) QueryTeam(_m *MetricsSnapshot) *TeamQuery {
+	query := (&TeamClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(metricssnapshot.Table, metricssnapshot.FieldID, id),
+			sqlgraph.To(team.Table, team.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, metricssnapshot.TeamTable, metricssnapshot.TeamColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *MetricsSnapshotClient) Hooks() []Hook {
+	return c.hooks.MetricsSnapshot
+}
+
+// Interceptors returns the client interceptors.
+func (c *MetricsSnapshotClient) Interceptors() []Interceptor {
+	return c.inters.MetricsSnapshot
+}
+
+func (c *MetricsSnapshotClient) mutate(ctx context.Context, m *MetricsSnapshotMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MetricsSnapshotCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MetricsSnapshotUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MetricsSnapshotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MetricsSnapshotDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MetricsSnapshot mutation op: %q", m.Op())
 	}
 }
 
@@ -4923,6 +5080,22 @@ func (c *TeamClient) QuerySubscriptions(_m *Team) *SubscriptionQuery {
 	return query
 }
 
+// QueryMetricsSnapshots queries the metrics_snapshots edge of a Team.
+func (c *TeamClient) QueryMetricsSnapshots(_m *Team) *MetricsSnapshotQuery {
+	query := (&MetricsSnapshotClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, id),
+			sqlgraph.To(metricssnapshot.Table, metricssnapshot.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, team.MetricsSnapshotsTable, team.MetricsSnapshotsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *TeamClient) Hooks() []Hook {
 	return c.hooks.Team
@@ -5644,18 +5817,18 @@ func (c *WebhookDeliveryClient) mutate(ctx context.Context, m *WebhookDeliveryMu
 type (
 	hooks struct {
 		AIInsight, APIKey, ActionItem, AuditLog, EscalationPolicy, Event,
-		IMAccountBinding, Incident, IncidentAction, Integration, Notification,
-		NotificationRule, NotificationTemplate, Override, Postmortem, RawEvent, Role,
-		RoleBinding, Rotation, Runbook, Schedule, Service, Subscription,
-		SuppressionRule, Team, TicketIntegration, TimelineItem, User,
+		IMAccountBinding, Incident, IncidentAction, Integration, MetricsSnapshot,
+		Notification, NotificationRule, NotificationTemplate, Override, Postmortem,
+		RawEvent, Role, RoleBinding, Rotation, Runbook, Schedule, Service,
+		Subscription, SuppressionRule, Team, TicketIntegration, TimelineItem, User,
 		WebhookDelivery []ent.Hook
 	}
 	inters struct {
 		AIInsight, APIKey, ActionItem, AuditLog, EscalationPolicy, Event,
-		IMAccountBinding, Incident, IncidentAction, Integration, Notification,
-		NotificationRule, NotificationTemplate, Override, Postmortem, RawEvent, Role,
-		RoleBinding, Rotation, Runbook, Schedule, Service, Subscription,
-		SuppressionRule, Team, TicketIntegration, TimelineItem, User,
+		IMAccountBinding, Incident, IncidentAction, Integration, MetricsSnapshot,
+		Notification, NotificationRule, NotificationTemplate, Override, Postmortem,
+		RawEvent, Role, RoleBinding, Rotation, Runbook, Schedule, Service,
+		Subscription, SuppressionRule, Team, TicketIntegration, TimelineItem, User,
 		WebhookDelivery []ent.Interceptor
 	}
 )

@@ -52,6 +52,8 @@ const (
 	EdgeTicketIntegrations = "ticket_integrations"
 	// EdgeSubscriptions holds the string denoting the subscriptions edge name in mutations.
 	EdgeSubscriptions = "subscriptions"
+	// EdgeMetricsSnapshots holds the string denoting the metrics_snapshots edge name in mutations.
+	EdgeMetricsSnapshots = "metrics_snapshots"
 	// Table holds the table name of the team in the database.
 	Table = "teams"
 	// UsersTable is the table that holds the users relation/edge. The primary key declared below.
@@ -141,6 +143,13 @@ const (
 	SubscriptionsInverseTable = "subscriptions"
 	// SubscriptionsColumn is the table column denoting the subscriptions relation/edge.
 	SubscriptionsColumn = "team_subscriptions"
+	// MetricsSnapshotsTable is the table that holds the metrics_snapshots relation/edge.
+	MetricsSnapshotsTable = "metrics_snapshots"
+	// MetricsSnapshotsInverseTable is the table name for the MetricsSnapshot entity.
+	// It exists in this package in order to avoid circular dependency with the "metricssnapshot" package.
+	MetricsSnapshotsInverseTable = "metrics_snapshots"
+	// MetricsSnapshotsColumn is the table column denoting the metrics_snapshots relation/edge.
+	MetricsSnapshotsColumn = "team_metrics_snapshots"
 )
 
 // Columns holds all SQL columns for team fields.
@@ -403,6 +412,20 @@ func BySubscriptions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSubscriptionsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByMetricsSnapshotsCount orders the results by metrics_snapshots count.
+func ByMetricsSnapshotsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newMetricsSnapshotsStep(), opts...)
+	}
+}
+
+// ByMetricsSnapshots orders the results by metrics_snapshots terms.
+func ByMetricsSnapshots(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newMetricsSnapshotsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newUsersStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -492,5 +515,12 @@ func newSubscriptionsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SubscriptionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionsTable, SubscriptionsColumn),
+	)
+}
+func newMetricsSnapshotsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(MetricsSnapshotsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, MetricsSnapshotsTable, MetricsSnapshotsColumn),
 	)
 }

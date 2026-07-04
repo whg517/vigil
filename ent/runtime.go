@@ -15,6 +15,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
+	"github.com/kevin/vigil/ent/metricssnapshot"
 	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
@@ -207,6 +208,56 @@ func init() {
 	integration.DefaultUpdatedAt = integrationDescUpdatedAt.Default.(func() time.Time)
 	// integration.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	integration.UpdateDefaultUpdatedAt = integrationDescUpdatedAt.UpdateDefault.(func() time.Time)
+	metricssnapshotFields := schema.MetricsSnapshot{}.Fields()
+	_ = metricssnapshotFields
+	// metricssnapshotDescAlertsTotal is the schema descriptor for alerts_total field.
+	metricssnapshotDescAlertsTotal := metricssnapshotFields[3].Descriptor()
+	// metricssnapshot.DefaultAlertsTotal holds the default value on creation for the alerts_total field.
+	metricssnapshot.DefaultAlertsTotal = metricssnapshotDescAlertsTotal.Default.(int)
+	// metricssnapshotDescAlertsNotified is the schema descriptor for alerts_notified field.
+	metricssnapshotDescAlertsNotified := metricssnapshotFields[4].Descriptor()
+	// metricssnapshot.DefaultAlertsNotified holds the default value on creation for the alerts_notified field.
+	metricssnapshot.DefaultAlertsNotified = metricssnapshotDescAlertsNotified.Default.(int)
+	// metricssnapshotDescAlertsUnrouted is the schema descriptor for alerts_unrouted field.
+	metricssnapshotDescAlertsUnrouted := metricssnapshotFields[5].Descriptor()
+	// metricssnapshot.DefaultAlertsUnrouted holds the default value on creation for the alerts_unrouted field.
+	metricssnapshot.DefaultAlertsUnrouted = metricssnapshotDescAlertsUnrouted.Default.(int)
+	// metricssnapshotDescNoiseRate is the schema descriptor for noise_rate field.
+	metricssnapshotDescNoiseRate := metricssnapshotFields[6].Descriptor()
+	// metricssnapshot.DefaultNoiseRate holds the default value on creation for the noise_rate field.
+	metricssnapshot.DefaultNoiseRate = metricssnapshotDescNoiseRate.Default.(float64)
+	// metricssnapshotDescIncidentsTotal is the schema descriptor for incidents_total field.
+	metricssnapshotDescIncidentsTotal := metricssnapshotFields[7].Descriptor()
+	// metricssnapshot.DefaultIncidentsTotal holds the default value on creation for the incidents_total field.
+	metricssnapshot.DefaultIncidentsTotal = metricssnapshotDescIncidentsTotal.Default.(int)
+	// metricssnapshotDescIncidentsResolved is the schema descriptor for incidents_resolved field.
+	metricssnapshotDescIncidentsResolved := metricssnapshotFields[8].Descriptor()
+	// metricssnapshot.DefaultIncidentsResolved holds the default value on creation for the incidents_resolved field.
+	metricssnapshot.DefaultIncidentsResolved = metricssnapshotDescIncidentsResolved.Default.(int)
+	// metricssnapshotDescMttaSeconds is the schema descriptor for mtta_seconds field.
+	metricssnapshotDescMttaSeconds := metricssnapshotFields[9].Descriptor()
+	// metricssnapshot.DefaultMttaSeconds holds the default value on creation for the mtta_seconds field.
+	metricssnapshot.DefaultMttaSeconds = metricssnapshotDescMttaSeconds.Default.(float64)
+	// metricssnapshotDescMttrSeconds is the schema descriptor for mttr_seconds field.
+	metricssnapshotDescMttrSeconds := metricssnapshotFields[10].Descriptor()
+	// metricssnapshot.DefaultMttrSeconds holds the default value on creation for the mttr_seconds field.
+	metricssnapshot.DefaultMttrSeconds = metricssnapshotDescMttrSeconds.Default.(float64)
+	// metricssnapshotDescPostmortemsTotal is the schema descriptor for postmortems_total field.
+	metricssnapshotDescPostmortemsTotal := metricssnapshotFields[13].Descriptor()
+	// metricssnapshot.DefaultPostmortemsTotal holds the default value on creation for the postmortems_total field.
+	metricssnapshot.DefaultPostmortemsTotal = metricssnapshotDescPostmortemsTotal.Default.(int)
+	// metricssnapshotDescPostmortemsPublished is the schema descriptor for postmortems_published field.
+	metricssnapshotDescPostmortemsPublished := metricssnapshotFields[14].Descriptor()
+	// metricssnapshot.DefaultPostmortemsPublished holds the default value on creation for the postmortems_published field.
+	metricssnapshot.DefaultPostmortemsPublished = metricssnapshotDescPostmortemsPublished.Default.(int)
+	// metricssnapshotDescCompletionRate is the schema descriptor for completion_rate field.
+	metricssnapshotDescCompletionRate := metricssnapshotFields[15].Descriptor()
+	// metricssnapshot.DefaultCompletionRate holds the default value on creation for the completion_rate field.
+	metricssnapshot.DefaultCompletionRate = metricssnapshotDescCompletionRate.Default.(float64)
+	// metricssnapshotDescCreatedAt is the schema descriptor for created_at field.
+	metricssnapshotDescCreatedAt := metricssnapshotFields[16].Descriptor()
+	// metricssnapshot.DefaultCreatedAt holds the default value on creation for the created_at field.
+	metricssnapshot.DefaultCreatedAt = metricssnapshotDescCreatedAt.Default.(func() time.Time)
 	notificationFields := schema.Notification{}.Fields()
 	_ = notificationFields
 	// notificationDescChannel is the schema descriptor for channel field.

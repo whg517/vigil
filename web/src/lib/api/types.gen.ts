@@ -368,6 +368,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analytics/alerts/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export alert metrics as CSV
+         * @description 按 start/end 时间范围导出告警度量 CSV（附件下载）。权限与 team scope 同 /analytics/alerts。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 起始时间 RFC3339 */
+                    start?: string;
+                    /** @description 结束时间 RFC3339 */
+                    end?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CSV 文件 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/analytics/dashboard": {
         parameters: {
             query?: never;
@@ -472,6 +525,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analytics/incidents/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export incident metrics as CSV
+         * @description 按 start/end 时间范围导出事件度量 CSV（含 severity/status 分布）。权限与 team scope 同 /analytics/incidents。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 起始时间 RFC3339 */
+                    start?: string;
+                    /** @description 结束时间 RFC3339 */
+                    end?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CSV 文件 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/analytics/postmortems": {
         parameters: {
             query?: never;
@@ -525,6 +631,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analytics/postmortems/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export postmortem metrics as CSV
+         * @description 按 start/end 时间范围导出复盘度量 CSV。权限与 team scope 同 /analytics/postmortems。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 起始时间 RFC3339 */
+                    start?: string;
+                    /** @description 结束时间 RFC3339 */
+                    end?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CSV 文件 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/analytics/team-load": {
         parameters: {
             query?: never;
@@ -566,6 +725,59 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/team-load/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export team load as CSV
+         * @description 按 start/end 时间范围导出各团队负载 CSV（每团队一行）。权限与 team scope 同 /analytics/team-load。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 起始时间 RFC3339 */
+                    start?: string;
+                    /** @description 结束时间 RFC3339 */
+                    end?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CSV 文件 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -8089,6 +8301,55 @@ export interface components {
             service?: components["schemas"]["ent.Service"];
             team?: components["schemas"]["ent.Team"];
         };
+        "ent.MetricsSnapshot": {
+            /** @description 触发通知的（非噪音） */
+            alerts_notified?: number;
+            /** @description 接入总量 */
+            alerts_total?: number;
+            /** @description 未命中路由 */
+            alerts_unrouted?: number;
+            /** @description severity 分布 */
+            by_severity?: {
+                [key: string]: number;
+            };
+            /** @description status 分布 */
+            by_status?: {
+                [key: string]: number;
+            };
+            /** @description 复盘完成率 0~1 */
+            completion_rate?: number;
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            edges?: components["schemas"]["ent.MetricsSnapshotEdges"];
+            /** @description ID of the ent. */
+            id?: number;
+            /** @description 已解决数 */
+            incidents_resolved?: number;
+            /** @description Incident 总数 */
+            incidents_total?: number;
+            /** @description 平均确认时长（秒） */
+            mtta_seconds?: number;
+            /** @description 平均解决时长（秒） */
+            mttr_seconds?: number;
+            /** @description 降噪率 0~1 */
+            noise_rate?: number;
+            period?: components["schemas"]["metricssnapshot.Period"];
+            /** @description 快照窗口终点（不含） */
+            period_end?: string;
+            /** @description 快照窗口起点（含） */
+            period_start?: string;
+            /** @description 已发布/归档数 */
+            postmortems_published?: number;
+            /** @description 复盘总数 */
+            postmortems_total?: number;
+        };
+        /**
+         * @description Edges holds the relations/edges for other nodes in the graph.
+         *     The values are being populated by the MetricsSnapshotQuery when eager-loading is set.
+         */
+        "ent.MetricsSnapshotEdges": {
+            team?: components["schemas"]["ent.Team"];
+        };
         "ent.Notification": {
             /** @description 送达通道：im|phone|sms|email|webhook */
             channel?: string;
@@ -8524,6 +8785,8 @@ export interface components {
             incidents?: components["schemas"]["ent.Incident"][];
             /** @description Integrations holds the value of the integrations edge. */
             integrations?: components["schemas"]["ent.Integration"][];
+            /** @description MetricsSnapshots holds the value of the metrics_snapshots edge. */
+            metrics_snapshots?: components["schemas"]["ent.MetricsSnapshot"][];
             /** @description NotificationRules holds the value of the notification_rules edge. */
             notification_rules?: components["schemas"]["ent.NotificationRule"][];
             /** @description NotificationTemplates holds the value of the notification_templates edge. */
@@ -8870,6 +9133,11 @@ export interface components {
             enabled?: boolean;
             name?: string;
         };
+        /**
+         * @description 聚合粒度：hourly 每小时 / daily 每日
+         * @enum {string}
+         */
+        "metricssnapshot.Period": "daily" | "hourly";
         /**
          * @description 送达状态：pending|sent|failed|suppressed
          * @enum {string}

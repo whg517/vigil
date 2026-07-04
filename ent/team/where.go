@@ -744,6 +744,29 @@ func HasSubscriptionsWith(preds ...predicate.Subscription) predicate.Team {
 	})
 }
 
+// HasMetricsSnapshots applies the HasEdge predicate on the "metrics_snapshots" edge.
+func HasMetricsSnapshots() predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, MetricsSnapshotsTable, MetricsSnapshotsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasMetricsSnapshotsWith applies the HasEdge predicate on the "metrics_snapshots" edge with a given conditions (other predicates).
+func HasMetricsSnapshotsWith(preds ...predicate.MetricsSnapshot) predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := newMetricsSnapshotsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Team) predicate.Team {
 	return predicate.Team(sql.AndPredicates(predicates...))

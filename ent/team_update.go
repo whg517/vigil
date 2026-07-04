@@ -14,6 +14,7 @@ import (
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/integration"
+	"github.com/kevin/vigil/ent/metricssnapshot"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/predicate"
@@ -310,6 +311,21 @@ func (_u *TeamUpdate) AddSubscriptions(v ...*Subscription) *TeamUpdate {
 	return _u.AddSubscriptionIDs(ids...)
 }
 
+// AddMetricsSnapshotIDs adds the "metrics_snapshots" edge to the MetricsSnapshot entity by IDs.
+func (_u *TeamUpdate) AddMetricsSnapshotIDs(ids ...int) *TeamUpdate {
+	_u.mutation.AddMetricsSnapshotIDs(ids...)
+	return _u
+}
+
+// AddMetricsSnapshots adds the "metrics_snapshots" edges to the MetricsSnapshot entity.
+func (_u *TeamUpdate) AddMetricsSnapshots(v ...*MetricsSnapshot) *TeamUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddMetricsSnapshotIDs(ids...)
+}
+
 // Mutation returns the TeamMutation object of the builder.
 func (_u *TeamUpdate) Mutation() *TeamMutation {
 	return _u.mutation
@@ -586,6 +602,27 @@ func (_u *TeamUpdate) RemoveSubscriptions(v ...*Subscription) *TeamUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSubscriptionIDs(ids...)
+}
+
+// ClearMetricsSnapshots clears all "metrics_snapshots" edges to the MetricsSnapshot entity.
+func (_u *TeamUpdate) ClearMetricsSnapshots() *TeamUpdate {
+	_u.mutation.ClearMetricsSnapshots()
+	return _u
+}
+
+// RemoveMetricsSnapshotIDs removes the "metrics_snapshots" edge to MetricsSnapshot entities by IDs.
+func (_u *TeamUpdate) RemoveMetricsSnapshotIDs(ids ...int) *TeamUpdate {
+	_u.mutation.RemoveMetricsSnapshotIDs(ids...)
+	return _u
+}
+
+// RemoveMetricsSnapshots removes "metrics_snapshots" edges to MetricsSnapshot entities.
+func (_u *TeamUpdate) RemoveMetricsSnapshots(v ...*MetricsSnapshot) *TeamUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveMetricsSnapshotIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1252,6 +1289,51 @@ func (_u *TeamUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.MetricsSnapshotsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.MetricsSnapshotsTable,
+			Columns: []string{team.MetricsSnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(metricssnapshot.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedMetricsSnapshotsIDs(); len(nodes) > 0 && !_u.mutation.MetricsSnapshotsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.MetricsSnapshotsTable,
+			Columns: []string{team.MetricsSnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(metricssnapshot.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MetricsSnapshotsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.MetricsSnapshotsTable,
+			Columns: []string{team.MetricsSnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(metricssnapshot.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{team.Label}
@@ -1541,6 +1623,21 @@ func (_u *TeamUpdateOne) AddSubscriptions(v ...*Subscription) *TeamUpdateOne {
 	return _u.AddSubscriptionIDs(ids...)
 }
 
+// AddMetricsSnapshotIDs adds the "metrics_snapshots" edge to the MetricsSnapshot entity by IDs.
+func (_u *TeamUpdateOne) AddMetricsSnapshotIDs(ids ...int) *TeamUpdateOne {
+	_u.mutation.AddMetricsSnapshotIDs(ids...)
+	return _u
+}
+
+// AddMetricsSnapshots adds the "metrics_snapshots" edges to the MetricsSnapshot entity.
+func (_u *TeamUpdateOne) AddMetricsSnapshots(v ...*MetricsSnapshot) *TeamUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddMetricsSnapshotIDs(ids...)
+}
+
 // Mutation returns the TeamMutation object of the builder.
 func (_u *TeamUpdateOne) Mutation() *TeamMutation {
 	return _u.mutation
@@ -1817,6 +1914,27 @@ func (_u *TeamUpdateOne) RemoveSubscriptions(v ...*Subscription) *TeamUpdateOne 
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSubscriptionIDs(ids...)
+}
+
+// ClearMetricsSnapshots clears all "metrics_snapshots" edges to the MetricsSnapshot entity.
+func (_u *TeamUpdateOne) ClearMetricsSnapshots() *TeamUpdateOne {
+	_u.mutation.ClearMetricsSnapshots()
+	return _u
+}
+
+// RemoveMetricsSnapshotIDs removes the "metrics_snapshots" edge to MetricsSnapshot entities by IDs.
+func (_u *TeamUpdateOne) RemoveMetricsSnapshotIDs(ids ...int) *TeamUpdateOne {
+	_u.mutation.RemoveMetricsSnapshotIDs(ids...)
+	return _u
+}
+
+// RemoveMetricsSnapshots removes "metrics_snapshots" edges to MetricsSnapshot entities.
+func (_u *TeamUpdateOne) RemoveMetricsSnapshots(v ...*MetricsSnapshot) *TeamUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveMetricsSnapshotIDs(ids...)
 }
 
 // Where appends a list predicates to the TeamUpdate builder.
@@ -2506,6 +2624,51 @@ func (_u *TeamUpdateOne) sqlSave(ctx context.Context) (_node *Team, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(subscription.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.MetricsSnapshotsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.MetricsSnapshotsTable,
+			Columns: []string{team.MetricsSnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(metricssnapshot.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedMetricsSnapshotsIDs(); len(nodes) > 0 && !_u.mutation.MetricsSnapshotsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.MetricsSnapshotsTable,
+			Columns: []string{team.MetricsSnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(metricssnapshot.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MetricsSnapshotsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.MetricsSnapshotsTable,
+			Columns: []string{team.MetricsSnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(metricssnapshot.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

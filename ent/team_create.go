@@ -13,6 +13,7 @@ import (
 	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/integration"
+	"github.com/kevin/vigil/ent/metricssnapshot"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
 	"github.com/kevin/vigil/ent/rolebinding"
@@ -294,6 +295,21 @@ func (_c *TeamCreate) AddSubscriptions(v ...*Subscription) *TeamCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddSubscriptionIDs(ids...)
+}
+
+// AddMetricsSnapshotIDs adds the "metrics_snapshots" edge to the MetricsSnapshot entity by IDs.
+func (_c *TeamCreate) AddMetricsSnapshotIDs(ids ...int) *TeamCreate {
+	_c.mutation.AddMetricsSnapshotIDs(ids...)
+	return _c
+}
+
+// AddMetricsSnapshots adds the "metrics_snapshots" edges to the MetricsSnapshot entity.
+func (_c *TeamCreate) AddMetricsSnapshots(v ...*MetricsSnapshot) *TeamCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddMetricsSnapshotIDs(ids...)
 }
 
 // Mutation returns the TeamMutation object of the builder.
@@ -611,6 +627,22 @@ func (_c *TeamCreate) createSpec() (*Team, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(subscription.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.MetricsSnapshotsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.MetricsSnapshotsTable,
+			Columns: []string{team.MetricsSnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(metricssnapshot.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

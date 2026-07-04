@@ -21,6 +21,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/incidentaction"
 	"github.com/kevin/vigil/ent/integration"
+	"github.com/kevin/vigil/ent/metricssnapshot"
 	"github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/notificationtemplate"
@@ -63,6 +64,7 @@ const (
 	TypeIncident             = "Incident"
 	TypeIncidentAction       = "IncidentAction"
 	TypeIntegration          = "Integration"
+	TypeMetricsSnapshot      = "MetricsSnapshot"
 	TypeNotification         = "Notification"
 	TypeNotificationRule     = "NotificationRule"
 	TypeNotificationTemplate = "NotificationTemplate"
@@ -10228,6 +10230,1670 @@ func (m *IntegrationMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Integration edge %s", name)
+}
+
+// MetricsSnapshotMutation represents an operation that mutates the MetricsSnapshot nodes in the graph.
+type MetricsSnapshotMutation struct {
+	config
+	op                       Op
+	typ                      string
+	id                       *int
+	period                   *metricssnapshot.Period
+	period_start             *time.Time
+	period_end               *time.Time
+	alerts_total             *int
+	addalerts_total          *int
+	alerts_notified          *int
+	addalerts_notified       *int
+	alerts_unrouted          *int
+	addalerts_unrouted       *int
+	noise_rate               *float64
+	addnoise_rate            *float64
+	incidents_total          *int
+	addincidents_total       *int
+	incidents_resolved       *int
+	addincidents_resolved    *int
+	mtta_seconds             *float64
+	addmtta_seconds          *float64
+	mttr_seconds             *float64
+	addmttr_seconds          *float64
+	by_severity              *map[string]int
+	by_status                *map[string]int
+	postmortems_total        *int
+	addpostmortems_total     *int
+	postmortems_published    *int
+	addpostmortems_published *int
+	completion_rate          *float64
+	addcompletion_rate       *float64
+	created_at               *time.Time
+	clearedFields            map[string]struct{}
+	team                     *int
+	clearedteam              bool
+	done                     bool
+	oldValue                 func(context.Context) (*MetricsSnapshot, error)
+	predicates               []predicate.MetricsSnapshot
+}
+
+var _ ent.Mutation = (*MetricsSnapshotMutation)(nil)
+
+// metricssnapshotOption allows management of the mutation configuration using functional options.
+type metricssnapshotOption func(*MetricsSnapshotMutation)
+
+// newMetricsSnapshotMutation creates new mutation for the MetricsSnapshot entity.
+func newMetricsSnapshotMutation(c config, op Op, opts ...metricssnapshotOption) *MetricsSnapshotMutation {
+	m := &MetricsSnapshotMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMetricsSnapshot,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMetricsSnapshotID sets the ID field of the mutation.
+func withMetricsSnapshotID(id int) metricssnapshotOption {
+	return func(m *MetricsSnapshotMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MetricsSnapshot
+		)
+		m.oldValue = func(ctx context.Context) (*MetricsSnapshot, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MetricsSnapshot.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMetricsSnapshot sets the old MetricsSnapshot of the mutation.
+func withMetricsSnapshot(node *MetricsSnapshot) metricssnapshotOption {
+	return func(m *MetricsSnapshotMutation) {
+		m.oldValue = func(context.Context) (*MetricsSnapshot, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MetricsSnapshotMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MetricsSnapshotMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MetricsSnapshotMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MetricsSnapshotMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MetricsSnapshot.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetPeriod sets the "period" field.
+func (m *MetricsSnapshotMutation) SetPeriod(value metricssnapshot.Period) {
+	m.period = &value
+}
+
+// Period returns the value of the "period" field in the mutation.
+func (m *MetricsSnapshotMutation) Period() (r metricssnapshot.Period, exists bool) {
+	v := m.period
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeriod returns the old "period" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldPeriod(ctx context.Context) (v metricssnapshot.Period, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeriod is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeriod requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeriod: %w", err)
+	}
+	return oldValue.Period, nil
+}
+
+// ResetPeriod resets all changes to the "period" field.
+func (m *MetricsSnapshotMutation) ResetPeriod() {
+	m.period = nil
+}
+
+// SetPeriodStart sets the "period_start" field.
+func (m *MetricsSnapshotMutation) SetPeriodStart(t time.Time) {
+	m.period_start = &t
+}
+
+// PeriodStart returns the value of the "period_start" field in the mutation.
+func (m *MetricsSnapshotMutation) PeriodStart() (r time.Time, exists bool) {
+	v := m.period_start
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeriodStart returns the old "period_start" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldPeriodStart(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeriodStart is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeriodStart requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeriodStart: %w", err)
+	}
+	return oldValue.PeriodStart, nil
+}
+
+// ResetPeriodStart resets all changes to the "period_start" field.
+func (m *MetricsSnapshotMutation) ResetPeriodStart() {
+	m.period_start = nil
+}
+
+// SetPeriodEnd sets the "period_end" field.
+func (m *MetricsSnapshotMutation) SetPeriodEnd(t time.Time) {
+	m.period_end = &t
+}
+
+// PeriodEnd returns the value of the "period_end" field in the mutation.
+func (m *MetricsSnapshotMutation) PeriodEnd() (r time.Time, exists bool) {
+	v := m.period_end
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeriodEnd returns the old "period_end" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldPeriodEnd(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeriodEnd is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeriodEnd requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeriodEnd: %w", err)
+	}
+	return oldValue.PeriodEnd, nil
+}
+
+// ResetPeriodEnd resets all changes to the "period_end" field.
+func (m *MetricsSnapshotMutation) ResetPeriodEnd() {
+	m.period_end = nil
+}
+
+// SetAlertsTotal sets the "alerts_total" field.
+func (m *MetricsSnapshotMutation) SetAlertsTotal(i int) {
+	m.alerts_total = &i
+	m.addalerts_total = nil
+}
+
+// AlertsTotal returns the value of the "alerts_total" field in the mutation.
+func (m *MetricsSnapshotMutation) AlertsTotal() (r int, exists bool) {
+	v := m.alerts_total
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAlertsTotal returns the old "alerts_total" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldAlertsTotal(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAlertsTotal is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAlertsTotal requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAlertsTotal: %w", err)
+	}
+	return oldValue.AlertsTotal, nil
+}
+
+// AddAlertsTotal adds i to the "alerts_total" field.
+func (m *MetricsSnapshotMutation) AddAlertsTotal(i int) {
+	if m.addalerts_total != nil {
+		*m.addalerts_total += i
+	} else {
+		m.addalerts_total = &i
+	}
+}
+
+// AddedAlertsTotal returns the value that was added to the "alerts_total" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedAlertsTotal() (r int, exists bool) {
+	v := m.addalerts_total
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAlertsTotal resets all changes to the "alerts_total" field.
+func (m *MetricsSnapshotMutation) ResetAlertsTotal() {
+	m.alerts_total = nil
+	m.addalerts_total = nil
+}
+
+// SetAlertsNotified sets the "alerts_notified" field.
+func (m *MetricsSnapshotMutation) SetAlertsNotified(i int) {
+	m.alerts_notified = &i
+	m.addalerts_notified = nil
+}
+
+// AlertsNotified returns the value of the "alerts_notified" field in the mutation.
+func (m *MetricsSnapshotMutation) AlertsNotified() (r int, exists bool) {
+	v := m.alerts_notified
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAlertsNotified returns the old "alerts_notified" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldAlertsNotified(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAlertsNotified is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAlertsNotified requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAlertsNotified: %w", err)
+	}
+	return oldValue.AlertsNotified, nil
+}
+
+// AddAlertsNotified adds i to the "alerts_notified" field.
+func (m *MetricsSnapshotMutation) AddAlertsNotified(i int) {
+	if m.addalerts_notified != nil {
+		*m.addalerts_notified += i
+	} else {
+		m.addalerts_notified = &i
+	}
+}
+
+// AddedAlertsNotified returns the value that was added to the "alerts_notified" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedAlertsNotified() (r int, exists bool) {
+	v := m.addalerts_notified
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAlertsNotified resets all changes to the "alerts_notified" field.
+func (m *MetricsSnapshotMutation) ResetAlertsNotified() {
+	m.alerts_notified = nil
+	m.addalerts_notified = nil
+}
+
+// SetAlertsUnrouted sets the "alerts_unrouted" field.
+func (m *MetricsSnapshotMutation) SetAlertsUnrouted(i int) {
+	m.alerts_unrouted = &i
+	m.addalerts_unrouted = nil
+}
+
+// AlertsUnrouted returns the value of the "alerts_unrouted" field in the mutation.
+func (m *MetricsSnapshotMutation) AlertsUnrouted() (r int, exists bool) {
+	v := m.alerts_unrouted
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAlertsUnrouted returns the old "alerts_unrouted" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldAlertsUnrouted(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAlertsUnrouted is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAlertsUnrouted requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAlertsUnrouted: %w", err)
+	}
+	return oldValue.AlertsUnrouted, nil
+}
+
+// AddAlertsUnrouted adds i to the "alerts_unrouted" field.
+func (m *MetricsSnapshotMutation) AddAlertsUnrouted(i int) {
+	if m.addalerts_unrouted != nil {
+		*m.addalerts_unrouted += i
+	} else {
+		m.addalerts_unrouted = &i
+	}
+}
+
+// AddedAlertsUnrouted returns the value that was added to the "alerts_unrouted" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedAlertsUnrouted() (r int, exists bool) {
+	v := m.addalerts_unrouted
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAlertsUnrouted resets all changes to the "alerts_unrouted" field.
+func (m *MetricsSnapshotMutation) ResetAlertsUnrouted() {
+	m.alerts_unrouted = nil
+	m.addalerts_unrouted = nil
+}
+
+// SetNoiseRate sets the "noise_rate" field.
+func (m *MetricsSnapshotMutation) SetNoiseRate(f float64) {
+	m.noise_rate = &f
+	m.addnoise_rate = nil
+}
+
+// NoiseRate returns the value of the "noise_rate" field in the mutation.
+func (m *MetricsSnapshotMutation) NoiseRate() (r float64, exists bool) {
+	v := m.noise_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNoiseRate returns the old "noise_rate" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldNoiseRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNoiseRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNoiseRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNoiseRate: %w", err)
+	}
+	return oldValue.NoiseRate, nil
+}
+
+// AddNoiseRate adds f to the "noise_rate" field.
+func (m *MetricsSnapshotMutation) AddNoiseRate(f float64) {
+	if m.addnoise_rate != nil {
+		*m.addnoise_rate += f
+	} else {
+		m.addnoise_rate = &f
+	}
+}
+
+// AddedNoiseRate returns the value that was added to the "noise_rate" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedNoiseRate() (r float64, exists bool) {
+	v := m.addnoise_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetNoiseRate resets all changes to the "noise_rate" field.
+func (m *MetricsSnapshotMutation) ResetNoiseRate() {
+	m.noise_rate = nil
+	m.addnoise_rate = nil
+}
+
+// SetIncidentsTotal sets the "incidents_total" field.
+func (m *MetricsSnapshotMutation) SetIncidentsTotal(i int) {
+	m.incidents_total = &i
+	m.addincidents_total = nil
+}
+
+// IncidentsTotal returns the value of the "incidents_total" field in the mutation.
+func (m *MetricsSnapshotMutation) IncidentsTotal() (r int, exists bool) {
+	v := m.incidents_total
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIncidentsTotal returns the old "incidents_total" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldIncidentsTotal(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIncidentsTotal is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIncidentsTotal requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIncidentsTotal: %w", err)
+	}
+	return oldValue.IncidentsTotal, nil
+}
+
+// AddIncidentsTotal adds i to the "incidents_total" field.
+func (m *MetricsSnapshotMutation) AddIncidentsTotal(i int) {
+	if m.addincidents_total != nil {
+		*m.addincidents_total += i
+	} else {
+		m.addincidents_total = &i
+	}
+}
+
+// AddedIncidentsTotal returns the value that was added to the "incidents_total" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedIncidentsTotal() (r int, exists bool) {
+	v := m.addincidents_total
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetIncidentsTotal resets all changes to the "incidents_total" field.
+func (m *MetricsSnapshotMutation) ResetIncidentsTotal() {
+	m.incidents_total = nil
+	m.addincidents_total = nil
+}
+
+// SetIncidentsResolved sets the "incidents_resolved" field.
+func (m *MetricsSnapshotMutation) SetIncidentsResolved(i int) {
+	m.incidents_resolved = &i
+	m.addincidents_resolved = nil
+}
+
+// IncidentsResolved returns the value of the "incidents_resolved" field in the mutation.
+func (m *MetricsSnapshotMutation) IncidentsResolved() (r int, exists bool) {
+	v := m.incidents_resolved
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIncidentsResolved returns the old "incidents_resolved" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldIncidentsResolved(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIncidentsResolved is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIncidentsResolved requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIncidentsResolved: %w", err)
+	}
+	return oldValue.IncidentsResolved, nil
+}
+
+// AddIncidentsResolved adds i to the "incidents_resolved" field.
+func (m *MetricsSnapshotMutation) AddIncidentsResolved(i int) {
+	if m.addincidents_resolved != nil {
+		*m.addincidents_resolved += i
+	} else {
+		m.addincidents_resolved = &i
+	}
+}
+
+// AddedIncidentsResolved returns the value that was added to the "incidents_resolved" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedIncidentsResolved() (r int, exists bool) {
+	v := m.addincidents_resolved
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetIncidentsResolved resets all changes to the "incidents_resolved" field.
+func (m *MetricsSnapshotMutation) ResetIncidentsResolved() {
+	m.incidents_resolved = nil
+	m.addincidents_resolved = nil
+}
+
+// SetMttaSeconds sets the "mtta_seconds" field.
+func (m *MetricsSnapshotMutation) SetMttaSeconds(f float64) {
+	m.mtta_seconds = &f
+	m.addmtta_seconds = nil
+}
+
+// MttaSeconds returns the value of the "mtta_seconds" field in the mutation.
+func (m *MetricsSnapshotMutation) MttaSeconds() (r float64, exists bool) {
+	v := m.mtta_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMttaSeconds returns the old "mtta_seconds" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldMttaSeconds(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMttaSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMttaSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMttaSeconds: %w", err)
+	}
+	return oldValue.MttaSeconds, nil
+}
+
+// AddMttaSeconds adds f to the "mtta_seconds" field.
+func (m *MetricsSnapshotMutation) AddMttaSeconds(f float64) {
+	if m.addmtta_seconds != nil {
+		*m.addmtta_seconds += f
+	} else {
+		m.addmtta_seconds = &f
+	}
+}
+
+// AddedMttaSeconds returns the value that was added to the "mtta_seconds" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedMttaSeconds() (r float64, exists bool) {
+	v := m.addmtta_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMttaSeconds resets all changes to the "mtta_seconds" field.
+func (m *MetricsSnapshotMutation) ResetMttaSeconds() {
+	m.mtta_seconds = nil
+	m.addmtta_seconds = nil
+}
+
+// SetMttrSeconds sets the "mttr_seconds" field.
+func (m *MetricsSnapshotMutation) SetMttrSeconds(f float64) {
+	m.mttr_seconds = &f
+	m.addmttr_seconds = nil
+}
+
+// MttrSeconds returns the value of the "mttr_seconds" field in the mutation.
+func (m *MetricsSnapshotMutation) MttrSeconds() (r float64, exists bool) {
+	v := m.mttr_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMttrSeconds returns the old "mttr_seconds" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldMttrSeconds(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMttrSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMttrSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMttrSeconds: %w", err)
+	}
+	return oldValue.MttrSeconds, nil
+}
+
+// AddMttrSeconds adds f to the "mttr_seconds" field.
+func (m *MetricsSnapshotMutation) AddMttrSeconds(f float64) {
+	if m.addmttr_seconds != nil {
+		*m.addmttr_seconds += f
+	} else {
+		m.addmttr_seconds = &f
+	}
+}
+
+// AddedMttrSeconds returns the value that was added to the "mttr_seconds" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedMttrSeconds() (r float64, exists bool) {
+	v := m.addmttr_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMttrSeconds resets all changes to the "mttr_seconds" field.
+func (m *MetricsSnapshotMutation) ResetMttrSeconds() {
+	m.mttr_seconds = nil
+	m.addmttr_seconds = nil
+}
+
+// SetBySeverity sets the "by_severity" field.
+func (m *MetricsSnapshotMutation) SetBySeverity(value map[string]int) {
+	m.by_severity = &value
+}
+
+// BySeverity returns the value of the "by_severity" field in the mutation.
+func (m *MetricsSnapshotMutation) BySeverity() (r map[string]int, exists bool) {
+	v := m.by_severity
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBySeverity returns the old "by_severity" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldBySeverity(ctx context.Context) (v map[string]int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBySeverity is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBySeverity requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBySeverity: %w", err)
+	}
+	return oldValue.BySeverity, nil
+}
+
+// ClearBySeverity clears the value of the "by_severity" field.
+func (m *MetricsSnapshotMutation) ClearBySeverity() {
+	m.by_severity = nil
+	m.clearedFields[metricssnapshot.FieldBySeverity] = struct{}{}
+}
+
+// BySeverityCleared returns if the "by_severity" field was cleared in this mutation.
+func (m *MetricsSnapshotMutation) BySeverityCleared() bool {
+	_, ok := m.clearedFields[metricssnapshot.FieldBySeverity]
+	return ok
+}
+
+// ResetBySeverity resets all changes to the "by_severity" field.
+func (m *MetricsSnapshotMutation) ResetBySeverity() {
+	m.by_severity = nil
+	delete(m.clearedFields, metricssnapshot.FieldBySeverity)
+}
+
+// SetByStatus sets the "by_status" field.
+func (m *MetricsSnapshotMutation) SetByStatus(value map[string]int) {
+	m.by_status = &value
+}
+
+// ByStatus returns the value of the "by_status" field in the mutation.
+func (m *MetricsSnapshotMutation) ByStatus() (r map[string]int, exists bool) {
+	v := m.by_status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldByStatus returns the old "by_status" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldByStatus(ctx context.Context) (v map[string]int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldByStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldByStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldByStatus: %w", err)
+	}
+	return oldValue.ByStatus, nil
+}
+
+// ClearByStatus clears the value of the "by_status" field.
+func (m *MetricsSnapshotMutation) ClearByStatus() {
+	m.by_status = nil
+	m.clearedFields[metricssnapshot.FieldByStatus] = struct{}{}
+}
+
+// ByStatusCleared returns if the "by_status" field was cleared in this mutation.
+func (m *MetricsSnapshotMutation) ByStatusCleared() bool {
+	_, ok := m.clearedFields[metricssnapshot.FieldByStatus]
+	return ok
+}
+
+// ResetByStatus resets all changes to the "by_status" field.
+func (m *MetricsSnapshotMutation) ResetByStatus() {
+	m.by_status = nil
+	delete(m.clearedFields, metricssnapshot.FieldByStatus)
+}
+
+// SetPostmortemsTotal sets the "postmortems_total" field.
+func (m *MetricsSnapshotMutation) SetPostmortemsTotal(i int) {
+	m.postmortems_total = &i
+	m.addpostmortems_total = nil
+}
+
+// PostmortemsTotal returns the value of the "postmortems_total" field in the mutation.
+func (m *MetricsSnapshotMutation) PostmortemsTotal() (r int, exists bool) {
+	v := m.postmortems_total
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPostmortemsTotal returns the old "postmortems_total" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldPostmortemsTotal(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPostmortemsTotal is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPostmortemsTotal requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPostmortemsTotal: %w", err)
+	}
+	return oldValue.PostmortemsTotal, nil
+}
+
+// AddPostmortemsTotal adds i to the "postmortems_total" field.
+func (m *MetricsSnapshotMutation) AddPostmortemsTotal(i int) {
+	if m.addpostmortems_total != nil {
+		*m.addpostmortems_total += i
+	} else {
+		m.addpostmortems_total = &i
+	}
+}
+
+// AddedPostmortemsTotal returns the value that was added to the "postmortems_total" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedPostmortemsTotal() (r int, exists bool) {
+	v := m.addpostmortems_total
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPostmortemsTotal resets all changes to the "postmortems_total" field.
+func (m *MetricsSnapshotMutation) ResetPostmortemsTotal() {
+	m.postmortems_total = nil
+	m.addpostmortems_total = nil
+}
+
+// SetPostmortemsPublished sets the "postmortems_published" field.
+func (m *MetricsSnapshotMutation) SetPostmortemsPublished(i int) {
+	m.postmortems_published = &i
+	m.addpostmortems_published = nil
+}
+
+// PostmortemsPublished returns the value of the "postmortems_published" field in the mutation.
+func (m *MetricsSnapshotMutation) PostmortemsPublished() (r int, exists bool) {
+	v := m.postmortems_published
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPostmortemsPublished returns the old "postmortems_published" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldPostmortemsPublished(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPostmortemsPublished is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPostmortemsPublished requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPostmortemsPublished: %w", err)
+	}
+	return oldValue.PostmortemsPublished, nil
+}
+
+// AddPostmortemsPublished adds i to the "postmortems_published" field.
+func (m *MetricsSnapshotMutation) AddPostmortemsPublished(i int) {
+	if m.addpostmortems_published != nil {
+		*m.addpostmortems_published += i
+	} else {
+		m.addpostmortems_published = &i
+	}
+}
+
+// AddedPostmortemsPublished returns the value that was added to the "postmortems_published" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedPostmortemsPublished() (r int, exists bool) {
+	v := m.addpostmortems_published
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPostmortemsPublished resets all changes to the "postmortems_published" field.
+func (m *MetricsSnapshotMutation) ResetPostmortemsPublished() {
+	m.postmortems_published = nil
+	m.addpostmortems_published = nil
+}
+
+// SetCompletionRate sets the "completion_rate" field.
+func (m *MetricsSnapshotMutation) SetCompletionRate(f float64) {
+	m.completion_rate = &f
+	m.addcompletion_rate = nil
+}
+
+// CompletionRate returns the value of the "completion_rate" field in the mutation.
+func (m *MetricsSnapshotMutation) CompletionRate() (r float64, exists bool) {
+	v := m.completion_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCompletionRate returns the old "completion_rate" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldCompletionRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCompletionRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCompletionRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCompletionRate: %w", err)
+	}
+	return oldValue.CompletionRate, nil
+}
+
+// AddCompletionRate adds f to the "completion_rate" field.
+func (m *MetricsSnapshotMutation) AddCompletionRate(f float64) {
+	if m.addcompletion_rate != nil {
+		*m.addcompletion_rate += f
+	} else {
+		m.addcompletion_rate = &f
+	}
+}
+
+// AddedCompletionRate returns the value that was added to the "completion_rate" field in this mutation.
+func (m *MetricsSnapshotMutation) AddedCompletionRate() (r float64, exists bool) {
+	v := m.addcompletion_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCompletionRate resets all changes to the "completion_rate" field.
+func (m *MetricsSnapshotMutation) ResetCompletionRate() {
+	m.completion_rate = nil
+	m.addcompletion_rate = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *MetricsSnapshotMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *MetricsSnapshotMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the MetricsSnapshot entity.
+// If the MetricsSnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MetricsSnapshotMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *MetricsSnapshotMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetTeamID sets the "team" edge to the Team entity by id.
+func (m *MetricsSnapshotMutation) SetTeamID(id int) {
+	m.team = &id
+}
+
+// ClearTeam clears the "team" edge to the Team entity.
+func (m *MetricsSnapshotMutation) ClearTeam() {
+	m.clearedteam = true
+}
+
+// TeamCleared reports if the "team" edge to the Team entity was cleared.
+func (m *MetricsSnapshotMutation) TeamCleared() bool {
+	return m.clearedteam
+}
+
+// TeamID returns the "team" edge ID in the mutation.
+func (m *MetricsSnapshotMutation) TeamID() (id int, exists bool) {
+	if m.team != nil {
+		return *m.team, true
+	}
+	return
+}
+
+// TeamIDs returns the "team" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// TeamID instead. It exists only for internal usage by the builders.
+func (m *MetricsSnapshotMutation) TeamIDs() (ids []int) {
+	if id := m.team; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetTeam resets all changes to the "team" edge.
+func (m *MetricsSnapshotMutation) ResetTeam() {
+	m.team = nil
+	m.clearedteam = false
+}
+
+// Where appends a list predicates to the MetricsSnapshotMutation builder.
+func (m *MetricsSnapshotMutation) Where(ps ...predicate.MetricsSnapshot) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MetricsSnapshotMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MetricsSnapshotMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MetricsSnapshot, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MetricsSnapshotMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MetricsSnapshotMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MetricsSnapshot).
+func (m *MetricsSnapshotMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MetricsSnapshotMutation) Fields() []string {
+	fields := make([]string, 0, 17)
+	if m.period != nil {
+		fields = append(fields, metricssnapshot.FieldPeriod)
+	}
+	if m.period_start != nil {
+		fields = append(fields, metricssnapshot.FieldPeriodStart)
+	}
+	if m.period_end != nil {
+		fields = append(fields, metricssnapshot.FieldPeriodEnd)
+	}
+	if m.alerts_total != nil {
+		fields = append(fields, metricssnapshot.FieldAlertsTotal)
+	}
+	if m.alerts_notified != nil {
+		fields = append(fields, metricssnapshot.FieldAlertsNotified)
+	}
+	if m.alerts_unrouted != nil {
+		fields = append(fields, metricssnapshot.FieldAlertsUnrouted)
+	}
+	if m.noise_rate != nil {
+		fields = append(fields, metricssnapshot.FieldNoiseRate)
+	}
+	if m.incidents_total != nil {
+		fields = append(fields, metricssnapshot.FieldIncidentsTotal)
+	}
+	if m.incidents_resolved != nil {
+		fields = append(fields, metricssnapshot.FieldIncidentsResolved)
+	}
+	if m.mtta_seconds != nil {
+		fields = append(fields, metricssnapshot.FieldMttaSeconds)
+	}
+	if m.mttr_seconds != nil {
+		fields = append(fields, metricssnapshot.FieldMttrSeconds)
+	}
+	if m.by_severity != nil {
+		fields = append(fields, metricssnapshot.FieldBySeverity)
+	}
+	if m.by_status != nil {
+		fields = append(fields, metricssnapshot.FieldByStatus)
+	}
+	if m.postmortems_total != nil {
+		fields = append(fields, metricssnapshot.FieldPostmortemsTotal)
+	}
+	if m.postmortems_published != nil {
+		fields = append(fields, metricssnapshot.FieldPostmortemsPublished)
+	}
+	if m.completion_rate != nil {
+		fields = append(fields, metricssnapshot.FieldCompletionRate)
+	}
+	if m.created_at != nil {
+		fields = append(fields, metricssnapshot.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MetricsSnapshotMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case metricssnapshot.FieldPeriod:
+		return m.Period()
+	case metricssnapshot.FieldPeriodStart:
+		return m.PeriodStart()
+	case metricssnapshot.FieldPeriodEnd:
+		return m.PeriodEnd()
+	case metricssnapshot.FieldAlertsTotal:
+		return m.AlertsTotal()
+	case metricssnapshot.FieldAlertsNotified:
+		return m.AlertsNotified()
+	case metricssnapshot.FieldAlertsUnrouted:
+		return m.AlertsUnrouted()
+	case metricssnapshot.FieldNoiseRate:
+		return m.NoiseRate()
+	case metricssnapshot.FieldIncidentsTotal:
+		return m.IncidentsTotal()
+	case metricssnapshot.FieldIncidentsResolved:
+		return m.IncidentsResolved()
+	case metricssnapshot.FieldMttaSeconds:
+		return m.MttaSeconds()
+	case metricssnapshot.FieldMttrSeconds:
+		return m.MttrSeconds()
+	case metricssnapshot.FieldBySeverity:
+		return m.BySeverity()
+	case metricssnapshot.FieldByStatus:
+		return m.ByStatus()
+	case metricssnapshot.FieldPostmortemsTotal:
+		return m.PostmortemsTotal()
+	case metricssnapshot.FieldPostmortemsPublished:
+		return m.PostmortemsPublished()
+	case metricssnapshot.FieldCompletionRate:
+		return m.CompletionRate()
+	case metricssnapshot.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MetricsSnapshotMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case metricssnapshot.FieldPeriod:
+		return m.OldPeriod(ctx)
+	case metricssnapshot.FieldPeriodStart:
+		return m.OldPeriodStart(ctx)
+	case metricssnapshot.FieldPeriodEnd:
+		return m.OldPeriodEnd(ctx)
+	case metricssnapshot.FieldAlertsTotal:
+		return m.OldAlertsTotal(ctx)
+	case metricssnapshot.FieldAlertsNotified:
+		return m.OldAlertsNotified(ctx)
+	case metricssnapshot.FieldAlertsUnrouted:
+		return m.OldAlertsUnrouted(ctx)
+	case metricssnapshot.FieldNoiseRate:
+		return m.OldNoiseRate(ctx)
+	case metricssnapshot.FieldIncidentsTotal:
+		return m.OldIncidentsTotal(ctx)
+	case metricssnapshot.FieldIncidentsResolved:
+		return m.OldIncidentsResolved(ctx)
+	case metricssnapshot.FieldMttaSeconds:
+		return m.OldMttaSeconds(ctx)
+	case metricssnapshot.FieldMttrSeconds:
+		return m.OldMttrSeconds(ctx)
+	case metricssnapshot.FieldBySeverity:
+		return m.OldBySeverity(ctx)
+	case metricssnapshot.FieldByStatus:
+		return m.OldByStatus(ctx)
+	case metricssnapshot.FieldPostmortemsTotal:
+		return m.OldPostmortemsTotal(ctx)
+	case metricssnapshot.FieldPostmortemsPublished:
+		return m.OldPostmortemsPublished(ctx)
+	case metricssnapshot.FieldCompletionRate:
+		return m.OldCompletionRate(ctx)
+	case metricssnapshot.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown MetricsSnapshot field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MetricsSnapshotMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case metricssnapshot.FieldPeriod:
+		v, ok := value.(metricssnapshot.Period)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPeriod(v)
+		return nil
+	case metricssnapshot.FieldPeriodStart:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPeriodStart(v)
+		return nil
+	case metricssnapshot.FieldPeriodEnd:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPeriodEnd(v)
+		return nil
+	case metricssnapshot.FieldAlertsTotal:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAlertsTotal(v)
+		return nil
+	case metricssnapshot.FieldAlertsNotified:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAlertsNotified(v)
+		return nil
+	case metricssnapshot.FieldAlertsUnrouted:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAlertsUnrouted(v)
+		return nil
+	case metricssnapshot.FieldNoiseRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNoiseRate(v)
+		return nil
+	case metricssnapshot.FieldIncidentsTotal:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIncidentsTotal(v)
+		return nil
+	case metricssnapshot.FieldIncidentsResolved:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIncidentsResolved(v)
+		return nil
+	case metricssnapshot.FieldMttaSeconds:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMttaSeconds(v)
+		return nil
+	case metricssnapshot.FieldMttrSeconds:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMttrSeconds(v)
+		return nil
+	case metricssnapshot.FieldBySeverity:
+		v, ok := value.(map[string]int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBySeverity(v)
+		return nil
+	case metricssnapshot.FieldByStatus:
+		v, ok := value.(map[string]int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetByStatus(v)
+		return nil
+	case metricssnapshot.FieldPostmortemsTotal:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPostmortemsTotal(v)
+		return nil
+	case metricssnapshot.FieldPostmortemsPublished:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPostmortemsPublished(v)
+		return nil
+	case metricssnapshot.FieldCompletionRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCompletionRate(v)
+		return nil
+	case metricssnapshot.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MetricsSnapshot field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MetricsSnapshotMutation) AddedFields() []string {
+	var fields []string
+	if m.addalerts_total != nil {
+		fields = append(fields, metricssnapshot.FieldAlertsTotal)
+	}
+	if m.addalerts_notified != nil {
+		fields = append(fields, metricssnapshot.FieldAlertsNotified)
+	}
+	if m.addalerts_unrouted != nil {
+		fields = append(fields, metricssnapshot.FieldAlertsUnrouted)
+	}
+	if m.addnoise_rate != nil {
+		fields = append(fields, metricssnapshot.FieldNoiseRate)
+	}
+	if m.addincidents_total != nil {
+		fields = append(fields, metricssnapshot.FieldIncidentsTotal)
+	}
+	if m.addincidents_resolved != nil {
+		fields = append(fields, metricssnapshot.FieldIncidentsResolved)
+	}
+	if m.addmtta_seconds != nil {
+		fields = append(fields, metricssnapshot.FieldMttaSeconds)
+	}
+	if m.addmttr_seconds != nil {
+		fields = append(fields, metricssnapshot.FieldMttrSeconds)
+	}
+	if m.addpostmortems_total != nil {
+		fields = append(fields, metricssnapshot.FieldPostmortemsTotal)
+	}
+	if m.addpostmortems_published != nil {
+		fields = append(fields, metricssnapshot.FieldPostmortemsPublished)
+	}
+	if m.addcompletion_rate != nil {
+		fields = append(fields, metricssnapshot.FieldCompletionRate)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MetricsSnapshotMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case metricssnapshot.FieldAlertsTotal:
+		return m.AddedAlertsTotal()
+	case metricssnapshot.FieldAlertsNotified:
+		return m.AddedAlertsNotified()
+	case metricssnapshot.FieldAlertsUnrouted:
+		return m.AddedAlertsUnrouted()
+	case metricssnapshot.FieldNoiseRate:
+		return m.AddedNoiseRate()
+	case metricssnapshot.FieldIncidentsTotal:
+		return m.AddedIncidentsTotal()
+	case metricssnapshot.FieldIncidentsResolved:
+		return m.AddedIncidentsResolved()
+	case metricssnapshot.FieldMttaSeconds:
+		return m.AddedMttaSeconds()
+	case metricssnapshot.FieldMttrSeconds:
+		return m.AddedMttrSeconds()
+	case metricssnapshot.FieldPostmortemsTotal:
+		return m.AddedPostmortemsTotal()
+	case metricssnapshot.FieldPostmortemsPublished:
+		return m.AddedPostmortemsPublished()
+	case metricssnapshot.FieldCompletionRate:
+		return m.AddedCompletionRate()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MetricsSnapshotMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case metricssnapshot.FieldAlertsTotal:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAlertsTotal(v)
+		return nil
+	case metricssnapshot.FieldAlertsNotified:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAlertsNotified(v)
+		return nil
+	case metricssnapshot.FieldAlertsUnrouted:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAlertsUnrouted(v)
+		return nil
+	case metricssnapshot.FieldNoiseRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddNoiseRate(v)
+		return nil
+	case metricssnapshot.FieldIncidentsTotal:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddIncidentsTotal(v)
+		return nil
+	case metricssnapshot.FieldIncidentsResolved:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddIncidentsResolved(v)
+		return nil
+	case metricssnapshot.FieldMttaSeconds:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMttaSeconds(v)
+		return nil
+	case metricssnapshot.FieldMttrSeconds:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMttrSeconds(v)
+		return nil
+	case metricssnapshot.FieldPostmortemsTotal:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPostmortemsTotal(v)
+		return nil
+	case metricssnapshot.FieldPostmortemsPublished:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPostmortemsPublished(v)
+		return nil
+	case metricssnapshot.FieldCompletionRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCompletionRate(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MetricsSnapshot numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MetricsSnapshotMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(metricssnapshot.FieldBySeverity) {
+		fields = append(fields, metricssnapshot.FieldBySeverity)
+	}
+	if m.FieldCleared(metricssnapshot.FieldByStatus) {
+		fields = append(fields, metricssnapshot.FieldByStatus)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MetricsSnapshotMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MetricsSnapshotMutation) ClearField(name string) error {
+	switch name {
+	case metricssnapshot.FieldBySeverity:
+		m.ClearBySeverity()
+		return nil
+	case metricssnapshot.FieldByStatus:
+		m.ClearByStatus()
+		return nil
+	}
+	return fmt.Errorf("unknown MetricsSnapshot nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MetricsSnapshotMutation) ResetField(name string) error {
+	switch name {
+	case metricssnapshot.FieldPeriod:
+		m.ResetPeriod()
+		return nil
+	case metricssnapshot.FieldPeriodStart:
+		m.ResetPeriodStart()
+		return nil
+	case metricssnapshot.FieldPeriodEnd:
+		m.ResetPeriodEnd()
+		return nil
+	case metricssnapshot.FieldAlertsTotal:
+		m.ResetAlertsTotal()
+		return nil
+	case metricssnapshot.FieldAlertsNotified:
+		m.ResetAlertsNotified()
+		return nil
+	case metricssnapshot.FieldAlertsUnrouted:
+		m.ResetAlertsUnrouted()
+		return nil
+	case metricssnapshot.FieldNoiseRate:
+		m.ResetNoiseRate()
+		return nil
+	case metricssnapshot.FieldIncidentsTotal:
+		m.ResetIncidentsTotal()
+		return nil
+	case metricssnapshot.FieldIncidentsResolved:
+		m.ResetIncidentsResolved()
+		return nil
+	case metricssnapshot.FieldMttaSeconds:
+		m.ResetMttaSeconds()
+		return nil
+	case metricssnapshot.FieldMttrSeconds:
+		m.ResetMttrSeconds()
+		return nil
+	case metricssnapshot.FieldBySeverity:
+		m.ResetBySeverity()
+		return nil
+	case metricssnapshot.FieldByStatus:
+		m.ResetByStatus()
+		return nil
+	case metricssnapshot.FieldPostmortemsTotal:
+		m.ResetPostmortemsTotal()
+		return nil
+	case metricssnapshot.FieldPostmortemsPublished:
+		m.ResetPostmortemsPublished()
+		return nil
+	case metricssnapshot.FieldCompletionRate:
+		m.ResetCompletionRate()
+		return nil
+	case metricssnapshot.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown MetricsSnapshot field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MetricsSnapshotMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.team != nil {
+		edges = append(edges, metricssnapshot.EdgeTeam)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MetricsSnapshotMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case metricssnapshot.EdgeTeam:
+		if id := m.team; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MetricsSnapshotMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MetricsSnapshotMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MetricsSnapshotMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedteam {
+		edges = append(edges, metricssnapshot.EdgeTeam)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MetricsSnapshotMutation) EdgeCleared(name string) bool {
+	switch name {
+	case metricssnapshot.EdgeTeam:
+		return m.clearedteam
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MetricsSnapshotMutation) ClearEdge(name string) error {
+	switch name {
+	case metricssnapshot.EdgeTeam:
+		m.ClearTeam()
+		return nil
+	}
+	return fmt.Errorf("unknown MetricsSnapshot unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MetricsSnapshotMutation) ResetEdge(name string) error {
+	switch name {
+	case metricssnapshot.EdgeTeam:
+		m.ResetTeam()
+		return nil
+	}
+	return fmt.Errorf("unknown MetricsSnapshot edge %s", name)
 }
 
 // NotificationMutation represents an operation that mutates the Notification nodes in the graph.
@@ -22669,6 +24335,9 @@ type TeamMutation struct {
 	subscriptions                 map[int]struct{}
 	removedsubscriptions          map[int]struct{}
 	clearedsubscriptions          bool
+	metrics_snapshots             map[int]struct{}
+	removedmetrics_snapshots      map[int]struct{}
+	clearedmetrics_snapshots      bool
 	done                          bool
 	oldValue                      func(context.Context) (*Team, error)
 	predicates                    []predicate.Team
@@ -23716,6 +25385,60 @@ func (m *TeamMutation) ResetSubscriptions() {
 	m.removedsubscriptions = nil
 }
 
+// AddMetricsSnapshotIDs adds the "metrics_snapshots" edge to the MetricsSnapshot entity by ids.
+func (m *TeamMutation) AddMetricsSnapshotIDs(ids ...int) {
+	if m.metrics_snapshots == nil {
+		m.metrics_snapshots = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.metrics_snapshots[ids[i]] = struct{}{}
+	}
+}
+
+// ClearMetricsSnapshots clears the "metrics_snapshots" edge to the MetricsSnapshot entity.
+func (m *TeamMutation) ClearMetricsSnapshots() {
+	m.clearedmetrics_snapshots = true
+}
+
+// MetricsSnapshotsCleared reports if the "metrics_snapshots" edge to the MetricsSnapshot entity was cleared.
+func (m *TeamMutation) MetricsSnapshotsCleared() bool {
+	return m.clearedmetrics_snapshots
+}
+
+// RemoveMetricsSnapshotIDs removes the "metrics_snapshots" edge to the MetricsSnapshot entity by IDs.
+func (m *TeamMutation) RemoveMetricsSnapshotIDs(ids ...int) {
+	if m.removedmetrics_snapshots == nil {
+		m.removedmetrics_snapshots = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.metrics_snapshots, ids[i])
+		m.removedmetrics_snapshots[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedMetricsSnapshots returns the removed IDs of the "metrics_snapshots" edge to the MetricsSnapshot entity.
+func (m *TeamMutation) RemovedMetricsSnapshotsIDs() (ids []int) {
+	for id := range m.removedmetrics_snapshots {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// MetricsSnapshotsIDs returns the "metrics_snapshots" edge IDs in the mutation.
+func (m *TeamMutation) MetricsSnapshotsIDs() (ids []int) {
+	for id := range m.metrics_snapshots {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetMetricsSnapshots resets all changes to the "metrics_snapshots" edge.
+func (m *TeamMutation) ResetMetricsSnapshots() {
+	m.metrics_snapshots = nil
+	m.clearedmetrics_snapshots = false
+	m.removedmetrics_snapshots = nil
+}
+
 // Where appends a list predicates to the TeamMutation builder.
 func (m *TeamMutation) Where(ps ...predicate.Team) {
 	m.predicates = append(m.predicates, ps...)
@@ -23949,7 +25672,7 @@ func (m *TeamMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *TeamMutation) AddedEdges() []string {
-	edges := make([]string, 0, 13)
+	edges := make([]string, 0, 14)
 	if m.users != nil {
 		edges = append(edges, team.EdgeUsers)
 	}
@@ -23988,6 +25711,9 @@ func (m *TeamMutation) AddedEdges() []string {
 	}
 	if m.subscriptions != nil {
 		edges = append(edges, team.EdgeSubscriptions)
+	}
+	if m.metrics_snapshots != nil {
+		edges = append(edges, team.EdgeMetricsSnapshots)
 	}
 	return edges
 }
@@ -24074,13 +25800,19 @@ func (m *TeamMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case team.EdgeMetricsSnapshots:
+		ids := make([]ent.Value, 0, len(m.metrics_snapshots))
+		for id := range m.metrics_snapshots {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *TeamMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 13)
+	edges := make([]string, 0, 14)
 	if m.removedusers != nil {
 		edges = append(edges, team.EdgeUsers)
 	}
@@ -24119,6 +25851,9 @@ func (m *TeamMutation) RemovedEdges() []string {
 	}
 	if m.removedsubscriptions != nil {
 		edges = append(edges, team.EdgeSubscriptions)
+	}
+	if m.removedmetrics_snapshots != nil {
+		edges = append(edges, team.EdgeMetricsSnapshots)
 	}
 	return edges
 }
@@ -24205,13 +25940,19 @@ func (m *TeamMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case team.EdgeMetricsSnapshots:
+		ids := make([]ent.Value, 0, len(m.removedmetrics_snapshots))
+		for id := range m.removedmetrics_snapshots {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *TeamMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 13)
+	edges := make([]string, 0, 14)
 	if m.clearedusers {
 		edges = append(edges, team.EdgeUsers)
 	}
@@ -24251,6 +25992,9 @@ func (m *TeamMutation) ClearedEdges() []string {
 	if m.clearedsubscriptions {
 		edges = append(edges, team.EdgeSubscriptions)
 	}
+	if m.clearedmetrics_snapshots {
+		edges = append(edges, team.EdgeMetricsSnapshots)
+	}
 	return edges
 }
 
@@ -24284,6 +26028,8 @@ func (m *TeamMutation) EdgeCleared(name string) bool {
 		return m.clearedticket_integrations
 	case team.EdgeSubscriptions:
 		return m.clearedsubscriptions
+	case team.EdgeMetricsSnapshots:
+		return m.clearedmetrics_snapshots
 	}
 	return false
 }
@@ -24338,6 +26084,9 @@ func (m *TeamMutation) ResetEdge(name string) error {
 		return nil
 	case team.EdgeSubscriptions:
 		m.ResetSubscriptions()
+		return nil
+	case team.EdgeMetricsSnapshots:
+		m.ResetMetricsSnapshots()
 		return nil
 	}
 	return fmt.Errorf("unknown Team edge %s", name)
