@@ -7,6 +7,525 @@ import "github.com/swaggo/swag/v2"
 const docTemplate = `{
     "components": {
         "schemas": {
+            "actionitem.Status": {
+                "description": "Status holds the value of the \"status\" field.",
+                "enum": [
+                    "open",
+                    "in_progress",
+                    "done"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultStatus",
+                    "StatusOpen",
+                    "StatusInProgress",
+                    "StatusDone"
+                ]
+            },
+            "ai.DiagnoseResult": {
+                "properties": {
+                    "confidence": {
+                        "description": "置信度",
+                        "type": "number"
+                    },
+                    "evidence": {
+                        "description": "依据",
+                        "items": {
+                            "additionalProperties": {},
+                            "type": "object"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "insight_id": {
+                        "description": "AIInsight ID",
+                        "type": "integer"
+                    },
+                    "root_cause": {
+                        "description": "根因线索文本",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ai.resolveReq": {
+                "properties": {
+                    "accepted": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "aiinsight.Stage": {
+                "description": "Stage holds the value of the \"stage\" field.",
+                "enum": [
+                    "triage",
+                    "diagnose",
+                    "postmortem",
+                    "copilot"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "StageTriage",
+                    "StageDiagnose",
+                    "StagePostmortem",
+                    "StageCopilot"
+                ]
+            },
+            "aiinsight.Status": {
+                "description": "Status holds the value of the \"status\" field.",
+                "enum": [
+                    "suggested",
+                    "accepted",
+                    "rejected",
+                    "applied"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultStatus",
+                    "StatusSuggested",
+                    "StatusAccepted",
+                    "StatusRejected",
+                    "StatusApplied"
+                ]
+            },
+            "aiinsight.Type": {
+                "description": "Type holds the value of the \"type\" field.",
+                "enum": [
+                    "dedup_suggestion",
+                    "severity_adjustment",
+                    "root_cause_hint",
+                    "similar_incident",
+                    "draft_summary",
+                    "postmortem_draft"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "TypeDedupSuggestion",
+                    "TypeSeverityAdjustment",
+                    "TypeRootCauseHint",
+                    "TypeSimilarIncident",
+                    "TypeDraftSummary",
+                    "TypePostmortemDraft"
+                ]
+            },
+            "analytics.AlertMetrics": {
+                "properties": {
+                    "noiseRate": {
+                        "description": "降噪率 = 1 - Notified/Total（0~1）",
+                        "type": "number"
+                    },
+                    "notified": {
+                        "description": "触发通知的（非噪音）",
+                        "type": "integer"
+                    },
+                    "total": {
+                        "description": "接入总量",
+                        "type": "integer"
+                    },
+                    "unrouted": {
+                        "description": "未命中路由",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "analytics.Dashboard": {
+                "properties": {
+                    "alert": {
+                        "$ref": "#/components/schemas/analytics.AlertMetrics"
+                    },
+                    "incident": {
+                        "$ref": "#/components/schemas/analytics.IncidentMetrics"
+                    },
+                    "load": {
+                        "items": {
+                            "$ref": "#/components/schemas/analytics.TeamLoad"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "postmortem": {
+                        "$ref": "#/components/schemas/analytics.PostmortemMetrics"
+                    }
+                },
+                "type": "object"
+            },
+            "analytics.IncidentMetrics": {
+                "properties": {
+                    "bySeverity": {
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "description": "critical/warning/info 各数量",
+                        "type": "object"
+                    },
+                    "byStatus": {
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "type": "object"
+                    },
+                    "mttaratio": {
+                        "description": "平均确认时长（秒），无数据为 0",
+                        "type": "number"
+                    },
+                    "mttratio": {
+                        "description": "平均解决时长（秒）",
+                        "type": "number"
+                    },
+                    "resolvedCount": {
+                        "description": "已解决数（用于 MTTR 计算）",
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "analytics.PostmortemMetrics": {
+                "properties": {
+                    "completionRate": {
+                        "description": "published/total",
+                        "type": "number"
+                    },
+                    "published": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "analytics.TeamLoad": {
+                "properties": {
+                    "incidents": {
+                        "description": "该团队事件数",
+                        "type": "integer"
+                    },
+                    "teamID": {
+                        "type": "integer"
+                    },
+                    "teamName": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "analytics.TrendPoint": {
+                "properties": {
+                    "date": {
+                        "description": "YYYY-MM-DD",
+                        "type": "string"
+                    },
+                    "events": {
+                        "type": "integer"
+                    },
+                    "incidents": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "apikey.Status": {
+                "description": "Status holds the value of the \"status\" field.",
+                "enum": [
+                    "active",
+                    "disabled"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultStatus",
+                    "StatusActive",
+                    "StatusDisabled"
+                ]
+            },
+            "auditlog.Result": {
+                "description": "Result holds the value of the \"result\" field.",
+                "enum": [
+                    "success",
+                    "failed",
+                    "denied"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultResult",
+                    "ResultSuccess",
+                    "ResultFailed",
+                    "ResultDenied"
+                ]
+            },
+            "auth.IMAccountInfo": {
+                "properties": {
+                    "account_id": {
+                        "type": "string"
+                    },
+                    "platform": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.apiKeyCreateReq": {
+                "properties": {
+                    "expires_in_hours": {
+                        "description": "有效期（小时），0=永久",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "scope": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "auth.apiKeyCreateResp": {
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "expires_at": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "last_used_at": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "prefix": {
+                        "type": "string"
+                    },
+                    "scope": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "token": {
+                        "description": "★ 明文 token，仅此一次返回",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.apiKeyView": {
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "expires_at": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "last_used_at": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "prefix": {
+                        "type": "string"
+                    },
+                    "scope": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.bindIMAccountReq": {
+                "properties": {
+                    "account_id": {
+                        "description": "IM 平台 unionId",
+                        "type": "string"
+                    },
+                    "platform": {
+                        "description": "dingtalk | feishu | wecom",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.changePasswordReq": {
+                "properties": {
+                    "new_password": {
+                        "type": "string"
+                    },
+                    "old_password": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.createBindingReq": {
+                "properties": {
+                    "expires_in_hours": {
+                        "description": "可选，临时授权小时数",
+                        "type": "integer"
+                    },
+                    "role_id": {
+                        "type": "integer"
+                    },
+                    "scope_level": {
+                        "description": "org | team",
+                        "type": "string"
+                    },
+                    "team_id": {
+                        "description": "team scope 时必填",
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.createRoleReq": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "permissions": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "scope_level": {
+                        "description": "org | team",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.createTeamReq": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.loginReq": {
+                "properties": {
+                    "password": {
+                        "type": "string"
+                    },
+                    "username": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.loginResp": {
+                "properties": {
+                    "access_token": {
+                        "type": "string"
+                    },
+                    "refresh_token": {
+                        "type": "string"
+                    },
+                    "token_type": {
+                        "type": "string"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/auth.loginUser"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.loginUser": {
+                "properties": {
+                    "email": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "must_change_password": {
+                        "description": "MustChangePassword 首登强制改密标志：前端据此把用户重定向到改密页（T0.4 闭环）。",
+                        "type": "boolean"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "username": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.refreshReq": {
+                "properties": {
+                    "refresh_token": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.updateTeamReq": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.updateUserReq": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "description": "active|disabled",
+                        "type": "string"
+                    },
+                    "timezone": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "ent.AIInsight": {
                 "properties": {
                     "confidence": {
@@ -38,14 +557,22 @@ const docTemplate = `{
                         "description": "ID of the ent.",
                         "type": "integer"
                     },
+                    "resolved_at": {
+                        "description": "采纳/拒绝该建议的时刻（S11 留痕）",
+                        "type": "string"
+                    },
+                    "resolved_by": {
+                        "description": "采纳/拒绝该建议的 user_id（S11 留痕）",
+                        "type": "integer"
+                    },
                     "stage": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_aiinsight.Stage"
+                        "$ref": "#/components/schemas/aiinsight.Stage"
                     },
                     "status": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_aiinsight.Status"
+                        "$ref": "#/components/schemas/aiinsight.Status"
                     },
                     "type": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_aiinsight.Type"
+                        "$ref": "#/components/schemas/aiinsight.Type"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -101,7 +628,7 @@ const docTemplate = `{
                         "uniqueItems": false
                     },
                     "status": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_apikey.Status"
+                        "$ref": "#/components/schemas/apikey.Status"
                     }
                 },
                 "type": "object"
@@ -141,7 +668,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "status": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_actionitem.Status"
+                        "$ref": "#/components/schemas/actionitem.Status"
                     },
                     "tracker_url": {
                         "description": "对接外部工单",
@@ -207,7 +734,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "result": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_auditlog.Result"
+                        "$ref": "#/components/schemas/auditlog.Result"
                     },
                     "user_agent": {
                         "description": "来源 User-Agent",
@@ -233,7 +760,7 @@ const docTemplate = `{
                     "levels": {
                         "description": "有序升级层级",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.EscalationLevel"
+                            "$ref": "#/components/schemas/schema.EscalationLevel"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -324,7 +851,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "severity": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_event.Severity"
+                        "$ref": "#/components/schemas/event.Severity"
                     },
                     "source": {
                         "description": "告警源，如 prometheus",
@@ -335,7 +862,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "status": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_event.Status"
+                        "$ref": "#/components/schemas/event.Status"
                     },
                     "summary": {
                         "description": "一句话摘要",
@@ -377,7 +904,7 @@ const docTemplate = `{
                         "type": "integer"
                     },
                     "platform": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_imaccountbinding.Platform"
+                        "$ref": "#/components/schemas/imaccountbinding.Platform"
                     }
                 },
                 "type": "object"
@@ -414,7 +941,7 @@ const docTemplate = `{
                         "$ref": "#/components/schemas/ent.IncidentEdges"
                     },
                     "embedding": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.NullableVector"
+                        "$ref": "#/components/schemas/schema.NullableVector"
                     },
                     "escalated_count": {
                         "description": "已升级次数",
@@ -433,17 +960,17 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "priority": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_incident.Priority"
+                        "$ref": "#/components/schemas/incident.Priority"
                     },
                     "resolved_at": {
                         "description": "ResolvedAt holds the value of the \"resolved_at\" field.",
                         "type": "string"
                     },
                     "severity": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_incident.Severity"
+                        "$ref": "#/components/schemas/incident.Severity"
                     },
                     "status": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_incident.Status"
+                        "$ref": "#/components/schemas/incident.Status"
                     },
                     "summary": {
                         "description": "当前概要，可随处置更新",
@@ -458,7 +985,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "trigger_type": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_incident.TriggerType"
+                        "$ref": "#/components/schemas/incident.TriggerType"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -494,17 +1021,17 @@ const docTemplate = `{
                         "type": "object"
                     },
                     "result": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_incidentaction.Result"
+                        "$ref": "#/components/schemas/incidentaction.Result"
                     },
                     "timestamp": {
                         "description": "Timestamp holds the value of the \"timestamp\" field.",
                         "type": "string"
                     },
                     "type": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_incidentaction.Type"
+                        "$ref": "#/components/schemas/incidentaction.Type"
                     },
                     "via": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_incidentaction.Via"
+                        "$ref": "#/components/schemas/incidentaction.Via"
                     }
                 },
                 "type": "object"
@@ -606,7 +1133,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "type": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_integration.Type"
+                        "$ref": "#/components/schemas/integration.Type"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -707,7 +1234,7 @@ const docTemplate = `{
                     "actions": {
                         "description": "卡片按钮定义",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.TemplateAction"
+                            "$ref": "#/components/schemas/schema.TemplateAction"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -721,7 +1248,7 @@ const docTemplate = `{
                         "type": "boolean"
                     },
                     "channel": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_notificationtemplate.Channel"
+                        "$ref": "#/components/schemas/notificationtemplate.Channel"
                     },
                     "created_at": {
                         "description": "CreatedAt holds the value of the \"created_at\" field.",
@@ -731,7 +1258,7 @@ const docTemplate = `{
                         "$ref": "#/components/schemas/ent.NotificationTemplateEdges"
                     },
                     "format": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_notificationtemplate.Format"
+                        "$ref": "#/components/schemas/notificationtemplate.Format"
                     },
                     "id": {
                         "description": "ID of the ent.",
@@ -772,10 +1299,10 @@ const docTemplate = `{
                         "$ref": "#/components/schemas/ent.PostmortemEdges"
                     },
                     "embedding": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.NullableVector"
+                        "$ref": "#/components/schemas/schema.NullableVector"
                     },
                     "generated_by": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_postmortem.GeneratedBy"
+                        "$ref": "#/components/schemas/postmortem.GeneratedBy"
                     },
                     "id": {
                         "description": "ID of the ent.",
@@ -791,7 +1318,7 @@ const docTemplate = `{
                         "type": "object"
                     },
                     "status": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_postmortem.Status"
+                        "$ref": "#/components/schemas/postmortem.Status"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -854,7 +1381,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "status": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_rawevent.Status"
+                        "$ref": "#/components/schemas/rawevent.Status"
                     }
                 },
                 "type": "object"
@@ -902,7 +1429,7 @@ const docTemplate = `{
                         "uniqueItems": false
                     },
                     "scope_level": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_role.ScopeLevel"
+                        "$ref": "#/components/schemas/role.ScopeLevel"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -933,7 +1460,7 @@ const docTemplate = `{
                         "type": "integer"
                     },
                     "scope_level": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_rolebinding.ScopeLevel"
+                        "$ref": "#/components/schemas/rolebinding.ScopeLevel"
                     },
                     "team_id": {
                         "description": "team scope 时必填",
@@ -1002,7 +1529,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "rotation_type": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_rotation.RotationType"
+                        "$ref": "#/components/schemas/rotation.RotationType"
                     },
                     "shift_length": {
                         "description": "ShiftLength holds the value of the \"shift_length\" field.",
@@ -1060,7 +1587,7 @@ const docTemplate = `{
                     "steps": {
                         "description": "可执行步骤链",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.RunbookStep"
+                            "$ref": "#/components/schemas/schema.RunbookStep"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -1071,7 +1598,7 @@ const docTemplate = `{
                         "type": "object"
                     },
                     "type": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_runbook.Type"
+                        "$ref": "#/components/schemas/runbook.Type"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -1113,7 +1640,7 @@ const docTemplate = `{
                     "layers": {
                         "description": "排班分层",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.ScheduleLayer"
+                            "$ref": "#/components/schemas/schema.ScheduleLayer"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -1127,7 +1654,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "type": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schedule.Type"
+                        "$ref": "#/components/schemas/schedule.Type"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -1206,7 +1733,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "status": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_service.Status"
+                        "$ref": "#/components/schemas/service.Status"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -1270,7 +1797,7 @@ const docTemplate = `{
             "ent.SuppressionRule": {
                 "properties": {
                     "action": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_suppressionrule.Action"
+                        "$ref": "#/components/schemas/suppressionrule.Action"
                     },
                     "created_at": {
                         "description": "CreatedAt holds the value of the \"created_at\" field.",
@@ -1499,14 +2026,14 @@ const docTemplate = `{
                         "type": "integer"
                     },
                     "source": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_timelineitem.Source"
+                        "$ref": "#/components/schemas/timelineitem.Source"
                     },
                     "timestamp": {
                         "description": "Timestamp holds the value of the \"timestamp\" field.",
                         "type": "string"
                     },
                     "type": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_timelineitem.Type"
+                        "$ref": "#/components/schemas/timelineitem.Type"
                     }
                 },
                 "type": "object"
@@ -1541,7 +2068,7 @@ const docTemplate = `{
                     "im_accounts": {
                         "description": "IM 账号绑定（JSON，兼容字段；新数据见 im_bindings 表）",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.IMAccount"
+                            "$ref": "#/components/schemas/schema.IMAccount"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -1559,11 +2086,15 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "status": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_user.Status"
+                        "$ref": "#/components/schemas/user.Status"
                     },
                     "timezone": {
                         "description": "Timezone holds the value of the \"timezone\" field.",
                         "type": "string"
+                    },
+                    "token_version": {
+                        "description": "令牌版本号（改密自增，旧 token 失效凭据）",
+                        "type": "integer"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -1638,103 +2169,43 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "github_com_kevin_vigil_ent_actionitem.Status": {
-                "description": "Status holds the value of the \"status\" field.",
-                "enum": [
-                    "open",
-                    "in_progress",
-                    "done"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultStatus",
-                    "StatusOpen",
-                    "StatusInProgress",
-                    "StatusDone"
-                ]
+            "escalation.createReq": {
+                "properties": {
+                    "levels": {
+                        "items": {
+                            "$ref": "#/components/schemas/schema.EscalationLevel"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "repeat_times": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
             },
-            "github_com_kevin_vigil_ent_aiinsight.Stage": {
-                "description": "Stage holds the value of the \"stage\" field.",
-                "enum": [
-                    "triage",
-                    "diagnose",
-                    "postmortem",
-                    "copilot"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "StageTriage",
-                    "StageDiagnose",
-                    "StagePostmortem",
-                    "StageCopilot"
-                ]
+            "escalation.updateReq": {
+                "properties": {
+                    "levels": {
+                        "items": {
+                            "$ref": "#/components/schemas/schema.EscalationLevel"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "repeat_times": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
             },
-            "github_com_kevin_vigil_ent_aiinsight.Status": {
-                "description": "Status holds the value of the \"status\" field.",
-                "enum": [
-                    "suggested",
-                    "accepted",
-                    "rejected",
-                    "applied"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultStatus",
-                    "StatusSuggested",
-                    "StatusAccepted",
-                    "StatusRejected",
-                    "StatusApplied"
-                ]
-            },
-            "github_com_kevin_vigil_ent_aiinsight.Type": {
-                "description": "Type holds the value of the \"type\" field.",
-                "enum": [
-                    "dedup_suggestion",
-                    "severity_adjustment",
-                    "root_cause_hint",
-                    "similar_incident",
-                    "draft_summary",
-                    "postmortem_draft"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "TypeDedupSuggestion",
-                    "TypeSeverityAdjustment",
-                    "TypeRootCauseHint",
-                    "TypeSimilarIncident",
-                    "TypeDraftSummary",
-                    "TypePostmortemDraft"
-                ]
-            },
-            "github_com_kevin_vigil_ent_apikey.Status": {
-                "description": "Status holds the value of the \"status\" field.",
-                "enum": [
-                    "active",
-                    "disabled"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultStatus",
-                    "StatusActive",
-                    "StatusDisabled"
-                ]
-            },
-            "github_com_kevin_vigil_ent_auditlog.Result": {
-                "description": "Result holds the value of the \"result\" field.",
-                "enum": [
-                    "success",
-                    "failed",
-                    "denied"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultResult",
-                    "ResultSuccess",
-                    "ResultFailed",
-                    "ResultDenied"
-                ]
-            },
-            "github_com_kevin_vigil_ent_event.Severity": {
+            "event.Severity": {
                 "description": "Severity holds the value of the \"severity\" field.",
                 "enum": [
                     "critical",
@@ -1748,7 +2219,7 @@ const docTemplate = `{
                     "SeverityInfo"
                 ]
             },
-            "github_com_kevin_vigil_ent_event.Status": {
+            "event.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "firing",
@@ -1760,7 +2231,123 @@ const docTemplate = `{
                     "StatusResolved"
                 ]
             },
-            "github_com_kevin_vigil_ent_imaccountbinding.Platform": {
+            "httputil.AckResponse": {
+                "properties": {
+                    "raw_event_id": {
+                        "description": "RawEventID ingestion 落库的 RawEvent ID（限接入 webhook）。",
+                        "example": 42,
+                        "type": "integer"
+                    },
+                    "retry_after": {
+                        "description": "RetryAfter 限流/背压时建议重试秒数（限接入 webhook）。",
+                        "example": 60,
+                        "type": "integer"
+                    },
+                    "status": {
+                        "example": "accepted",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "httputil.ErrorResponse": {
+                "properties": {
+                    "code": {
+                        "description": "Code 机器可读错误码（可选，非 4xx 通用错误可留空）。",
+                        "example": "invalid_argument",
+                        "type": "string"
+                    },
+                    "details": {
+                        "description": "Details 结构化补充信息（可选，如字段级校验错误）。"
+                    },
+                    "error": {
+                        "example": "invalid id",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "httputil.Paginated-ent_AuditLog": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/ent.AuditLog"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "offset": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "httputil.Paginated-ent_Incident": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/ent.Incident"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "offset": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "httputil.Paginated-ent_TimelineItem": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/ent.TimelineItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "offset": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "im.imPlatformStatus": {
+                "properties": {
+                    "available": {
+                        "description": "凭证已配置且客户端就绪",
+                        "type": "boolean"
+                    },
+                    "impl": {
+                        "description": "适配器类型：real | noop（占位）",
+                        "type": "string"
+                    },
+                    "platform": {
+                        "description": "feishu | dingtalk | wecom",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "imaccountbinding.Platform": {
                 "description": "Platform holds the value of the \"platform\" field.",
                 "enum": [
                     "feishu",
@@ -1774,7 +2361,7 @@ const docTemplate = `{
                     "PlatformWecom"
                 ]
             },
-            "github_com_kevin_vigil_ent_incident.Priority": {
+            "incident.Priority": {
                 "description": "Priority holds the value of the \"priority\" field.",
                 "enum": [
                     "p3",
@@ -1791,7 +2378,7 @@ const docTemplate = `{
                     "PriorityP4"
                 ]
             },
-            "github_com_kevin_vigil_ent_incident.Severity": {
+            "incident.Severity": {
                 "description": "Severity holds the value of the \"severity\" field.",
                 "enum": [
                     "critical",
@@ -1805,7 +2392,7 @@ const docTemplate = `{
                     "SeverityInfo"
                 ]
             },
-            "github_com_kevin_vigil_ent_incident.Status": {
+            "incident.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
                     "triggered",
@@ -1824,7 +2411,7 @@ const docTemplate = `{
                     "StatusClosed"
                 ]
             },
-            "github_com_kevin_vigil_ent_incident.TriggerType": {
+            "incident.TriggerType": {
                 "description": "TriggerType holds the value of the \"trigger_type\" field.",
                 "enum": [
                     "auto",
@@ -1839,7 +2426,7 @@ const docTemplate = `{
                     "TriggerTypeMerged"
                 ]
             },
-            "github_com_kevin_vigil_ent_incidentaction.Result": {
+            "incidentaction.Result": {
                 "description": "Result holds the value of the \"result\" field.",
                 "enum": [
                     "success",
@@ -1854,7 +2441,7 @@ const docTemplate = `{
                     "ResultPending"
                 ]
             },
-            "github_com_kevin_vigil_ent_incidentaction.Type": {
+            "incidentaction.Type": {
                 "description": "Type holds the value of the \"type\" field.",
                 "enum": [
                     "ack",
@@ -1880,7 +2467,7 @@ const docTemplate = `{
                     "TypeCustom"
                 ]
             },
-            "github_com_kevin_vigil_ent_incidentaction.Via": {
+            "incidentaction.Via": {
                 "description": "Via holds the value of the \"via\" field.",
                 "enum": [
                     "web",
@@ -1896,7 +2483,7 @@ const docTemplate = `{
                     "ViaAutomation"
                 ]
             },
-            "github_com_kevin_vigil_ent_integration.Type": {
+            "integration.Type": {
                 "description": "Type holds the value of the \"type\" field.",
                 "enum": [
                     "webhook",
@@ -1918,959 +2505,7 @@ const docTemplate = `{
                     "TypeAPI"
                 ]
             },
-            "github_com_kevin_vigil_ent_notificationtemplate.Channel": {
-                "description": "Channel holds the value of the \"channel\" field.",
-                "enum": [
-                    "im",
-                    "email",
-                    "webhook",
-                    "phone",
-                    "sms"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "ChannelIm",
-                    "ChannelEmail",
-                    "ChannelWebhook",
-                    "ChannelPhone",
-                    "ChannelSms"
-                ]
-            },
-            "github_com_kevin_vigil_ent_notificationtemplate.Format": {
-                "description": "Format holds the value of the \"format\" field.",
-                "enum": [
-                    "text",
-                    "interactive_card"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "FormatText",
-                    "FormatInteractiveCard"
-                ]
-            },
-            "github_com_kevin_vigil_ent_postmortem.GeneratedBy": {
-                "description": "GeneratedBy holds the value of the \"generated_by\" field.",
-                "enum": [
-                    "mixed",
-                    "ai",
-                    "human"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultGeneratedBy",
-                    "GeneratedByAi",
-                    "GeneratedByHuman",
-                    "GeneratedByMixed"
-                ]
-            },
-            "github_com_kevin_vigil_ent_postmortem.Status": {
-                "description": "Status holds the value of the \"status\" field.",
-                "enum": [
-                    "draft",
-                    "in_review",
-                    "published",
-                    "archived"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultStatus",
-                    "StatusDraft",
-                    "StatusInReview",
-                    "StatusPublished",
-                    "StatusArchived"
-                ]
-            },
-            "github_com_kevin_vigil_ent_rawevent.Status": {
-                "description": "Status holds the value of the \"status\" field.",
-                "enum": [
-                    "received",
-                    "normalized",
-                    "parse_failed",
-                    "requeued"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultStatus",
-                    "StatusReceived",
-                    "StatusNormalized",
-                    "StatusParseFailed",
-                    "StatusRequeued"
-                ]
-            },
-            "github_com_kevin_vigil_ent_role.ScopeLevel": {
-                "description": "ScopeLevel holds the value of the \"scope_level\" field.",
-                "enum": [
-                    "org",
-                    "team"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "ScopeLevelOrg",
-                    "ScopeLevelTeam"
-                ]
-            },
-            "github_com_kevin_vigil_ent_rolebinding.ScopeLevel": {
-                "description": "ScopeLevel holds the value of the \"scope_level\" field.",
-                "enum": [
-                    "org",
-                    "team"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "ScopeLevelOrg",
-                    "ScopeLevelTeam"
-                ]
-            },
-            "github_com_kevin_vigil_ent_rotation.RotationType": {
-                "description": "RotationType holds the value of the \"rotation_type\" field.",
-                "enum": [
-                    "daily",
-                    "weekly",
-                    "custom"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "RotationTypeDaily",
-                    "RotationTypeWeekly",
-                    "RotationTypeCustom"
-                ]
-            },
-            "github_com_kevin_vigil_ent_runbook.Type": {
-                "description": "Type holds the value of the \"type\" field.",
-                "enum": [
-                    "document",
-                    "executable"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "TypeDocument",
-                    "TypeExecutable"
-                ]
-            },
-            "github_com_kevin_vigil_ent_schedule.Type": {
-                "description": "Type holds the value of the \"type\" field.",
-                "enum": [
-                    "calendar",
-                    "rotation",
-                    "follow_the_sun"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "TypeCalendar",
-                    "TypeRotation",
-                    "TypeFollowTheSun"
-                ]
-            },
-            "github_com_kevin_vigil_ent_schema.EscalationLevel": {
-                "properties": {
-                    "delay_minutes": {
-                        "description": "进入此 level 后多久发通知",
-                        "type": "integer"
-                    },
-                    "level": {
-                        "description": "层级序号",
-                        "type": "integer"
-                    },
-                    "notify_channels": {
-                        "description": "im | phone | sms | email",
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "targets": {
-                        "description": "通知目标",
-                        "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.Target"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_ent_schema.IMAccount": {
-                "properties": {
-                    "account_id": {
-                        "description": "IM 平台的 unionId",
-                        "type": "string"
-                    },
-                    "platform": {
-                        "description": "dingtalk | feishu | wecom",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_ent_schema.NullableVector": {
-                "description": "语义向量，published 复盘入库后计算，知识沉淀检索用",
-                "properties": {
-                    "valid": {
-                        "type": "boolean"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_ent_schema.RunbookStep": {
-                "properties": {
-                    "action": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.StepAction"
-                    },
-                    "id": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "on_failure": {
-                        "description": "continue | abort | escalate",
-                        "type": "string"
-                    },
-                    "require_approval": {
-                        "description": "写操作必须人确认（human-in-the-loop）",
-                        "type": "boolean"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_ent_schema.ScheduleLayer": {
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "description": "如 \"一线\"",
-                        "type": "string"
-                    },
-                    "priority": {
-                        "description": "数字越小优先级越高",
-                        "type": "integer"
-                    },
-                    "rotation_id": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_ent_schema.StepAction": {
-                "properties": {
-                    "params": {
-                        "additionalProperties": {},
-                        "type": "object"
-                    },
-                    "target": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.StepTarget"
-                    },
-                    "type": {
-                        "description": "diagnose | execute | notify | wait | approve",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_ent_schema.StepTarget": {
-                "properties": {
-                    "endpoint": {
-                        "type": "string"
-                    },
-                    "kind": {
-                        "description": "http | ansible | jenkins | internal",
-                        "type": "string"
-                    },
-                    "readonly": {
-                        "description": "diagnose 类强制只读",
-                        "type": "boolean"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_ent_schema.Target": {
-                "properties": {
-                    "target_id": {
-                        "description": "schedule_id / user_id / team_id",
-                        "type": "string"
-                    },
-                    "type": {
-                        "description": "schedule | user | team",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_ent_schema.TemplateAction": {
-                "properties": {
-                    "label": {
-                        "description": "按钮文案，如 \"确认\"",
-                        "type": "string"
-                    },
-                    "type": {
-                        "description": "ack | escalate | resolve | detail",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_ent_service.Status": {
-                "description": "Status holds the value of the \"status\" field.",
-                "enum": [
-                    "active",
-                    "disabled"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultStatus",
-                    "StatusActive",
-                    "StatusDisabled"
-                ]
-            },
-            "github_com_kevin_vigil_ent_suppressionrule.Action": {
-                "description": "Action holds the value of the \"action\" field.",
-                "enum": [
-                    "suppress",
-                    "reduce_severity"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultAction",
-                    "ActionSuppress",
-                    "ActionReduceSeverity"
-                ]
-            },
-            "github_com_kevin_vigil_ent_timelineitem.Source": {
-                "description": "Source holds the value of the \"source\" field.",
-                "enum": [
-                    "web",
-                    "im",
-                    "api",
-                    "system",
-                    "ai"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "SourceWeb",
-                    "SourceIm",
-                    "SourceAPI",
-                    "SourceSystem",
-                    "SourceAi"
-                ]
-            },
-            "github_com_kevin_vigil_ent_timelineitem.Type": {
-                "description": "Type holds the value of the \"type\" field.",
-                "enum": [
-                    "incident_created",
-                    "event_attached",
-                    "status_changed",
-                    "escalated",
-                    "ack",
-                    "resolved",
-                    "reopened",
-                    "responder_added",
-                    "note_added",
-                    "runbook_executed",
-                    "ai_insight",
-                    "im_message"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "TypeIncidentCreated",
-                    "TypeEventAttached",
-                    "TypeStatusChanged",
-                    "TypeEscalated",
-                    "TypeAck",
-                    "TypeResolved",
-                    "TypeReopened",
-                    "TypeResponderAdded",
-                    "TypeNoteAdded",
-                    "TypeRunbookExecuted",
-                    "TypeAiInsight",
-                    "TypeImMessage"
-                ]
-            },
-            "github_com_kevin_vigil_ent_user.Status": {
-                "description": "Status holds the value of the \"status\" field.",
-                "enum": [
-                    "active",
-                    "disabled"
-                ],
-                "type": "string",
-                "x-enum-varnames": [
-                    "DefaultStatus",
-                    "StatusActive",
-                    "StatusDisabled"
-                ]
-            },
-            "github_com_kevin_vigil_internal_httputil.AckResponse": {
-                "properties": {
-                    "raw_event_id": {
-                        "description": "RawEventID ingestion 落库的 RawEvent ID（限接入 webhook）。",
-                        "example": 42,
-                        "type": "integer"
-                    },
-                    "retry_after": {
-                        "description": "RetryAfter 限流/背压时建议重试秒数（限接入 webhook）。",
-                        "example": 60,
-                        "type": "integer"
-                    },
-                    "status": {
-                        "example": "accepted",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_internal_httputil.ErrorResponse": {
-                "properties": {
-                    "code": {
-                        "description": "Code 机器可读错误码（可选，非 4xx 通用错误可留空）。",
-                        "example": "invalid_argument",
-                        "type": "string"
-                    },
-                    "details": {
-                        "description": "Details 结构化补充信息（可选，如字段级校验错误）。"
-                    },
-                    "error": {
-                        "example": "invalid id",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_internal_httputil.Paginated-ent_AuditLog": {
-                "properties": {
-                    "items": {
-                        "items": {
-                            "$ref": "#/components/schemas/ent.AuditLog"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "limit": {
-                        "type": "integer"
-                    },
-                    "offset": {
-                        "type": "integer"
-                    },
-                    "total": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_internal_httputil.Paginated-ent_Incident": {
-                "properties": {
-                    "items": {
-                        "items": {
-                            "$ref": "#/components/schemas/ent.Incident"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "limit": {
-                        "type": "integer"
-                    },
-                    "offset": {
-                        "type": "integer"
-                    },
-                    "total": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "github_com_kevin_vigil_internal_httputil.Paginated-ent_TimelineItem": {
-                "properties": {
-                    "items": {
-                        "items": {
-                            "$ref": "#/components/schemas/ent.TimelineItem"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "limit": {
-                        "type": "integer"
-                    },
-                    "offset": {
-                        "type": "integer"
-                    },
-                    "total": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_ai.DiagnoseResult": {
-                "properties": {
-                    "confidence": {
-                        "description": "置信度",
-                        "type": "number"
-                    },
-                    "evidence": {
-                        "description": "依据",
-                        "items": {
-                            "additionalProperties": {},
-                            "type": "object"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "insight_id": {
-                        "description": "AIInsight ID",
-                        "type": "integer"
-                    },
-                    "root_cause": {
-                        "description": "根因线索文本",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_ai.resolveReq": {
-                "properties": {
-                    "accepted": {
-                        "type": "boolean"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_analytics.AlertMetrics": {
-                "properties": {
-                    "noiseRate": {
-                        "description": "降噪率 = 1 - Notified/Total（0~1）",
-                        "type": "number"
-                    },
-                    "notified": {
-                        "description": "触发通知的（非噪音）",
-                        "type": "integer"
-                    },
-                    "total": {
-                        "description": "接入总量",
-                        "type": "integer"
-                    },
-                    "unrouted": {
-                        "description": "未命中路由",
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_analytics.Dashboard": {
-                "properties": {
-                    "alert": {
-                        "$ref": "#/components/schemas/internal_analytics.AlertMetrics"
-                    },
-                    "incident": {
-                        "$ref": "#/components/schemas/internal_analytics.IncidentMetrics"
-                    },
-                    "load": {
-                        "items": {
-                            "$ref": "#/components/schemas/internal_analytics.TeamLoad"
-                        },
-                        "type": "array"
-                    },
-                    "postmortem": {
-                        "$ref": "#/components/schemas/internal_analytics.PostmortemMetrics"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_analytics.IncidentMetrics": {
-                "properties": {
-                    "bySeverity": {
-                        "additionalProperties": {
-                            "type": "integer"
-                        },
-                        "description": "critical/warning/info 各数量",
-                        "type": "object"
-                    },
-                    "byStatus": {
-                        "additionalProperties": {
-                            "type": "integer"
-                        },
-                        "type": "object"
-                    },
-                    "mttaratio": {
-                        "description": "平均确认时长（秒），无数据为 0",
-                        "type": "number"
-                    },
-                    "mttratio": {
-                        "description": "平均解决时长（秒）",
-                        "type": "number"
-                    },
-                    "resolvedCount": {
-                        "description": "已解决数（用于 MTTR 计算）",
-                        "type": "integer"
-                    },
-                    "total": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_analytics.PostmortemMetrics": {
-                "properties": {
-                    "completionRate": {
-                        "description": "published/total",
-                        "type": "number"
-                    },
-                    "published": {
-                        "type": "integer"
-                    },
-                    "total": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_analytics.TeamLoad": {
-                "properties": {
-                    "incidents": {
-                        "description": "该团队事件数",
-                        "type": "integer"
-                    },
-                    "teamID": {
-                        "type": "integer"
-                    },
-                    "teamName": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_analytics.TrendPoint": {
-                "properties": {
-                    "date": {
-                        "description": "YYYY-MM-DD",
-                        "type": "string"
-                    },
-                    "events": {
-                        "type": "integer"
-                    },
-                    "incidents": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.IMAccountInfo": {
-                "properties": {
-                    "account_id": {
-                        "type": "string"
-                    },
-                    "platform": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.apiKeyCreateReq": {
-                "properties": {
-                    "expires_in_hours": {
-                        "description": "有效期（小时），0=永久",
-                        "type": "integer"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "scope": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.apiKeyCreateResp": {
-                "properties": {
-                    "created_at": {
-                        "type": "string"
-                    },
-                    "expires_at": {
-                        "type": "string"
-                    },
-                    "id": {
-                        "type": "integer"
-                    },
-                    "last_used_at": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "prefix": {
-                        "type": "string"
-                    },
-                    "scope": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "status": {
-                        "type": "string"
-                    },
-                    "token": {
-                        "description": "★ 明文 token，仅此一次返回",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.apiKeyView": {
-                "properties": {
-                    "created_at": {
-                        "type": "string"
-                    },
-                    "expires_at": {
-                        "type": "string"
-                    },
-                    "id": {
-                        "type": "integer"
-                    },
-                    "last_used_at": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "prefix": {
-                        "type": "string"
-                    },
-                    "scope": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "status": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.bindIMAccountReq": {
-                "properties": {
-                    "account_id": {
-                        "description": "IM 平台 unionId",
-                        "type": "string"
-                    },
-                    "platform": {
-                        "description": "dingtalk | feishu | wecom",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.changePasswordReq": {
-                "properties": {
-                    "new_password": {
-                        "type": "string"
-                    },
-                    "old_password": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.createBindingReq": {
-                "properties": {
-                    "expires_in_hours": {
-                        "description": "可选，临时授权小时数",
-                        "type": "integer"
-                    },
-                    "role_id": {
-                        "type": "integer"
-                    },
-                    "scope_level": {
-                        "description": "org | team",
-                        "type": "string"
-                    },
-                    "team_id": {
-                        "description": "team scope 时必填",
-                        "type": "string"
-                    },
-                    "user_id": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.createRoleReq": {
-                "properties": {
-                    "description": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "permissions": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "scope_level": {
-                        "description": "org | team",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.createTeamReq": {
-                "properties": {
-                    "description": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "slug": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.loginReq": {
-                "properties": {
-                    "password": {
-                        "type": "string"
-                    },
-                    "username": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.loginResp": {
-                "properties": {
-                    "access_token": {
-                        "type": "string"
-                    },
-                    "refresh_token": {
-                        "type": "string"
-                    },
-                    "token_type": {
-                        "type": "string"
-                    },
-                    "user": {
-                        "$ref": "#/components/schemas/internal_auth.loginUser"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.loginUser": {
-                "properties": {
-                    "email": {
-                        "type": "string"
-                    },
-                    "id": {
-                        "type": "integer"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "status": {
-                        "type": "string"
-                    },
-                    "username": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.refreshReq": {
-                "properties": {
-                    "refresh_token": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.updateTeamReq": {
-                "properties": {
-                    "description": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_auth.updateUserReq": {
-                "properties": {
-                    "name": {
-                        "type": "string"
-                    },
-                    "status": {
-                        "description": "active|disabled",
-                        "type": "string"
-                    },
-                    "timezone": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_escalation.createReq": {
-                "properties": {
-                    "levels": {
-                        "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.EscalationLevel"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "repeat_times": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_escalation.updateReq": {
-                "properties": {
-                    "levels": {
-                        "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.EscalationLevel"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "repeat_times": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_im.imPlatformStatus": {
-                "properties": {
-                    "available": {
-                        "description": "凭证已配置且客户端就绪",
-                        "type": "boolean"
-                    },
-                    "impl": {
-                        "description": "适配器类型：real | noop（占位）",
-                        "type": "string"
-                    },
-                    "platform": {
-                        "description": "feishu | dingtalk | wecom",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_integration.createReq": {
+            "integration.createReq": {
                 "properties": {
                     "config": {
                         "additionalProperties": {},
@@ -2893,7 +2528,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_integration.createResp": {
+            "integration.createResp": {
                 "properties": {
                     "config": {
                         "additionalProperties": {},
@@ -2924,7 +2559,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "type": {
-                        "$ref": "#/components/schemas/github_com_kevin_vigil_ent_integration.Type"
+                        "$ref": "#/components/schemas/integration.Type"
                     },
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
@@ -2933,7 +2568,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_integration.updateReq": {
+            "integration.updateReq": {
                 "properties": {
                     "enabled": {
                         "type": "boolean"
@@ -2944,7 +2579,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_notification.createRuleReq": {
+            "notification.createRuleReq": {
                 "properties": {
                     "channels": {
                         "items": {
@@ -2976,7 +2611,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_notification.createSuppressionReq": {
+            "notification.createSuppressionReq": {
                 "properties": {
                     "action": {
                         "type": "string"
@@ -3019,7 +2654,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_notification.createTemplateReq": {
+            "notification.createTemplateReq": {
                 "properties": {
                     "actions": {
                         "items": {
@@ -3055,7 +2690,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_notification.updateRuleReq": {
+            "notification.updateRuleReq": {
                 "properties": {
                     "channels": {
                         "items": {
@@ -3084,7 +2719,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_notification.updateSuppressionReq": {
+            "notification.updateSuppressionReq": {
                 "properties": {
                     "action": {
                         "type": "string"
@@ -3121,7 +2756,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_notification.updateTemplateReq": {
+            "notification.updateTemplateReq": {
                 "properties": {
                     "actions": {
                         "items": {
@@ -3149,7 +2784,69 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_postmortem.addActionItemReq": {
+            "notificationtemplate.Channel": {
+                "description": "Channel holds the value of the \"channel\" field.",
+                "enum": [
+                    "im",
+                    "email",
+                    "webhook",
+                    "phone",
+                    "sms"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "ChannelIm",
+                    "ChannelEmail",
+                    "ChannelWebhook",
+                    "ChannelPhone",
+                    "ChannelSms"
+                ]
+            },
+            "notificationtemplate.Format": {
+                "description": "Format holds the value of the \"format\" field.",
+                "enum": [
+                    "text",
+                    "interactive_card"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "FormatText",
+                    "FormatInteractiveCard"
+                ]
+            },
+            "postmortem.GeneratedBy": {
+                "description": "GeneratedBy holds the value of the \"generated_by\" field.",
+                "enum": [
+                    "mixed",
+                    "ai",
+                    "human"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultGeneratedBy",
+                    "GeneratedByAi",
+                    "GeneratedByHuman",
+                    "GeneratedByMixed"
+                ]
+            },
+            "postmortem.Status": {
+                "description": "Status holds the value of the \"status\" field.",
+                "enum": [
+                    "draft",
+                    "in_review",
+                    "published",
+                    "archived"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultStatus",
+                    "StatusDraft",
+                    "StatusInReview",
+                    "StatusPublished",
+                    "StatusArchived"
+                ]
+            },
+            "postmortem.addActionItemReq": {
                 "properties": {
                     "description": {
                         "type": "string"
@@ -3163,7 +2860,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_postmortem.transitionReq": {
+            "postmortem.transitionReq": {
                 "properties": {
                     "status": {
                         "description": "in_review | published | archived",
@@ -3172,7 +2869,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_postmortem.updateActionItemReq": {
+            "postmortem.updateActionItemReq": {
                 "properties": {
                     "owner_id": {
                         "type": "string"
@@ -3187,7 +2884,62 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_runbook.ExecuteResult": {
+            "rawevent.Status": {
+                "description": "Status holds the value of the \"status\" field.",
+                "enum": [
+                    "received",
+                    "normalized",
+                    "parse_failed",
+                    "requeued"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultStatus",
+                    "StatusReceived",
+                    "StatusNormalized",
+                    "StatusParseFailed",
+                    "StatusRequeued"
+                ]
+            },
+            "role.ScopeLevel": {
+                "description": "ScopeLevel holds the value of the \"scope_level\" field.",
+                "enum": [
+                    "org",
+                    "team"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "ScopeLevelOrg",
+                    "ScopeLevelTeam"
+                ]
+            },
+            "rolebinding.ScopeLevel": {
+                "description": "ScopeLevel holds the value of the \"scope_level\" field.",
+                "enum": [
+                    "org",
+                    "team"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "ScopeLevelOrg",
+                    "ScopeLevelTeam"
+                ]
+            },
+            "rotation.RotationType": {
+                "description": "RotationType holds the value of the \"rotation_type\" field.",
+                "enum": [
+                    "daily",
+                    "weekly",
+                    "custom"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "RotationTypeDaily",
+                    "RotationTypeWeekly",
+                    "RotationTypeCustom"
+                ]
+            },
+            "runbook.ExecuteResult": {
                 "properties": {
                     "aborted": {
                         "description": "是否中止（on_failure=abort/escalate）",
@@ -3209,14 +2961,15 @@ const docTemplate = `{
                     },
                     "steps": {
                         "items": {
-                            "$ref": "#/components/schemas/internal_runbook.StepResult"
+                            "$ref": "#/components/schemas/runbook.StepResult"
                         },
-                        "type": "array"
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
             },
-            "internal_runbook.StepResult": {
+            "runbook.StepResult": {
                 "properties": {
                     "action": {
                         "description": "diagnose | execute | ...",
@@ -3248,7 +3001,19 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_runbook.createReq": {
+            "runbook.Type": {
+                "description": "Type holds the value of the \"type\" field.",
+                "enum": [
+                    "document",
+                    "executable"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "TypeDocument",
+                    "TypeExecutable"
+                ]
+            },
+            "runbook.createReq": {
                 "properties": {
                     "content_markdown": {
                         "type": "string"
@@ -3258,7 +3023,7 @@ const docTemplate = `{
                     },
                     "steps": {
                         "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.RunbookStep"
+                            "$ref": "#/components/schemas/schema.RunbookStep"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -3274,7 +3039,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_runbook.executeReq": {
+            "runbook.executeReq": {
                 "properties": {
                     "approved": {
                         "description": "写动作是否已确认（human-in-the-loop）",
@@ -3286,7 +3051,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_runbook.updateReq": {
+            "runbook.updateReq": {
                 "properties": {
                     "content_markdown": {
                         "type": "string"
@@ -3296,7 +3061,7 @@ const docTemplate = `{
                     },
                     "steps": {
                         "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.RunbookStep"
+                            "$ref": "#/components/schemas/schema.RunbookStep"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -3312,21 +3077,21 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_schedule.DayOncall": {
+            "schedule.DayOncall": {
                 "properties": {
                     "date": {
                         "type": "string"
                     },
                     "layers": {
                         "items": {
-                            "$ref": "#/components/schemas/internal_schedule.OncallLayer"
+                            "$ref": "#/components/schemas/schedule.OncallLayer"
                         },
                         "type": "array"
                     }
                 },
                 "type": "object"
             },
-            "internal_schedule.OncallLayer": {
+            "schedule.OncallLayer": {
                 "properties": {
                     "name": {
                         "description": "层名（如\"一线\"）",
@@ -3337,19 +3102,19 @@ const docTemplate = `{
                     },
                     "users": {
                         "items": {
-                            "$ref": "#/components/schemas/internal_schedule.OncallUser"
+                            "$ref": "#/components/schemas/schedule.OncallUser"
                         },
                         "type": "array"
                     }
                 },
                 "type": "object"
             },
-            "internal_schedule.OncallResult": {
+            "schedule.OncallResult": {
                 "properties": {
                     "layers": {
                         "description": "按层有序：primary → secondary → override",
                         "items": {
-                            "$ref": "#/components/schemas/internal_schedule.OncallLayer"
+                            "$ref": "#/components/schemas/schedule.OncallLayer"
                         },
                         "type": "array"
                     },
@@ -3362,7 +3127,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_schedule.OncallUser": {
+            "schedule.OncallUser": {
                 "properties": {
                     "id": {
                         "type": "integer"
@@ -3380,11 +3145,11 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_schedule.PreviewResult": {
+            "schedule.PreviewResult": {
                 "properties": {
                     "days": {
                         "items": {
-                            "$ref": "#/components/schemas/internal_schedule.DayOncall"
+                            "$ref": "#/components/schemas/schedule.DayOncall"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -3395,11 +3160,62 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_schedule.createScheduleReq": {
+            "schedule.Type": {
+                "description": "Type holds the value of the \"type\" field.",
+                "enum": [
+                    "calendar",
+                    "rotation",
+                    "follow_the_sun"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "TypeCalendar",
+                    "TypeRotation",
+                    "TypeFollowTheSun"
+                ]
+            },
+            "schedule.createLayerReq": {
+                "properties": {
+                    "handoff_time": {
+                        "description": "交接时刻 \"HH:MM\"（默认 09:00）",
+                        "type": "string"
+                    },
+                    "name": {
+                        "description": "层名，如 \"一线\"",
+                        "type": "string"
+                    },
+                    "participants": {
+                        "description": "值班人 user id 列表",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "priority": {
+                        "description": "数字越小优先级越高",
+                        "type": "integer"
+                    },
+                    "rotation_type": {
+                        "description": "daily | weekly | custom（默认 daily）",
+                        "type": "string"
+                    },
+                    "shift_length": {
+                        "description": "班次时长 \"24h\"/\"1week\"（默认 24h）",
+                        "type": "string"
+                    },
+                    "start_date": {
+                        "description": "开始日期 RFC3339（默认现在）",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "schedule.createScheduleReq": {
                 "properties": {
                     "layers": {
                         "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.ScheduleLayer"
+                            "$ref": "#/components/schemas/schedule.createLayerReq"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -3421,11 +3237,11 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_schedule.updateScheduleReq": {
+            "schedule.updateScheduleReq": {
                 "properties": {
                     "layers": {
                         "items": {
-                            "$ref": "#/components/schemas/github_com_kevin_vigil_ent_schema.ScheduleLayer"
+                            "$ref": "#/components/schemas/schema.ScheduleLayer"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -3442,7 +3258,170 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_service.createReq": {
+            "schema.EscalationLevel": {
+                "properties": {
+                    "delay_minutes": {
+                        "description": "进入此 level 后多久发通知",
+                        "type": "integer"
+                    },
+                    "level": {
+                        "description": "层级序号",
+                        "type": "integer"
+                    },
+                    "notify_channels": {
+                        "description": "im | phone | sms | email",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "targets": {
+                        "description": "通知目标",
+                        "items": {
+                            "$ref": "#/components/schemas/schema.Target"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "schema.IMAccount": {
+                "properties": {
+                    "account_id": {
+                        "description": "IM 平台的 unionId",
+                        "type": "string"
+                    },
+                    "platform": {
+                        "description": "dingtalk | feishu | wecom",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "schema.NullableVector": {
+                "description": "语义向量，published 复盘入库后计算，知识沉淀检索用",
+                "properties": {
+                    "valid": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "schema.RunbookStep": {
+                "properties": {
+                    "action": {
+                        "$ref": "#/components/schemas/schema.StepAction"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "on_failure": {
+                        "description": "continue | abort | escalate",
+                        "type": "string"
+                    },
+                    "require_approval": {
+                        "description": "写操作必须人确认（human-in-the-loop）",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "schema.ScheduleLayer": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "description": "如 \"一线\"",
+                        "type": "string"
+                    },
+                    "priority": {
+                        "description": "数字越小优先级越高",
+                        "type": "integer"
+                    },
+                    "rotation_id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "schema.StepAction": {
+                "properties": {
+                    "params": {
+                        "additionalProperties": {},
+                        "type": "object"
+                    },
+                    "target": {
+                        "$ref": "#/components/schemas/schema.StepTarget"
+                    },
+                    "type": {
+                        "description": "diagnose | execute | notify | wait | approve",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "schema.StepTarget": {
+                "properties": {
+                    "endpoint": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "description": "http | ansible | jenkins | internal",
+                        "type": "string"
+                    },
+                    "readonly": {
+                        "description": "diagnose 类强制只读",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "schema.Target": {
+                "properties": {
+                    "target_id": {
+                        "description": "schedule_id / user_id / team_id",
+                        "type": "string"
+                    },
+                    "type": {
+                        "description": "schedule | user | team",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "schema.TemplateAction": {
+                "properties": {
+                    "label": {
+                        "description": "按钮文案，如 \"确认\"",
+                        "type": "string"
+                    },
+                    "type": {
+                        "description": "ack | escalate | resolve | detail",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "service.Status": {
+                "description": "Status holds the value of the \"status\" field.",
+                "enum": [
+                    "active",
+                    "disabled"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultStatus",
+                    "StatusActive",
+                    "StatusDisabled"
+                ]
+            },
+            "service.createReq": {
                 "properties": {
                     "auto_create_incident": {
                         "type": "boolean"
@@ -3476,7 +3455,7 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_service.updateReq": {
+            "service.updateReq": {
                 "properties": {
                     "auto_create_incident": {
                         "type": "boolean"
@@ -3506,17 +3485,18 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_timeline.addReq": {
-                "properties": {
-                    "content": {
-                        "type": "string"
-                    },
-                    "detail": {
-                        "additionalProperties": {},
-                        "type": "object"
-                    }
-                },
-                "type": "object"
+            "suppressionrule.Action": {
+                "description": "Action holds the value of the \"action\" field.",
+                "enum": [
+                    "suppress",
+                    "reduce_severity"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultAction",
+                    "ActionSuppress",
+                    "ActionReduceSeverity"
+                ]
             },
             "time.Duration": {
                 "enum": [
@@ -3539,6 +3519,81 @@ const docTemplate = `{
                     "Second",
                     "Minute",
                     "Hour"
+                ]
+            },
+            "timeline.addReq": {
+                "properties": {
+                    "content": {
+                        "type": "string"
+                    },
+                    "detail": {
+                        "additionalProperties": {},
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "timelineitem.Source": {
+                "description": "Source holds the value of the \"source\" field.",
+                "enum": [
+                    "web",
+                    "im",
+                    "api",
+                    "system",
+                    "ai"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "SourceWeb",
+                    "SourceIm",
+                    "SourceAPI",
+                    "SourceSystem",
+                    "SourceAi"
+                ]
+            },
+            "timelineitem.Type": {
+                "description": "Type holds the value of the \"type\" field.",
+                "enum": [
+                    "incident_created",
+                    "event_attached",
+                    "status_changed",
+                    "escalated",
+                    "ack",
+                    "resolved",
+                    "reopened",
+                    "responder_added",
+                    "note_added",
+                    "runbook_executed",
+                    "ai_insight",
+                    "im_message"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "TypeIncidentCreated",
+                    "TypeEventAttached",
+                    "TypeStatusChanged",
+                    "TypeEscalated",
+                    "TypeAck",
+                    "TypeResolved",
+                    "TypeReopened",
+                    "TypeResponderAdded",
+                    "TypeNoteAdded",
+                    "TypeRunbookExecuted",
+                    "TypeAiInsight",
+                    "TypeImMessage"
+                ]
+            },
+            "user.Status": {
+                "description": "Status holds the value of the \"status\" field.",
+                "enum": [
+                    "active",
+                    "disabled"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultStatus",
+                    "StatusActive",
+                    "StatusDisabled"
                 ]
             }
         },
@@ -3587,7 +3642,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -3597,7 +3652,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -3635,7 +3690,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_postmortem.updateActionItemReq",
+                                        "$ref": "#/components/schemas/postmortem.updateActionItemReq",
                                         "description": "更新字段（全部可选）",
                                         "summary": "body"
                                     }
@@ -3661,7 +3716,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -3671,7 +3726,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -3712,7 +3767,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_ai.resolveReq",
+                                        "$ref": "#/components/schemas/ai.resolveReq",
                                         "description": "accepted=true 接受，false 拒绝",
                                         "summary": "request"
                                     }
@@ -3739,7 +3794,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -3749,7 +3804,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -3793,7 +3848,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_analytics.AlertMetrics"
+                                    "$ref": "#/components/schemas/analytics.AlertMetrics"
                                 }
                             }
                         },
@@ -3803,7 +3858,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -3839,7 +3894,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_analytics.Dashboard"
+                                    "$ref": "#/components/schemas/analytics.Dashboard"
                                 }
                             }
                         },
@@ -3849,7 +3904,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -3893,7 +3948,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_analytics.IncidentMetrics"
+                                    "$ref": "#/components/schemas/analytics.IncidentMetrics"
                                 }
                             }
                         },
@@ -3903,7 +3958,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -3947,7 +4002,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_analytics.PostmortemMetrics"
+                                    "$ref": "#/components/schemas/analytics.PostmortemMetrics"
                                 }
                             }
                         },
@@ -3957,7 +4012,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4002,7 +4057,7 @@ const docTemplate = `{
                             "application/json": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/internal_analytics.TeamLoad"
+                                        "$ref": "#/components/schemas/analytics.TeamLoad"
                                     },
                                     "type": "array"
                                 }
@@ -4014,7 +4069,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4067,7 +4122,7 @@ const docTemplate = `{
                             "application/json": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/internal_analytics.TrendPoint"
+                                        "$ref": "#/components/schemas/analytics.TrendPoint"
                                     },
                                     "type": "array"
                                 }
@@ -4079,7 +4134,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4105,7 +4160,7 @@ const docTemplate = `{
                             "application/json": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/internal_auth.apiKeyView"
+                                        "$ref": "#/components/schemas/auth.apiKeyView"
                                     },
                                     "type": "array"
                                 }
@@ -4117,7 +4172,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4127,7 +4182,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4155,7 +4210,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.apiKeyCreateReq",
+                                        "$ref": "#/components/schemas/auth.apiKeyCreateReq",
                                         "description": "创建参数",
                                         "summary": "body"
                                     }
@@ -4171,7 +4226,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_auth.apiKeyCreateResp"
+                                    "$ref": "#/components/schemas/auth.apiKeyCreateResp"
                                 }
                             }
                         },
@@ -4181,7 +4236,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4191,7 +4246,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4201,7 +4256,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4240,7 +4295,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4250,7 +4305,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4260,7 +4315,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4270,7 +4325,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4364,7 +4419,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.Paginated-ent_AuditLog"
+                                    "$ref": "#/components/schemas/httputil.Paginated-ent_AuditLog"
                                 }
                             }
                         },
@@ -4374,7 +4429,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4404,7 +4459,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.changePasswordReq",
+                                        "$ref": "#/components/schemas/auth.changePasswordReq",
                                         "description": "旧密码 + 新密码",
                                         "summary": "body"
                                     }
@@ -4433,7 +4488,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4443,7 +4498,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4453,7 +4508,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4483,7 +4538,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.loginReq",
+                                        "$ref": "#/components/schemas/auth.loginReq",
                                         "description": "登录凭证",
                                         "summary": "body"
                                     }
@@ -4499,7 +4554,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_auth.loginResp"
+                                    "$ref": "#/components/schemas/auth.loginResp"
                                 }
                             }
                         },
@@ -4509,7 +4564,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4519,7 +4574,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4529,7 +4584,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4539,7 +4594,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4559,7 +4614,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_auth.loginUser"
+                                    "$ref": "#/components/schemas/auth.loginUser"
                                 }
                             }
                         },
@@ -4569,7 +4624,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4579,7 +4634,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4608,7 +4663,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.refreshReq",
+                                        "$ref": "#/components/schemas/auth.refreshReq",
                                         "description": "refresh token",
                                         "summary": "body"
                                     }
@@ -4637,7 +4692,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4647,7 +4702,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4657,7 +4712,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4690,7 +4745,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4717,7 +4772,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_escalation.createReq",
+                                        "$ref": "#/components/schemas/escalation.createReq",
                                         "description": "策略配置",
                                         "summary": "body"
                                     }
@@ -4743,7 +4798,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4753,7 +4808,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4792,7 +4847,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4836,7 +4891,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4874,7 +4929,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_escalation.updateReq",
+                                        "$ref": "#/components/schemas/escalation.updateReq",
                                         "description": "更新字段",
                                         "summary": "body"
                                     }
@@ -4900,7 +4955,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4910,7 +4965,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -4937,7 +4992,7 @@ const docTemplate = `{
                             "application/json": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/internal_im.imPlatformStatus"
+                                        "$ref": "#/components/schemas/im.imPlatformStatus"
                                     },
                                     "type": "array"
                                 }
@@ -5003,7 +5058,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5013,7 +5068,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5023,7 +5078,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5033,7 +5088,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5103,7 +5158,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.Paginated-ent_Incident"
+                                    "$ref": "#/components/schemas/httputil.Paginated-ent_Incident"
                                 }
                             }
                         },
@@ -5113,7 +5168,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5160,7 +5215,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5170,7 +5225,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5216,7 +5271,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5229,6 +5284,53 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "确认事件（ack）",
+                "tags": [
+                    "incident"
+                ]
+            }
+        },
+        "/incidents/{id}/close": {
+            "post": {
+                "description": "把 resolved 事件推进到终态 closed；非 resolved 状态（含 triggered/acked/escalated）关闭返回 400。",
+                "parameters": [
+                    {
+                        "description": "事件 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Incident"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "关闭事件（close）",
                 "tags": [
                     "incident"
                 ]
@@ -5266,7 +5368,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_ai.DiagnoseResult"
+                                    "$ref": "#/components/schemas/ai.DiagnoseResult"
                                 }
                             }
                         },
@@ -5276,7 +5378,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5286,7 +5388,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5332,7 +5434,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5379,7 +5481,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5389,7 +5491,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5436,7 +5538,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5482,7 +5584,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5538,7 +5640,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5548,7 +5650,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5604,7 +5706,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5614,7 +5716,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5683,7 +5785,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.Paginated-ent_TimelineItem"
+                                    "$ref": "#/components/schemas/httputil.Paginated-ent_TimelineItem"
                                 }
                             }
                         },
@@ -5693,7 +5795,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5703,7 +5805,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5742,7 +5844,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_timeline.addReq",
+                                        "$ref": "#/components/schemas/timeline.addReq",
                                         "description": "条目内容（content 必填）",
                                         "summary": "request"
                                     }
@@ -5771,7 +5873,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5781,7 +5883,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5819,7 +5921,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5846,7 +5948,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_integration.createReq",
+                                        "$ref": "#/components/schemas/integration.createReq",
                                         "description": "接入点配置",
                                         "summary": "body"
                                     }
@@ -5862,7 +5964,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_integration.createResp"
+                                    "$ref": "#/components/schemas/integration.createResp"
                                 }
                             }
                         },
@@ -5872,7 +5974,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5882,7 +5984,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5921,7 +6023,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -5965,7 +6067,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6003,7 +6105,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_integration.updateReq",
+                                        "$ref": "#/components/schemas/integration.updateReq",
                                         "description": "更新字段",
                                         "summary": "body"
                                     }
@@ -6029,7 +6131,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6039,7 +6141,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6078,7 +6180,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6106,7 +6208,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_notification.createRuleReq",
+                                        "$ref": "#/components/schemas/notification.createRuleReq",
                                         "description": "通知规则定义",
                                         "summary": "request"
                                     }
@@ -6132,7 +6234,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6142,7 +6244,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6182,7 +6284,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6192,7 +6294,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6202,7 +6304,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6247,7 +6349,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6257,7 +6359,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6267,7 +6369,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6306,7 +6408,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_notification.updateRuleReq",
+                                        "$ref": "#/components/schemas/notification.updateRuleReq",
                                         "description": "待更新字段",
                                         "summary": "request"
                                     }
@@ -6332,7 +6434,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6342,7 +6444,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6398,7 +6500,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6408,7 +6510,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6418,7 +6520,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6457,7 +6559,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6485,7 +6587,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_notification.createTemplateReq",
+                                        "$ref": "#/components/schemas/notification.createTemplateReq",
                                         "description": "模板定义",
                                         "summary": "request"
                                     }
@@ -6511,7 +6613,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6521,7 +6623,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6561,7 +6663,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6571,7 +6673,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6581,7 +6683,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6591,7 +6693,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6636,7 +6738,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6646,7 +6748,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6656,7 +6758,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6695,7 +6797,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_notification.updateTemplateReq",
+                                        "$ref": "#/components/schemas/notification.updateTemplateReq",
                                         "description": "待更新字段",
                                         "summary": "request"
                                     }
@@ -6721,7 +6823,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6731,7 +6833,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6741,7 +6843,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6751,7 +6853,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6808,7 +6910,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6818,7 +6920,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6828,7 +6930,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6838,7 +6940,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6876,7 +6978,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6916,7 +7018,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6926,7 +7028,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6970,7 +7072,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -6980,7 +7082,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7020,7 +7122,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_postmortem.addActionItemReq",
+                                        "$ref": "#/components/schemas/postmortem.addActionItemReq",
                                         "description": "改进项参数",
                                         "summary": "body"
                                     }
@@ -7046,7 +7148,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7056,7 +7158,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7096,7 +7198,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_postmortem.transitionReq",
+                                        "$ref": "#/components/schemas/postmortem.transitionReq",
                                         "description": "目标状态",
                                         "summary": "body"
                                     }
@@ -7122,7 +7224,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7160,7 +7262,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7187,7 +7289,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.createBindingReq",
+                                        "$ref": "#/components/schemas/auth.createBindingReq",
                                         "description": "绑定参数",
                                         "summary": "body"
                                     }
@@ -7213,7 +7315,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7223,7 +7325,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7262,7 +7364,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7272,7 +7374,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7310,7 +7412,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7337,7 +7439,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.createRoleReq",
+                                        "$ref": "#/components/schemas/auth.createRoleReq",
                                         "description": "角色创建参数",
                                         "summary": "body"
                                     }
@@ -7363,7 +7465,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7373,7 +7475,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7412,7 +7514,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7422,7 +7524,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7432,7 +7534,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7471,7 +7573,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7499,7 +7601,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_runbook.createReq",
+                                        "$ref": "#/components/schemas/runbook.createReq",
                                         "description": "Runbook 定义",
                                         "summary": "request"
                                     }
@@ -7525,7 +7627,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7535,7 +7637,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7575,7 +7677,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7585,7 +7687,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7630,7 +7732,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7640,7 +7742,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7679,7 +7781,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_runbook.updateReq",
+                                        "$ref": "#/components/schemas/runbook.updateReq",
                                         "description": "更新字段（全可选）",
                                         "summary": "request"
                                     }
@@ -7705,7 +7807,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7715,7 +7817,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7756,7 +7858,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_runbook.executeReq",
+                                        "$ref": "#/components/schemas/runbook.executeReq",
                                         "description": "执行参数（incident_id + approved）",
                                         "summary": "request"
                                     }
@@ -7772,7 +7874,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_runbook.ExecuteResult"
+                                    "$ref": "#/components/schemas/runbook.ExecuteResult"
                                 }
                             }
                         },
@@ -7782,7 +7884,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7792,7 +7894,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7830,7 +7932,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7857,7 +7959,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_schedule.createScheduleReq",
+                                        "$ref": "#/components/schemas/schedule.createScheduleReq",
                                         "description": "排班创建参数",
                                         "summary": "body"
                                     }
@@ -7883,7 +7985,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7893,7 +7995,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7932,7 +8034,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7942,7 +8044,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7986,7 +8088,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -7996,7 +8098,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8006,7 +8108,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8044,7 +8146,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_schedule.updateScheduleReq",
+                                        "$ref": "#/components/schemas/schedule.updateScheduleReq",
                                         "description": "排班更新参数",
                                         "summary": "body"
                                     }
@@ -8070,7 +8172,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8080,7 +8182,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8125,7 +8227,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_schedule.OncallResult"
+                                    "$ref": "#/components/schemas/schedule.OncallResult"
                                 }
                             }
                         },
@@ -8135,7 +8237,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8145,7 +8247,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8155,7 +8257,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8202,7 +8304,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_schedule.PreviewResult"
+                                    "$ref": "#/components/schemas/schedule.PreviewResult"
                                 }
                             }
                         },
@@ -8212,7 +8314,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8222,7 +8324,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8232,7 +8334,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8270,7 +8372,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8297,7 +8399,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_service.createReq",
+                                        "$ref": "#/components/schemas/service.createReq",
                                         "description": "服务创建参数",
                                         "summary": "body"
                                     }
@@ -8323,7 +8425,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8333,7 +8435,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8372,7 +8474,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8382,7 +8484,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8426,7 +8528,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8436,7 +8538,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8446,7 +8548,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8484,7 +8586,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_service.updateReq",
+                                        "$ref": "#/components/schemas/service.updateReq",
                                         "description": "服务更新参数",
                                         "summary": "body"
                                     }
@@ -8510,7 +8612,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8520,7 +8622,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8559,7 +8661,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8587,7 +8689,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_notification.createSuppressionReq",
+                                        "$ref": "#/components/schemas/notification.createSuppressionReq",
                                         "description": "抑制规则定义",
                                         "summary": "request"
                                     }
@@ -8613,7 +8715,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8623,7 +8725,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8663,7 +8765,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8673,7 +8775,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8683,7 +8785,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8728,7 +8830,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8738,7 +8840,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8748,7 +8850,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8787,7 +8889,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_notification.updateSuppressionReq",
+                                        "$ref": "#/components/schemas/notification.updateSuppressionReq",
                                         "description": "待更新字段",
                                         "summary": "request"
                                     }
@@ -8813,7 +8915,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8823,7 +8925,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8861,7 +8963,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8888,7 +8990,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.createTeamReq",
+                                        "$ref": "#/components/schemas/auth.createTeamReq",
                                         "description": "团队配置",
                                         "summary": "body"
                                     }
@@ -8914,7 +9016,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8924,7 +9026,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -8963,7 +9065,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9001,7 +9103,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.updateTeamReq",
+                                        "$ref": "#/components/schemas/auth.updateTeamReq",
                                         "description": "更新字段",
                                         "summary": "body"
                                     }
@@ -9027,7 +9129,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9037,7 +9139,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9075,7 +9177,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9115,7 +9217,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.updateUserReq",
+                                        "$ref": "#/components/schemas/auth.updateUserReq",
                                         "description": "更新字段",
                                         "summary": "body"
                                     }
@@ -9141,7 +9243,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9151,7 +9253,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9188,7 +9290,7 @@ const docTemplate = `{
                             "application/json": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/internal_auth.IMAccountInfo"
+                                        "$ref": "#/components/schemas/auth.IMAccountInfo"
                                     },
                                     "type": "array"
                                 }
@@ -9200,7 +9302,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9239,7 +9341,7 @@ const docTemplate = `{
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/internal_auth.bindIMAccountReq",
+                                        "$ref": "#/components/schemas/auth.bindIMAccountReq",
                                         "description": "IM 账号",
                                         "summary": "body"
                                     }
@@ -9255,7 +9357,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/internal_auth.bindIMAccountReq"
+                                    "$ref": "#/components/schemas/auth.bindIMAccountReq"
                                 }
                             }
                         },
@@ -9265,7 +9367,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9275,7 +9377,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9321,7 +9423,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.AckResponse"
+                                    "$ref": "#/components/schemas/httputil.AckResponse"
                                 }
                             }
                         },
@@ -9331,7 +9433,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9341,7 +9443,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9351,7 +9453,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.AckResponse"
+                                    "$ref": "#/components/schemas/httputil.AckResponse"
                                 }
                             }
                         },
@@ -9361,7 +9463,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.ErrorResponse"
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
                                 }
                             }
                         },
@@ -9371,7 +9473,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_kevin_vigil_internal_httputil.AckResponse"
+                                    "$ref": "#/components/schemas/httputil.AckResponse"
                                 }
                             }
                         },

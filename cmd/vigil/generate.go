@@ -5,6 +5,10 @@ package main
 // 镜像 ent/generate.go 的 `go run -mod=mod` 纪律：
 //   - --v3.1            生成 OpenAPI 3.1（内容为 openapi: 3.1.0，文件名仍为 swagger.yaml/json）
 //   - -d ../..          从仓库根递归扫描，覆盖各 internal/* handler（filepath.Walk 递归）
+//                       ⚠️ 依赖仓库根存在一个 Go 包（见根目录 doc.go）：swag 会在扫描目录
+//                       跑 `go list` 求模块导入路径，根目录若无 .go 文件则报 "no Go files"，
+//                       进而无法把 httputil.ErrorResponse 等 internal 具名类型解析成 schema，
+//                       导致整个生成失败。请勿删除根目录 doc.go。
 //   - -g cmd/vigil/main.go  指定全局信息文件（@title/@servers/@securitydefinitions 等）
 //   - --parseDependency 解析外部依赖（ent 实体），让 @Success {object} ent.Incident 真正生成 schema
 //   - --parseInternal   解析 internal/* 包（httputil.DTO、各域 Result 类型）

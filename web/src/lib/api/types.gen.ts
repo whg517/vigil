@@ -43,7 +43,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -52,7 +52,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -73,7 +73,7 @@ export interface paths {
             /** @description 更新字段（全部可选） */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_postmortem.updateActionItemReq"];
+                    "application/json": Record<string, never> | components["schemas"]["postmortem.updateActionItemReq"];
                 };
             };
             responses: {
@@ -92,7 +92,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -101,7 +101,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -134,7 +134,7 @@ export interface paths {
             /** @description accepted=true 接受，false 拒绝 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_ai.resolveReq"];
+                    "application/json": Record<string, never> | components["schemas"]["ai.resolveReq"];
                 };
             };
             responses: {
@@ -155,7 +155,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -164,7 +164,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -206,7 +206,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_analytics.AlertMetrics"];
+                        "application/json": components["schemas"]["analytics.AlertMetrics"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -215,7 +215,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -257,7 +257,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_analytics.Dashboard"];
+                        "application/json": components["schemas"]["analytics.Dashboard"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -266,7 +266,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -310,7 +310,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_analytics.IncidentMetrics"];
+                        "application/json": components["schemas"]["analytics.IncidentMetrics"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -319,7 +319,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -363,7 +363,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_analytics.PostmortemMetrics"];
+                        "application/json": components["schemas"]["analytics.PostmortemMetrics"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -372,7 +372,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -416,7 +416,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_analytics.TeamLoad"][];
+                        "application/json": components["schemas"]["analytics.TeamLoad"][];
                     };
                 };
                 /** @description Internal Server Error */
@@ -425,7 +425,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -471,7 +471,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_analytics.TrendPoint"][];
+                        "application/json": components["schemas"]["analytics.TrendPoint"][];
                     };
                 };
                 /** @description Internal Server Error */
@@ -480,7 +480,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -516,7 +516,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_auth.apiKeyView"][];
+                        "application/json": components["schemas"]["auth.apiKeyView"][];
                     };
                 };
                 /** @description Unauthorized */
@@ -525,7 +525,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -534,7 +534,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -554,7 +554,7 @@ export interface paths {
             /** @description 创建参数 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.apiKeyCreateReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.apiKeyCreateReq"];
                 };
             };
             responses: {
@@ -564,7 +564,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_auth.apiKeyCreateResp"];
+                        "application/json": components["schemas"]["auth.apiKeyCreateResp"];
                     };
                 };
                 /** @description Bad Request */
@@ -573,7 +573,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -582,7 +582,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -591,7 +591,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -638,7 +638,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -647,7 +647,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Forbidden */
@@ -656,7 +656,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -665,7 +665,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -715,7 +715,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.Paginated-ent_AuditLog"];
+                        "application/json": components["schemas"]["httputil.Paginated-ent_AuditLog"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -724,7 +724,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -760,7 +760,7 @@ export interface paths {
             /** @description 旧密码 + 新密码 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.changePasswordReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.changePasswordReq"];
                 };
             };
             responses: {
@@ -781,7 +781,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -790,7 +790,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -799,7 +799,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -833,7 +833,7 @@ export interface paths {
             /** @description 登录凭证 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.loginReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.loginReq"];
                 };
             };
             responses: {
@@ -843,7 +843,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_auth.loginResp"];
+                        "application/json": components["schemas"]["auth.loginResp"];
                     };
                 };
                 /** @description Bad Request */
@@ -852,7 +852,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -861,7 +861,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Forbidden */
@@ -870,7 +870,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -879,7 +879,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -913,7 +913,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_auth.loginUser"];
+                        "application/json": components["schemas"]["auth.loginUser"];
                     };
                 };
                 /** @description Unauthorized */
@@ -922,7 +922,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -931,7 +931,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -964,7 +964,7 @@ export interface paths {
             /** @description refresh token */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.refreshReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.refreshReq"];
                 };
             };
             responses: {
@@ -985,7 +985,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -994,7 +994,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -1003,7 +1003,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1046,7 +1046,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1063,7 +1063,7 @@ export interface paths {
             /** @description 策略配置 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_escalation.createReq"];
+                    "application/json": Record<string, never> | components["schemas"]["escalation.createReq"];
                 };
             };
             responses: {
@@ -1082,7 +1082,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -1091,7 +1091,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1137,7 +1137,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1170,7 +1170,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1191,7 +1191,7 @@ export interface paths {
             /** @description 更新字段 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_escalation.updateReq"];
+                    "application/json": Record<string, never> | components["schemas"]["escalation.updateReq"];
                 };
             };
             responses: {
@@ -1210,7 +1210,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -1219,7 +1219,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1252,7 +1252,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_im.imPlatformStatus"][];
+                        "application/json": components["schemas"]["im.imPlatformStatus"][];
                     };
                 };
             };
@@ -1311,7 +1311,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1320,7 +1320,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Forbidden */
@@ -1329,7 +1329,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -1338,7 +1338,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1384,7 +1384,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.Paginated-ent_Incident"];
+                        "application/json": components["schemas"]["httputil.Paginated-ent_Incident"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -1393,7 +1393,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1444,7 +1444,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -1453,7 +1453,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1503,7 +1503,58 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incidents/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 关闭事件（close）
+         * @description 把 resolved 事件推进到终态 closed；非 resolved 状态（含 triggered/acked/escalated）关闭返回 400。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 事件 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Incident"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1556,7 +1607,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_ai.DiagnoseResult"];
+                        "application/json": components["schemas"]["ai.DiagnoseResult"];
                     };
                 };
                 /** @description Bad Request */
@@ -1565,7 +1616,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -1574,7 +1625,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1622,7 +1673,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1673,7 +1724,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -1682,7 +1733,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1733,7 +1784,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1781,7 +1832,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1835,7 +1886,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -1844,7 +1895,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1900,7 +1951,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -1909,7 +1960,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -1960,7 +2011,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.Paginated-ent_TimelineItem"];
+                        "application/json": components["schemas"]["httputil.Paginated-ent_TimelineItem"];
                     };
                 };
                 /** @description Bad Request */
@@ -1969,7 +2020,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -1978,7 +2029,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2001,7 +2052,7 @@ export interface paths {
             /** @description 条目内容（content 必填） */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_timeline.addReq"];
+                    "application/json": Record<string, never> | components["schemas"]["timeline.addReq"];
                 };
             };
             responses: {
@@ -2022,7 +2073,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2031,7 +2082,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2074,7 +2125,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2091,7 +2142,7 @@ export interface paths {
             /** @description 接入点配置 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_integration.createReq"];
+                    "application/json": Record<string, never> | components["schemas"]["integration.createReq"];
                 };
             };
             responses: {
@@ -2101,7 +2152,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_integration.createResp"];
+                        "application/json": components["schemas"]["integration.createResp"];
                     };
                 };
                 /** @description Bad Request */
@@ -2110,7 +2161,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2119,7 +2170,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2165,7 +2216,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2198,7 +2249,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2219,7 +2270,7 @@ export interface paths {
             /** @description 更新字段 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_integration.updateReq"];
+                    "application/json": Record<string, never> | components["schemas"]["integration.updateReq"];
                 };
             };
             responses: {
@@ -2238,7 +2289,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -2247,7 +2298,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2289,7 +2340,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2309,7 +2360,7 @@ export interface paths {
             /** @description 通知规则定义 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_notification.createRuleReq"];
+                    "application/json": Record<string, never> | components["schemas"]["notification.createRuleReq"];
                 };
             };
             responses: {
@@ -2328,7 +2379,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2337,7 +2388,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2386,7 +2437,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -2395,7 +2446,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2404,7 +2455,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2440,7 +2491,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -2449,7 +2500,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2458,7 +2509,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2482,7 +2533,7 @@ export interface paths {
             /** @description 待更新字段 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_notification.updateRuleReq"];
+                    "application/json": Record<string, never> | components["schemas"]["notification.updateRuleReq"];
                 };
             };
             responses: {
@@ -2501,7 +2552,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2510,7 +2561,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2562,7 +2613,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -2571,7 +2622,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2580,7 +2631,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2626,7 +2677,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2646,7 +2697,7 @@ export interface paths {
             /** @description 模板定义 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_notification.createTemplateReq"];
+                    "application/json": Record<string, never> | components["schemas"]["notification.createTemplateReq"];
                 };
             };
             responses: {
@@ -2665,7 +2716,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2674,7 +2725,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2723,7 +2774,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -2732,7 +2783,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2741,7 +2792,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2777,7 +2828,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Forbidden */
@@ -2786,7 +2837,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -2795,7 +2846,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2804,7 +2855,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2828,7 +2879,7 @@ export interface paths {
             /** @description 待更新字段 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_notification.updateTemplateReq"];
+                    "application/json": Record<string, never> | components["schemas"]["notification.updateTemplateReq"];
                 };
             };
             responses: {
@@ -2847,7 +2898,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Forbidden */
@@ -2856,7 +2907,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -2865,7 +2916,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2874,7 +2925,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2926,7 +2977,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -2935,7 +2986,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -2944,7 +2995,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -2953,7 +3004,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -2996,7 +3047,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3044,7 +3095,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -3053,7 +3104,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3089,7 +3140,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3098,7 +3149,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3131,7 +3182,7 @@ export interface paths {
             /** @description 改进项参数 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_postmortem.addActionItemReq"];
+                    "application/json": Record<string, never> | components["schemas"]["postmortem.addActionItemReq"];
                 };
             };
             responses: {
@@ -3150,7 +3201,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3159,7 +3210,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3197,7 +3248,7 @@ export interface paths {
             /** @description 目标状态 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_postmortem.transitionReq"];
+                    "application/json": Record<string, never> | components["schemas"]["postmortem.transitionReq"];
                 };
             };
             responses: {
@@ -3216,7 +3267,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3255,7 +3306,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3272,7 +3323,7 @@ export interface paths {
             /** @description 绑定参数 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.createBindingReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.createBindingReq"];
                 };
             };
             responses: {
@@ -3291,7 +3342,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3300,7 +3351,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3347,7 +3398,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3356,7 +3407,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3398,7 +3449,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3415,7 +3466,7 @@ export interface paths {
             /** @description 角色创建参数 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.createRoleReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.createRoleReq"];
                 };
             };
             responses: {
@@ -3434,7 +3485,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3443,7 +3494,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3490,7 +3541,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Forbidden */
@@ -3499,7 +3550,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -3508,7 +3559,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3553,7 +3604,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3573,7 +3624,7 @@ export interface paths {
             /** @description Runbook 定义 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_runbook.createReq"];
+                    "application/json": Record<string, never> | components["schemas"]["runbook.createReq"];
                 };
             };
             responses: {
@@ -3592,7 +3643,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3601,7 +3652,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3650,7 +3701,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -3659,7 +3710,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3695,7 +3746,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3704,7 +3755,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3728,7 +3779,7 @@ export interface paths {
             /** @description 更新字段（全可选） */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_runbook.updateReq"];
+                    "application/json": Record<string, never> | components["schemas"]["runbook.updateReq"];
                 };
             };
             responses: {
@@ -3747,7 +3798,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -3756,7 +3807,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3789,7 +3840,7 @@ export interface paths {
             /** @description 执行参数（incident_id + approved） */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_runbook.executeReq"];
+                    "application/json": Record<string, never> | components["schemas"]["runbook.executeReq"];
                 };
             };
             responses: {
@@ -3799,7 +3850,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_runbook.ExecuteResult"];
+                        "application/json": components["schemas"]["runbook.ExecuteResult"];
                     };
                 };
                 /** @description Bad Request */
@@ -3808,7 +3859,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3817,7 +3868,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3860,7 +3911,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3877,7 +3928,7 @@ export interface paths {
             /** @description 排班创建参数 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_schedule.createScheduleReq"];
+                    "application/json": Record<string, never> | components["schemas"]["schedule.createScheduleReq"];
                 };
             };
             responses: {
@@ -3896,7 +3947,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3905,7 +3956,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -3951,7 +4002,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -3960,7 +4011,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -3969,7 +4020,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4002,7 +4053,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -4011,7 +4062,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4032,7 +4083,7 @@ export interface paths {
             /** @description 排班更新参数 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_schedule.updateScheduleReq"];
+                    "application/json": Record<string, never> | components["schemas"]["schedule.updateScheduleReq"];
                 };
             };
             responses: {
@@ -4051,7 +4102,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4060,7 +4111,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4099,7 +4150,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_schedule.OncallResult"];
+                        "application/json": components["schemas"]["schedule.OncallResult"];
                     };
                 };
                 /** @description Bad Request */
@@ -4108,7 +4159,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -4117,7 +4168,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4126,7 +4177,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4171,7 +4222,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_schedule.PreviewResult"];
+                        "application/json": components["schemas"]["schedule.PreviewResult"];
                     };
                 };
                 /** @description Bad Request */
@@ -4180,7 +4231,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -4189,7 +4240,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4198,7 +4249,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4243,7 +4294,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4260,7 +4311,7 @@ export interface paths {
             /** @description 服务创建参数 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_service.createReq"];
+                    "application/json": Record<string, never> | components["schemas"]["service.createReq"];
                 };
             };
             responses: {
@@ -4279,7 +4330,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4288,7 +4339,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4334,7 +4385,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -4343,7 +4394,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4352,7 +4403,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4385,7 +4436,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -4394,7 +4445,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4415,7 +4466,7 @@ export interface paths {
             /** @description 服务更新参数 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_service.updateReq"];
+                    "application/json": Record<string, never> | components["schemas"]["service.updateReq"];
                 };
             };
             responses: {
@@ -4434,7 +4485,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4443,7 +4494,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4485,7 +4536,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4505,7 +4556,7 @@ export interface paths {
             /** @description 抑制规则定义 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_notification.createSuppressionReq"];
+                    "application/json": Record<string, never> | components["schemas"]["notification.createSuppressionReq"];
                 };
             };
             responses: {
@@ -4524,7 +4575,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4533,7 +4584,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4582,7 +4633,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -4591,7 +4642,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4600,7 +4651,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4636,7 +4687,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -4645,7 +4696,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4654,7 +4705,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4678,7 +4729,7 @@ export interface paths {
             /** @description 待更新字段 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_notification.updateSuppressionReq"];
+                    "application/json": Record<string, never> | components["schemas"]["notification.updateSuppressionReq"];
                 };
             };
             responses: {
@@ -4697,7 +4748,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4706,7 +4757,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4745,7 +4796,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4762,7 +4813,7 @@ export interface paths {
             /** @description 团队配置 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.createTeamReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.createTeamReq"];
                 };
             };
             responses: {
@@ -4781,7 +4832,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -4790,7 +4841,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4837,7 +4888,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4858,7 +4909,7 @@ export interface paths {
             /** @description 更新字段 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.updateTeamReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.updateTeamReq"];
                 };
             };
             responses: {
@@ -4877,7 +4928,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -4886,7 +4937,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4925,7 +4976,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -4965,7 +5016,7 @@ export interface paths {
             /** @description 更新字段 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.updateUserReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.updateUserReq"];
                 };
             };
             responses: {
@@ -4984,7 +5035,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -4993,7 +5044,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -5026,7 +5077,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_auth.IMAccountInfo"][];
+                        "application/json": components["schemas"]["auth.IMAccountInfo"][];
                     };
                 };
                 /** @description Internal Server Error */
@@ -5035,7 +5086,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -5058,7 +5109,7 @@ export interface paths {
             /** @description IM 账号 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never> | components["schemas"]["internal_auth.bindIMAccountReq"];
+                    "application/json": Record<string, never> | components["schemas"]["auth.bindIMAccountReq"];
                 };
             };
             responses: {
@@ -5068,7 +5119,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["internal_auth.bindIMAccountReq"];
+                        "application/json": components["schemas"]["auth.bindIMAccountReq"];
                     };
                 };
                 /** @description Bad Request */
@@ -5077,7 +5128,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -5086,7 +5137,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
             };
@@ -5132,7 +5183,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.AckResponse"];
+                        "application/json": components["schemas"]["httputil.AckResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -5141,7 +5192,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -5150,7 +5201,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Too Many Requests */
@@ -5159,7 +5210,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.AckResponse"];
+                        "application/json": components["schemas"]["httputil.AckResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -5168,7 +5219,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.ErrorResponse"];
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -5177,7 +5228,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_kevin_vigil_internal_httputil.AckResponse"];
+                        "application/json": components["schemas"]["httputil.AckResponse"];
                     };
                 };
             };
@@ -5192,6 +5243,197 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Status holds the value of the "status" field.
+         * @enum {string}
+         */
+        "actionitem.Status": "open" | "in_progress" | "done";
+        "ai.DiagnoseResult": {
+            /** @description 置信度 */
+            confidence?: number;
+            /** @description 依据 */
+            evidence?: {
+                [key: string]: unknown;
+            }[];
+            /** @description AIInsight ID */
+            insight_id?: number;
+            /** @description 根因线索文本 */
+            root_cause?: string;
+        };
+        "ai.resolveReq": {
+            accepted?: boolean;
+        };
+        /**
+         * @description Stage holds the value of the "stage" field.
+         * @enum {string}
+         */
+        "aiinsight.Stage": "triage" | "diagnose" | "postmortem" | "copilot";
+        /**
+         * @description Status holds the value of the "status" field.
+         * @enum {string}
+         */
+        "aiinsight.Status": "suggested" | "accepted" | "rejected" | "applied";
+        /**
+         * @description Type holds the value of the "type" field.
+         * @enum {string}
+         */
+        "aiinsight.Type": "dedup_suggestion" | "severity_adjustment" | "root_cause_hint" | "similar_incident" | "draft_summary" | "postmortem_draft";
+        "analytics.AlertMetrics": {
+            /** @description 降噪率 = 1 - Notified/Total（0~1） */
+            noiseRate?: number;
+            /** @description 触发通知的（非噪音） */
+            notified?: number;
+            /** @description 接入总量 */
+            total?: number;
+            /** @description 未命中路由 */
+            unrouted?: number;
+        };
+        "analytics.Dashboard": {
+            alert?: components["schemas"]["analytics.AlertMetrics"];
+            incident?: components["schemas"]["analytics.IncidentMetrics"];
+            load?: components["schemas"]["analytics.TeamLoad"][];
+            postmortem?: components["schemas"]["analytics.PostmortemMetrics"];
+        };
+        "analytics.IncidentMetrics": {
+            /** @description critical/warning/info 各数量 */
+            bySeverity?: {
+                [key: string]: number;
+            };
+            byStatus?: {
+                [key: string]: number;
+            };
+            /** @description 平均确认时长（秒），无数据为 0 */
+            mttaratio?: number;
+            /** @description 平均解决时长（秒） */
+            mttratio?: number;
+            /** @description 已解决数（用于 MTTR 计算） */
+            resolvedCount?: number;
+            total?: number;
+        };
+        "analytics.PostmortemMetrics": {
+            /** @description published/total */
+            completionRate?: number;
+            published?: number;
+            total?: number;
+        };
+        "analytics.TeamLoad": {
+            /** @description 该团队事件数 */
+            incidents?: number;
+            teamID?: number;
+            teamName?: string;
+        };
+        "analytics.TrendPoint": {
+            /** @description YYYY-MM-DD */
+            date?: string;
+            events?: number;
+            incidents?: number;
+        };
+        /**
+         * @description Status holds the value of the "status" field.
+         * @enum {string}
+         */
+        "apikey.Status": "active" | "disabled";
+        /**
+         * @description Result holds the value of the "result" field.
+         * @enum {string}
+         */
+        "auditlog.Result": "success" | "failed" | "denied";
+        "auth.IMAccountInfo": {
+            account_id?: string;
+            platform?: string;
+        };
+        "auth.apiKeyCreateReq": {
+            /** @description 有效期（小时），0=永久 */
+            expires_in_hours?: number;
+            name?: string;
+            scope?: string[];
+        };
+        "auth.apiKeyCreateResp": {
+            created_at?: string;
+            expires_at?: string;
+            id?: number;
+            last_used_at?: string;
+            name?: string;
+            prefix?: string;
+            scope?: string[];
+            status?: string;
+            /** @description ★ 明文 token，仅此一次返回 */
+            token?: string;
+        };
+        "auth.apiKeyView": {
+            created_at?: string;
+            expires_at?: string;
+            id?: number;
+            last_used_at?: string;
+            name?: string;
+            prefix?: string;
+            scope?: string[];
+            status?: string;
+        };
+        "auth.bindIMAccountReq": {
+            /** @description IM 平台 unionId */
+            account_id?: string;
+            /** @description dingtalk | feishu | wecom */
+            platform?: string;
+        };
+        "auth.changePasswordReq": {
+            new_password?: string;
+            old_password?: string;
+        };
+        "auth.createBindingReq": {
+            /** @description 可选，临时授权小时数 */
+            expires_in_hours?: number;
+            role_id?: number;
+            /** @description org | team */
+            scope_level?: string;
+            /** @description team scope 时必填 */
+            team_id?: string;
+            user_id?: number;
+        };
+        "auth.createRoleReq": {
+            description?: string;
+            name?: string;
+            permissions?: string[];
+            /** @description org | team */
+            scope_level?: string;
+        };
+        "auth.createTeamReq": {
+            description?: string;
+            name?: string;
+            slug?: string;
+        };
+        "auth.loginReq": {
+            password?: string;
+            username?: string;
+        };
+        "auth.loginResp": {
+            access_token?: string;
+            refresh_token?: string;
+            token_type?: string;
+            user?: components["schemas"]["auth.loginUser"];
+        };
+        "auth.loginUser": {
+            email?: string;
+            id?: number;
+            /** @description MustChangePassword 首登强制改密标志：前端据此把用户重定向到改密页（T0.4 闭环）。 */
+            must_change_password?: boolean;
+            name?: string;
+            status?: string;
+            username?: string;
+        };
+        "auth.refreshReq": {
+            refresh_token?: string;
+        };
+        "auth.updateTeamReq": {
+            description?: string;
+            name?: string;
+        };
+        "auth.updateUserReq": {
+            name?: string;
+            /** @description active|disabled */
+            status?: string;
+            timezone?: string;
+        };
         "ent.AIInsight": {
             /** @description 置信度 0.0~1.0 */
             confidence?: number;
@@ -5208,9 +5450,13 @@ export interface components {
             }[];
             /** @description ID of the ent. */
             id?: number;
-            stage?: components["schemas"]["github_com_kevin_vigil_ent_aiinsight.Stage"];
-            status?: components["schemas"]["github_com_kevin_vigil_ent_aiinsight.Status"];
-            type?: components["schemas"]["github_com_kevin_vigil_ent_aiinsight.Type"];
+            /** @description 采纳/拒绝该建议的时刻（S11 留痕） */
+            resolved_at?: string;
+            /** @description 采纳/拒绝该建议的 user_id（S11 留痕） */
+            resolved_by?: number;
+            stage?: components["schemas"]["aiinsight.Stage"];
+            status?: components["schemas"]["aiinsight.Status"];
+            type?: components["schemas"]["aiinsight.Type"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
         };
@@ -5237,7 +5483,7 @@ export interface components {
             prefix?: string;
             /** @description 权限范围（预留，本期继承 User 角色） */
             scope?: string[];
-            status?: components["schemas"]["github_com_kevin_vigil_ent_apikey.Status"];
+            status?: components["schemas"]["apikey.Status"];
         };
         /**
          * @description Edges holds the relations/edges for other nodes in the graph.
@@ -5258,7 +5504,7 @@ export interface components {
             id?: number;
             /** @description OwnerID holds the value of the "owner_id" field. */
             owner_id?: string;
-            status?: components["schemas"]["github_com_kevin_vigil_ent_actionitem.Status"];
+            status?: components["schemas"]["actionitem.Status"];
             /** @description 对接外部工单 */
             tracker_url?: string;
             /** @description UpdatedAt holds the value of the "updated_at" field. */
@@ -5294,7 +5540,7 @@ export interface components {
             resource_name?: string;
             /** @description 操作对象类型 */
             resource_type?: string;
-            result?: components["schemas"]["github_com_kevin_vigil_ent_auditlog.Result"];
+            result?: components["schemas"]["auditlog.Result"];
             /** @description 来源 User-Agent */
             user_agent?: string;
         };
@@ -5306,7 +5552,7 @@ export interface components {
             /** @description ID of the ent. */
             id?: number;
             /** @description 有序升级层级 */
-            levels?: components["schemas"]["github_com_kevin_vigil_ent_schema.EscalationLevel"][];
+            levels?: components["schemas"]["schema.EscalationLevel"][];
             /** @description Name holds the value of the "name" field. */
             name?: string;
             /** @description RepeatTimes holds the value of the "repeat_times" field. */
@@ -5347,12 +5593,12 @@ export interface components {
             };
             /** @description ReceivedAt holds the value of the "received_at" field. */
             received_at?: string;
-            severity?: components["schemas"]["github_com_kevin_vigil_ent_event.Severity"];
+            severity?: components["schemas"]["event.Severity"];
             /** @description 告警源，如 prometheus */
             source?: string;
             /** @description 原始告警 ID，去重 + 幂等键 */
             source_event_id?: string;
-            status?: components["schemas"]["github_com_kevin_vigil_ent_event.Status"];
+            status?: components["schemas"]["event.Status"];
             /** @description 一句话摘要 */
             summary?: string;
         };
@@ -5373,7 +5619,7 @@ export interface components {
             edges?: components["schemas"]["ent.IMAccountBindingEdges"];
             /** @description ID of the ent. */
             id?: number;
-            platform?: components["schemas"]["github_com_kevin_vigil_ent_imaccountbinding.Platform"];
+            platform?: components["schemas"]["imaccountbinding.Platform"];
         };
         /**
          * @description Edges holds the relations/edges for other nodes in the graph.
@@ -5393,7 +5639,7 @@ export interface components {
             /** @description 当前升级层级 */
             current_level?: number;
             edges?: components["schemas"]["ent.IncidentEdges"];
-            embedding?: components["schemas"]["github_com_kevin_vigil_ent_schema.NullableVector"];
+            embedding?: components["schemas"]["schema.NullableVector"];
             /** @description 已升级次数 */
             escalated_count?: number;
             /** @description ID of the ent. */
@@ -5402,18 +5648,18 @@ export interface components {
             merged_into?: string;
             /** @description 人类可读编号，如 INC-0042 */
             number?: string;
-            priority?: components["schemas"]["github_com_kevin_vigil_ent_incident.Priority"];
+            priority?: components["schemas"]["incident.Priority"];
             /** @description ResolvedAt holds the value of the "resolved_at" field. */
             resolved_at?: string;
-            severity?: components["schemas"]["github_com_kevin_vigil_ent_incident.Severity"];
-            status?: components["schemas"]["github_com_kevin_vigil_ent_incident.Status"];
+            severity?: components["schemas"]["incident.Severity"];
+            status?: components["schemas"]["incident.Status"];
             /** @description 当前概要，可随处置更新 */
             summary?: string;
             /** @description Title holds the value of the "title" field. */
             title?: string;
             /** @description TriggerSourceEventID holds the value of the "trigger_source_event_id" field. */
             trigger_source_event_id?: string;
-            trigger_type?: components["schemas"]["github_com_kevin_vigil_ent_incident.TriggerType"];
+            trigger_type?: components["schemas"]["incident.TriggerType"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
             /** @description 作战室：im_platform/im_channel_id/created_at */
@@ -5433,11 +5679,11 @@ export interface components {
             payload?: {
                 [key: string]: unknown;
             };
-            result?: components["schemas"]["github_com_kevin_vigil_ent_incidentaction.Result"];
+            result?: components["schemas"]["incidentaction.Result"];
             /** @description Timestamp holds the value of the "timestamp" field. */
             timestamp?: string;
-            type?: components["schemas"]["github_com_kevin_vigil_ent_incidentaction.Type"];
-            via?: components["schemas"]["github_com_kevin_vigil_ent_incidentaction.Via"];
+            type?: components["schemas"]["incidentaction.Type"];
+            via?: components["schemas"]["incidentaction.Via"];
         };
         /**
          * @description Edges holds the relations/edges for other nodes in the graph.
@@ -5481,7 +5727,7 @@ export interface components {
             id?: number;
             /** @description Name holds the value of the "name" field. */
             name?: string;
-            type?: components["schemas"]["github_com_kevin_vigil_ent_integration.Type"];
+            type?: components["schemas"]["integration.Type"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
         };
@@ -5531,16 +5777,16 @@ export interface components {
         };
         "ent.NotificationTemplate": {
             /** @description 卡片按钮定义 */
-            actions?: components["schemas"]["github_com_kevin_vigil_ent_schema.TemplateAction"][];
+            actions?: components["schemas"]["schema.TemplateAction"][];
             /** @description 正文模板，Go template 语法 */
             body_template?: string;
             /** @description 内置模板标记 */
             builtin?: boolean;
-            channel?: components["schemas"]["github_com_kevin_vigil_ent_notificationtemplate.Channel"];
+            channel?: components["schemas"]["notificationtemplate.Channel"];
             /** @description CreatedAt holds the value of the "created_at" field. */
             created_at?: string;
             edges?: components["schemas"]["ent.NotificationTemplateEdges"];
-            format?: components["schemas"]["github_com_kevin_vigil_ent_notificationtemplate.Format"];
+            format?: components["schemas"]["notificationtemplate.Format"];
             /** @description ID of the ent. */
             id?: number;
             /** @description 模板名，唯一标识，如 default_im_card */
@@ -5562,8 +5808,8 @@ export interface components {
             /** @description CreatedAt holds the value of the "created_at" field. */
             created_at?: string;
             edges?: components["schemas"]["ent.PostmortemEdges"];
-            embedding?: components["schemas"]["github_com_kevin_vigil_ent_schema.NullableVector"];
-            generated_by?: components["schemas"]["github_com_kevin_vigil_ent_postmortem.GeneratedBy"];
+            embedding?: components["schemas"]["schema.NullableVector"];
+            generated_by?: components["schemas"]["postmortem.GeneratedBy"];
             /** @description ID of the ent. */
             id?: number;
             /** @description PublishedAt holds the value of the "published_at" field. */
@@ -5572,7 +5818,7 @@ export interface components {
             sections?: {
                 [key: string]: unknown;
             };
-            status?: components["schemas"]["github_com_kevin_vigil_ent_postmortem.Status"];
+            status?: components["schemas"]["postmortem.Status"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
         };
@@ -5601,7 +5847,7 @@ export interface components {
             payload?: number[];
             /** @description ReceivedAt holds the value of the "received_at" field. */
             received_at?: string;
-            status?: components["schemas"]["github_com_kevin_vigil_ent_rawevent.Status"];
+            status?: components["schemas"]["rawevent.Status"];
         };
         /**
          * @description Edges holds the relations/edges for other nodes in the graph.
@@ -5624,7 +5870,7 @@ export interface components {
             name?: string;
             /** @description 权限点 code 列表，见 internal/auth/permission.go */
             permissions?: string[];
-            scope_level?: components["schemas"]["github_com_kevin_vigil_ent_role.ScopeLevel"];
+            scope_level?: components["schemas"]["role.ScopeLevel"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
         };
@@ -5638,7 +5884,7 @@ export interface components {
             granted_by?: string;
             /** @description ID of the ent. */
             id?: number;
-            scope_level?: components["schemas"]["github_com_kevin_vigil_ent_rolebinding.ScopeLevel"];
+            scope_level?: components["schemas"]["rolebinding.ScopeLevel"];
             /** @description team scope 时必填 */
             team_id?: string;
         };
@@ -5672,7 +5918,7 @@ export interface components {
             id?: number;
             /** @description Name holds the value of the "name" field. */
             name?: string;
-            rotation_type?: components["schemas"]["github_com_kevin_vigil_ent_rotation.RotationType"];
+            rotation_type?: components["schemas"]["rotation.RotationType"];
             /** @description ShiftLength holds the value of the "shift_length" field. */
             shift_length?: string;
             /** @description StartDate holds the value of the "start_date" field. */
@@ -5700,12 +5946,12 @@ export interface components {
             /** @description Name holds the value of the "name" field. */
             name?: string;
             /** @description 可执行步骤链 */
-            steps?: components["schemas"]["github_com_kevin_vigil_ent_schema.RunbookStep"][];
+            steps?: components["schemas"]["schema.RunbookStep"][];
             /** @description 触发：manual/on_incident/on_severity/on_label_match */
             trigger?: {
                 [key: string]: unknown;
             };
-            type?: components["schemas"]["github_com_kevin_vigil_ent_runbook.Type"];
+            type?: components["schemas"]["runbook.Type"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
         };
@@ -5725,12 +5971,12 @@ export interface components {
             /** @description ID of the ent. */
             id?: number;
             /** @description 排班分层 */
-            layers?: components["schemas"]["github_com_kevin_vigil_ent_schema.ScheduleLayer"][];
+            layers?: components["schemas"]["schema.ScheduleLayer"][];
             /** @description Name holds the value of the "name" field. */
             name?: string;
             /** @description Timezone holds the value of the "timezone" field. */
             timezone?: string;
-            type?: components["schemas"]["github_com_kevin_vigil_ent_schedule.Type"];
+            type?: components["schemas"]["schedule.Type"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
         };
@@ -5765,7 +6011,7 @@ export interface components {
             name?: string;
             /** @description Slug holds the value of the "slug" field. */
             slug?: string;
-            status?: components["schemas"]["github_com_kevin_vigil_ent_service.Status"];
+            status?: components["schemas"]["service.Status"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
         };
@@ -5788,7 +6034,7 @@ export interface components {
             team?: components["schemas"]["ent.Team"];
         };
         "ent.SuppressionRule": {
-            action?: components["schemas"]["github_com_kevin_vigil_ent_suppressionrule.Action"];
+            action?: components["schemas"]["suppressionrule.Action"];
             /** @description CreatedAt holds the value of the "created_at" field. */
             created_at?: string;
             edges?: components["schemas"]["ent.SuppressionRuleEdges"];
@@ -5885,10 +6131,10 @@ export interface components {
             edges?: components["schemas"]["ent.TimelineItemEdges"];
             /** @description ID of the ent. */
             id?: number;
-            source?: components["schemas"]["github_com_kevin_vigil_ent_timelineitem.Source"];
+            source?: components["schemas"]["timelineitem.Source"];
             /** @description Timestamp holds the value of the "timestamp" field. */
             timestamp?: string;
-            type?: components["schemas"]["github_com_kevin_vigil_ent_timelineitem.Type"];
+            type?: components["schemas"]["timelineitem.Type"];
         };
         /**
          * @description Edges holds the relations/edges for other nodes in the graph.
@@ -5907,16 +6153,18 @@ export interface components {
             /** @description ID of the ent. */
             id?: number;
             /** @description IM 账号绑定（JSON，兼容字段；新数据见 im_bindings 表） */
-            im_accounts?: components["schemas"]["github_com_kevin_vigil_ent_schema.IMAccount"][];
+            im_accounts?: components["schemas"]["schema.IMAccount"][];
             /** @description 强制改密标志（默认 admin seed 置 true） */
             must_change_password?: boolean;
             /** @description 显示名 */
             name?: string;
             /** @description 电话，用于 SMS/语音 */
             phone?: string;
-            status?: components["schemas"]["github_com_kevin_vigil_ent_user.Status"];
+            status?: components["schemas"]["user.Status"];
             /** @description Timezone holds the value of the "timezone" field. */
             timezone?: string;
+            /** @description 令牌版本号（改密自增，旧 token 失效凭据） */
+            token_version?: number;
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
             /** @description 登录名 */
@@ -5942,231 +6190,27 @@ export interface components {
             /** @description Teams holds the value of the teams edge. */
             teams?: components["schemas"]["ent.Team"][];
         };
-        /**
-         * @description Status holds the value of the "status" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_actionitem.Status": "open" | "in_progress" | "done";
-        /**
-         * @description Stage holds the value of the "stage" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_aiinsight.Stage": "triage" | "diagnose" | "postmortem" | "copilot";
-        /**
-         * @description Status holds the value of the "status" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_aiinsight.Status": "suggested" | "accepted" | "rejected" | "applied";
-        /**
-         * @description Type holds the value of the "type" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_aiinsight.Type": "dedup_suggestion" | "severity_adjustment" | "root_cause_hint" | "similar_incident" | "draft_summary" | "postmortem_draft";
-        /**
-         * @description Status holds the value of the "status" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_apikey.Status": "active" | "disabled";
-        /**
-         * @description Result holds the value of the "result" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_auditlog.Result": "success" | "failed" | "denied";
+        "escalation.createReq": {
+            levels?: components["schemas"]["schema.EscalationLevel"][];
+            name?: string;
+            repeat_times?: number;
+        };
+        "escalation.updateReq": {
+            levels?: components["schemas"]["schema.EscalationLevel"][];
+            name?: string;
+            repeat_times?: number;
+        };
         /**
          * @description Severity holds the value of the "severity" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_event.Severity": "critical" | "warning" | "info";
+        "event.Severity": "critical" | "warning" | "info";
         /**
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
-        "github_com_kevin_vigil_ent_event.Status": "firing" | "resolved";
-        /**
-         * @description Platform holds the value of the "platform" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_imaccountbinding.Platform": "feishu" | "dingtalk" | "wecom";
-        /**
-         * @description Priority holds the value of the "priority" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_incident.Priority": "p3" | "p1" | "p2" | "p4";
-        /**
-         * @description Severity holds the value of the "severity" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_incident.Severity": "critical" | "warning" | "info";
-        /**
-         * @description Status holds the value of the "status" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_incident.Status": "triggered" | "escalated" | "acked" | "resolved" | "closed";
-        /**
-         * @description TriggerType holds the value of the "trigger_type" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_incident.TriggerType": "auto" | "manual" | "merged";
-        /**
-         * @description Result holds the value of the "result" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_incidentaction.Result": "success" | "failed" | "pending";
-        /**
-         * @description Type holds the value of the "type" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_incidentaction.Type": "ack" | "escalate" | "resolve" | "reopen" | "snooze" | "reassign" | "add_responder" | "runbook" | "custom";
-        /**
-         * @description Via holds the value of the "via" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_incidentaction.Via": "web" | "im" | "api" | "automation";
-        /**
-         * @description Type holds the value of the "type" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_integration.Type": "webhook" | "email" | "prometheus" | "zabbix" | "grafana" | "cloud" | "api";
-        /**
-         * @description Channel holds the value of the "channel" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_notificationtemplate.Channel": "im" | "email" | "webhook" | "phone" | "sms";
-        /**
-         * @description Format holds the value of the "format" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_notificationtemplate.Format": "text" | "interactive_card";
-        /**
-         * @description GeneratedBy holds the value of the "generated_by" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_postmortem.GeneratedBy": "mixed" | "ai" | "human";
-        /**
-         * @description Status holds the value of the "status" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_postmortem.Status": "draft" | "in_review" | "published" | "archived";
-        /**
-         * @description Status holds the value of the "status" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_rawevent.Status": "received" | "normalized" | "parse_failed" | "requeued";
-        /**
-         * @description ScopeLevel holds the value of the "scope_level" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_role.ScopeLevel": "org" | "team";
-        /**
-         * @description ScopeLevel holds the value of the "scope_level" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_rolebinding.ScopeLevel": "org" | "team";
-        /**
-         * @description RotationType holds the value of the "rotation_type" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_rotation.RotationType": "daily" | "weekly" | "custom";
-        /**
-         * @description Type holds the value of the "type" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_runbook.Type": "document" | "executable";
-        /**
-         * @description Type holds the value of the "type" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_schedule.Type": "calendar" | "rotation" | "follow_the_sun";
-        "github_com_kevin_vigil_ent_schema.EscalationLevel": {
-            /** @description 进入此 level 后多久发通知 */
-            delay_minutes?: number;
-            /** @description 层级序号 */
-            level?: number;
-            /** @description im | phone | sms | email */
-            notify_channels?: string[];
-            /** @description 通知目标 */
-            targets?: components["schemas"]["github_com_kevin_vigil_ent_schema.Target"][];
-        };
-        "github_com_kevin_vigil_ent_schema.IMAccount": {
-            /** @description IM 平台的 unionId */
-            account_id?: string;
-            /** @description dingtalk | feishu | wecom */
-            platform?: string;
-        };
-        /** @description 语义向量，published 复盘入库后计算，知识沉淀检索用 */
-        "github_com_kevin_vigil_ent_schema.NullableVector": {
-            valid?: boolean;
-        };
-        "github_com_kevin_vigil_ent_schema.RunbookStep": {
-            action?: components["schemas"]["github_com_kevin_vigil_ent_schema.StepAction"];
-            id?: string;
-            name?: string;
-            /** @description continue | abort | escalate */
-            on_failure?: string;
-            /** @description 写操作必须人确认（human-in-the-loop） */
-            require_approval?: boolean;
-        };
-        "github_com_kevin_vigil_ent_schema.ScheduleLayer": {
-            id?: string;
-            /** @description 如 "一线" */
-            name?: string;
-            /** @description 数字越小优先级越高 */
-            priority?: number;
-            rotation_id?: string;
-        };
-        "github_com_kevin_vigil_ent_schema.StepAction": {
-            params?: {
-                [key: string]: unknown;
-            };
-            target?: components["schemas"]["github_com_kevin_vigil_ent_schema.StepTarget"];
-            /** @description diagnose | execute | notify | wait | approve */
-            type?: string;
-        };
-        "github_com_kevin_vigil_ent_schema.StepTarget": {
-            endpoint?: string;
-            /** @description http | ansible | jenkins | internal */
-            kind?: string;
-            /** @description diagnose 类强制只读 */
-            readonly?: boolean;
-        };
-        "github_com_kevin_vigil_ent_schema.Target": {
-            /** @description schedule_id / user_id / team_id */
-            target_id?: string;
-            /** @description schedule | user | team */
-            type?: string;
-        };
-        "github_com_kevin_vigil_ent_schema.TemplateAction": {
-            /** @description 按钮文案，如 "确认" */
-            label?: string;
-            /** @description ack | escalate | resolve | detail */
-            type?: string;
-        };
-        /**
-         * @description Status holds the value of the "status" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_service.Status": "active" | "disabled";
-        /**
-         * @description Action holds the value of the "action" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_suppressionrule.Action": "suppress" | "reduce_severity";
-        /**
-         * @description Source holds the value of the "source" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_timelineitem.Source": "web" | "im" | "api" | "system" | "ai";
-        /**
-         * @description Type holds the value of the "type" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_timelineitem.Type": "incident_created" | "event_attached" | "status_changed" | "escalated" | "ack" | "resolved" | "reopened" | "responder_added" | "note_added" | "runbook_executed" | "ai_insight" | "im_message";
-        /**
-         * @description Status holds the value of the "status" field.
-         * @enum {string}
-         */
-        "github_com_kevin_vigil_ent_user.Status": "active" | "disabled";
-        "github_com_kevin_vigil_internal_httputil.AckResponse": {
+        "event.Status": "firing" | "resolved";
+        "httputil.AckResponse": {
             /**
              * @description RawEventID ingestion 落库的 RawEvent ID（限接入 webhook）。
              * @example 42
@@ -6180,7 +6224,7 @@ export interface components {
             /** @example accepted */
             status?: string;
         };
-        "github_com_kevin_vigil_internal_httputil.ErrorResponse": {
+        "httputil.ErrorResponse": {
             /**
              * @description Code 机器可读错误码（可选，非 4xx 通用错误可留空）。
              * @example invalid_argument
@@ -6191,194 +6235,25 @@ export interface components {
             /** @example invalid id */
             error?: string;
         };
-        "github_com_kevin_vigil_internal_httputil.Paginated-ent_AuditLog": {
+        "httputil.Paginated-ent_AuditLog": {
             items?: components["schemas"]["ent.AuditLog"][];
             limit?: number;
             offset?: number;
             total?: number;
         };
-        "github_com_kevin_vigil_internal_httputil.Paginated-ent_Incident": {
+        "httputil.Paginated-ent_Incident": {
             items?: components["schemas"]["ent.Incident"][];
             limit?: number;
             offset?: number;
             total?: number;
         };
-        "github_com_kevin_vigil_internal_httputil.Paginated-ent_TimelineItem": {
+        "httputil.Paginated-ent_TimelineItem": {
             items?: components["schemas"]["ent.TimelineItem"][];
             limit?: number;
             offset?: number;
             total?: number;
         };
-        "internal_ai.DiagnoseResult": {
-            /** @description 置信度 */
-            confidence?: number;
-            /** @description 依据 */
-            evidence?: {
-                [key: string]: unknown;
-            }[];
-            /** @description AIInsight ID */
-            insight_id?: number;
-            /** @description 根因线索文本 */
-            root_cause?: string;
-        };
-        "internal_ai.resolveReq": {
-            accepted?: boolean;
-        };
-        "internal_analytics.AlertMetrics": {
-            /** @description 降噪率 = 1 - Notified/Total（0~1） */
-            noiseRate?: number;
-            /** @description 触发通知的（非噪音） */
-            notified?: number;
-            /** @description 接入总量 */
-            total?: number;
-            /** @description 未命中路由 */
-            unrouted?: number;
-        };
-        "internal_analytics.Dashboard": {
-            alert?: components["schemas"]["internal_analytics.AlertMetrics"];
-            incident?: components["schemas"]["internal_analytics.IncidentMetrics"];
-            load?: components["schemas"]["internal_analytics.TeamLoad"][];
-            postmortem?: components["schemas"]["internal_analytics.PostmortemMetrics"];
-        };
-        "internal_analytics.IncidentMetrics": {
-            /** @description critical/warning/info 各数量 */
-            bySeverity?: {
-                [key: string]: number;
-            };
-            byStatus?: {
-                [key: string]: number;
-            };
-            /** @description 平均确认时长（秒），无数据为 0 */
-            mttaratio?: number;
-            /** @description 平均解决时长（秒） */
-            mttratio?: number;
-            /** @description 已解决数（用于 MTTR 计算） */
-            resolvedCount?: number;
-            total?: number;
-        };
-        "internal_analytics.PostmortemMetrics": {
-            /** @description published/total */
-            completionRate?: number;
-            published?: number;
-            total?: number;
-        };
-        "internal_analytics.TeamLoad": {
-            /** @description 该团队事件数 */
-            incidents?: number;
-            teamID?: number;
-            teamName?: string;
-        };
-        "internal_analytics.TrendPoint": {
-            /** @description YYYY-MM-DD */
-            date?: string;
-            events?: number;
-            incidents?: number;
-        };
-        "internal_auth.IMAccountInfo": {
-            account_id?: string;
-            platform?: string;
-        };
-        "internal_auth.apiKeyCreateReq": {
-            /** @description 有效期（小时），0=永久 */
-            expires_in_hours?: number;
-            name?: string;
-            scope?: string[];
-        };
-        "internal_auth.apiKeyCreateResp": {
-            created_at?: string;
-            expires_at?: string;
-            id?: number;
-            last_used_at?: string;
-            name?: string;
-            prefix?: string;
-            scope?: string[];
-            status?: string;
-            /** @description ★ 明文 token，仅此一次返回 */
-            token?: string;
-        };
-        "internal_auth.apiKeyView": {
-            created_at?: string;
-            expires_at?: string;
-            id?: number;
-            last_used_at?: string;
-            name?: string;
-            prefix?: string;
-            scope?: string[];
-            status?: string;
-        };
-        "internal_auth.bindIMAccountReq": {
-            /** @description IM 平台 unionId */
-            account_id?: string;
-            /** @description dingtalk | feishu | wecom */
-            platform?: string;
-        };
-        "internal_auth.changePasswordReq": {
-            new_password?: string;
-            old_password?: string;
-        };
-        "internal_auth.createBindingReq": {
-            /** @description 可选，临时授权小时数 */
-            expires_in_hours?: number;
-            role_id?: number;
-            /** @description org | team */
-            scope_level?: string;
-            /** @description team scope 时必填 */
-            team_id?: string;
-            user_id?: number;
-        };
-        "internal_auth.createRoleReq": {
-            description?: string;
-            name?: string;
-            permissions?: string[];
-            /** @description org | team */
-            scope_level?: string;
-        };
-        "internal_auth.createTeamReq": {
-            description?: string;
-            name?: string;
-            slug?: string;
-        };
-        "internal_auth.loginReq": {
-            password?: string;
-            username?: string;
-        };
-        "internal_auth.loginResp": {
-            access_token?: string;
-            refresh_token?: string;
-            token_type?: string;
-            user?: components["schemas"]["internal_auth.loginUser"];
-        };
-        "internal_auth.loginUser": {
-            email?: string;
-            id?: number;
-            name?: string;
-            status?: string;
-            username?: string;
-        };
-        "internal_auth.refreshReq": {
-            refresh_token?: string;
-        };
-        "internal_auth.updateTeamReq": {
-            description?: string;
-            name?: string;
-        };
-        "internal_auth.updateUserReq": {
-            name?: string;
-            /** @description active|disabled */
-            status?: string;
-            timezone?: string;
-        };
-        "internal_escalation.createReq": {
-            levels?: components["schemas"]["github_com_kevin_vigil_ent_schema.EscalationLevel"][];
-            name?: string;
-            repeat_times?: number;
-        };
-        "internal_escalation.updateReq": {
-            levels?: components["schemas"]["github_com_kevin_vigil_ent_schema.EscalationLevel"][];
-            name?: string;
-            repeat_times?: number;
-        };
-        "internal_im.imPlatformStatus": {
+        "im.imPlatformStatus": {
             /** @description 凭证已配置且客户端就绪 */
             available?: boolean;
             /** @description 适配器类型：real | noop（占位） */
@@ -6386,7 +6261,52 @@ export interface components {
             /** @description feishu | dingtalk | wecom */
             platform?: string;
         };
-        "internal_integration.createReq": {
+        /**
+         * @description Platform holds the value of the "platform" field.
+         * @enum {string}
+         */
+        "imaccountbinding.Platform": "feishu" | "dingtalk" | "wecom";
+        /**
+         * @description Priority holds the value of the "priority" field.
+         * @enum {string}
+         */
+        "incident.Priority": "p3" | "p1" | "p2" | "p4";
+        /**
+         * @description Severity holds the value of the "severity" field.
+         * @enum {string}
+         */
+        "incident.Severity": "critical" | "warning" | "info";
+        /**
+         * @description Status holds the value of the "status" field.
+         * @enum {string}
+         */
+        "incident.Status": "triggered" | "escalated" | "acked" | "resolved" | "closed";
+        /**
+         * @description TriggerType holds the value of the "trigger_type" field.
+         * @enum {string}
+         */
+        "incident.TriggerType": "auto" | "manual" | "merged";
+        /**
+         * @description Result holds the value of the "result" field.
+         * @enum {string}
+         */
+        "incidentaction.Result": "success" | "failed" | "pending";
+        /**
+         * @description Type holds the value of the "type" field.
+         * @enum {string}
+         */
+        "incidentaction.Type": "ack" | "escalate" | "resolve" | "reopen" | "snooze" | "reassign" | "add_responder" | "runbook" | "custom";
+        /**
+         * @description Via holds the value of the "via" field.
+         * @enum {string}
+         */
+        "incidentaction.Via": "web" | "im" | "api" | "automation";
+        /**
+         * @description Type holds the value of the "type" field.
+         * @enum {string}
+         */
+        "integration.Type": "webhook" | "email" | "prometheus" | "zabbix" | "grafana" | "cloud" | "api";
+        "integration.createReq": {
             /** @description 类型相关配置（URL/过滤/限流等） */
             config?: {
                 [key: string]: unknown;
@@ -6397,7 +6317,7 @@ export interface components {
             /** @description webhook|email|prometheus|zabbix|grafana|cloud|api */
             type?: string;
         };
-        "internal_integration.createResp": {
+        "integration.createResp": {
             /** @description 类型相关配置 */
             config?: {
                 [key: string]: unknown;
@@ -6413,15 +6333,15 @@ export interface components {
             name?: string;
             /** @description ★ 明文 token，仅创建时返回一次 */
             token?: string;
-            type?: components["schemas"]["github_com_kevin_vigil_ent_integration.Type"];
+            type?: components["schemas"]["integration.Type"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
         };
-        "internal_integration.updateReq": {
+        "integration.updateReq": {
             enabled?: boolean;
             name?: string;
         };
-        "internal_notification.createRuleReq": {
+        "notification.createRuleReq": {
             channels?: string[];
             condition?: {
                 [key: string]: unknown;
@@ -6434,7 +6354,7 @@ export interface components {
             team_id?: number;
             template_id?: string;
         };
-        "internal_notification.createSuppressionReq": {
+        "notification.createSuppressionReq": {
             action?: string;
             enabled?: boolean;
             expires_at?: string;
@@ -6450,7 +6370,7 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        "internal_notification.createTemplateReq": {
+        "notification.createTemplateReq": {
             actions?: {
                 [key: string]: unknown;
             }[];
@@ -6464,7 +6384,7 @@ export interface components {
             team_id?: number;
             title_template?: string;
         };
-        "internal_notification.updateRuleReq": {
+        "notification.updateRuleReq": {
             channels?: string[];
             condition?: {
                 [key: string]: unknown;
@@ -6476,7 +6396,7 @@ export interface components {
             };
             template_id?: string;
         };
-        "internal_notification.updateSuppressionReq": {
+        "notification.updateSuppressionReq": {
             action?: string;
             enabled?: boolean;
             match_labels?: {
@@ -6490,7 +6410,7 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        "internal_notification.updateTemplateReq": {
+        "notification.updateTemplateReq": {
             actions?: {
                 [key: string]: unknown;
             }[];
@@ -6500,22 +6420,62 @@ export interface components {
             name?: string;
             title_template?: string;
         };
-        "internal_postmortem.addActionItemReq": {
+        /**
+         * @description Channel holds the value of the "channel" field.
+         * @enum {string}
+         */
+        "notificationtemplate.Channel": "im" | "email" | "webhook" | "phone" | "sms";
+        /**
+         * @description Format holds the value of the "format" field.
+         * @enum {string}
+         */
+        "notificationtemplate.Format": "text" | "interactive_card";
+        /**
+         * @description GeneratedBy holds the value of the "generated_by" field.
+         * @enum {string}
+         */
+        "postmortem.GeneratedBy": "mixed" | "ai" | "human";
+        /**
+         * @description Status holds the value of the "status" field.
+         * @enum {string}
+         */
+        "postmortem.Status": "draft" | "in_review" | "published" | "archived";
+        "postmortem.addActionItemReq": {
             description?: string;
             owner_id?: string;
             tracker_url?: string;
         };
-        "internal_postmortem.transitionReq": {
+        "postmortem.transitionReq": {
             /** @description in_review | published | archived */
             status?: string;
         };
-        "internal_postmortem.updateActionItemReq": {
+        "postmortem.updateActionItemReq": {
             owner_id?: string;
             /** @description open | in_progress | done */
             status?: string;
             tracker_url?: string;
         };
-        "internal_runbook.ExecuteResult": {
+        /**
+         * @description Status holds the value of the "status" field.
+         * @enum {string}
+         */
+        "rawevent.Status": "received" | "normalized" | "parse_failed" | "requeued";
+        /**
+         * @description ScopeLevel holds the value of the "scope_level" field.
+         * @enum {string}
+         */
+        "role.ScopeLevel": "org" | "team";
+        /**
+         * @description ScopeLevel holds the value of the "scope_level" field.
+         * @enum {string}
+         */
+        "rolebinding.ScopeLevel": "org" | "team";
+        /**
+         * @description RotationType holds the value of the "rotation_type" field.
+         * @enum {string}
+         */
+        "rotation.RotationType": "daily" | "weekly" | "custom";
+        "runbook.ExecuteResult": {
             /** @description 是否中止（on_failure=abort/escalate） */
             aborted?: boolean;
             incident_id?: number;
@@ -6524,9 +6484,9 @@ export interface components {
             /** @description 中止原因 */
             reason?: string;
             runbook_id?: number;
-            steps?: components["schemas"]["internal_runbook.StepResult"][];
+            steps?: components["schemas"]["runbook.StepResult"][];
         };
-        "internal_runbook.StepResult": {
+        "runbook.StepResult": {
             /** @description diagnose | execute | ... */
             action?: string;
             duration?: components["schemas"]["time.Duration"];
@@ -6539,60 +6499,86 @@ export interface components {
             step_id?: string;
             success?: boolean;
         };
-        "internal_runbook.createReq": {
+        /**
+         * @description Type holds the value of the "type" field.
+         * @enum {string}
+         */
+        "runbook.Type": "document" | "executable";
+        "runbook.createReq": {
             content_markdown?: string;
             name?: string;
-            steps?: components["schemas"]["github_com_kevin_vigil_ent_schema.RunbookStep"][];
+            steps?: components["schemas"]["schema.RunbookStep"][];
             trigger?: {
                 [key: string]: unknown;
             };
             /** @description document | executable */
             type?: string;
         };
-        "internal_runbook.executeReq": {
+        "runbook.executeReq": {
             /** @description 写动作是否已确认（human-in-the-loop） */
             approved?: boolean;
             incident_id?: number;
         };
-        "internal_runbook.updateReq": {
+        "runbook.updateReq": {
             content_markdown?: string;
             name?: string;
-            steps?: components["schemas"]["github_com_kevin_vigil_ent_schema.RunbookStep"][];
+            steps?: components["schemas"]["schema.RunbookStep"][];
             trigger?: {
                 [key: string]: unknown;
             };
             /** @description document | executable */
             type?: string;
         };
-        "internal_schedule.DayOncall": {
+        "schedule.DayOncall": {
             date?: string;
-            layers?: components["schemas"]["internal_schedule.OncallLayer"][];
+            layers?: components["schemas"]["schedule.OncallLayer"][];
         };
-        "internal_schedule.OncallLayer": {
+        "schedule.OncallLayer": {
             /** @description 层名（如"一线"） */
             name?: string;
             priority?: number;
-            users?: components["schemas"]["internal_schedule.OncallUser"][];
+            users?: components["schemas"]["schedule.OncallUser"][];
         };
-        "internal_schedule.OncallResult": {
+        "schedule.OncallResult": {
             /** @description 按层有序：primary → secondary → override */
-            layers?: components["schemas"]["internal_schedule.OncallLayer"][];
+            layers?: components["schemas"]["schedule.OncallLayer"][];
             scheduleID?: number;
             scheduleName?: string;
         };
-        "internal_schedule.OncallUser": {
+        "schedule.OncallUser": {
             id?: number;
             name?: string;
             /** @description 是否为临时换班顶替 */
             override?: boolean;
             username?: string;
         };
-        "internal_schedule.PreviewResult": {
-            days?: components["schemas"]["internal_schedule.DayOncall"][];
+        "schedule.PreviewResult": {
+            days?: components["schemas"]["schedule.DayOncall"][];
             schedule_id?: number;
         };
-        "internal_schedule.createScheduleReq": {
-            layers?: components["schemas"]["github_com_kevin_vigil_ent_schema.ScheduleLayer"][];
+        /**
+         * @description Type holds the value of the "type" field.
+         * @enum {string}
+         */
+        "schedule.Type": "calendar" | "rotation" | "follow_the_sun";
+        "schedule.createLayerReq": {
+            /** @description 交接时刻 "HH:MM"（默认 09:00） */
+            handoff_time?: string;
+            /** @description 层名，如 "一线" */
+            name?: string;
+            /** @description 值班人 user id 列表 */
+            participants?: number[];
+            /** @description 数字越小优先级越高 */
+            priority?: number;
+            /** @description daily | weekly | custom（默认 daily） */
+            rotation_type?: string;
+            /** @description 班次时长 "24h"/"1week"（默认 24h） */
+            shift_length?: string;
+            /** @description 开始日期 RFC3339（默认现在） */
+            start_date?: string;
+        };
+        "schedule.createScheduleReq": {
+            layers?: components["schemas"]["schedule.createLayerReq"][];
             name?: string;
             team_id?: number;
             /** @description 默认 Asia/Shanghai */
@@ -6600,13 +6586,82 @@ export interface components {
             /** @description calendar | rotation | follow_the_sun */
             type?: string;
         };
-        "internal_schedule.updateScheduleReq": {
-            layers?: components["schemas"]["github_com_kevin_vigil_ent_schema.ScheduleLayer"][];
+        "schedule.updateScheduleReq": {
+            layers?: components["schemas"]["schema.ScheduleLayer"][];
             name?: string;
             timezone?: string;
             type?: string;
         };
-        "internal_service.createReq": {
+        "schema.EscalationLevel": {
+            /** @description 进入此 level 后多久发通知 */
+            delay_minutes?: number;
+            /** @description 层级序号 */
+            level?: number;
+            /** @description im | phone | sms | email */
+            notify_channels?: string[];
+            /** @description 通知目标 */
+            targets?: components["schemas"]["schema.Target"][];
+        };
+        "schema.IMAccount": {
+            /** @description IM 平台的 unionId */
+            account_id?: string;
+            /** @description dingtalk | feishu | wecom */
+            platform?: string;
+        };
+        /** @description 语义向量，published 复盘入库后计算，知识沉淀检索用 */
+        "schema.NullableVector": {
+            valid?: boolean;
+        };
+        "schema.RunbookStep": {
+            action?: components["schemas"]["schema.StepAction"];
+            id?: string;
+            name?: string;
+            /** @description continue | abort | escalate */
+            on_failure?: string;
+            /** @description 写操作必须人确认（human-in-the-loop） */
+            require_approval?: boolean;
+        };
+        "schema.ScheduleLayer": {
+            id?: string;
+            /** @description 如 "一线" */
+            name?: string;
+            /** @description 数字越小优先级越高 */
+            priority?: number;
+            rotation_id?: string;
+        };
+        "schema.StepAction": {
+            params?: {
+                [key: string]: unknown;
+            };
+            target?: components["schemas"]["schema.StepTarget"];
+            /** @description diagnose | execute | notify | wait | approve */
+            type?: string;
+        };
+        "schema.StepTarget": {
+            endpoint?: string;
+            /** @description http | ansible | jenkins | internal */
+            kind?: string;
+            /** @description diagnose 类强制只读 */
+            readonly?: boolean;
+        };
+        "schema.Target": {
+            /** @description schedule_id / user_id / team_id */
+            target_id?: string;
+            /** @description schedule | user | team */
+            type?: string;
+        };
+        "schema.TemplateAction": {
+            /** @description 按钮文案，如 "确认" */
+            label?: string;
+            /** @description ack | escalate | resolve | detail */
+            type?: string;
+        };
+        /**
+         * @description Status holds the value of the "status" field.
+         * @enum {string}
+         */
+        "service.Status": "active" | "disabled";
+        "service.createReq": {
             auto_create_incident?: boolean;
             description?: string;
             /** @description 可选，关联升级策略 */
@@ -6620,7 +6675,7 @@ export interface components {
             status?: string;
             team_id?: number;
         };
-        "internal_service.updateReq": {
+        "service.updateReq": {
             auto_create_incident?: boolean;
             description?: string;
             /**
@@ -6637,14 +6692,34 @@ export interface components {
             slug?: string;
             status?: string;
         };
-        "internal_timeline.addReq": {
+        /**
+         * @description Action holds the value of the "action" field.
+         * @enum {string}
+         */
+        "suppressionrule.Action": "suppress" | "reduce_severity";
+        /** @enum {integer} */
+        "time.Duration": -9223372036854776000 | 9223372036854776000 | 1 | 1000 | 1000000 | 1000000000 | 60000000000 | 3600000000000;
+        "timeline.addReq": {
             content?: string;
             detail?: {
                 [key: string]: unknown;
             };
         };
-        /** @enum {integer} */
-        "time.Duration": -9223372036854776000 | 9223372036854776000 | 1 | 1000 | 1000000 | 1000000000 | 60000000000 | 3600000000000;
+        /**
+         * @description Source holds the value of the "source" field.
+         * @enum {string}
+         */
+        "timelineitem.Source": "web" | "im" | "api" | "system" | "ai";
+        /**
+         * @description Type holds the value of the "type" field.
+         * @enum {string}
+         */
+        "timelineitem.Type": "incident_created" | "event_attached" | "status_changed" | "escalated" | "ack" | "resolved" | "reopened" | "responder_added" | "note_added" | "runbook_executed" | "ai_insight" | "im_message";
+        /**
+         * @description Status holds the value of the "status" field.
+         * @enum {string}
+         */
+        "user.Status": "active" | "disabled";
     };
     responses: never;
     parameters: never;

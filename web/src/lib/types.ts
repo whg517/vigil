@@ -3,7 +3,7 @@
  *
  * 权威源是后端 handler 注解经 swag 重新生成的 OpenAPI 3.1 spec；
  * 本文件只做两件事：
- *   1. 给丑陋的生成 schema 名（ent.Incident、internal_analytics.AlertMetrics…）起易用别名；
+ *   1. 给丑陋的生成 schema 名（ent.Incident、analytics.AlertMetrics…）起易用别名；
  *   2. 用 Required<> 把 ent 实体的可选字段标为必填（ent JSON 总会输出这些字段，
  *      swag 无法推断 required-ness，故生成端一律 optional，这里收紧）。
  *
@@ -14,10 +14,10 @@ import type { components } from "@/lib/api/types.gen";
 type Schemas = components["schemas"];
 
 // —— Incident（ent/schema/incident.go）——
-export type Severity = Schemas["github_com_kevin_vigil_ent_incident.Severity"];
+export type Severity = Schemas["incident.Severity"];
 // 状态机：triggered → escalated → acked → resolved → closed
-export type IncidentStatus = Schemas["github_com_kevin_vigil_ent_incident.Status"];
-export type Priority = Schemas["github_com_kevin_vigil_ent_incident.Priority"];
+export type IncidentStatus = Schemas["incident.Status"];
+export type Priority = Schemas["incident.Priority"];
 
 export type Incident = Required<
   Omit<Schemas["ent.Incident"], "edges" | "embedding" | "war_room">
@@ -34,7 +34,7 @@ export type Incident = Required<
 };
 
 // —— TimelineItem（ent/schema/timeline_action.go）——
-export type TimelineType = Schemas["github_com_kevin_vigil_ent_timelineitem.Type"];
+export type TimelineType = Schemas["timelineitem.Type"];
 
 export interface TimelineActor {
   kind?: string; // system | user | integration | ai
@@ -71,13 +71,13 @@ export type Event = Required<
 >;
 
 // —— Analytics（internal/analytics/engine.go，camelCase）——
-export type AlertMetrics = Required<Schemas["internal_analytics.AlertMetrics"]>;
+export type AlertMetrics = Required<Schemas["analytics.AlertMetrics"]>;
 
-export type IncidentMetrics = Required<Schemas["internal_analytics.IncidentMetrics"]>;
+export type IncidentMetrics = Required<Schemas["analytics.IncidentMetrics"]>;
 
-export type TeamLoad = Required<Schemas["internal_analytics.TeamLoad"]>;
+export type TeamLoad = Required<Schemas["analytics.TeamLoad"]>;
 
-export type PostmortemMetrics = Required<Schemas["internal_analytics.PostmortemMetrics"]>;
+export type PostmortemMetrics = Required<Schemas["analytics.PostmortemMetrics"]>;
 
 export interface DashboardMetrics {
   alert: AlertMetrics;
@@ -87,7 +87,7 @@ export interface DashboardMetrics {
 }
 
 // —— Service（ent/schema/service.go，能力域 4/13）——
-export type ServiceStatus = Schemas["github_com_kevin_vigil_ent_service.Status"];
+export type ServiceStatus = Schemas["service.Status"];
 export type Service = Required<
   Omit<Schemas["ent.Service"], "edges" | "description" | "labels">
 > & {
@@ -96,7 +96,7 @@ export type Service = Required<
 };
 
 // —— Integration（ent/schema/service.go，能力域 1 接入点）——
-export type IntegrationType = Schemas["github_com_kevin_vigil_ent_integration.Type"];
+export type IntegrationType = Schemas["integration.Type"];
 export type Integration = Required<
   Omit<Schemas["ent.Integration"], "edges">
 >;
@@ -123,7 +123,7 @@ export type EscalationPolicy = Required<
 export type Team = Required<Omit<Schemas["ent.Team"], "edges">>;
 
 // —— Schedule（ent/schema/schedule.go，能力域 5）——
-export type ScheduleType = Schemas["github_com_kevin_vigil_ent_schedule.Type"];
+export type ScheduleType = Schemas["schedule.Type"];
 export interface ScheduleLayer {
   id: string;
   name: string;
@@ -136,14 +136,14 @@ export type Schedule = Required<
   layers?: ScheduleLayer[];
 };
 
-// 排班查询：某时刻在班人（internal_schedule.Oncall*）
-export type OncallLayer = Required<Schemas["internal_schedule.OncallLayer"]>;
-export type OncallResult = Required<Schemas["internal_schedule.OncallResult"]>;
-// 预览：日期 → 在班人（internal_schedule.PreviewResult，days 为数组形态）
-export type PreviewResult = Required<Schemas["internal_schedule.PreviewResult"]>;
+// 排班查询：某时刻在班人（schedule.Oncall*）
+export type OncallLayer = Required<Schemas["schedule.OncallLayer"]>;
+export type OncallResult = Required<Schemas["schedule.OncallResult"]>;
+// 预览：日期 → 在班人（schedule.PreviewResult，days 为数组形态）
+export type PreviewResult = Required<Schemas["schedule.PreviewResult"]>;
 
 // —— Runbook（ent/schema/runbook.go，能力域 9）——
-export type RunbookType = Schemas["github_com_kevin_vigil_ent_runbook.Type"];
+export type RunbookType = Schemas["runbook.Type"];
 export type Runbook = Required<
   Omit<Schemas["ent.Runbook"], "edges" | "trigger" | "content_markdown" | "steps">
 > & {
@@ -152,16 +152,16 @@ export type Runbook = Required<
   steps?: unknown[];
 };
 
-// 执行结果（POST /runbooks/:id/execute 返回体，internal_runbook.ExecuteResult）。
+// 执行结果（POST /runbooks/:id/execute 返回体，runbook.ExecuteResult）。
 // 后端补 snake_case json tag 后前端才能逐步读到成败/输出与"写步骤被阻断待审批"（audit B20）。
-export type RunbookStepResult = Schemas["internal_runbook.StepResult"];
-export type RunbookExecuteResult = Schemas["internal_runbook.ExecuteResult"];
+export type RunbookStepResult = Schemas["runbook.StepResult"];
+export type RunbookExecuteResult = Schemas["runbook.ExecuteResult"];
 
 // —— Postmortem（ent/schema/postmortem.go，能力域 12）——
-export type PostmortemStatus = Schemas["github_com_kevin_vigil_ent_postmortem.Status"];
+export type PostmortemStatus = Schemas["postmortem.Status"];
 
 // ActionItem：后端实体用 description（非 title），status 枚举无 skipped。
-export type ActionItemStatus = Schemas["github_com_kevin_vigil_ent_actionitem.Status"];
+export type ActionItemStatus = Schemas["actionitem.Status"];
 export type ActionItem = Required<
   Omit<Schemas["ent.ActionItem"], "edges" | "description" | "due_date" | "owner_id" | "tracker_url">
 > & {
@@ -178,7 +178,7 @@ export type Postmortem = Required<
   incident?: { id: number; [k: string]: unknown };
   sections?: Record<string, unknown>;
   published_at?: string;
-  generated_by?: Schemas["github_com_kevin_vigil_ent_postmortem.GeneratedBy"];
+  generated_by?: Schemas["postmortem.GeneratedBy"];
   // 详情查询时带（edges.action_items）
   action_items?: ActionItem[];
 };
@@ -193,7 +193,7 @@ export type NotificationRule = Required<
 };
 
 // —— 抑制规则（ent/schema/suppression_rule.go，能力域 3 M3.2）——
-export type SuppressionAction = Schemas["github_com_kevin_vigil_ent_suppressionrule.Action"];
+export type SuppressionAction = Schemas["suppressionrule.Action"];
 export type SuppressionRule = Required<
   Omit<
     Schemas["ent.SuppressionRule"],
@@ -208,8 +208,8 @@ export type SuppressionRule = Required<
 };
 
 // —— 通知模板（ent/schema/notification_template.go，能力域 7 M7.5）——
-export type NotificationChannel = Schemas["github_com_kevin_vigil_ent_notificationtemplate.Channel"];
-export type TemplateFormat = Schemas["github_com_kevin_vigil_ent_notificationtemplate.Format"];
+export type NotificationChannel = Schemas["notificationtemplate.Channel"];
+export type TemplateFormat = Schemas["notificationtemplate.Format"];
 export type NotificationTemplate = Required<
   Omit<Schemas["ent.NotificationTemplate"], "edges" | "actions">
 > & {
@@ -234,7 +234,7 @@ export type RoleBinding = Required<
 };
 
 /** API Key（能力域 13 §API Key 管理）—— 列表视图不含明文 token */
-export type APIKeyStatus = Schemas["github_com_kevin_vigil_ent_apikey.Status"];
+export type APIKeyStatus = Schemas["apikey.Status"];
 export type APIKey = Required<
   Omit<Schemas["ent.APIKey"], "edges" | "scope" | "expires_at" | "last_used_at">
 > & {
@@ -249,7 +249,7 @@ export interface APIKeyCreated extends APIKey {
 }
 
 /** 审计日志条目（能力域 13 §审计日志）—— 只读 */
-export type AuditLogResult = Schemas["github_com_kevin_vigil_ent_auditlog.Result"];
+export type AuditLogResult = Schemas["auditlog.Result"];
 export type AuditLog = Required<
   Omit<Schemas["ent.AuditLog"], "edges" | "detail" | "resource_name" | "ip" | "user_agent">
 > & {
@@ -270,7 +270,7 @@ export interface AuditLogListResponse {
 // —— AI 诊断（能力域 11）——
 // DiagnoseResult 字段为 snake_case json tag，与后端 ai.DiagnoseResult 一致。
 export type DiagnoseResult = Required<
-  Schemas["internal_ai.DiagnoseResult"]
+  Schemas["ai.DiagnoseResult"]
 > & {
   // evidence 是数组，Required 会保留其 optional 性，这里显式标注。
   evidence?: Record<string, unknown>[];
