@@ -18,6 +18,9 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/postmortem"
+	"github.com/kevin/vigil/ent/predicate"
+	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/team"
 )
 
 // Engine 报表引擎。
@@ -36,6 +39,54 @@ type Range struct {
 	End   time.Time
 }
 
+// Scope 团队数据隔离范围（S14）。
+//
+// 报表是团队软隔离的数据归属边界之一：团队 Leader 只应看到本团队指标，
+// 跨团队数据不得出现在其报表里；org 级角色（org_admin）可看全组织。
+//
+// 语义（与 auth.VisibleTeamIDs 对齐）：
+//   - OrgWide=true：不做团队过滤，聚合全组织（org_admin 等 org 级角色）。
+//   - OrgWide=false 且 TeamIDs 非空：仅聚合这些 team 归属的数据。
+//   - OrgWide=false 且 TeamIDs 为空：无任何可见 team，各指标应为空（0）。
+//
+// 未挂 team 的数据（如未路由 Event、无 team 归属的复盘）不属于任何团队，
+// 因此团队 scope 下不计入；只有 OrgWide 视图才纳入。
+type Scope struct {
+	OrgWide bool
+	TeamIDs []int
+}
+
+// AllTeams 返回看全组织的 scope（内部汇总/系统调用用，如 Dashboard 兜底）。
+func AllTeams() Scope { return Scope{OrgWide: true} }
+
+// empty 表示该 scope 无任何可见 team（非 org 级且 team 列表为空）→ 指标恒为空。
+func (s Scope) empty() bool { return !s.OrgWide && len(s.TeamIDs) == 0 }
+
+// eventTeamPred 返回 Event 的团队归属谓词（Event → service → team）。
+// OrgWide 返回 nil（不过滤）。
+func (s Scope) eventTeamPred() predicate.Event {
+	if s.OrgWide {
+		return nil
+	}
+	return event.HasServiceWith(service.HasTeamWith(team.IDIn(s.TeamIDs...)))
+}
+
+// incidentTeamPred 返回 Incident 的团队归属谓词（Incident → team）。
+func (s Scope) incidentTeamPred() predicate.Incident {
+	if s.OrgWide {
+		return nil
+	}
+	return incident.HasTeamWith(team.IDIn(s.TeamIDs...))
+}
+
+// postmortemTeamPred 返回 Postmortem 的团队归属谓词（Postmortem → incident → team）。
+func (s Scope) postmortemTeamPred() predicate.Postmortem {
+	if s.OrgWide {
+		return nil
+	}
+	return postmortem.HasIncidentWith(incident.HasTeamWith(team.IDIn(s.TeamIDs...)))
+}
+
 // AlertMetrics 告警度量（能力域 15 §B1）。
 type AlertMetrics struct {
 	Total     int     `json:"total"`     // 接入总量
@@ -45,13 +96,20 @@ type AlertMetrics struct {
 }
 
 // AlertMetrics 计算告警度量。
-func (e *Engine) AlertMetrics(ctx context.Context, r Range) (*AlertMetrics, error) {
+func (e *Engine) AlertMetrics(ctx context.Context, r Range, scope Scope) (*AlertMetrics, error) {
+	// 团队 scope 但无可见 team：无数据，直接返回空指标（避免误聚合全组织）。
+	if scope.empty() {
+		return &AlertMetrics{}, nil
+	}
 	q := e.db.Event.Query()
 	if !r.Start.IsZero() {
 		q = q.Where(event.ReceivedAtGTE(r.Start))
 	}
 	if !r.End.IsZero() {
 		q = q.Where(event.ReceivedAtLTE(r.End))
+	}
+	if p := scope.eventTeamPred(); p != nil {
+		q = q.Where(p)
 	}
 	total, err := q.Count(ctx)
 	if err != nil {
@@ -62,9 +120,10 @@ func (e *Engine) AlertMetrics(ctx context.Context, r Range) (*AlertMetrics, erro
 	if err != nil {
 		return nil, err
 	}
-	// unrouted = service edge 为空（未命中路由，等待人工分诊）。
-	// 用 event.Not(event.HasService()) 判定「无关联 service」。
-	unrouted, err := q.Clone().Where(event.Not(event.HasService())).Count(ctx)
+	// unrouted = 未命中路由（无关联 service）且非噪音（C25）。
+	// 被标噪的 Event 是「已被降噪判定」，不属于「等待人工分诊」的未路由口径；
+	// 若把噪音也计入会让 unrouted 偏大、误导团队以为路由覆盖不足。
+	unrouted, err := q.Clone().Where(event.Not(event.HasService()), event.IsNoiseEQ(false)).Count(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -86,13 +145,19 @@ type IncidentMetrics struct {
 }
 
 // IncidentMetrics 计算事件度量。MTTA = acked_at - created_at，MTTR = resolved_at - created_at。
-func (e *Engine) IncidentMetrics(ctx context.Context, r Range) (*IncidentMetrics, error) {
+func (e *Engine) IncidentMetrics(ctx context.Context, r Range, scope Scope) (*IncidentMetrics, error) {
+	if scope.empty() {
+		return &IncidentMetrics{BySeverity: map[string]int{}, ByStatus: map[string]int{}}, nil
+	}
 	q := e.db.Incident.Query()
 	if !r.Start.IsZero() {
 		q = q.Where(incident.CreatedAtGTE(r.Start))
 	}
 	if !r.End.IsZero() {
 		q = q.Where(incident.CreatedAtLTE(r.End))
+	}
+	if p := scope.incidentTeamPred(); p != nil {
+		q = q.Where(p)
 	}
 	all, err := q.All(ctx)
 	if err != nil {
@@ -136,8 +201,16 @@ type TeamLoad struct {
 }
 
 // TeamLoad 计算各团队事件负载。
-func (e *Engine) TeamLoad(ctx context.Context, r Range) ([]TeamLoad, error) {
-	teams, err := e.db.Team.Query().All(ctx)
+func (e *Engine) TeamLoad(ctx context.Context, r Range, scope Scope) ([]TeamLoad, error) {
+	if scope.empty() {
+		return nil, nil
+	}
+	tq := e.db.Team.Query()
+	// 团队 scope：只列出可见 team（org 级不限）。
+	if !scope.OrgWide {
+		tq = tq.Where(team.IDIn(scope.TeamIDs...))
+	}
+	teams, err := tq.All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -167,13 +240,19 @@ type PostmortemMetrics struct {
 }
 
 // PostmortemMetrics 计算复盘度量。
-func (e *Engine) PostmortemMetrics(ctx context.Context, r Range) (*PostmortemMetrics, error) {
+func (e *Engine) PostmortemMetrics(ctx context.Context, r Range, scope Scope) (*PostmortemMetrics, error) {
+	if scope.empty() {
+		return &PostmortemMetrics{}, nil
+	}
 	q := e.db.Postmortem.Query()
 	if !r.Start.IsZero() {
 		q = q.Where(postmortem.CreatedAtGTE(r.Start))
 	}
 	if !r.End.IsZero() {
 		q = q.Where(postmortem.CreatedAtLTE(r.End))
+	}
+	if p := scope.postmortemTeamPred(); p != nil {
+		q = q.Where(p)
 	}
 	all, err := q.All(ctx)
 	if err != nil {
@@ -200,7 +279,7 @@ type TrendPoint struct {
 
 // Trend 计算每日趋势（事件数 + 告警数）。
 // days 为统计天数（从 End 向前数，End 为零值则用今天）。
-func (e *Engine) Trend(ctx context.Context, days int, r Range) ([]TrendPoint, error) {
+func (e *Engine) Trend(ctx context.Context, days int, r Range, scope Scope) ([]TrendPoint, error) {
 	if days <= 0 {
 		days = 7
 	}
@@ -210,21 +289,33 @@ func (e *Engine) Trend(ctx context.Context, days int, r Range) ([]TrendPoint, er
 	}
 	start := end.AddDate(0, 0, -days)
 
-	allInc, err := e.db.Incident.Query().
-		Where(incident.CreatedAtGTE(start), incident.CreatedAtLTE(end)).All(ctx)
-	if err != nil {
-		return nil, err
-	}
-	allEvt, err := e.db.Event.Query().
-		Where(event.ReceivedAtGTE(start), event.ReceivedAtLTE(end)).All(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// 按天聚合
+	// 按天聚合骨架（即使无可见 team 也返回连续日期序列，前端图表不断档）。
 	points := make([]TrendPoint, days)
 	for i := 0; i < days; i++ {
 		d := start.AddDate(0, 0, i)
 		points[i] = TrendPoint{Date: d.Format("2006-01-02")}
+	}
+	if scope.empty() {
+		return points, nil
+	}
+
+	incQ := e.db.Incident.Query().
+		Where(incident.CreatedAtGTE(start), incident.CreatedAtLTE(end))
+	if p := scope.incidentTeamPred(); p != nil {
+		incQ = incQ.Where(p)
+	}
+	allInc, err := incQ.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	evtQ := e.db.Event.Query().
+		Where(event.ReceivedAtGTE(start), event.ReceivedAtLTE(end))
+	if p := scope.eventTeamPred(); p != nil {
+		evtQ = evtQ.Where(p)
+	}
+	allEvt, err := evtQ.All(ctx)
+	if err != nil {
+		return nil, err
 	}
 	idx := func(t time.Time) int { return int(t.Sub(start) / (24 * time.Hour)) }
 	for _, inc := range allInc {
@@ -251,7 +342,7 @@ type Dashboard struct {
 }
 
 // Dashboard 汇总仪表盘数据（近 N 天）。
-func (e *Engine) Dashboard(ctx context.Context, days int) (*Dashboard, error) {
+func (e *Engine) Dashboard(ctx context.Context, days int, scope Scope) (*Dashboard, error) {
 	if days <= 0 {
 		days = 7
 	}
@@ -259,19 +350,19 @@ func (e *Engine) Dashboard(ctx context.Context, days int) (*Dashboard, error) {
 	start := end.AddDate(0, 0, -days)
 	r := Range{Start: start, End: end}
 
-	alert, err := e.AlertMetrics(ctx, r)
+	alert, err := e.AlertMetrics(ctx, r, scope)
 	if err != nil {
 		return nil, err
 	}
-	inc, err := e.IncidentMetrics(ctx, r)
+	inc, err := e.IncidentMetrics(ctx, r, scope)
 	if err != nil {
 		return nil, err
 	}
-	load, err := e.TeamLoad(ctx, r)
+	load, err := e.TeamLoad(ctx, r, scope)
 	if err != nil {
 		return nil, err
 	}
-	pm, err := e.PostmortemMetrics(ctx, r)
+	pm, err := e.PostmortemMetrics(ctx, r, scope)
 	if err != nil {
 		return nil, err
 	}

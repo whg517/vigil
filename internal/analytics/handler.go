@@ -2,10 +2,12 @@
 package analytics
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 
 	"github.com/labstack/echo/v5"
@@ -14,11 +16,41 @@ import (
 // Handler 报表 API。
 type Handler struct {
 	engine *Engine
+	authz  *auth.Authorizer // 团队数据隔离（S14）：解析当前用户可见 team 集合
 }
 
 // NewHandler 创建报表 handler。
 func NewHandler(e *Engine) *Handler {
 	return &Handler{engine: e}
+}
+
+// SetAuthorizer 注入鉴权器，启用团队 scope 数据隔离（S14）。
+// 未注入时退化为看全组织（AllTeams），仅用于测试桩/未装配场景。
+func (h *Handler) SetAuthorizer(a *auth.Authorizer) *Handler {
+	h.authz = a
+	return h
+}
+
+// resolveScope 解析当前请求用户的可见团队范围（S14 团队软隔离）。
+//
+// 报表是团队数据归属边界：team 级 Leader 只应看到本团队指标，org 级角色看全组织。
+// 复用 auth.VisibleTeamIDs 的语义（org 级 binding → orgWide；否则仅可见 team）。
+//
+// 降级：未注入 authz 或未取得用户身份时看全组织——路由已挂 analytics.view 权限点
+// 拦截未授权用户，此处不再重复鉴权，仅决定「看多大范围」。
+func (h *Handler) resolveScope(ctx context.Context) (Scope, error) {
+	if h.authz == nil {
+		return AllTeams(), nil
+	}
+	uid, ok := auth.UserIDFromContext(ctx)
+	if !ok || uid <= 0 {
+		return AllTeams(), nil
+	}
+	teamIDs, orgWide, err := h.authz.VisibleTeamIDs(ctx, uid)
+	if err != nil {
+		return Scope{}, err
+	}
+	return Scope{OrgWide: orgWide, TeamIDs: teamIDs}, nil
 }
 
 // Register 挂载路由。
@@ -65,8 +97,13 @@ func parseRange(c *echo.Context) Range {
 // @Router       /analytics/dashboard [get]
 // @Security     bearerAuth
 func (h *Handler) dashboard(c *echo.Context) error {
+	ctx := c.Request().Context()
+	scope, err := h.resolveScope(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
 	days, _ := strconv.Atoi(c.QueryParam("days"))
-	d, err := h.engine.Dashboard(c.Request().Context(), days)
+	d, err := h.engine.Dashboard(ctx, days, scope)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -86,7 +123,12 @@ func (h *Handler) dashboard(c *echo.Context) error {
 // @Router       /analytics/alerts [get]
 // @Security     bearerAuth
 func (h *Handler) alerts(c *echo.Context) error {
-	m, err := h.engine.AlertMetrics(c.Request().Context(), parseRange(c))
+	ctx := c.Request().Context()
+	scope, err := h.resolveScope(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	m, err := h.engine.AlertMetrics(ctx, parseRange(c), scope)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -106,7 +148,12 @@ func (h *Handler) alerts(c *echo.Context) error {
 // @Router       /analytics/incidents [get]
 // @Security     bearerAuth
 func (h *Handler) incidents(c *echo.Context) error {
-	m, err := h.engine.IncidentMetrics(c.Request().Context(), parseRange(c))
+	ctx := c.Request().Context()
+	scope, err := h.resolveScope(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	m, err := h.engine.IncidentMetrics(ctx, parseRange(c), scope)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -126,7 +173,12 @@ func (h *Handler) incidents(c *echo.Context) error {
 // @Router       /analytics/team-load [get]
 // @Security     bearerAuth
 func (h *Handler) teamLoad(c *echo.Context) error {
-	m, err := h.engine.TeamLoad(c.Request().Context(), parseRange(c))
+	ctx := c.Request().Context()
+	scope, err := h.resolveScope(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	m, err := h.engine.TeamLoad(ctx, parseRange(c), scope)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -146,7 +198,12 @@ func (h *Handler) teamLoad(c *echo.Context) error {
 // @Router       /analytics/postmortems [get]
 // @Security     bearerAuth
 func (h *Handler) postmortems(c *echo.Context) error {
-	m, err := h.engine.PostmortemMetrics(c.Request().Context(), parseRange(c))
+	ctx := c.Request().Context()
+	scope, err := h.resolveScope(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	m, err := h.engine.PostmortemMetrics(ctx, parseRange(c), scope)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
@@ -167,8 +224,13 @@ func (h *Handler) postmortems(c *echo.Context) error {
 // @Router       /analytics/trend [get]
 // @Security     bearerAuth
 func (h *Handler) trend(c *echo.Context) error {
+	ctx := c.Request().Context()
+	scope, err := h.resolveScope(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
 	days, _ := strconv.Atoi(c.QueryParam("days"))
-	points, err := h.engine.Trend(c.Request().Context(), days, parseRange(c))
+	points, err := h.engine.Trend(ctx, days, parseRange(c), scope)
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}

@@ -333,7 +333,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	aiH.SetScopeResolver(scopeResolver)
 	aiH.SetAuditRecorder(auditRecorder) // S11：AI 建议采纳/拒绝留痕（谁在何时改判）
 	aiH.Register(v1)
-	analytics.NewHandler(analytics.NewEngine(st.DB)).Register(v1)
+	// 报表（能力域 15）：注入 authz 启用团队 scope 数据隔离（S14）——
+	// team 级 Leader 只见本团队指标，org 级角色看全组织。
+	analytics.NewHandler(analytics.NewEngine(st.DB)).SetAuthorizer(authz).Register(v1)
 	// 通知配置（能力域 7 + 3 抑制）：Rule/Suppression/Template CRUD + dry-run。
 	notifHandler := notification.NewHandler(st.DB, notifier, notifAggregator)
 	notifHandler.SetTemplateEngine(notifTemplates)
@@ -718,9 +720,9 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/notification-templates", auth.PermNotificationTemplateCreate)
 	g.RoutePerm(http.MethodPatch, "/notification-templates/:id", auth.PermNotificationTemplateUpdate)
 	g.RoutePerm(http.MethodDelete, "/notification-templates/:id", auth.PermNotificationTemplateDelete)
-	// 分析报表（能力域 11）—— 审计 S14：原无任何权限点，任意登录用户可拉全组织指标。
-	// 全部为组织级只读视图，统一挂 analytics.view（当前仅 org_admin 持有）。
-	// 团队 scope 隔离（team-load/dashboard 按 team 过滤）改动较大，另记 docs/backlog.md。
+	// 分析报表（能力域 11）—— 审计 S14：统一挂 analytics.view 拦截未授权用户。
+	// 团队 scope 数据隔离已实现（handler.resolveScope → engine 按可见 team 过滤）：
+	// org 级角色看全组织，team 级 Leader（team_admin/responder_lead 持 analytics.view）仅见本团队。
 	g.RoutePerm(http.MethodGet, "/analytics/dashboard", auth.PermAnalyticsView)
 	g.RoutePerm(http.MethodGet, "/analytics/alerts", auth.PermAnalyticsView)
 	g.RoutePerm(http.MethodGet, "/analytics/incidents", auth.PermAnalyticsView)

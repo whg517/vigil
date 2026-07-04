@@ -57,6 +57,8 @@ var builtinRoles = []struct {
 			"suppression.view", "suppression.create", "suppression.update", "suppression.delete",
 			// 角色查看（不能改角色定义）
 			"role.view",
+			// 报表查看（S14：团队 scope 隔离后，Leader 看本团队报表）
+			"analytics.view",
 		),
 	},
 	{
@@ -92,6 +94,8 @@ var builtinRoles = []struct {
 			"ai.insight.resolve",
 			// 通知/抑制规则查看（lead 需理解为何被抑制/静默）
 			"notification.rule.view", "notification.template.view", "suppression.view",
+			// 报表查看（S14：团队 scope 隔离后，值班长看本团队报表）
+			"analytics.view",
 		},
 	},
 	{
