@@ -3800,6 +3800,26 @@ const docTemplate = `{
                         },
                         "description": "Bad Request"
                     },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -5276,6 +5296,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
                     }
                 },
                 "security": [
@@ -5323,6 +5353,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
                     }
                 },
                 "security": [
@@ -5384,6 +5424,16 @@ const docTemplate = `{
                         },
                         "description": "Bad Request"
                     },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -5439,6 +5489,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
                     }
                 },
                 "security": [
@@ -5543,6 +5603,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
                     }
                 },
                 "security": [
@@ -5589,6 +5659,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
                     }
                 },
                 "security": [
@@ -5645,6 +5725,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
                     },
                     "500": {
                         "content": {
@@ -5711,6 +5801,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
                     },
                     "500": {
                         "content": {

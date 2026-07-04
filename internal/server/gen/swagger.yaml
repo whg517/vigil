@@ -2766,6 +2766,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/httputil.ErrorResponse'
           description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Conflict
         "500":
           content:
             application/json:
@@ -3646,6 +3658,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/httputil.ErrorResponse'
           description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
       security:
       - bearerAuth: []
       summary: 确认事件（ack）
@@ -3675,6 +3693,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/httputil.ErrorResponse'
           description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
       security:
       - bearerAuth: []
       summary: 关闭事件（close）
@@ -3711,6 +3735,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/httputil.ErrorResponse'
           description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
         "500":
           content:
             application/json:
@@ -3744,6 +3774,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/httputil.ErrorResponse'
           description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
       security:
       - bearerAuth: []
       summary: 升级事件（escalate）
@@ -3806,6 +3842,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/httputil.ErrorResponse'
           description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
       security:
       - bearerAuth: []
       summary: 重新打开事件（reopen）
@@ -3833,6 +3875,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/httputil.ErrorResponse'
           description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
       security:
       - bearerAuth: []
       summary: 解决事件（resolve）
@@ -3867,6 +3915,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/httputil.ErrorResponse'
           description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
         "500":
           content:
             application/json:
@@ -3907,6 +3961,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/httputil.ErrorResponse'
           description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
         "500":
           content:
             application/json:

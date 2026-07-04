@@ -195,6 +195,35 @@ func TestIsNotFound(t *testing.T) {
 	}
 }
 
+// TestFailActionState_NotFound B25：处置动作作用于不存在的 id → 404 not_found。
+func TestFailActionState_NotFound(t *testing.T) {
+	c, rec := newCtx(t)
+	// 领域层哨兵 incident.ErrNotFound 的 message 即 "incident not found"（含 "not found"）。
+	_ = FailActionState(c, nil, errors.New("incident not found"), "incident")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("not-found err should map to 404, got %d", rec.Code)
+	}
+	r := decode(t, rec)
+	if r.Code != CodeNotFound {
+		t.Errorf("code: got %q, want %q", r.Code, CodeNotFound)
+	}
+	if r.Error != "incident not found" {
+		t.Errorf("msg: got %q", r.Error)
+	}
+}
+
+// TestFailActionState_InvalidTransition B25：状态机非法流转 → 400 failed_precondition（不再 500）。
+func TestFailActionState_InvalidTransition(t *testing.T) {
+	c, rec := newCtx(t)
+	_ = FailActionState(c, nil, errors.New("invalid incident status transition: ack from resolved"), "incident")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid transition should map to 400, got %d", rec.Code)
+	}
+	if decode(t, rec).Code != CodeFailedPrecondition {
+		t.Errorf("code: got %q, want %q", decode(t, rec).Code, CodeFailedPrecondition)
+	}
+}
+
 // TestFailConstraint_DuplicateKey FIX-B：重复键约束冲突应返回 409 Conflict。
 func TestFailConstraint_DuplicateKey(t *testing.T) {
 	cases := []string{

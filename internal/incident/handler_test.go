@@ -176,6 +176,59 @@ func TestHandler_Close_Idempotent(t *testing.T) {
 	}
 }
 
+// TestHandler_Ack_InvalidTransition_400 B25：对已 resolved 单再 ack（状态机非法流转）→ 400 failed_precondition。
+func TestHandler_Ack_InvalidTransition_400(t *testing.T) {
+	_, e, incID := closeTestHandler(t, "ack_invalid_transition", incident.StatusResolved)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(incID)+"/ack", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("ack from resolved: got %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
+	if code := errCode(t, rec); code != "failed_precondition" {
+		t.Errorf("code: got %q, want failed_precondition", code)
+	}
+}
+
+// TestHandler_Ack_NotFound_404 B25：对不存在的 incident id 做处置 → 404 not_found（而非 400）。
+func TestHandler_Ack_NotFound_404(t *testing.T) {
+	_, e, incID := closeTestHandler(t, "ack_not_found", incident.StatusTriggered)
+	missing := incID + 9999 // 保证不存在
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(missing)+"/ack", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("ack missing id: got %d, want 404; body=%s", rec.Code, rec.Body.String())
+	}
+	if code := errCode(t, rec); code != "not_found" {
+		t.Errorf("code: got %q, want not_found", code)
+	}
+}
+
+// TestHandler_Resolve_NotFound_404 B25：resolve 不存在的 id → 404 not_found。
+func TestHandler_Resolve_NotFound_404(t *testing.T) {
+	_, e, incID := closeTestHandler(t, "resolve_not_found", incident.StatusTriggered)
+	missing := incID + 9999
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(missing)+"/resolve", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("resolve missing id: got %d, want 404; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// errCode 解析 ErrorResponse.code（用于断言归一后的机器可读错误码）。
+func errCode(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	var r struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+		t.Fatalf("decode error code: %v; body=%s", err, rec.Body.String())
+	}
+	return r.Code
+}
+
 // itoa 简单整数转字符串（避免引入 strconv 仅为此）。
 func itoa(n int) string {
 	const digits = "0123456789"

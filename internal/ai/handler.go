@@ -94,6 +94,7 @@ func (h *Handler) Register(g *echo.Group) {
 // @Success      200  {object}  map[string]string  "AI 诊断未启用"
 // @Success      201  {object}  ai.DiagnoseResult
 // @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /incidents/{id}/diagnose [post]
 // @Security     bearerAuth
@@ -107,7 +108,8 @@ func (h *Handler) diagnose(c *echo.Context) error {
 	}
 	res, err := h.engine.Diagnose(c.Request().Context(), incID)
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		// B25 归一：不存在的 incident → 404 not_found（而非 500）；其余内部错误仍走 500。
+		return errs.FailNotFound(c, nil, err, "incident")
 	}
 	if res == nil {
 		// res==nil：LLM 未配置 或 调用失败降级（FIX-C，见 diagnose.go）。
@@ -127,6 +129,7 @@ func (h *Handler) diagnose(c *echo.Context) error {
 // @Param        limit  query  int  false  "返回条数上限"
 // @Success      200    {object}  map[string]any  "{similar: []*ent.Incident}"
 // @Failure      400    {object}  httputil.ErrorResponse
+// @Failure      404    {object}  httputil.ErrorResponse
 // @Failure      500    {object}  httputil.ErrorResponse
 // @Router       /incidents/{id}/similar [get]
 // @Security     bearerAuth
@@ -141,7 +144,8 @@ func (h *Handler) similar(c *echo.Context) error {
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	similar, err := h.engine.FindSimilar(c.Request().Context(), incID, limit)
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		// B25 归一：不存在的 incident → 404 not_found（而非 500）。
+		return errs.FailNotFound(c, nil, err, "incident")
 	}
 	return c.JSON(http.StatusOK, map[string]any{"similar": similar})
 }
@@ -157,6 +161,7 @@ func (h *Handler) similar(c *echo.Context) error {
 // @Param        limit  query  int  false  "返回条数上限"
 // @Success      200    {object}  map[string]any  "{similar_postmortems: []*ent.Postmortem}"
 // @Failure      400    {object}  httputil.ErrorResponse
+// @Failure      404    {object}  httputil.ErrorResponse
 // @Failure      500    {object}  httputil.ErrorResponse
 // @Router       /incidents/{id}/similar-postmortems [get]
 // @Security     bearerAuth
@@ -171,7 +176,8 @@ func (h *Handler) similarPostmortems(c *echo.Context) error {
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	pms, err := h.engine.FindSimilarPostmortems(c.Request().Context(), incID, limit)
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		// B25 归一：不存在的 incident → 404 not_found（而非 500）。
+		return errs.FailNotFound(c, nil, err, "incident")
 	}
 	return c.JSON(http.StatusOK, map[string]any{"similar_postmortems": pms})
 }
@@ -192,6 +198,8 @@ type resolveReq struct {
 // @Param        request  body      resolveReq   true  "accepted=true 接受，false 拒绝"
 // @Success      200      {object}  map[string]any
 // @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      404      {object}  httputil.ErrorResponse
+// @Failure      409      {object}  httputil.ErrorResponse
 // @Failure      500      {object}  httputil.ErrorResponse
 // @Router       /ai-insights/{id}/resolve [post]
 // @Security     bearerAuth
@@ -213,7 +221,8 @@ func (h *Handler) resolve(c *echo.Context) error {
 		if errors.Is(err, ErrInsightAlreadyResolved) {
 			return errs.Conflict(c, "该 AI 建议已被采纳/拒绝，不能重复改判")
 		}
-		return errs.Internal(c, nil, err)
+		// B25 归一：不存在的 ai_insight → 404 not_found（而非 500）。
+		return errs.FailNotFound(c, nil, err, "ai insight")
 	}
 	// S11 留痕：谁在何时 accept/reject 了哪条 AI 建议（审计总线）。
 	h.auditResolve(c, actorID, insightID, req.Accepted)

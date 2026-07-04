@@ -202,6 +202,7 @@ func (h *Handler) checkAccess(c *echo.Context, id int, perm auth.Permission) err
 // @Param        id   path     int  true  "事件 ID"
 // @Success      200  {object} ent.Incident
 // @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id}/ack [post]
 func (h *Handler) ack(c *echo.Context) error {
@@ -214,7 +215,8 @@ func (h *Handler) ack(c *echo.Context) error {
 	}
 	inc, err := h.svc.Ack(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
+		// B25 归一：不存在的 id → 404 not_found；状态非法（ErrInvalidTransition）→ 400 failed_precondition。
+		return errs.FailActionState(c, nil, err, "incident")
 	}
 	return c.JSON(http.StatusOK, inc)
 }
@@ -227,6 +229,7 @@ func (h *Handler) ack(c *echo.Context) error {
 // @Param        id   path     int  true  "事件 ID"
 // @Success      200  {object} ent.Incident
 // @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id}/resolve [post]
 func (h *Handler) resolve(c *echo.Context) error {
@@ -239,7 +242,8 @@ func (h *Handler) resolve(c *echo.Context) error {
 	}
 	inc, err := h.svc.Resolve(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
+		// B25 归一：不存在 → 404；状态非法 → 400 failed_precondition。
+		return errs.FailActionState(c, nil, err, "incident")
 	}
 	return c.JSON(http.StatusOK, inc)
 }
@@ -253,6 +257,7 @@ func (h *Handler) resolve(c *echo.Context) error {
 // @Param        id   path     int  true  "事件 ID"
 // @Success      200  {object} ent.Incident
 // @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id}/close [post]
 func (h *Handler) close(c *echo.Context) error {
@@ -269,11 +274,12 @@ func (h *Handler) close(c *echo.Context) error {
 		if errors.Is(err, ErrAlreadyClosed) {
 			cur, gerr := h.db.Incident.Get(c.Request().Context(), id)
 			if gerr != nil {
-				return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
+				return errs.FailActionState(c, nil, gerr, "incident")
 			}
 			return c.JSON(http.StatusOK, cur)
 		}
-		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
+		// B25 归一：不存在 → 404；状态非法（如 triggered 直接 close）→ 400 failed_precondition。
+		return errs.FailActionState(c, nil, err, "incident")
 	}
 	return c.JSON(http.StatusOK, inc)
 }
@@ -286,6 +292,7 @@ func (h *Handler) close(c *echo.Context) error {
 // @Param        id   path     int  true  "事件 ID"
 // @Success      200  {object} ent.Incident
 // @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id}/escalate [post]
 func (h *Handler) escalate(c *echo.Context) error {
@@ -298,7 +305,8 @@ func (h *Handler) escalate(c *echo.Context) error {
 	}
 	inc, err := h.svc.Escalate(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
+		// B25 归一：不存在 → 404；状态非法 → 400 failed_precondition。
+		return errs.FailActionState(c, nil, err, "incident")
 	}
 	return c.JSON(http.StatusOK, inc)
 }
@@ -312,6 +320,7 @@ func (h *Handler) escalate(c *echo.Context) error {
 // @Param        id   path     int  true  "事件 ID"
 // @Success      200  {object} ent.Incident
 // @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /incidents/{id}/reopen [post]
 func (h *Handler) reopen(c *echo.Context) error {
@@ -324,7 +333,8 @@ func (h *Handler) reopen(c *echo.Context) error {
 	}
 	inc, err := h.svc.Reopen(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
 	if err != nil {
-		return errs.BadRequestWith(c, errs.CodeFailedPrecondition, err.Error())
+		// B25 归一：不存在 → 404；状态非法 → 400 failed_precondition。
+		return errs.FailActionState(c, nil, err, "incident")
 	}
 	return c.JSON(http.StatusOK, inc)
 }

@@ -158,6 +158,24 @@ export interface paths {
                         "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
                 /** @description Internal Server Error */
                 500: {
                     headers: {
@@ -1506,6 +1524,15 @@ export interface paths {
                         "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -1550,6 +1577,15 @@ export interface paths {
                 };
                 /** @description Bad Request */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1619,6 +1655,15 @@ export interface paths {
                         "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
                 /** @description Internal Server Error */
                 500: {
                     headers: {
@@ -1669,6 +1714,15 @@ export interface paths {
                 };
                 /** @description Bad Request */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1787,6 +1841,15 @@ export interface paths {
                         "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -1828,6 +1891,15 @@ export interface paths {
                 };
                 /** @description Bad Request */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1882,6 +1954,15 @@ export interface paths {
                 };
                 /** @description Bad Request */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1947,6 +2028,15 @@ export interface paths {
                 };
                 /** @description Bad Request */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };

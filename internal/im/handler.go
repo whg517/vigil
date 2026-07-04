@@ -239,7 +239,10 @@ func (h *Handler) handleCardAction(c *echo.Context, ctx context.Context, bot IMB
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "unknown action"})
 	}
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		// B25 归一：IM 走与 Web 相同的错误码——不存在的 incident → 404，
+		// 状态非法（ErrInvalidTransition，如对已 resolved 单再 ack）→ 400 failed_precondition，
+		// 不再一律压成 500。
+		return errs.FailActionState(c, nil, err, "incident")
 	}
 
 	// 刷新已发卡片（若有记录的 cardID）
@@ -281,7 +284,8 @@ func (h *Handler) handleCommand(c *echo.Context, ctx context.Context, bot IMBot,
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "unsupported command: " + cmd})
 	}
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		// B25 归一：与 Web 一致——不存在 → 404，状态非法 → 400 failed_precondition（不再一律 500）。
+		return errs.FailActionState(c, nil, err, "incident")
 	}
 	h.refreshCard(ctx, bot, inc, user)
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok", "command": cmd})

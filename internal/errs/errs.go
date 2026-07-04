@@ -143,6 +143,28 @@ func FailNotFound(c *echo.Context, log *zap.Logger, err error, resource string) 
 	return Internal(c, log, err)
 }
 
+// FailActionState 归一「处置类动作」的错误码（B25：Web/IM/API 三面错误码一致）。
+//
+// 区分两类失败，避免把「资源不存在」与「状态不允许」都压成同一码：
+//   - NotFound（ent NotFound / sql no rows，如对不存在的 incident id 操作）→ 404 not_found
+//   - 其余（如状态机非法流转 ErrInvalidTransition：对已 resolved 单再 ack）→ 400 failed_precondition
+//
+// 状态类错误的 err.Error() 来自领域层稳定哨兵（如 "invalid incident status transition"），
+// 不含 SQL/表名等内部细节，可安全回给前端作可读提示。
+//
+// 用法（incident/im/ai 处置 handler 收口）：
+//
+//	inc, err := h.svc.Ack(ctx, id, actor, src)
+//	if err != nil {
+//	    return errs.FailActionState(c, log, err, "incident")
+//	}
+func FailActionState(c *echo.Context, log *zap.Logger, err error, resource string) error {
+	if isNotFound(err) {
+		return NotFound(c, resource+" not found")
+	}
+	return BadRequestWith(c, CodeFailedPrecondition, err.Error())
+}
+
 // FailConstraint 把 ent/sql 唯一约束冲突（重名/重复）转为 409 Conflict，
 // 其余错误走 500 Internal。便于 handler 在 Create/Update 时统一收口"重名"场景。
 //
