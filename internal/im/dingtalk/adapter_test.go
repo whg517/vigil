@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -212,7 +213,7 @@ func TestCreateWarRoom_NoMembers(t *testing.T) {
 func TestUpdateCard_NoChannel(t *testing.T) {
 	a := New(Config{AppKey: "k", AppSecret: "s"})
 	err := a.UpdateCard(context.Background(), "msg_x", &im.Card{})
-	if err != im.ErrCardUpdateNoChannel {
+	if !errors.Is(err, im.ErrCardUpdateNoChannel) {
 		t.Errorf("裸 cardID 应返回 ErrCardUpdateNoChannel，got %v", err)
 	}
 }
