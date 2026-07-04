@@ -91,7 +91,8 @@
                     "root_cause_hint",
                     "similar_incident",
                     "draft_summary",
-                    "postmortem_draft"
+                    "postmortem_draft",
+                    "runbook_suggestion"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
@@ -100,7 +101,8 @@
                     "TypeRootCauseHint",
                     "TypeSimilarIncident",
                     "TypeDraftSummary",
-                    "TypePostmortemDraft"
+                    "TypePostmortemDraft",
+                    "TypeRunbookSuggestion"
                 ]
             },
             "analytics.AlertMetrics": {
@@ -5930,6 +5932,74 @@
                 "summary": "查询事件操作审计",
                 "tags": [
                     "incident"
+                ]
+            }
+        },
+        "/incidents/{id}/ai-copilot": {
+            "post": {
+                "description": "触发处置 Copilot，产出 Runbook 推荐 / 摘要草拟（human-in-the-loop）；未启用 LLM 返回 200 disabled。",
+                "parameters": [
+                    {
+                        "description": "Incident ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "Trigger disposition copilot",
+                "tags": [
+                    "ai"
                 ]
             }
         },

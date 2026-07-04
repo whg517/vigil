@@ -72,6 +72,7 @@ components:
       - similar_incident
       - draft_summary
       - postmortem_draft
+      - runbook_suggestion
       type: string
       x-enum-varnames:
       - TypeDedupSuggestion
@@ -80,6 +81,7 @@ components:
       - TypeSimilarIncident
       - TypeDraftSummary
       - TypePostmortemDraft
+      - TypeRunbookSuggestion
     analytics.AlertMetrics:
       properties:
         noiseRate:
@@ -4101,6 +4103,48 @@ paths:
       summary: 查询事件操作审计
       tags:
       - incident
+  /incidents/{id}/ai-copilot:
+    post:
+      description: 触发处置 Copilot，产出 Runbook 推荐 / 摘要草拟（human-in-the-loop）；未启用 LLM 返回
+        200 disabled。
+      parameters:
+      - description: Incident ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                additionalProperties: {}
+                type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/httputil.ErrorResponse'
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: Trigger disposition copilot
+      tags:
+      - ai
   /incidents/{id}/close:
     post:
       description: 把 resolved 事件推进到终态 closed；非 resolved 状态（含 triggered/acked/escalated）关闭返回

@@ -373,11 +373,15 @@ func (e *DiagnoseEngine) ResolveInsight(ctx context.Context, insightID, actorID 
 // 当前仅 severity_adjustment 有实际动作：把关联 incident 的 severity 改成建议值。
 // content 期望形如 {"target_severity":"critical"}（LLM 分诊建议产出，T3.2 补齐产出侧）。
 // 目标严重度非法/缺失、与当前一致、或 incident 缺失时不改（返回 false，保持 accepted）。
-// 其余类型（root_cause_hint/similar_incident/draft_summary/...）无自动副作用，返回 false，
-// accept 即终态——这些是只读线索/展示建议，采纳与否由人后续手动落地。
+// 其余类型（root_cause_hint/similar_incident/draft_summary/runbook_suggestion/...）无自动副作用，
+// 返回 false，accept 即终态——这些是只读线索/展示建议，采纳与否由人后续手动落地。
+//
+// ★ 安全红线（T3.3）：runbook_suggestion 明确不在此触发任何执行。accept 只把该建议置
+// accepted（供前端高亮/呈现推荐的 Runbook），绝不调用 runbook 引擎。真正执行仍须响应者显式
+// 走 Runbook 端点并遵循两档安全（readonly 自动 / 写操作 require_approval）——AI 推荐不绕过审批。
 func (e *DiagnoseEngine) applyInsight(ctx context.Context, ins *ent.AIInsight) bool {
 	if ins.Type != aiinsight.TypeSeverityAdjustment {
-		return false // 无实际应用动作的类型：accept=终态
+		return false // 无实际应用动作的类型（含 runbook_suggestion）：accept=终态，不产生副作用
 	}
 	target, _ := ins.Content["target_severity"].(string)
 	if target != string(incident.SeverityCritical) &&

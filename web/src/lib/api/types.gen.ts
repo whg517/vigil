@@ -1778,6 +1778,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/incidents/{id}/ai-copilot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger disposition copilot
+         * @description 触发处置 Copilot，产出 Runbook 推荐 / 摘要草拟（human-in-the-loop）；未启用 LLM 返回 200 disabled。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Incident ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/incidents/{id}/close": {
         parameters: {
             query?: never;
@@ -6315,7 +6386,7 @@ export interface components {
          * @description Type holds the value of the "type" field.
          * @enum {string}
          */
-        "aiinsight.Type": "dedup_suggestion" | "severity_adjustment" | "root_cause_hint" | "similar_incident" | "draft_summary" | "postmortem_draft";
+        "aiinsight.Type": "dedup_suggestion" | "severity_adjustment" | "root_cause_hint" | "similar_incident" | "draft_summary" | "postmortem_draft" | "runbook_suggestion";
         "analytics.AlertMetrics": {
             /** @description 降噪率 = 1 - Notified/Total（0~1） */
             noiseRate?: number;

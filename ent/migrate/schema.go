@@ -12,7 +12,7 @@ var (
 	AiInsightsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "stage", Type: field.TypeEnum, Enums: []string{"triage", "diagnose", "postmortem", "copilot"}},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"dedup_suggestion", "severity_adjustment", "root_cause_hint", "similar_incident", "draft_summary", "postmortem_draft"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"dedup_suggestion", "severity_adjustment", "root_cause_hint", "similar_incident", "draft_summary", "postmortem_draft", "runbook_suggestion"}},
 		{Name: "content", Type: field.TypeJSON},
 		{Name: "confidence", Type: field.TypeFloat32, Default: 0},
 		{Name: "evidence", Type: field.TypeJSON, Nullable: true},

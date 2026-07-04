@@ -385,8 +385,16 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// 注入分诊引擎：新建 Incident 后异步跑 severity/dedup 建议（analyzer 内部 LLM 不可用自行降级）。
 	triageEngine.SetAIAnalyzer(triageAIAnalyzerAdapter{e: triageAIEngine})
 
+	// T3.3 处置 Copilot：与诊断链共享 GLM provider + 时间线记录器，复用相似检索（runbook 推荐）。
+	// 经 POST /incidents/:id/ai-copilot 手动触发。★ 安全红线：推荐仅呈现/高亮，accept 不触发执行——
+	// 执行仍走 Runbook 两档安全（写操作 require_approval），AI 推荐不绕过审批。
+	copilotEngine := ai.NewCopilotEngine(st.DB, glmProvider)
+	copilotEngine.SetRecorder(timelineRecorder)  // 产出建议后写 ai_insight 时间线
+	copilotEngine.SetSimilarFinder(aiDiagEngine) // runbook 推荐复用诊断链的相似检索（取历史处置痕迹）
+
 	aiH := ai.NewHandler(aiDiagEngine)
 	aiH.SetTriageAI(triageAIEngine) // 启用手动触发端点（T3.2）
+	aiH.SetCopilot(copilotEngine)   // 启用处置 Copilot 手动触发端点（T3.3）
 	aiH.SetAuthorizer(authz)
 	aiH.SetScopeResolver(scopeResolver)
 	aiH.SetAuditRecorder(auditRecorder) // S11：AI 建议采纳/拒绝留痕（谁在何时改判）

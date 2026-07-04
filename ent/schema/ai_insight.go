@@ -21,9 +21,13 @@ func (AIInsight) Fields() []ent.Field {
 		// stage AI 介入的阶段
 		field.Enum("stage").Values("triage", "diagnose", "postmortem", "copilot"),
 		// type AI 产出类型
+		// runbook_suggestion：处置 Copilot 推荐用哪个 Runbook（T3.3）。
+		//   accept 只高亮/呈现该 Runbook，绝不触发执行——执行仍走 Runbook 两档安全
+		//   （readonly 自动 / 写操作 require_approval），AI 推荐不绕过审批。
 		field.Enum("type").Values(
 			"dedup_suggestion", "severity_adjustment", "root_cause_hint",
 			"similar_incident", "draft_summary", "postmortem_draft",
+			"runbook_suggestion",
 		),
 		// content AI 产出（文本/结构化）
 		field.JSON("content", map[string]any{}).Comment("AI 产出内容"),
