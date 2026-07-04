@@ -31,6 +31,10 @@ type AIInsight struct {
 	Evidence []map[string]interface{} `json:"evidence,omitempty"`
 	// Status holds the value of the "status" field.
 	Status aiinsight.Status `json:"status,omitempty"`
+	// 采纳/拒绝该建议的 user_id（S11 留痕）
+	ResolvedBy int `json:"resolved_by,omitempty"`
+	// 采纳/拒绝该建议的时刻（S11 留痕）
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -71,11 +75,11 @@ func (*AIInsight) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case aiinsight.FieldConfidence:
 			values[i] = new(sql.NullFloat64)
-		case aiinsight.FieldID:
+		case aiinsight.FieldID, aiinsight.FieldResolvedBy:
 			values[i] = new(sql.NullInt64)
 		case aiinsight.FieldStage, aiinsight.FieldType, aiinsight.FieldStatus:
 			values[i] = new(sql.NullString)
-		case aiinsight.FieldCreatedAt, aiinsight.FieldUpdatedAt:
+		case aiinsight.FieldResolvedAt, aiinsight.FieldCreatedAt, aiinsight.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		case aiinsight.ForeignKeys[0]: // incident_ai_insights
 			values[i] = new(sql.NullInt64)
@@ -139,6 +143,19 @@ func (_m *AIInsight) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				_m.Status = aiinsight.Status(value.String)
+			}
+		case aiinsight.FieldResolvedBy:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field resolved_by", values[i])
+			} else if value.Valid {
+				_m.ResolvedBy = int(value.Int64)
+			}
+		case aiinsight.FieldResolvedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field resolved_at", values[i])
+			} else if value.Valid {
+				_m.ResolvedAt = new(time.Time)
+				*_m.ResolvedAt = value.Time
 			}
 		case aiinsight.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -217,6 +234,14 @@ func (_m *AIInsight) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	builder.WriteString("resolved_by=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ResolvedBy))
+	builder.WriteString(", ")
+	if v := _m.ResolvedAt; v != nil {
+		builder.WriteString("resolved_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

@@ -95,7 +95,7 @@ func TestDiagnose_WithMockProvider(t *testing.T) {
 	}
 }
 
-// TestResolveInsight 验证 accept/reject。
+// TestResolveInsight 验证 accept 落状态 + 留痕（resolved_by/resolved_at）。
 func TestResolveInsight(t *testing.T) {
 	c := newDiagTestClient(t)
 	inc := seedIncidentForDiag(t, c)
@@ -104,19 +104,48 @@ func TestResolveInsight(t *testing.T) {
 
 	res, _ := e.Diagnose(context.Background(), inc.ID)
 
-	// accept
-	if err := e.ResolveInsight(context.Background(), res.InsightID, true); err != nil {
+	// accept：状态变 accepted，且留痕 resolved_by/resolved_at
+	const actorID = 42
+	if _, err := e.ResolveInsight(context.Background(), res.InsightID, actorID, true); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
 	ins, _ := c.AIInsight.Get(context.Background(), res.InsightID)
 	if string(ins.Status) != "accepted" {
 		t.Errorf("after accept: got %q, want accepted", ins.Status)
 	}
-	// reject
-	_ = e.ResolveInsight(context.Background(), res.InsightID, false)
-	ins, _ = c.AIInsight.Get(context.Background(), res.InsightID)
-	if string(ins.Status) != "rejected" {
-		t.Errorf("after reject: got %q, want rejected", ins.Status)
+	if ins.ResolvedBy != actorID {
+		t.Errorf("resolved_by: got %d, want %d (S11 留痕缺失)", ins.ResolvedBy, actorID)
+	}
+	if ins.ResolvedAt == nil {
+		t.Errorf("resolved_at 未记录（S11 留痕缺失）")
+	}
+}
+
+// TestResolveInsight_AlreadyResolved_Rejected 验证 S11 状态前置校验：
+// 已改判的建议再改判被拒（防 accepted↔rejected 反复翻转），且状态/留痕不变。
+func TestResolveInsight_AlreadyResolved_Rejected(t *testing.T) {
+	c := newDiagTestClient(t)
+	inc := seedIncidentForDiag(t, c)
+	mp := &mockProvider{resp: `{"root_cause":"x","confidence":0.5}`, avail: true}
+	e := NewDiagnoseEngine(c, mp)
+
+	res, _ := e.Diagnose(context.Background(), inc.ID)
+
+	// 首次 accept 成功
+	if _, err := e.ResolveInsight(context.Background(), res.InsightID, 7, true); err != nil {
+		t.Fatalf("first accept: %v", err)
+	}
+	// 二次 reject 必须被拒（已 resolved）
+	if _, err := e.ResolveInsight(context.Background(), res.InsightID, 8, false); !errors.Is(err, ErrInsightAlreadyResolved) {
+		t.Fatalf("second resolve: got %v, want ErrInsightAlreadyResolved", err)
+	}
+	// 状态与留痕维持首次 accept 的结果
+	ins, _ := c.AIInsight.Get(context.Background(), res.InsightID)
+	if string(ins.Status) != "accepted" {
+		t.Errorf("status flipped despite guard: got %q, want accepted", ins.Status)
+	}
+	if ins.ResolvedBy != 7 {
+		t.Errorf("resolved_by overwritten: got %d, want 7", ins.ResolvedBy)
 	}
 }
 

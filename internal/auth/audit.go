@@ -48,6 +48,8 @@ const (
 	ActionIntegrationCreate = "integration.create"
 	ActionIntegrationUpdate = "integration.update"
 	ActionIntegrationDelete = "integration.delete"
+	// AI 建议改判（S11）：采纳/拒绝会影响后续自动化/复盘，谁在何时改判须可审计。
+	ActionAIInsightResolve = "ai.insight.resolve"
 )
 
 // AuditEntry 审计日志条目（调用方构造，Recorder 持久化）。

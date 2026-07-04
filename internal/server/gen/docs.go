@@ -3506,34 +3506,14 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
-            "internal_timeline.Actor": {
-                "properties": {
-                    "id": {
-                        "description": "执行者标识（user id 等）",
-                        "type": "string"
-                    },
-                    "kind": {
-                        "description": "system | user | integration | ai",
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
             "internal_timeline.addReq": {
                 "properties": {
-                    "actor": {
-                        "$ref": "#/components/schemas/internal_timeline.Actor"
-                    },
                     "content": {
                         "type": "string"
                     },
                     "detail": {
                         "additionalProperties": {},
                         "type": "object"
-                    },
-                    "source": {
-                        "description": "web | im | api",
-                        "type": "string"
                     }
                 },
                 "type": "object"

@@ -108,6 +108,11 @@ const (
 	// 故仅授予 org 级角色，避免团队管理员越权看到全组织指标。
 	PermAnalyticsView Permission = "analytics.view"
 
+	// —— ai AI 洞察处置（能力域 11，human-in-the-loop）——
+	// 采纳/拒绝 AI 建议是处置级动作（改判会影响后续自动化/复盘），
+	// 不能挂只读的 incident.view（subscriber 也含），否则只读干系人可越权改判。
+	PermAIInsightResolve Permission = "ai.insight.resolve"
+
 	// —— admin 平台级管理 ——
 	PermAdminSettings          Permission = "admin.settings"
 	PermAdminAuditView         Permission = "admin.audit.view"
@@ -135,6 +140,7 @@ var AllPermissions = []Permission{
 	PermNotificationTemplateView, PermNotificationTemplateCreate, PermNotificationTemplateUpdate, PermNotificationTemplateDelete,
 	PermSuppressionView, PermSuppressionCreate, PermSuppressionUpdate, PermSuppressionDelete,
 	PermAnalyticsView,
+	PermAIInsightResolve,
 	PermAdminSettings, PermAdminAuditView, PermAdminAPIKeyManage, PermAdminGlobalIntegration,
 }
 

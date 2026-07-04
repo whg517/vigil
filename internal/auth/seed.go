@@ -45,6 +45,8 @@ var builtinRoles = []struct {
 			"incident.view", "incident.create", "incident.ack", "incident.escalate",
 			"incident.resolve", "incident.reopen", "incident.reassign", "incident.snooze",
 			"incident.add_responder", "incident.runbook.execute",
+			// AI 建议采纳/拒绝（处置级，非只读）
+			"ai.insight.resolve",
 			// 事件查看
 			"event.view",
 			// 复盘
@@ -69,6 +71,8 @@ var builtinRoles = []struct {
 			"postmortem.view",
 			"schedule.view",
 			"service.view",
+			// AI 建议采纳/拒绝（一线处置的一部分，human-in-the-loop）
+			"ai.insight.resolve",
 		},
 	},
 	{
@@ -84,6 +88,8 @@ var builtinRoles = []struct {
 			"postmortem.view", "postmortem.create", "postmortem.update", "postmortem.publish",
 			"schedule.view",
 			"service.view",
+			// AI 建议采纳/拒绝（处置级）
+			"ai.insight.resolve",
 			// 通知/抑制规则查看（lead 需理解为何被抑制/静默）
 			"notification.rule.view", "notification.template.view", "suppression.view",
 		},

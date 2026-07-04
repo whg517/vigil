@@ -27,6 +27,10 @@ const (
 	FieldEvidence = "evidence"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldResolvedBy holds the string denoting the resolved_by field in the database.
+	FieldResolvedBy = "resolved_by"
+	// FieldResolvedAt holds the string denoting the resolved_at field in the database.
+	FieldResolvedAt = "resolved_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -53,6 +57,8 @@ var Columns = []string{
 	FieldConfidence,
 	FieldEvidence,
 	FieldStatus,
+	FieldResolvedBy,
+	FieldResolvedAt,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -195,6 +201,16 @@ func ByConfidence(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByResolvedBy orders the results by the resolved_by field.
+func ByResolvedBy(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldResolvedBy, opts...).ToFunc()
+}
+
+// ByResolvedAt orders the results by the resolved_at field.
+func ByResolvedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldResolvedAt, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

@@ -6637,20 +6637,11 @@ export interface components {
             slug?: string;
             status?: string;
         };
-        "internal_timeline.Actor": {
-            /** @description 执行者标识（user id 等） */
-            id?: string;
-            /** @description system | user | integration | ai */
-            kind?: string;
-        };
         "internal_timeline.addReq": {
-            actor?: components["schemas"]["internal_timeline.Actor"];
             content?: string;
             detail?: {
                 [key: string]: unknown;
             };
-            /** @description web | im | api */
-            source?: string;
         };
         /** @enum {integer} */
         "time.Duration": -9223372036854776000 | 9223372036854776000 | 1 | 1000 | 1000000 | 1000000000 | 60000000000 | 3600000000000;

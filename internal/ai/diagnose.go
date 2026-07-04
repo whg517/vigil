@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -287,14 +288,38 @@ func (e *DiagnoseEngine) findSimilarText(ctx context.Context, inc *ent.Incident,
 		All(ctx)
 }
 
-// ResolveInsight 人确认/拒绝 AI 建议（human-in-the-loop）。
+// ErrInsightAlreadyResolved AI 建议已被改判（非 suggested），拒绝再次改判（S11 状态前置校验）。
+// 一条建议只应被 accept/reject 一次——否则可 accepted↔rejected 反复翻转，
+// 破坏 human-in-the-loop 决策的可信度与审计留痕的准确性。handler 据此返回 409。
+var ErrInsightAlreadyResolved = errors.New("ai insight already resolved")
+
+// ResolveInsight 人确认/拒绝 AI 建议（human-in-the-loop，S11）。
 // accepted=true → status=accepted，false → rejected。
-func (e *DiagnoseEngine) ResolveInsight(ctx context.Context, insightID int, accepted bool) error {
+//
+// 前置校验：仅当当前 status=suggested 时才允许改判；已 resolved（accepted/rejected/applied）
+// 的再改判返回 ErrInsightAlreadyResolved（防反复翻转）。
+// 改判时留痕 resolved_by/resolved_at（谁在何时改判），供审计追溯。
+// actorID<=0（匿名/渐进阶段）时不写 resolved_by（避免记入伪造身份）。
+func (e *DiagnoseEngine) ResolveInsight(ctx context.Context, insightID, actorID int, accepted bool) (*ent.AIInsight, error) {
+	ins, err := e.db.AIInsight.Get(ctx, insightID)
+	if err != nil {
+		return nil, err
+	}
+	// 状态前置校验：只有 suggested 才可改判。
+	if ins.Status != aiinsight.StatusSuggested {
+		return nil, ErrInsightAlreadyResolved
+	}
 	st := aiinsight.StatusRejected
 	if accepted {
 		st = aiinsight.StatusAccepted
 	}
-	return e.db.AIInsight.UpdateOneID(insightID).SetStatus(st).Exec(ctx)
+	upd := e.db.AIInsight.UpdateOneID(insightID).
+		SetStatus(st).
+		SetResolvedAt(time.Now())
+	if actorID > 0 {
+		upd = upd.SetResolvedBy(actorID)
+	}
+	return upd.Save(ctx)
 }
 
 // buildDiagnosePrompt 构造根因诊断 prompt。

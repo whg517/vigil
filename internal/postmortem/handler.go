@@ -182,6 +182,10 @@ func (h *Handler) generateDraft(c *echo.Context) error {
 	}
 	pm, err := h.engine.GenerateDraft(c.Request().Context(), incID)
 	if err != nil {
+		// S7 覆盖保护：复盘已脱离 draft（评审/发布过），拒绝重新起草覆盖 → 409。
+		if errors.Is(err, ErrPostmortemNotDraft) {
+			return errs.Conflict(c, "复盘已进入评审/发布，不能重新起草覆盖")
+		}
 		return errs.FailConstraint(c, nil, err, "postmortem", "postmortem already exists")
 	}
 	return c.JSON(http.StatusCreated, flatten(pm))

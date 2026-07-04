@@ -25,6 +25,7 @@ type Handler struct {
 	engine *DiagnoseEngine
 	authz  *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
 	scope  *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
+	audit  *auth.AuditRecorder // 建议改判留痕（S11，可选注入，nil 时跳过）
 }
 
 // NewHandler 创建 AI handler。
@@ -38,6 +39,9 @@ func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
 
 // SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
 func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
+
+// SetAuditRecorder 注入审计记录器（S11：AI 建议采纳/拒绝留痕）。
+func (h *Handler) SetAuditRecorder(r *auth.AuditRecorder) { h.audit = r }
 
 // actorFromContext 取当前操作人 ID（鉴权中间件注入的 ctxUser）。
 // 中间件未注入（匿名放行）时返回 0。
@@ -196,13 +200,35 @@ func (h *Handler) resolve(c *echo.Context) error {
 	if err != nil {
 		return errs.BadRequest(c, "invalid id")
 	}
-	if e := h.checkAccess(c, "ai_insight", insightID, auth.PermIncidentView); e != nil {
+	// S11：采纳/拒绝是处置级动作，须 ai.insight.resolve（非只读 incident.view）。
+	// 否则 subscriber（仅含 incident.view）可越权改判 AI 建议。
+	if e := h.checkAccess(c, "ai_insight", insightID, auth.PermAIInsightResolve); e != nil {
 		return e
 	}
 	var req resolveReq
 	_ = c.Bind(&req)
-	if err := h.engine.ResolveInsight(c.Request().Context(), insightID, req.Accepted); err != nil {
+	actorID := h.actorFromContext(c)
+	if _, err := h.engine.ResolveInsight(c.Request().Context(), insightID, actorID, req.Accepted); err != nil {
+		// S11 状态前置校验：已改判的建议再改判 → 409（防反复翻转），非服务端错误。
+		if errors.Is(err, ErrInsightAlreadyResolved) {
+			return errs.Conflict(c, "该 AI 建议已被采纳/拒绝，不能重复改判")
+		}
 		return errs.Internal(c, nil, err)
 	}
+	// S11 留痕：谁在何时 accept/reject 了哪条 AI 建议（审计总线）。
+	h.auditResolve(c, actorID, insightID, req.Accepted)
 	return c.JSON(http.StatusOK, map[string]any{"status": "resolved", "accepted": req.Accepted})
+}
+
+// auditResolve 记录 AI 建议改判审计（S11）。db 为 nil / 未注入 recorder 时跳过。
+func (h *Handler) auditResolve(c *echo.Context, actorID, insightID int, accepted bool) {
+	if h.audit == nil {
+		return
+	}
+	e := auth.AuditEntryFromRequest(c.Request(), actorID, "")
+	e.Action = auth.ActionAIInsightResolve
+	e.ResourceType = "ai_insight"
+	e.ResourceID = insightID
+	e.Detail = map[string]any{"accepted": accepted}
+	h.audit.MustRecord(c.Request().Context(), e)
 }

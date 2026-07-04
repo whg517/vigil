@@ -2,6 +2,7 @@ package postmortem
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -137,6 +138,43 @@ func TestGenerateDraft_Idempotent(t *testing.T) {
 	pm2, _ := eng.GenerateDraft(context.Background(), inc.ID)
 	if pm1.ID != pm2.ID {
 		t.Errorf("重复生成应更新同一记录: pm1.ID=%d pm2.ID=%d", pm1.ID, pm2.ID)
+	}
+}
+
+// TestGenerateDraft_RefuseOverwritePublished S7 覆盖保护：已发布（脱离 draft）的复盘
+// 重新起草被拒（ErrPostmortemNotDraft），已校对/发布的 sections 不被冲掉。
+func TestGenerateDraft_RefuseOverwritePublished(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c)
+	eng := NewEngine(c, nil)
+
+	pm, err := eng.GenerateDraft(context.Background(), inc.ID)
+	if err != nil {
+		t.Fatalf("first draft: %v", err)
+	}
+	// 推到 published（draft → in_review → published）
+	if _, err := eng.Transition(context.Background(), pm.ID, postmortem.StatusInReview); err != nil {
+		t.Fatalf("→in_review: %v", err)
+	}
+	if _, err := eng.Transition(context.Background(), pm.ID, postmortem.StatusPublished); err != nil {
+		t.Fatalf("→published: %v", err)
+	}
+	// 人工改一个 sections 字段模拟校对成果，随后重新起草不得覆盖它
+	if _, err := c.Postmortem.UpdateOneID(pm.ID).
+		SetSections(map[string]any{"summary": "人工校对后的定稿"}).Save(context.Background()); err != nil {
+		t.Fatalf("edit sections: %v", err)
+	}
+	// 重新起草 → 拒绝
+	if _, err := eng.GenerateDraft(context.Background(), inc.ID); !errors.Is(err, ErrPostmortemNotDraft) {
+		t.Fatalf("re-draft published: got %v, want ErrPostmortemNotDraft", err)
+	}
+	// sections 未被覆盖
+	got, _ := c.Postmortem.Get(context.Background(), pm.ID)
+	if s, _ := got.Sections["summary"].(string); s != "人工校对后的定稿" {
+		t.Errorf("published sections overwritten: got %q", s)
+	}
+	if got.Status != postmortem.StatusPublished {
+		t.Errorf("status changed: got %q, want published", got.Status)
 	}
 }
 

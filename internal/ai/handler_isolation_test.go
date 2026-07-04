@@ -29,6 +29,7 @@ type isoData struct {
 	c            *ent.Client
 	teamA, teamB int
 	incA, incB   int
+	insightA     int // 归属 teamA（经 incA）的 AI 建议（同 team 权限门控用）
 	insightB     int // 归属 teamB（经 incB）的 AI 建议
 	userA, userB int
 }
@@ -94,8 +95,17 @@ func isoSetup(t *testing.T) isoData {
 	if err != nil {
 		t.Fatalf("create insightB: %v", err)
 	}
+	insA, err := c.AIInsight.Create().
+		SetStage(aiinsight.StageDiagnose).
+		SetType(aiinsight.TypeRootCauseHint).
+		SetContent(map[string]any{"root_cause": "y"}).
+		SetIncidentID(incA.ID).
+		Save(ctx)
+	if err != nil {
+		t.Fatalf("create insightA: %v", err)
+	}
 
-	return isoData{c: c, teamA: ta.ID, teamB: tb.ID, incA: incA.ID, incB: incB.ID, insightB: insB.ID, userA: ua.ID, userB: ub.ID}
+	return isoData{c: c, teamA: ta.ID, teamB: tb.ID, incA: incA.ID, incB: incB.ID, insightA: insA.ID, insightB: insB.ID, userA: ua.ID, userB: ub.ID}
 }
 
 func newIsolatedHandler(d isoData) *echo.Echo {
@@ -175,6 +185,61 @@ func TestIsolation_CrossTeamResolveInsight_StateUnchanged(t *testing.T) {
 	}
 	if ins.Status != aiinsight.StatusSuggested {
 		t.Errorf("insightB status mutated despite 403: got %s, want suggested (403-but-persisted bug)", ins.Status)
+	}
+}
+
+// grantTeamPerm 给 uid 在 tid 团队额外绑定一个含指定权限点的角色（同 team 权限门控测试用）。
+func grantTeamPerm(t *testing.T, c *ent.Client, uid, tid int, perm auth.Permission) {
+	t.Helper()
+	ctx := t.Context()
+	r, err := c.Role.Create().
+		SetName("resolver_" + strconv.Itoa(uid)).SetScopeLevel(role.ScopeLevelTeam).
+		SetPermissions([]string{string(auth.PermIncidentView), string(perm)}).Save(ctx)
+	if err != nil {
+		t.Fatalf("create resolver role: %v", err)
+	}
+	if _, err := c.RoleBinding.Create().
+		SetUserID(uid).SetRoleID(r.ID).
+		SetScopeLevel(rolebinding.ScopeLevelTeam).
+		SetTeamID(strconv.Itoa(tid)).SetGrantedAt(time.Now()).Save(ctx); err != nil {
+		t.Fatalf("bind resolver role: %v", err)
+	}
+}
+
+// TestResolve_SubscriberEquivalent_403 只读角色（仅 incident.view，同 subscriber）改判本 team 的
+// AI 建议 → 403，且状态不变。S11：resolve 须 ai.insight.resolve，不能挂只读 incident.view。
+func TestResolve_SubscriberEquivalent_403(t *testing.T) {
+	d := isoSetup(t)
+	e := newIsolatedHandler(d)
+	// userA 在 teamA 只有 viewer 角色（incident.view），无 ai.insight.resolve。
+	rec := reqAsUser(e, http.MethodPost, "/api/v1/ai-insights/"+strconv.Itoa(d.insightA)+"/resolve", d.userA, `{"accepted":true}`)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("viewer resolve own-team insight: got %d, want 403 (处置级权限缺失应拒绝)", rec.Code)
+	}
+	ins, err := d.c.AIInsight.Get(t.Context(), d.insightA)
+	if err != nil {
+		t.Fatalf("reload insightA: %v", err)
+	}
+	if ins.Status != aiinsight.StatusSuggested {
+		t.Errorf("insightA status mutated despite 403: got %s, want suggested", ins.Status)
+	}
+}
+
+// TestResolve_WithPerm_OK 持 ai.insight.resolve 的用户改判本 team 建议 → 非 403 且状态改判成功。
+func TestResolve_WithPerm_OK(t *testing.T) {
+	d := isoSetup(t)
+	grantTeamPerm(t, d.c, d.userA, d.teamA, auth.PermAIInsightResolve)
+	e := newIsolatedHandler(d)
+	rec := reqAsUser(e, http.MethodPost, "/api/v1/ai-insights/"+strconv.Itoa(d.insightA)+"/resolve", d.userA, `{"accepted":true}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("authorized resolve: got %d, want 200", rec.Code)
+	}
+	ins, err := d.c.AIInsight.Get(t.Context(), d.insightA)
+	if err != nil {
+		t.Fatalf("reload insightA: %v", err)
+	}
+	if ins.Status != aiinsight.StatusAccepted {
+		t.Errorf("after authorized accept: got %s, want accepted", ins.Status)
 	}
 }
 

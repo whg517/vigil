@@ -88,6 +88,9 @@ type AIInsightMutation struct {
 	evidence        *[]map[string]interface{}
 	appendevidence  []map[string]interface{}
 	status          *aiinsight.Status
+	resolved_by     *int
+	addresolved_by  *int
+	resolved_at     *time.Time
 	created_at      *time.Time
 	updated_at      *time.Time
 	clearedFields   map[string]struct{}
@@ -461,6 +464,125 @@ func (m *AIInsightMutation) ResetStatus() {
 	m.status = nil
 }
 
+// SetResolvedBy sets the "resolved_by" field.
+func (m *AIInsightMutation) SetResolvedBy(i int) {
+	m.resolved_by = &i
+	m.addresolved_by = nil
+}
+
+// ResolvedBy returns the value of the "resolved_by" field in the mutation.
+func (m *AIInsightMutation) ResolvedBy() (r int, exists bool) {
+	v := m.resolved_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResolvedBy returns the old "resolved_by" field's value of the AIInsight entity.
+// If the AIInsight object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AIInsightMutation) OldResolvedBy(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResolvedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResolvedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResolvedBy: %w", err)
+	}
+	return oldValue.ResolvedBy, nil
+}
+
+// AddResolvedBy adds i to the "resolved_by" field.
+func (m *AIInsightMutation) AddResolvedBy(i int) {
+	if m.addresolved_by != nil {
+		*m.addresolved_by += i
+	} else {
+		m.addresolved_by = &i
+	}
+}
+
+// AddedResolvedBy returns the value that was added to the "resolved_by" field in this mutation.
+func (m *AIInsightMutation) AddedResolvedBy() (r int, exists bool) {
+	v := m.addresolved_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearResolvedBy clears the value of the "resolved_by" field.
+func (m *AIInsightMutation) ClearResolvedBy() {
+	m.resolved_by = nil
+	m.addresolved_by = nil
+	m.clearedFields[aiinsight.FieldResolvedBy] = struct{}{}
+}
+
+// ResolvedByCleared returns if the "resolved_by" field was cleared in this mutation.
+func (m *AIInsightMutation) ResolvedByCleared() bool {
+	_, ok := m.clearedFields[aiinsight.FieldResolvedBy]
+	return ok
+}
+
+// ResetResolvedBy resets all changes to the "resolved_by" field.
+func (m *AIInsightMutation) ResetResolvedBy() {
+	m.resolved_by = nil
+	m.addresolved_by = nil
+	delete(m.clearedFields, aiinsight.FieldResolvedBy)
+}
+
+// SetResolvedAt sets the "resolved_at" field.
+func (m *AIInsightMutation) SetResolvedAt(t time.Time) {
+	m.resolved_at = &t
+}
+
+// ResolvedAt returns the value of the "resolved_at" field in the mutation.
+func (m *AIInsightMutation) ResolvedAt() (r time.Time, exists bool) {
+	v := m.resolved_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResolvedAt returns the old "resolved_at" field's value of the AIInsight entity.
+// If the AIInsight object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AIInsightMutation) OldResolvedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResolvedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResolvedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResolvedAt: %w", err)
+	}
+	return oldValue.ResolvedAt, nil
+}
+
+// ClearResolvedAt clears the value of the "resolved_at" field.
+func (m *AIInsightMutation) ClearResolvedAt() {
+	m.resolved_at = nil
+	m.clearedFields[aiinsight.FieldResolvedAt] = struct{}{}
+}
+
+// ResolvedAtCleared returns if the "resolved_at" field was cleared in this mutation.
+func (m *AIInsightMutation) ResolvedAtCleared() bool {
+	_, ok := m.clearedFields[aiinsight.FieldResolvedAt]
+	return ok
+}
+
+// ResetResolvedAt resets all changes to the "resolved_at" field.
+func (m *AIInsightMutation) ResetResolvedAt() {
+	m.resolved_at = nil
+	delete(m.clearedFields, aiinsight.FieldResolvedAt)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *AIInsightMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -606,7 +728,7 @@ func (m *AIInsightMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AIInsightMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 10)
 	if m.stage != nil {
 		fields = append(fields, aiinsight.FieldStage)
 	}
@@ -624,6 +746,12 @@ func (m *AIInsightMutation) Fields() []string {
 	}
 	if m.status != nil {
 		fields = append(fields, aiinsight.FieldStatus)
+	}
+	if m.resolved_by != nil {
+		fields = append(fields, aiinsight.FieldResolvedBy)
+	}
+	if m.resolved_at != nil {
+		fields = append(fields, aiinsight.FieldResolvedAt)
 	}
 	if m.created_at != nil {
 		fields = append(fields, aiinsight.FieldCreatedAt)
@@ -651,6 +779,10 @@ func (m *AIInsightMutation) Field(name string) (ent.Value, bool) {
 		return m.Evidence()
 	case aiinsight.FieldStatus:
 		return m.Status()
+	case aiinsight.FieldResolvedBy:
+		return m.ResolvedBy()
+	case aiinsight.FieldResolvedAt:
+		return m.ResolvedAt()
 	case aiinsight.FieldCreatedAt:
 		return m.CreatedAt()
 	case aiinsight.FieldUpdatedAt:
@@ -676,6 +808,10 @@ func (m *AIInsightMutation) OldField(ctx context.Context, name string) (ent.Valu
 		return m.OldEvidence(ctx)
 	case aiinsight.FieldStatus:
 		return m.OldStatus(ctx)
+	case aiinsight.FieldResolvedBy:
+		return m.OldResolvedBy(ctx)
+	case aiinsight.FieldResolvedAt:
+		return m.OldResolvedAt(ctx)
 	case aiinsight.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case aiinsight.FieldUpdatedAt:
@@ -731,6 +867,20 @@ func (m *AIInsightMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetStatus(v)
 		return nil
+	case aiinsight.FieldResolvedBy:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResolvedBy(v)
+		return nil
+	case aiinsight.FieldResolvedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResolvedAt(v)
+		return nil
 	case aiinsight.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -756,6 +906,9 @@ func (m *AIInsightMutation) AddedFields() []string {
 	if m.addconfidence != nil {
 		fields = append(fields, aiinsight.FieldConfidence)
 	}
+	if m.addresolved_by != nil {
+		fields = append(fields, aiinsight.FieldResolvedBy)
+	}
 	return fields
 }
 
@@ -766,6 +919,8 @@ func (m *AIInsightMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case aiinsight.FieldConfidence:
 		return m.AddedConfidence()
+	case aiinsight.FieldResolvedBy:
+		return m.AddedResolvedBy()
 	}
 	return nil, false
 }
@@ -782,6 +937,13 @@ func (m *AIInsightMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddConfidence(v)
 		return nil
+	case aiinsight.FieldResolvedBy:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddResolvedBy(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AIInsight numeric field %s", name)
 }
@@ -792,6 +954,12 @@ func (m *AIInsightMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(aiinsight.FieldEvidence) {
 		fields = append(fields, aiinsight.FieldEvidence)
+	}
+	if m.FieldCleared(aiinsight.FieldResolvedBy) {
+		fields = append(fields, aiinsight.FieldResolvedBy)
+	}
+	if m.FieldCleared(aiinsight.FieldResolvedAt) {
+		fields = append(fields, aiinsight.FieldResolvedAt)
 	}
 	return fields
 }
@@ -809,6 +977,12 @@ func (m *AIInsightMutation) ClearField(name string) error {
 	switch name {
 	case aiinsight.FieldEvidence:
 		m.ClearEvidence()
+		return nil
+	case aiinsight.FieldResolvedBy:
+		m.ClearResolvedBy()
+		return nil
+	case aiinsight.FieldResolvedAt:
+		m.ClearResolvedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown AIInsight nullable field %s", name)
@@ -835,6 +1009,12 @@ func (m *AIInsightMutation) ResetField(name string) error {
 		return nil
 	case aiinsight.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case aiinsight.FieldResolvedBy:
+		m.ResetResolvedBy()
+		return nil
+	case aiinsight.FieldResolvedAt:
+		m.ResetResolvedAt()
 		return nil
 	case aiinsight.FieldCreatedAt:
 		m.ResetCreatedAt()

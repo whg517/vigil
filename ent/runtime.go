@@ -43,11 +43,11 @@ func init() {
 	// aiinsight.DefaultConfidence holds the default value on creation for the confidence field.
 	aiinsight.DefaultConfidence = aiinsightDescConfidence.Default.(float32)
 	// aiinsightDescCreatedAt is the schema descriptor for created_at field.
-	aiinsightDescCreatedAt := aiinsightFields[6].Descriptor()
+	aiinsightDescCreatedAt := aiinsightFields[8].Descriptor()
 	// aiinsight.DefaultCreatedAt holds the default value on creation for the created_at field.
 	aiinsight.DefaultCreatedAt = aiinsightDescCreatedAt.Default.(func() time.Time)
 	// aiinsightDescUpdatedAt is the schema descriptor for updated_at field.
-	aiinsightDescUpdatedAt := aiinsightFields[7].Descriptor()
+	aiinsightDescUpdatedAt := aiinsightFields[9].Descriptor()
 	// aiinsight.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	aiinsight.DefaultUpdatedAt = aiinsightDescUpdatedAt.Default.(func() time.Time)
 	// aiinsight.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

@@ -330,6 +330,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	aiH := ai.NewHandler(aiDiagEngine)
 	aiH.SetAuthorizer(authz)
 	aiH.SetScopeResolver(scopeResolver)
+	aiH.SetAuditRecorder(auditRecorder) // S11：AI 建议采纳/拒绝留痕（谁在何时改判）
 	aiH.Register(v1)
 	analytics.NewHandler(analytics.NewEngine(st.DB)).Register(v1)
 	// 通知配置（能力域 7 + 3 抑制）：Rule/Suppression/Template CRUD + dry-run。
@@ -690,6 +691,8 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	// 复盘删除 + 状态流转 + 改进项（M12）
 	g.RoutePerm(http.MethodDelete, "/postmortems/:id", auth.PermPostmortemUpdate)
 	g.RoutePerm(http.MethodPatch, "/postmortems/:id/transition", auth.PermPostmortemPublish)
+	// AI 建议采纳/拒绝（S11 处置级，非只读 incident.view，subscriber 不得改判）
+	g.RoutePerm(http.MethodPost, "/ai-insights/:id/resolve", auth.PermAIInsightResolve)
 	// 服务目录写（M13.4）
 	g.RoutePerm(http.MethodPost, "/services", auth.PermServiceCreate)
 	g.RoutePerm(http.MethodPatch, "/services/:id", auth.PermServiceUpdate)

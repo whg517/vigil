@@ -73,6 +73,34 @@ func (_c *AIInsightCreate) SetNillableStatus(v *aiinsight.Status) *AIInsightCrea
 	return _c
 }
 
+// SetResolvedBy sets the "resolved_by" field.
+func (_c *AIInsightCreate) SetResolvedBy(v int) *AIInsightCreate {
+	_c.mutation.SetResolvedBy(v)
+	return _c
+}
+
+// SetNillableResolvedBy sets the "resolved_by" field if the given value is not nil.
+func (_c *AIInsightCreate) SetNillableResolvedBy(v *int) *AIInsightCreate {
+	if v != nil {
+		_c.SetResolvedBy(*v)
+	}
+	return _c
+}
+
+// SetResolvedAt sets the "resolved_at" field.
+func (_c *AIInsightCreate) SetResolvedAt(v time.Time) *AIInsightCreate {
+	_c.mutation.SetResolvedAt(v)
+	return _c
+}
+
+// SetNillableResolvedAt sets the "resolved_at" field if the given value is not nil.
+func (_c *AIInsightCreate) SetNillableResolvedAt(v *time.Time) *AIInsightCreate {
+	if v != nil {
+		_c.SetResolvedAt(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *AIInsightCreate) SetCreatedAt(v time.Time) *AIInsightCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -260,6 +288,14 @@ func (_c *AIInsightCreate) createSpec() (*AIInsight, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(aiinsight.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.ResolvedBy(); ok {
+		_spec.SetField(aiinsight.FieldResolvedBy, field.TypeInt, value)
+		_node.ResolvedBy = value
+	}
+	if value, ok := _c.mutation.ResolvedAt(); ok {
+		_spec.SetField(aiinsight.FieldResolvedAt, field.TypeTime, value)
+		_node.ResolvedAt = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(aiinsight.FieldCreatedAt, field.TypeTime, value)

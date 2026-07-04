@@ -117,6 +117,53 @@ func (_u *AIInsightUpdate) SetNillableStatus(v *aiinsight.Status) *AIInsightUpda
 	return _u
 }
 
+// SetResolvedBy sets the "resolved_by" field.
+func (_u *AIInsightUpdate) SetResolvedBy(v int) *AIInsightUpdate {
+	_u.mutation.ResetResolvedBy()
+	_u.mutation.SetResolvedBy(v)
+	return _u
+}
+
+// SetNillableResolvedBy sets the "resolved_by" field if the given value is not nil.
+func (_u *AIInsightUpdate) SetNillableResolvedBy(v *int) *AIInsightUpdate {
+	if v != nil {
+		_u.SetResolvedBy(*v)
+	}
+	return _u
+}
+
+// AddResolvedBy adds value to the "resolved_by" field.
+func (_u *AIInsightUpdate) AddResolvedBy(v int) *AIInsightUpdate {
+	_u.mutation.AddResolvedBy(v)
+	return _u
+}
+
+// ClearResolvedBy clears the value of the "resolved_by" field.
+func (_u *AIInsightUpdate) ClearResolvedBy() *AIInsightUpdate {
+	_u.mutation.ClearResolvedBy()
+	return _u
+}
+
+// SetResolvedAt sets the "resolved_at" field.
+func (_u *AIInsightUpdate) SetResolvedAt(v time.Time) *AIInsightUpdate {
+	_u.mutation.SetResolvedAt(v)
+	return _u
+}
+
+// SetNillableResolvedAt sets the "resolved_at" field if the given value is not nil.
+func (_u *AIInsightUpdate) SetNillableResolvedAt(v *time.Time) *AIInsightUpdate {
+	if v != nil {
+		_u.SetResolvedAt(*v)
+	}
+	return _u
+}
+
+// ClearResolvedAt clears the value of the "resolved_at" field.
+func (_u *AIInsightUpdate) ClearResolvedAt() *AIInsightUpdate {
+	_u.mutation.ClearResolvedAt()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *AIInsightUpdate) SetUpdatedAt(v time.Time) *AIInsightUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -249,6 +296,21 @@ func (_u *AIInsightUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(aiinsight.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ResolvedBy(); ok {
+		_spec.SetField(aiinsight.FieldResolvedBy, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedResolvedBy(); ok {
+		_spec.AddField(aiinsight.FieldResolvedBy, field.TypeInt, value)
+	}
+	if _u.mutation.ResolvedByCleared() {
+		_spec.ClearField(aiinsight.FieldResolvedBy, field.TypeInt)
+	}
+	if value, ok := _u.mutation.ResolvedAt(); ok {
+		_spec.SetField(aiinsight.FieldResolvedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ResolvedAtCleared() {
+		_spec.ClearField(aiinsight.FieldResolvedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(aiinsight.FieldUpdatedAt, field.TypeTime, value)
@@ -386,6 +448,53 @@ func (_u *AIInsightUpdateOne) SetNillableStatus(v *aiinsight.Status) *AIInsightU
 	if v != nil {
 		_u.SetStatus(*v)
 	}
+	return _u
+}
+
+// SetResolvedBy sets the "resolved_by" field.
+func (_u *AIInsightUpdateOne) SetResolvedBy(v int) *AIInsightUpdateOne {
+	_u.mutation.ResetResolvedBy()
+	_u.mutation.SetResolvedBy(v)
+	return _u
+}
+
+// SetNillableResolvedBy sets the "resolved_by" field if the given value is not nil.
+func (_u *AIInsightUpdateOne) SetNillableResolvedBy(v *int) *AIInsightUpdateOne {
+	if v != nil {
+		_u.SetResolvedBy(*v)
+	}
+	return _u
+}
+
+// AddResolvedBy adds value to the "resolved_by" field.
+func (_u *AIInsightUpdateOne) AddResolvedBy(v int) *AIInsightUpdateOne {
+	_u.mutation.AddResolvedBy(v)
+	return _u
+}
+
+// ClearResolvedBy clears the value of the "resolved_by" field.
+func (_u *AIInsightUpdateOne) ClearResolvedBy() *AIInsightUpdateOne {
+	_u.mutation.ClearResolvedBy()
+	return _u
+}
+
+// SetResolvedAt sets the "resolved_at" field.
+func (_u *AIInsightUpdateOne) SetResolvedAt(v time.Time) *AIInsightUpdateOne {
+	_u.mutation.SetResolvedAt(v)
+	return _u
+}
+
+// SetNillableResolvedAt sets the "resolved_at" field if the given value is not nil.
+func (_u *AIInsightUpdateOne) SetNillableResolvedAt(v *time.Time) *AIInsightUpdateOne {
+	if v != nil {
+		_u.SetResolvedAt(*v)
+	}
+	return _u
+}
+
+// ClearResolvedAt clears the value of the "resolved_at" field.
+func (_u *AIInsightUpdateOne) ClearResolvedAt() *AIInsightUpdateOne {
+	_u.mutation.ClearResolvedAt()
 	return _u
 }
 
@@ -551,6 +660,21 @@ func (_u *AIInsightUpdateOne) sqlSave(ctx context.Context) (_node *AIInsight, er
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(aiinsight.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ResolvedBy(); ok {
+		_spec.SetField(aiinsight.FieldResolvedBy, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedResolvedBy(); ok {
+		_spec.AddField(aiinsight.FieldResolvedBy, field.TypeInt, value)
+	}
+	if _u.mutation.ResolvedByCleared() {
+		_spec.ClearField(aiinsight.FieldResolvedBy, field.TypeInt)
+	}
+	if value, ok := _u.mutation.ResolvedAt(); ok {
+		_spec.SetField(aiinsight.FieldResolvedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ResolvedAtCleared() {
+		_spec.ClearField(aiinsight.FieldResolvedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(aiinsight.FieldUpdatedAt, field.TypeTime, value)

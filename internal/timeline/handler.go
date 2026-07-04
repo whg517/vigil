@@ -51,6 +51,16 @@ func (h *Handler) actorFromContext(c *echo.Context) int {
 	return 0
 }
 
+// actorFromUID 把登录态 uid 映射为时间线 Actor（S8 防冒充）。
+// uid>0 → 人工操作（kind=user，id 为服务端认定的登录用户，不可伪造）；
+// uid<=0（匿名/渐进阶段未注入身份）→ system，绝不回填成一个凭空的 user。
+func actorFromUID(uid int) Actor {
+	if uid > 0 {
+		return Actor{Kind: "user", ID: strconv.Itoa(uid)}
+	}
+	return Actor{Kind: "system"}
+}
+
 // checkAccess 资源级鉴权 helper（SEC-01）：校验当前用户对 incident 是否有 perm 权限。
 // 时间线按 incident id 查询/追加，资源 kind 固定为 "incident"。
 // 返回 echo error 形式，handler 直接 return。authz/scope 为 nil 时放行（兼容渐进/单测）。
@@ -123,10 +133,12 @@ func (h *Handler) list(c *echo.Context) error {
 }
 
 // addReq 手动追加条目请求（响应者备注等）。
+//
+// S8 防冒充：不接受调用方自报 actor/source。actor 由服务端从登录态回填，
+// source 由端点固定为 web（REST/Web 入口）。否则任何登录用户都能伪造 actor
+// 冒充他人、或伪造 source 掩盖来源，破坏时间线作为"事实留痕"的可信度。
 type addReq struct {
 	Content string         `json:"content"`
-	Actor   Actor          `json:"actor"`
-	Source  string         `json:"source"` // web | im | api
 	Detail  map[string]any `json:"detail"`
 }
 
@@ -156,17 +168,11 @@ func (h *Handler) add(c *echo.Context) error {
 	if err := c.Bind(&req); err != nil || req.Content == "" {
 		return errs.BadRequest(c, "content required")
 	}
-	// 默认 note_added 类型、web 来源
-	actor := req.Actor
-	if actor.Kind == "" {
-		actor.Kind = "user"
-	}
-	src := timelineitem.Source(req.Source)
-	if src == "" {
-		src = timelineitem.SourceWeb
-	}
+	// S8 防冒充：actor 只从登录态回填（忽略请求体自报），source 固定 web。
+	// uid<=0（匿名/渐进阶段）时记为 system，不落一个伪造的 user 身份。
+	actor := actorFromUID(h.actorFromContext(c))
 	if err := h.recorder.Record(c.Request().Context(), incID,
-		timelineitem.TypeNoteAdded, req.Content, actor, src, req.Detail); err != nil {
+		timelineitem.TypeNoteAdded, req.Content, actor, timelineitem.SourceWeb, req.Detail); err != nil {
 		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, map[string]string{"status": "recorded"})

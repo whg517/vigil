@@ -158,6 +158,35 @@ func TestIsolation_CrossTeamAddNote_StateUnchanged(t *testing.T) {
 	}
 }
 
+// TestAddNote_ActorSourceServerBackfilled S8 防冒充：请求体自报的 actor/source 被忽略，
+// actor 从登录态回填（kind=user, id=登录 uid），source 服务端固定 web。
+func TestAddNote_ActorSourceServerBackfilled(t *testing.T) {
+	d := isoSetup(t)
+	e := newIsolatedHandler(d)
+	// 请求体伪造 actor 冒充他人（id=999, kind=integration）+ 伪造 source=im。
+	body := `{"content":"note","actor":{"kind":"integration","id":"999"},"source":"im"}`
+	rec := reqAsUser(e, http.MethodPost, "/api/v1/incidents/"+strconv.Itoa(d.incA)+"/timeline", d.userA, body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("add own-team note: got %d, want 201", rec.Code)
+	}
+	items, err := NewRecorder(d.c).Query(t.Context(), d.incA, "", "", 100, 0)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("query timeline: err=%v n=%d", err, len(items))
+	}
+	it := items[0]
+	// source 必须被服务端固定为 web（忽略自报的 im）。
+	if string(it.Source) != "web" {
+		t.Errorf("source: got %q, want web (自报 source 应被忽略)", it.Source)
+	}
+	// actor 必须回填为登录用户（kind=user, id=登录 uid），而非请求体自报的 integration/999。
+	if it.Actor["kind"] != "user" {
+		t.Errorf("actor.kind: got %q, want user (自报 kind 应被忽略)", it.Actor["kind"])
+	}
+	if it.Actor["id"] != strconv.Itoa(d.userA) {
+		t.Errorf("actor.id: got %q, want %d (应回填登录 uid，杜绝冒充)", it.Actor["id"], d.userA)
+	}
+}
+
 // TestIsolation_OrgWideUserSeesAll org 级用户不被隔离。
 func TestIsolation_OrgWideUserSeesAll(t *testing.T) {
 	d := isoSetup(t)

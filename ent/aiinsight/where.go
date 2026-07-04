@@ -60,6 +60,16 @@ func Confidence(v float32) predicate.AIInsight {
 	return predicate.AIInsight(sql.FieldEQ(FieldConfidence, v))
 }
 
+// ResolvedBy applies equality check predicate on the "resolved_by" field. It's identical to ResolvedByEQ.
+func ResolvedBy(v int) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldEQ(FieldResolvedBy, v))
+}
+
+// ResolvedAt applies equality check predicate on the "resolved_at" field. It's identical to ResolvedAtEQ.
+func ResolvedAt(v time.Time) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldEQ(FieldResolvedAt, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.AIInsight {
 	return predicate.AIInsight(sql.FieldEQ(FieldCreatedAt, v))
@@ -178,6 +188,106 @@ func StatusIn(vs ...Status) predicate.AIInsight {
 // StatusNotIn applies the NotIn predicate on the "status" field.
 func StatusNotIn(vs ...Status) predicate.AIInsight {
 	return predicate.AIInsight(sql.FieldNotIn(FieldStatus, vs...))
+}
+
+// ResolvedByEQ applies the EQ predicate on the "resolved_by" field.
+func ResolvedByEQ(v int) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldEQ(FieldResolvedBy, v))
+}
+
+// ResolvedByNEQ applies the NEQ predicate on the "resolved_by" field.
+func ResolvedByNEQ(v int) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldNEQ(FieldResolvedBy, v))
+}
+
+// ResolvedByIn applies the In predicate on the "resolved_by" field.
+func ResolvedByIn(vs ...int) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldIn(FieldResolvedBy, vs...))
+}
+
+// ResolvedByNotIn applies the NotIn predicate on the "resolved_by" field.
+func ResolvedByNotIn(vs ...int) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldNotIn(FieldResolvedBy, vs...))
+}
+
+// ResolvedByGT applies the GT predicate on the "resolved_by" field.
+func ResolvedByGT(v int) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldGT(FieldResolvedBy, v))
+}
+
+// ResolvedByGTE applies the GTE predicate on the "resolved_by" field.
+func ResolvedByGTE(v int) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldGTE(FieldResolvedBy, v))
+}
+
+// ResolvedByLT applies the LT predicate on the "resolved_by" field.
+func ResolvedByLT(v int) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldLT(FieldResolvedBy, v))
+}
+
+// ResolvedByLTE applies the LTE predicate on the "resolved_by" field.
+func ResolvedByLTE(v int) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldLTE(FieldResolvedBy, v))
+}
+
+// ResolvedByIsNil applies the IsNil predicate on the "resolved_by" field.
+func ResolvedByIsNil() predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldIsNull(FieldResolvedBy))
+}
+
+// ResolvedByNotNil applies the NotNil predicate on the "resolved_by" field.
+func ResolvedByNotNil() predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldNotNull(FieldResolvedBy))
+}
+
+// ResolvedAtEQ applies the EQ predicate on the "resolved_at" field.
+func ResolvedAtEQ(v time.Time) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldEQ(FieldResolvedAt, v))
+}
+
+// ResolvedAtNEQ applies the NEQ predicate on the "resolved_at" field.
+func ResolvedAtNEQ(v time.Time) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldNEQ(FieldResolvedAt, v))
+}
+
+// ResolvedAtIn applies the In predicate on the "resolved_at" field.
+func ResolvedAtIn(vs ...time.Time) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldIn(FieldResolvedAt, vs...))
+}
+
+// ResolvedAtNotIn applies the NotIn predicate on the "resolved_at" field.
+func ResolvedAtNotIn(vs ...time.Time) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldNotIn(FieldResolvedAt, vs...))
+}
+
+// ResolvedAtGT applies the GT predicate on the "resolved_at" field.
+func ResolvedAtGT(v time.Time) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldGT(FieldResolvedAt, v))
+}
+
+// ResolvedAtGTE applies the GTE predicate on the "resolved_at" field.
+func ResolvedAtGTE(v time.Time) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldGTE(FieldResolvedAt, v))
+}
+
+// ResolvedAtLT applies the LT predicate on the "resolved_at" field.
+func ResolvedAtLT(v time.Time) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldLT(FieldResolvedAt, v))
+}
+
+// ResolvedAtLTE applies the LTE predicate on the "resolved_at" field.
+func ResolvedAtLTE(v time.Time) predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldLTE(FieldResolvedAt, v))
+}
+
+// ResolvedAtIsNil applies the IsNil predicate on the "resolved_at" field.
+func ResolvedAtIsNil() predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldIsNull(FieldResolvedAt))
+}
+
+// ResolvedAtNotNil applies the NotNil predicate on the "resolved_at" field.
+func ResolvedAtNotNil() predicate.AIInsight {
+	return predicate.AIInsight(sql.FieldNotNull(FieldResolvedAt))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

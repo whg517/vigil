@@ -35,6 +35,11 @@ func (AIInsight) Fields() []ent.Field {
 		field.Enum("status").Values(
 			"suggested", "accepted", "rejected", "applied",
 		).Default("suggested"),
+		// resolved_by 改判人（accept/reject 的 user_id，S11 留痕）。
+		// 0/未设 表示尚未改判（status=suggested）。
+		field.Int("resolved_by").Optional().Comment("采纳/拒绝该建议的 user_id（S11 留痕）"),
+		// resolved_at 改判时刻（S11 留痕）。
+		field.Time("resolved_at").Optional().Nillable().Comment("采纳/拒绝该建议的时刻（S11 留痕）"),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}

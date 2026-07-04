@@ -11,6 +11,7 @@ package postmortem
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,6 +24,11 @@ import (
 
 	"github.com/pgvector/pgvector-go"
 )
+
+// ErrPostmortemNotDraft 复盘已脱离 draft（in_review/published/archived），
+// 拒绝重新起草覆盖（S7 覆盖保护）。已进入评审/发布的复盘 sections 是人工校对过的成果，
+// 二次起草会无条件冲掉——handler 据此返回 409，让调用方感知"已存在不可覆盖"而非静默丢数据。
+var ErrPostmortemNotDraft = errors.New("postmortem is not in draft status, refusing to overwrite")
 
 // LLMProvider LLM 接口（AI 起草用，可插拔）。nil 时降级为纯时间线草稿。
 // 对应 capabilities/07 §B5。
@@ -103,7 +109,13 @@ func (e *Engine) GenerateDraft(ctx context.Context, incID int) (*ent.Postmortem,
 		Where(postmortem.HasIncidentWith(incident.IDEQ(incID))).
 		Only(ctx)
 	if err == nil && existing != nil {
-		// 已有，更新草稿
+		// S7 覆盖保护：仅 draft 允许重新起草（幂等重跑）。
+		// 已 in_review/published/archived 的复盘 sections 是人工校对/发布过的成果，
+		// 无条件 SetSections 会把它冲掉——拒绝覆盖，交 handler 返回 409。
+		if postmortem.Status(existing.Status) != postmortem.StatusDraft {
+			return nil, ErrPostmortemNotDraft
+		}
+		// draft：更新草稿
 		updated, err := e.db.Postmortem.UpdateOneID(existing.ID).
 			SetSections(sections).
 			SetGeneratedBy(genBy).

@@ -17,6 +17,8 @@ var (
 		{Name: "confidence", Type: field.TypeFloat32, Default: 0},
 		{Name: "evidence", Type: field.TypeJSON, Nullable: true},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"suggested", "accepted", "rejected", "applied"}, Default: "suggested"},
+		{Name: "resolved_by", Type: field.TypeInt, Nullable: true},
+		{Name: "resolved_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "incident_ai_insights", Type: field.TypeInt, Nullable: true},
@@ -29,7 +31,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "ai_insights_incidents_ai_insights",
-				Columns:    []*schema.Column{AiInsightsColumns[9]},
+				Columns:    []*schema.Column{AiInsightsColumns[11]},
 				RefColumns: []*schema.Column{IncidentsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -38,7 +40,7 @@ var (
 			{
 				Name:    "aiinsight_incident_ai_insights",
 				Unique:  false,
-				Columns: []*schema.Column{AiInsightsColumns[9]},
+				Columns: []*schema.Column{AiInsightsColumns[11]},
 			},
 			{
 				Name:    "aiinsight_stage",
