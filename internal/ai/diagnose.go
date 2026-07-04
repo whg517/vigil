@@ -24,6 +24,7 @@ import (
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/timelineitem"
+	"github.com/kevin/vigil/internal/timeline"
 	"github.com/pgvector/pgvector-go"
 )
 
@@ -38,6 +39,9 @@ type DiagnoseEngine struct {
 	provider Provider // LLM 提供方，nil 或不可用时降级（不诊断）
 	// runSQL raw SQL 执行器（pgvector 相似检索用）；nil 时降级为 LIKE 匹配。
 	runSQL SQLRunner
+	// recorder 时间线记录器。诊断产出 AIInsight 后写 ai_insight 时间线（原先零写入）。
+	// 为 nil 时跳过（降级/测试），不阻塞诊断主流程。
+	recorder *timeline.Recorder
 }
 
 // NewDiagnoseEngine 创建诊断引擎。
@@ -47,6 +51,9 @@ func NewDiagnoseEngine(db *ent.Client, p Provider) *DiagnoseEngine {
 
 // SetSQLRunner 注入 raw SQL 执行器（pgvector 相似检索用）。
 func (e *DiagnoseEngine) SetSQLRunner(r SQLRunner) { e.runSQL = r }
+
+// SetRecorder 注入时间线记录器（装配时调用）：诊断产出 AI 洞察后写 ai_insight 时间线。
+func (e *DiagnoseEngine) SetRecorder(r *timeline.Recorder) { e.recorder = r }
 
 // DiagnoseResult 诊断结果。
 // json tag 必填：Go 默认序列化为 PascalCase（InsightID/RootCause），
@@ -117,6 +124,16 @@ func (e *DiagnoseEngine) Diagnose(ctx context.Context, incID int) (*DiagnoseResu
 		Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("save ai insight: %w", err)
+	}
+
+	// 写 ai_insight 时间线（AI 产出根因洞察要「全程留痕」，原先零写入）。
+	// actor.kind=ai、source=ai——时间线可据此区分 AI 动作与人工/系统动作。
+	// 失败不阻塞诊断返回（best-effort）；content 带不确定性提示，与建议措辞一致。
+	if e.recorder != nil {
+		_ = e.recorder.Record(ctx, incID, timelineitem.TypeAiInsight,
+			fmt.Sprintf("AI 根因洞察（置信度 %.2f）：%s", conf, rc),
+			timeline.Actor{Kind: "ai"}, timelineitem.SourceAi,
+			map[string]any{"insight_id": insight.ID, "confidence": conf, "root_cause": rc})
 	}
 
 	return &DiagnoseResult{

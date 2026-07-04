@@ -8,7 +8,9 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/enttest"
+	entincident "github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/timelineitem"
+	"github.com/kevin/vigil/internal/timeline"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -92,6 +94,47 @@ func TestDiagnose_WithMockProvider(t *testing.T) {
 	}
 	if string(ins.Stage) != "diagnose" {
 		t.Errorf("stage: got %q", ins.Stage)
+	}
+}
+
+// TestDiagnose_WritesAiInsightTimeline 验证：诊断产出 AIInsight 后写 ai_insight 时间线（原先零写入）。
+// AI 洞察是「全程留痕」的一环——actor.kind=ai、source=ai，供时间线区分 AI 动作。
+func TestDiagnose_WritesAiInsightTimeline(t *testing.T) {
+	c := newDiagTestClient(t)
+	inc := seedIncidentForDiag(t, c)
+	mp := &mockProvider{resp: `{"root_cause":"可能因DB连接池配置过小","confidence":0.8}`, avail: true}
+	e := NewDiagnoseEngine(c, mp)
+	e.SetRecorder(timeline.NewRecorder(c))
+
+	res, err := e.Diagnose(context.Background(), inc.ID)
+	if err != nil {
+		t.Fatalf("Diagnose: %v", err)
+	}
+	if res == nil {
+		t.Fatal("应返回诊断结果")
+	}
+
+	items, err := c.TimelineItem.Query().
+		Where(
+			timelineitem.HasIncidentWith(entincident.IDEQ(inc.ID)),
+			timelineitem.TypeEQ(timelineitem.TypeAiInsight),
+		).All(context.Background())
+	if err != nil {
+		t.Fatalf("query timeline: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("ai_insight timeline count: got %d, want 1", len(items))
+	}
+	it := items[0]
+	if it.Source != timelineitem.SourceAi {
+		t.Errorf("source: got %q, want ai", it.Source)
+	}
+	if it.Actor["kind"] != "ai" {
+		t.Errorf("actor.kind: got %q, want ai", it.Actor["kind"])
+	}
+	// detail 应带 insight_id，供从时间线追溯到具体 AIInsight。
+	if _, ok := it.Detail["insight_id"]; !ok {
+		t.Errorf("detail should carry insight_id, got %v", it.Detail)
 	}
 }
 

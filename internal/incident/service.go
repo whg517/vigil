@@ -335,7 +335,7 @@ func (s *Service) publish(ctx context.Context, typ event.Type, inc *ent.Incident
 		return
 	}
 	s.bus.Publish(ctx, event.Event{
-		Type: typ, Incident: inc, Action: event.Action(action), ActorID: actorID,
+		Type: typ, Incident: inc, Action: event.Action(action), ActorID: actorID, Via: string(src),
 	})
 }
 
@@ -345,7 +345,7 @@ func (s *Service) publishWithLevel(ctx context.Context, typ event.Type, inc *ent
 		return
 	}
 	s.bus.Publish(ctx, event.Event{
-		Type: typ, Incident: inc, Action: event.Action(action), ActorID: actorID, Level: level,
+		Type: typ, Incident: inc, Action: event.Action(action), ActorID: actorID, Level: level, Via: string(src),
 	})
 }
 

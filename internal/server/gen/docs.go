@@ -2309,6 +2309,27 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "httputil.Paginated-ent_IncidentAction": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/ent.IncidentAction"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "offset": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "httputil.Paginated-ent_TimelineItem": {
                 "properties": {
                     "items": {
@@ -2448,6 +2469,7 @@ const docTemplate = `{
                     "escalate",
                     "resolve",
                     "reopen",
+                    "close",
                     "snooze",
                     "reassign",
                     "add_responder",
@@ -2460,6 +2482,7 @@ const docTemplate = `{
                     "TypeEscalate",
                     "TypeResolve",
                     "TypeReopen",
+                    "TypeClose",
                     "TypeSnooze",
                     "TypeReassign",
                     "TypeAddResponder",
@@ -5314,6 +5337,89 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "确认事件（ack）",
+                "tags": [
+                    "incident"
+                ]
+            }
+        },
+        "/incidents/{id}/actions": {
+            "get": {
+                "description": "返回对该事件的处置动作审计（ack/resolve/escalate/reopen/close/add_responder），含 via 渠道与操作人，按时间升序分页。",
+                "parameters": [
+                    {
+                        "description": "事件 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "分页大小（默认 100，上限 500）",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "分页偏移",
+                        "in": "query",
+                        "name": "offset",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.Paginated-ent_IncidentAction"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "查询事件操作审计",
                 "tags": [
                     "incident"
                 ]

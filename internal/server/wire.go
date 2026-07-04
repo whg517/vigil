@@ -161,6 +161,10 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 
 	// —— 事件动作服务（能力域 8 复用层）：发布事件，不持 escalation ——
 	incService := incident.NewService(st.DB, timelineRecorder, bus)
+	// 操作审计（IncidentAction，审计 B4/B5）：订阅处置事件，每个动作落一条审计记录。
+	// 事件驱动——与时间线/通知/升级各订阅方并列，系统自动动作（自动恢复/自动升级）同样留痕（via=automation）。
+	incidentActionRecorder := incident.NewActionRecorder(st.DB)
+	incidentActionRecorder.Subscribe(bus)
 
 	// —— Webhook 出口（能力域 14）——
 	webhookURLs := parseWebhookURLs(cfg.Webhook.OutURLs)
@@ -301,6 +305,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	escalationH.SetScopeResolver(scopeResolver)
 	escalationH.Register(v1)
 	incidentH := incident.NewHandler(st.DB, incService)
+	incidentH.SetActionRecorder(incidentActionRecorder) // GET /incidents/:id/actions 复用同一审计器
 	incidentH.SetAuthorizer(authz)
 	incidentH.SetScopeResolver(scopeResolver)
 	incidentH.Register(v1)
@@ -348,6 +353,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	postmortemH.SetScopeResolver(scopeResolver)
 	postmortemH.Register(v1)
 	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)
+	aiDiagEngine.SetRecorder(timelineRecorder) // 诊断产出 AI 洞察后写 ai_insight 时间线（原先零写入）
 	if st.SQL != nil {
 		aiDiagEngine.SetSQLRunner(pgvectorRunner(st.SQL))
 	}

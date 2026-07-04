@@ -376,7 +376,7 @@ var (
 	// IncidentActionsColumns holds the columns for the "incident_actions" table.
 	IncidentActionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"ack", "escalate", "resolve", "reopen", "snooze", "reassign", "add_responder", "runbook", "custom"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"ack", "escalate", "resolve", "reopen", "close", "snooze", "reassign", "add_responder", "runbook", "custom"}},
 		{Name: "actor", Type: field.TypeJSON},
 		{Name: "payload", Type: field.TypeJSON, Nullable: true},
 		{Name: "via", Type: field.TypeEnum, Enums: []string{"web", "im", "api", "automation"}},

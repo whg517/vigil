@@ -248,6 +248,14 @@ func (e *Engine) aggregate(ctx context.Context, evt *ent.Event, svc *ent.Service
 		if err := e.db.Event.UpdateOneID(evt.ID).SetIncidentID(existing.ID).Exec(ctx); err != nil {
 			return nil, fmt.Errorf("attach event to incident: %w", err)
 		}
+		// 写 event_attached 时间线（B5：聚合并入已有 Incident 的告警要留痕，原先零写入）。
+		// 让复盘能看到「这个单聚合了哪些后续告警」，而非只见首告警。系统触发，source=system。
+		if e.recorder != nil {
+			_ = e.recorder.Record(ctx, existing.ID, timelineitem.TypeEventAttached,
+				fmt.Sprintf("新告警并入本事件：%s", evt.Summary),
+				timeline.Actor{Kind: "system"}, timelineitem.SourceSystem,
+				map[string]any{"event_id": evt.ID, "dedup_key": evt.DedupKey, "severity": string(evt.Severity), "source_event_id": evt.SourceEventID})
+		}
 		res.Action = ActionAggregated
 		res.IncidentID = existing.ID
 		res.IncidentNum = existing.Number
@@ -343,6 +351,14 @@ func (e *Engine) createIncident(ctx context.Context, evt *ent.Event, svc *ent.Se
 	// 关联 Event 到 Incident
 	if err := e.db.Event.UpdateOneID(evt.ID).SetIncidentID(inc.ID).Exec(ctx); err != nil {
 		return nil, fmt.Errorf("attach event: %w", err)
+	}
+	// 写 incident_created 时间线（B4：建单是「全程留痕」的起点，原先零写入）。
+	// 系统自动建单（triage），source=system。失败不阻塞建单主流程（best-effort）。
+	if e.recorder != nil {
+		_ = e.recorder.Record(ctx, inc.ID, timelineitem.TypeIncidentCreated,
+			fmt.Sprintf("系统创建事件 %s：%s", inc.Number, inc.Title),
+			timeline.Actor{Kind: "system"}, timelineitem.SourceSystem,
+			map[string]any{"number": inc.Number, "severity": string(inc.Severity), "service": svc.Name, "source_event_id": evt.SourceEventID})
 	}
 	return inc, nil
 }

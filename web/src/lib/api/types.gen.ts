@@ -1541,6 +1541,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/incidents/{id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询事件操作审计
+         * @description 返回对该事件的处置动作审计（ack/resolve/escalate/reopen/close/add_responder），含 via 渠道与操作人，按时间升序分页。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 分页大小（默认 100，上限 500） */
+                    limit?: number;
+                    /** @description 分页偏移 */
+                    offset?: number;
+                };
+                header?: never;
+                path: {
+                    /** @description 事件 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.Paginated-ent_IncidentAction"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/incidents/{id}/close": {
         parameters: {
             query?: never;
@@ -6337,6 +6411,12 @@ export interface components {
             offset?: number;
             total?: number;
         };
+        "httputil.Paginated-ent_IncidentAction": {
+            items?: components["schemas"]["ent.IncidentAction"][];
+            limit?: number;
+            offset?: number;
+            total?: number;
+        };
         "httputil.Paginated-ent_TimelineItem": {
             items?: components["schemas"]["ent.TimelineItem"][];
             limit?: number;
@@ -6385,7 +6465,7 @@ export interface components {
          * @description Type holds the value of the "type" field.
          * @enum {string}
          */
-        "incidentaction.Type": "ack" | "escalate" | "resolve" | "reopen" | "snooze" | "reassign" | "add_responder" | "runbook" | "custom";
+        "incidentaction.Type": "ack" | "escalate" | "resolve" | "reopen" | "close" | "snooze" | "reassign" | "add_responder" | "runbook" | "custom";
         /**
          * @description Via holds the value of the "via" field.
          * @enum {string}

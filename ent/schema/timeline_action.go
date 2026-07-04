@@ -63,7 +63,7 @@ type IncidentAction struct {
 func (IncidentAction) Fields() []ent.Field {
 	return []ent.Field{
 		field.Enum("type").Values(
-			"ack", "escalate", "resolve", "reopen", "snooze",
+			"ack", "escalate", "resolve", "reopen", "close", "snooze",
 			"reassign", "add_responder", "runbook", "custom",
 		),
 		// actor

@@ -56,6 +56,10 @@ type Event struct {
 	Incident *ent.Incident
 	Action   Action
 	ActorID  int // 执行动作的用户 ID；0=系统/匿名
+	// Via 动作来源渠道（web/im/api/automation/system），供 IncidentAction 审计留痕（B4/B5/C30）。
+	// 由发布方（incident.Service）从 Source 派生传入；空串表示未指定（订阅方按需兜底为 automation/system）。
+	// 与 incident.Source 解耦（避免 event 包反向依赖 incident 包），仅承载字符串值。
+	Via string
 	// Level 升级目标层级（仅 IncidentEscalated 携带，escalation 订阅方用它触发目标 level）。
 	// 其它事件为 0。语义：与 escalation.Engine.TriggerLevelNow 的 levelIdx 一致。
 	Level int

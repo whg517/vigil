@@ -10,7 +10,9 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/enttest"
 	"github.com/kevin/vigil/ent/incident"
+	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/internal/auth"
+	"github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/timeline"
 
 	"github.com/labstack/echo/v5"
@@ -227,6 +229,99 @@ func errCode(t *testing.T, rec *httptest.ResponseRecorder) string {
 		t.Fatalf("decode error code: %v; body=%s", err, rec.Body.String())
 	}
 	return r.Code
+}
+
+// sourceAttrHandler 建库 + triggered incident + 挂路由（含 ActionRecorder 订阅），
+// 返回 (client, echo, incID)。用于 C30 source 归因验证：动作经 handler → Service → 事件 → 审计。
+func sourceAttrHandler(t *testing.T, dbName string) (*ent.Client, *echo.Echo, int) {
+	t.Helper()
+	c := enttest.Open(t, "sqlite3", "file:"+dbName+"?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = c.Close() })
+	ctx := context.Background()
+	team, err := c.Team.Create().SetName("支付").SetSlug("pay").Save(ctx)
+	if err != nil {
+		t.Fatalf("create team: %v", err)
+	}
+	inc, err := c.Incident.Create().
+		SetNumber("INC-0001").SetTitle("5xx").SetSeverity(incident.SeverityCritical).
+		SetStatus(incident.StatusTriggered).SetTeamID(team.ID).Save(ctx)
+	if err != nil {
+		t.Fatalf("create incident: %v", err)
+	}
+	bus := event.New()
+	svc := NewService(c, timeline.NewRecorder(c), bus)
+	NewActionRecorder(c).Subscribe(bus)
+	h := NewHandler(c, svc)
+	e := echo.New()
+	h.Register(e.Group("/api/v1", auth.RequireUser(false, nil)))
+	return c, e, inc.ID
+}
+
+// TestHandler_SourceAttribution_Web C30：不带 X-Vigil-Key 的 ack → source=web。
+// 时间线 source 与 IncidentAction.via 都应记 web（原实现硬编码 web，恰好对，但语义未区分）。
+func TestHandler_SourceAttribution_Web(t *testing.T) {
+	c, e, incID := sourceAttrHandler(t, "src_attr_web")
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(incID)+"/ack", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ack: got %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	// 时间线 source=web
+	tl, _ := c.TimelineItem.Query().
+		Where(timelineitem.TypeEQ(timelineitem.TypeAck)).First(context.Background())
+	if tl == nil || tl.Source != timelineitem.SourceWeb {
+		t.Errorf("timeline source: got %v, want web", tl)
+	}
+}
+
+// TestHandler_SourceAttribution_API C30：带 X-Vigil-Key 的 ack → source=api。
+// 修复前操作端点硬编码 web，会把 API Key 程序化调用误记为 web；修复后按 X-Vigil-Key 归因 api。
+func TestHandler_SourceAttribution_API(t *testing.T) {
+	c, e, incID := sourceAttrHandler(t, "src_attr_api")
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(incID)+"/ack", nil)
+	// 模拟外部程序化接入：带 API Key 头（值任意，handler 只看头是否存在来归因来源）。
+	req.Header.Set("X-Vigil-Key", "vk_test_dummy")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ack: got %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	// 时间线 source=api（归因区分生效）
+	tl, _ := c.TimelineItem.Query().
+		Where(timelineitem.TypeEQ(timelineitem.TypeAck)).First(context.Background())
+	if tl == nil || tl.Source != timelineitem.SourceAPI {
+		t.Errorf("timeline source: got %v, want api", tl)
+	}
+}
+
+// TestHandler_ListActions 验证 GET /incidents/:id/actions 返回操作审计列表。
+func TestHandler_ListActions(t *testing.T) {
+	c, e, incID := sourceAttrHandler(t, "list_actions")
+	// 先经 ack 端点造一条审计记录
+	ackReq := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+itoa(incID)+"/ack", nil)
+	e.ServeHTTP(httptest.NewRecorder(), ackReq)
+	_ = c
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents/"+itoa(incID)+"/actions", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list actions: got %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Items []*ent.IncidentAction `json:"items"`
+		Total int                   `json:"total"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v; body=%s", err, rec.Body.String())
+	}
+	if out.Total != 1 || len(out.Items) != 1 {
+		t.Fatalf("actions: total=%d items=%d, want 1/1", out.Total, len(out.Items))
+	}
+	if out.Items[0].Type != "ack" {
+		t.Errorf("action type: got %q, want ack", out.Items[0].Type)
+	}
 }
 
 // itoa 简单整数转字符串（避免引入 strconv 仅为此）。

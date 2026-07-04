@@ -30,16 +30,20 @@ var errAccessDenied = errors.New("access denied (response already written)")
 
 // Handler Incident API。
 type Handler struct {
-	db    *ent.Client
-	svc   *Service
-	authz *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
-	scope *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
+	db      *ent.Client
+	svc     *Service
+	actions *ActionRecorder     // 操作审计查询（GET /incidents/:id/actions，可选注入）
+	authz   *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
+	scope   *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
 }
 
 // NewHandler 创建 incident handler。
 func NewHandler(db *ent.Client, svc *Service) *Handler {
-	return &Handler{db: db, svc: svc}
+	return &Handler{db: db, svc: svc, actions: NewActionRecorder(db)}
 }
+
+// SetActionRecorder 注入操作审计查询器（可选；未注入时 NewHandler 已按 db 兜底构造）。
+func (h *Handler) SetActionRecorder(a *ActionRecorder) { h.actions = a }
 
 // SetAuthorizer 注入鉴权器（ARCH-02/SEC-01：资源级鉴权 + list 数据隔离）。
 // 为 nil 时降级为无资源级校验（兼容渐进启用与单测）。
@@ -57,11 +61,27 @@ func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
 func (h *Handler) Register(g *echo.Group) {
 	g.GET("/incidents", h.list)
 	g.GET("/incidents/:id", h.get)
+	g.GET("/incidents/:id/actions", h.listActions)
 	g.POST("/incidents/:id/ack", h.ack)
 	g.POST("/incidents/:id/resolve", h.resolve)
 	g.POST("/incidents/:id/close", h.close)
 	g.POST("/incidents/:id/escalate", h.escalate)
 	g.POST("/incidents/:id/reopen", h.reopen)
+}
+
+// sourceFromRequest 从请求判定动作来源（C30 归因）。
+//
+// 复用 auth 身份解析同款依据（resolver.go）：
+//   - X-Vigil-Key 头存在 → 外部程序化接入（API Key），source=api
+//   - 否则 → Web/浏览器（Bearer JWT 或匿名渐进阶段），source=web
+//
+// IM 来源不经此 handler（IM 回调走 im.Handler，直接以 SourceIM 调 Service），
+// 故这里只需区分 web 与 api，消除原「操作端点硬编码 web」把 API Key 调用误记为 web 的归因错误。
+func (h *Handler) sourceFromRequest(c *echo.Context) Source {
+	if c.Request().Header.Get("X-Vigil-Key") != "" {
+		return SourceAPI
+	}
+	return SourceWeb
 }
 
 // list 查询事件列表（?status=&severity=&limit=&offset=）。
@@ -163,6 +183,45 @@ func (h *Handler) get(c *echo.Context) error {
 	return c.JSON(http.StatusOK, inc)
 }
 
+// listActions 查询某事件的操作审计（IncidentAction，按时间升序，分页）。
+//
+// 与时间线（GET /incidents/:id/timeline）互补：时间线是全程可读留痕，
+// 本端点是结构化处置动作审计（who/via/type），供审计视图与 IM-first 渠道统计用。
+//
+// @Summary      查询事件操作审计
+// @Description  返回对该事件的处置动作审计（ack/resolve/escalate/reopen/close/add_responder），含 via 渠道与操作人，按时间升序分页。
+// @Tags         incident
+// @Produce      json
+// @Param        id      path   int  true   "事件 ID"
+// @Param        limit   query  int  false  "分页大小（默认 100，上限 500）"
+// @Param        offset  query  int  false  "分页偏移"
+// @Success      200  {object} httputil.Paginated[ent.IncidentAction]
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      403  {object} httputil.ErrorResponse
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id}/actions [get]
+func (h *Handler) listActions(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	// 与时间线查询同权限：incident.view（能读事件即可读其操作审计）。
+	if e := h.checkAccess(c, id, auth.PermIncidentView); e != nil {
+		return e
+	}
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	offset, _ := strconv.Atoi(c.QueryParam("offset"))
+	items, err := h.actions.QueryActions(c.Request().Context(), id, limit, offset)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	total, _ := h.actions.CountActions(c.Request().Context(), id)
+	return c.JSON(http.StatusOK, httputil.Paginated[*ent.IncidentAction]{
+		Items: items, Total: total, Limit: limit, Offset: offset,
+	})
+}
+
 // actorFromContext 取当前操作人 ID。
 // 来自鉴权中间件注入的 ctxUser（auth.UserIDFromContext）。
 // 渐进式鉴权阶段：中间件可能未注入（匿名放行），此时返回 0（视为系统/匿名操作）。
@@ -213,7 +272,7 @@ func (h *Handler) ack(c *echo.Context) error {
 	if e := h.checkAccess(c, id, auth.PermIncidentAck); e != nil {
 		return e
 	}
-	inc, err := h.svc.Ack(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
+	inc, err := h.svc.Ack(c.Request().Context(), id, h.actorFromContext(c), h.sourceFromRequest(c))
 	if err != nil {
 		// B25 归一：不存在的 id → 404 not_found；状态非法（ErrInvalidTransition）→ 400 failed_precondition。
 		return errs.FailActionState(c, nil, err, "incident")
@@ -240,7 +299,7 @@ func (h *Handler) resolve(c *echo.Context) error {
 	if e := h.checkAccess(c, id, auth.PermIncidentResolve); e != nil {
 		return e
 	}
-	inc, err := h.svc.Resolve(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
+	inc, err := h.svc.Resolve(c.Request().Context(), id, h.actorFromContext(c), h.sourceFromRequest(c))
 	if err != nil {
 		// B25 归一：不存在 → 404；状态非法 → 400 failed_precondition。
 		return errs.FailActionState(c, nil, err, "incident")
@@ -268,7 +327,7 @@ func (h *Handler) close(c *echo.Context) error {
 	if e := h.checkAccess(c, id, auth.PermIncidentClose); e != nil {
 		return e
 	}
-	inc, err := h.svc.Close(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
+	inc, err := h.svc.Close(c.Request().Context(), id, h.actorFromContext(c), h.sourceFromRequest(c))
 	if err != nil {
 		// 已 closed 幂等：不当失败——直接回读当前单据以 200 返回，让重复点击/并发关闭表现一致。
 		if errors.Is(err, ErrAlreadyClosed) {
@@ -303,7 +362,7 @@ func (h *Handler) escalate(c *echo.Context) error {
 	if e := h.checkAccess(c, id, auth.PermIncidentEscalate); e != nil {
 		return e
 	}
-	inc, err := h.svc.Escalate(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
+	inc, err := h.svc.Escalate(c.Request().Context(), id, h.actorFromContext(c), h.sourceFromRequest(c))
 	if err != nil {
 		// B25 归一：不存在 → 404；状态非法 → 400 failed_precondition。
 		return errs.FailActionState(c, nil, err, "incident")
@@ -331,7 +390,7 @@ func (h *Handler) reopen(c *echo.Context) error {
 	if e := h.checkAccess(c, id, auth.PermIncidentReopen); e != nil {
 		return e
 	}
-	inc, err := h.svc.Reopen(c.Request().Context(), id, h.actorFromContext(c), SourceWeb)
+	inc, err := h.svc.Reopen(c.Request().Context(), id, h.actorFromContext(c), h.sourceFromRequest(c))
 	if err != nil {
 		// B25 归一：不存在 → 404；状态非法 → 400 failed_precondition。
 		return errs.FailActionState(c, nil, err, "incident")
