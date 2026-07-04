@@ -60,6 +60,8 @@ type Tx struct {
 	SuppressionRule *SuppressionRuleClient
 	// Team is the client for interacting with the Team builders.
 	Team *TeamClient
+	// TicketIntegration is the client for interacting with the TicketIntegration builders.
+	TicketIntegration *TicketIntegrationClient
 	// TimelineItem is the client for interacting with the TimelineItem builders.
 	TimelineItem *TimelineItemClient
 	// User is the client for interacting with the User builders.
@@ -219,6 +221,7 @@ func (tx *Tx) init() {
 	tx.Service = NewServiceClient(tx.config)
 	tx.SuppressionRule = NewSuppressionRuleClient(tx.config)
 	tx.Team = NewTeamClient(tx.config)
+	tx.TicketIntegration = NewTicketIntegrationClient(tx.config)
 	tx.TimelineItem = NewTimelineItemClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }

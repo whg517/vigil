@@ -36,6 +36,8 @@ var builtinRoles = []struct {
 			// 服务/集成（含未路由 Event 重路由：service.route_override，M6）
 			"service.view", "service.create", "service.update", "service.delete", "service.route_override",
 			"integration.view", "integration.create", "integration.update", "integration.delete",
+			// 出向工单集成（复盘 ActionItem 自动建单目标，T4.3，团队级配置）
+			"ticket_integration.view", "ticket_integration.create", "ticket_integration.update", "ticket_integration.delete",
 			// 排班/升级（含换他人班：schedule.override，C5/M5.3）
 			"schedule.view", "schedule.create", "schedule.update", "schedule.delete", "schedule.override",
 			"escalation.view", "escalation.create", "escalation.update", "escalation.delete",

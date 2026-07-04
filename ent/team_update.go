@@ -23,6 +23,7 @@ import (
 	"github.com/kevin/vigil/ent/service"
 	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
+	"github.com/kevin/vigil/ent/ticketintegration"
 	"github.com/kevin/vigil/ent/user"
 )
 
@@ -278,6 +279,21 @@ func (_u *TeamUpdate) AddIntegrations(v ...*Integration) *TeamUpdate {
 	return _u.AddIntegrationIDs(ids...)
 }
 
+// AddTicketIntegrationIDs adds the "ticket_integrations" edge to the TicketIntegration entity by IDs.
+func (_u *TeamUpdate) AddTicketIntegrationIDs(ids ...int) *TeamUpdate {
+	_u.mutation.AddTicketIntegrationIDs(ids...)
+	return _u
+}
+
+// AddTicketIntegrations adds the "ticket_integrations" edges to the TicketIntegration entity.
+func (_u *TeamUpdate) AddTicketIntegrations(v ...*TicketIntegration) *TeamUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTicketIntegrationIDs(ids...)
+}
+
 // Mutation returns the TeamMutation object of the builder.
 func (_u *TeamUpdate) Mutation() *TeamMutation {
 	return _u.mutation
@@ -512,6 +528,27 @@ func (_u *TeamUpdate) RemoveIntegrations(v ...*Integration) *TeamUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveIntegrationIDs(ids...)
+}
+
+// ClearTicketIntegrations clears all "ticket_integrations" edges to the TicketIntegration entity.
+func (_u *TeamUpdate) ClearTicketIntegrations() *TeamUpdate {
+	_u.mutation.ClearTicketIntegrations()
+	return _u
+}
+
+// RemoveTicketIntegrationIDs removes the "ticket_integrations" edge to TicketIntegration entities by IDs.
+func (_u *TeamUpdate) RemoveTicketIntegrationIDs(ids ...int) *TeamUpdate {
+	_u.mutation.RemoveTicketIntegrationIDs(ids...)
+	return _u
+}
+
+// RemoveTicketIntegrations removes "ticket_integrations" edges to TicketIntegration entities.
+func (_u *TeamUpdate) RemoveTicketIntegrations(v ...*TicketIntegration) *TeamUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTicketIntegrationIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1088,6 +1125,51 @@ func (_u *TeamUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.TicketIntegrationsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.TicketIntegrationsTable,
+			Columns: []string{team.TicketIntegrationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ticketintegration.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTicketIntegrationsIDs(); len(nodes) > 0 && !_u.mutation.TicketIntegrationsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.TicketIntegrationsTable,
+			Columns: []string{team.TicketIntegrationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ticketintegration.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TicketIntegrationsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.TicketIntegrationsTable,
+			Columns: []string{team.TicketIntegrationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ticketintegration.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{team.Label}
@@ -1347,6 +1429,21 @@ func (_u *TeamUpdateOne) AddIntegrations(v ...*Integration) *TeamUpdateOne {
 	return _u.AddIntegrationIDs(ids...)
 }
 
+// AddTicketIntegrationIDs adds the "ticket_integrations" edge to the TicketIntegration entity by IDs.
+func (_u *TeamUpdateOne) AddTicketIntegrationIDs(ids ...int) *TeamUpdateOne {
+	_u.mutation.AddTicketIntegrationIDs(ids...)
+	return _u
+}
+
+// AddTicketIntegrations adds the "ticket_integrations" edges to the TicketIntegration entity.
+func (_u *TeamUpdateOne) AddTicketIntegrations(v ...*TicketIntegration) *TeamUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTicketIntegrationIDs(ids...)
+}
+
 // Mutation returns the TeamMutation object of the builder.
 func (_u *TeamUpdateOne) Mutation() *TeamMutation {
 	return _u.mutation
@@ -1581,6 +1678,27 @@ func (_u *TeamUpdateOne) RemoveIntegrations(v ...*Integration) *TeamUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveIntegrationIDs(ids...)
+}
+
+// ClearTicketIntegrations clears all "ticket_integrations" edges to the TicketIntegration entity.
+func (_u *TeamUpdateOne) ClearTicketIntegrations() *TeamUpdateOne {
+	_u.mutation.ClearTicketIntegrations()
+	return _u
+}
+
+// RemoveTicketIntegrationIDs removes the "ticket_integrations" edge to TicketIntegration entities by IDs.
+func (_u *TeamUpdateOne) RemoveTicketIntegrationIDs(ids ...int) *TeamUpdateOne {
+	_u.mutation.RemoveTicketIntegrationIDs(ids...)
+	return _u
+}
+
+// RemoveTicketIntegrations removes "ticket_integrations" edges to TicketIntegration entities.
+func (_u *TeamUpdateOne) RemoveTicketIntegrations(v ...*TicketIntegration) *TeamUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTicketIntegrationIDs(ids...)
 }
 
 // Where appends a list predicates to the TeamUpdate builder.
@@ -2180,6 +2298,51 @@ func (_u *TeamUpdateOne) sqlSave(ctx context.Context) (_node *Team, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(integration.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.TicketIntegrationsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.TicketIntegrationsTable,
+			Columns: []string{team.TicketIntegrationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ticketintegration.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTicketIntegrationsIDs(); len(nodes) > 0 && !_u.mutation.TicketIntegrationsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.TicketIntegrationsTable,
+			Columns: []string{team.TicketIntegrationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ticketintegration.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TicketIntegrationsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.TicketIntegrationsTable,
+			Columns: []string{team.TicketIntegrationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ticketintegration.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

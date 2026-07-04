@@ -49,6 +49,7 @@ import (
 	"github.com/kevin/vigil/internal/schedule"
 	"github.com/kevin/vigil/internal/service"
 	"github.com/kevin/vigil/internal/store"
+	"github.com/kevin/vigil/internal/ticket"
 	"github.com/kevin/vigil/internal/timeline"
 	"github.com/kevin/vigil/internal/triage"
 	"github.com/kevin/vigil/internal/webhook"
@@ -376,10 +377,27 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// T4.1 resolve 自动起草：订阅 IncidentResolved，按 severity 自动建 draft 复盘
 	// （critical 强制，warning 可配，info 不起草）。复用 GenerateDraft，best-effort 不阻断事件派发。
 	bus.Subscribe(domainevent.IncidentResolved, postmortemEngine.OnIncidentResolved)
+	// T4.3 出向工单集成：复盘发布 → 为其下 ActionItem 建外部工单，回写 tracker_url（best-effort）。
+	// 通用 webhook 工单已实现，Jira/禅道预留适配器接口（当前建单降级不阻断）。
+	// SSRF 防护：生产禁私网/元数据，dev/test 放行（与 runbook 出站同款）。
+	allowPrivateTicket := !cfg.App.IsProduction()
+	ticketEngine := ticket.NewEngine(st.DB,
+		ticket.NewWebhookAdapter(allowPrivateTicket),
+		ticket.NewJiraAdapter(),   // 预留：当前建单返回 not-implemented，降级不阻断
+		ticket.NewZentaoAdapter(), // 预留：同上
+	)
+	postmortemEngine.SetTicketCreator(ticketEngine)
 	postmortemH := postmortem.NewHandler(st.DB, postmortemEngine)
 	postmortemH.SetAuthorizer(authz)
 	postmortemH.SetScopeResolver(scopeResolver)
+	postmortemH.SetTicketSyncer(ticketEngine) // T4.3：ActionItem done → 单向同步工单
 	postmortemH.Register(v1)
+	// 工单集成配置 API（T4.3）：list/get/create/update/delete，凭据 Sensitive 不回显。
+	ticketH := ticket.NewHandler(st.DB)
+	ticketH.SetAuthorizer(authz)
+	ticketH.SetScopeResolver(scopeResolver)
+	ticketH.SetAuditRecorder(auditRecorder) // 工单集成配置变更留痕
+	ticketH.Register(v1)
 	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)
 	aiDiagEngine.SetRecorder(timelineRecorder) // 诊断产出 AI 洞察后写 ai_insight 时间线（原先零写入）
 	if st.SQL != nil {
@@ -999,6 +1017,11 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/integrations", auth.PermIntegrationCreate)
 	g.RoutePerm(http.MethodPatch, "/integrations/:id", auth.PermIntegrationUpdate)
 	g.RoutePerm(http.MethodDelete, "/integrations/:id", auth.PermIntegrationDelete)
+	// 出向工单集成写（含凭据存储，T4.3）——读端点也登记：集成配置暴露外连目标/项目映射。
+	g.RoutePerm(http.MethodGet, "/ticket-integrations", auth.PermTicketIntegrationView)
+	g.RoutePerm(http.MethodPost, "/ticket-integrations", auth.PermTicketIntegrationCreate)
+	g.RoutePerm(http.MethodPatch, "/ticket-integrations/:id", auth.PermTicketIntegrationUpdate)
+	g.RoutePerm(http.MethodDelete, "/ticket-integrations/:id", auth.PermTicketIntegrationDelete)
 	// 团队写（M13.2）
 	g.RoutePerm(http.MethodPost, "/teams", auth.PermTeamCreate)
 	g.RoutePerm(http.MethodPatch, "/teams/:id", auth.PermTeamUpdate)

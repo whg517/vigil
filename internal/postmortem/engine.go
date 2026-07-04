@@ -77,12 +77,24 @@ type IncidentCloser interface {
 	Close(ctx context.Context, incID int, actorID int) error
 }
 
+// TicketCreator 复盘发布联动建外部工单的接口（由 ticket.Engine 适配注入，T4.3）。
+//
+// 为什么用接口而非直接依赖 ticket 包：与 IncidentCloser 同理，postmortem 不反向依赖具体
+// 集成实现，避免构建期依赖环，也让工单集成可插拔（未注入时复盘发布不建单）。
+// nil 时复盘发布不联动建单（降级：ActionItem 的 tracker_url 需人工填）。
+type TicketCreator interface {
+	// OnPostmortempublished 复盘发布时为该复盘下未建单的 ActionItem 建外部工单，回写 tracker_url。
+	// best-effort：实现方须保证工单系统不可达/失败不阻断复盘发布（内部吞错，不返回）。
+	OnPostmortemPublished(ctx context.Context, pmID int)
+}
+
 // Engine 复盘引擎。
 type Engine struct {
 	db       *ent.Client
 	llm      LLMProvider    // 可为 nil（无 AI 时降级）
 	embedder Embedder       // 可为 nil（无 embedding 时 published 不入库检索）
 	closer   IncidentCloser // 可为 nil（无联动时 published 不自动关闭 incident）
+	ticket   TicketCreator  // 可为 nil（无联动时 published 不自动建工单）
 	// autoDraftWarning 控制 warning 级事件 resolved 是否自动起草复盘（T4.1）。
 	//
 	// 触发档位（docs/capabilities/08-postmortem.md §3）：
@@ -113,6 +125,11 @@ func (e *Engine) SetEmbedder(em Embedder) { e.embedder = em }
 // 配置后复盘发布（→published）联动把关联 incident 从 resolved 推进到 closed 终态，
 // 实现「复盘完成 → 单据收口」闭环。未注入时降级为不联动（单据停 resolved）。
 func (e *Engine) SetIncidentCloser(c IncidentCloser) { e.closer = c }
+
+// SetTicketCreator 注入工单集成建单器（main 装配时调用，T4.3）。
+// 配置后复盘发布（→published）联动为其下未建单的 ActionItem 建外部工单并回写 tracker_url。
+// best-effort：工单系统不可达/失败不阻断复盘发布。未注入时降级为不建单。
+func (e *Engine) SetTicketCreator(t TicketCreator) { e.ticket = t }
 
 // GenerateDraft 为某 Incident 生成复盘草稿。
 // 流程：取事件 + 时间线 → 填 timeline 章节 → AI/规则填其他章节 → 落 Postmortem。
@@ -433,6 +450,11 @@ func (e *Engine) Transition(ctx context.Context, pmID int, target postmortem.Sta
 	// best-effort：关闭失败/已 closed/不在 resolved 都不阻断复盘发布（closeLinkedIncident 内部容错）。
 	if target == postmortem.StatusPublished && e.closer != nil {
 		e.closeLinkedIncident(ctx, pm)
+	}
+	// 工单联动（T4.3）：复盘发布 → 为其下 ActionItem 建外部工单，回写 tracker_url。
+	// best-effort：工单系统不可达/失败不阻断复盘发布（TicketCreator 内部吞错，不返回）。
+	if target == postmortem.StatusPublished && e.ticket != nil {
+		e.ticket.OnPostmortemPublished(ctx, pm.ID)
 	}
 	return pm, nil
 }

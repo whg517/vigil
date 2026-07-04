@@ -868,6 +868,40 @@ var (
 			},
 		},
 	}
+	// TicketIntegrationsColumns holds the columns for the "ticket_integrations" table.
+	TicketIntegrationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"webhook", "jira", "zentao"}, Default: "webhook"},
+		{Name: "endpoint", Type: field.TypeString},
+		{Name: "credential", Type: field.TypeString, Nullable: true},
+		{Name: "config", Type: field.TypeJSON, Nullable: true},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "team_ticket_integrations", Type: field.TypeInt, Nullable: true},
+	}
+	// TicketIntegrationsTable holds the schema information for the "ticket_integrations" table.
+	TicketIntegrationsTable = &schema.Table{
+		Name:       "ticket_integrations",
+		Columns:    TicketIntegrationsColumns,
+		PrimaryKey: []*schema.Column{TicketIntegrationsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "ticket_integrations_teams_ticket_integrations",
+				Columns:    []*schema.Column{TicketIntegrationsColumns[9]},
+				RefColumns: []*schema.Column{TeamsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "ticketintegration_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{TicketIntegrationsColumns[6]},
+			},
+		},
+	}
 	// TimelineItemsColumns holds the columns for the "timeline_items" table.
 	TimelineItemsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -1141,6 +1175,7 @@ var (
 		ServicesTable,
 		SuppressionRulesTable,
 		TeamsTable,
+		TicketIntegrationsTable,
 		TimelineItemsTable,
 		UsersTable,
 		EscalationPolicySchedulesTable,
@@ -1185,6 +1220,7 @@ func init() {
 	ServicesTable.ForeignKeys[0].RefTable = EscalationPoliciesTable
 	ServicesTable.ForeignKeys[1].RefTable = TeamsTable
 	SuppressionRulesTable.ForeignKeys[0].RefTable = TeamsTable
+	TicketIntegrationsTable.ForeignKeys[0].RefTable = TeamsTable
 	TimelineItemsTable.ForeignKeys[0].RefTable = IncidentsTable
 	EscalationPolicySchedulesTable.ForeignKeys[0].RefTable = EscalationPoliciesTable
 	EscalationPolicySchedulesTable.ForeignKeys[1].RefTable = SchedulesTable

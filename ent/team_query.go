@@ -24,6 +24,7 @@ import (
 	"github.com/kevin/vigil/ent/service"
 	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
+	"github.com/kevin/vigil/ent/ticketintegration"
 	"github.com/kevin/vigil/ent/user"
 )
 
@@ -45,6 +46,7 @@ type TeamQuery struct {
 	withRoleBindings          *RoleBindingQuery
 	withIncidents             *IncidentQuery
 	withIntegrations          *IntegrationQuery
+	withTicketIntegrations    *TicketIntegrationQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -323,6 +325,28 @@ func (_q *TeamQuery) QueryIntegrations() *IntegrationQuery {
 	return query
 }
 
+// QueryTicketIntegrations chains the current query on the "ticket_integrations" edge.
+func (_q *TeamQuery) QueryTicketIntegrations() *TicketIntegrationQuery {
+	query := (&TicketIntegrationClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, selector),
+			sqlgraph.To(ticketintegration.Table, ticketintegration.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, team.TicketIntegrationsTable, team.TicketIntegrationsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first Team entity from the query.
 // Returns a *NotFoundError when no Team was found.
 func (_q *TeamQuery) First(ctx context.Context) (*Team, error) {
@@ -526,6 +550,7 @@ func (_q *TeamQuery) Clone() *TeamQuery {
 		withRoleBindings:          _q.withRoleBindings.Clone(),
 		withIncidents:             _q.withIncidents.Clone(),
 		withIntegrations:          _q.withIntegrations.Clone(),
+		withTicketIntegrations:    _q.withTicketIntegrations.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -653,6 +678,17 @@ func (_q *TeamQuery) WithIntegrations(opts ...func(*IntegrationQuery)) *TeamQuer
 	return _q
 }
 
+// WithTicketIntegrations tells the query-builder to eager-load the nodes that are connected to
+// the "ticket_integrations" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TeamQuery) WithTicketIntegrations(opts ...func(*TicketIntegrationQuery)) *TeamQuery {
+	query := (&TicketIntegrationClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withTicketIntegrations = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -731,7 +767,7 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 	var (
 		nodes       = []*Team{}
 		_spec       = _q.querySpec()
-		loadedTypes = [11]bool{
+		loadedTypes = [12]bool{
 			_q.withUsers != nil,
 			_q.withServices != nil,
 			_q.withSchedules != nil,
@@ -743,6 +779,7 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 			_q.withRoleBindings != nil,
 			_q.withIncidents != nil,
 			_q.withIntegrations != nil,
+			_q.withTicketIntegrations != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -839,6 +876,15 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 		if err := _q.loadIntegrations(ctx, query, nodes,
 			func(n *Team) { n.Edges.Integrations = []*Integration{} },
 			func(n *Team, e *Integration) { n.Edges.Integrations = append(n.Edges.Integrations, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withTicketIntegrations; query != nil {
+		if err := _q.loadTicketIntegrations(ctx, query, nodes,
+			func(n *Team) { n.Edges.TicketIntegrations = []*TicketIntegration{} },
+			func(n *Team, e *TicketIntegration) {
+				n.Edges.TicketIntegrations = append(n.Edges.TicketIntegrations, e)
+			}); err != nil {
 			return nil, err
 		}
 	}
@@ -1241,6 +1287,37 @@ func (_q *TeamQuery) loadIntegrations(ctx context.Context, query *IntegrationQue
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "team_integrations" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *TeamQuery) loadTicketIntegrations(ctx context.Context, query *TicketIntegrationQuery, nodes []*Team, init func(*Team), assign func(*Team, *TicketIntegration)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Team)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.TicketIntegration(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(team.TicketIntegrationsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.team_ticket_integrations
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "team_ticket_integrations" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "team_ticket_integrations" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
 	}

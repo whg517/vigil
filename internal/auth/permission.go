@@ -60,6 +60,13 @@ const (
 	PermIntegrationUpdate Permission = "integration.update"
 	PermIntegrationDelete Permission = "integration.delete"
 
+	// —— ticket_integration 出向工单集成（能力域 14 出向，T4.3）——
+	// 工单集成持外部系统凭据、决定复盘 ActionItem 往哪建单，管理面独立于入向接入点。
+	PermTicketIntegrationView   Permission = "ticket_integration.view"
+	PermTicketIntegrationCreate Permission = "ticket_integration.create"
+	PermTicketIntegrationUpdate Permission = "ticket_integration.update"
+	PermTicketIntegrationDelete Permission = "ticket_integration.delete"
+
 	// —— postmortem 复盘 ——
 	PermPostmortemView             Permission = "postmortem.view"
 	PermPostmortemCreate           Permission = "postmortem.create"
@@ -133,6 +140,7 @@ var AllPermissions = []Permission{
 	PermEscalationView, PermEscalationCreate, PermEscalationUpdate, PermEscalationDelete,
 	PermRunbookView, PermRunbookCreate, PermRunbookUpdate, PermRunbookDelete, PermRunbookExecute,
 	PermIntegrationView, PermIntegrationCreate, PermIntegrationUpdate, PermIntegrationDelete,
+	PermTicketIntegrationView, PermTicketIntegrationCreate, PermTicketIntegrationUpdate, PermTicketIntegrationDelete,
 	PermPostmortemView, PermPostmortemCreate, PermPostmortemUpdate, PermPostmortemPublish, PermPostmortemActionItemManage,
 	PermTeamView, PermTeamCreate, PermTeamUpdate, PermTeamDelete, PermTeamMemberManage,
 	PermUserView, PermUserCreate, PermUserUpdate, PermUserDisable, PermUserIMBind,

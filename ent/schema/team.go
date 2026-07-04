@@ -52,6 +52,8 @@ func (Team) Edges() []ent.Edge {
 		edge.To("incidents", Incident.Type),
 		// Team -> Integration（归属接入点）
 		edge.To("integrations", Integration.Type),
+		// Team -> TicketIntegration（归属出向工单集成，T4.3）
+		edge.To("ticket_integrations", TicketIntegration.Type),
 	}
 }
 

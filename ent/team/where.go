@@ -698,6 +698,29 @@ func HasIntegrationsWith(preds ...predicate.Integration) predicate.Team {
 	})
 }
 
+// HasTicketIntegrations applies the HasEdge predicate on the "ticket_integrations" edge.
+func HasTicketIntegrations() predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, TicketIntegrationsTable, TicketIntegrationsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasTicketIntegrationsWith applies the HasEdge predicate on the "ticket_integrations" edge with a given conditions (other predicates).
+func HasTicketIntegrationsWith(preds ...predicate.TicketIntegration) predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := newTicketIntegrationsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Team) predicate.Team {
 	return predicate.Team(sql.AndPredicates(predicates...))

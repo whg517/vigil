@@ -30,6 +30,7 @@ import (
 	"github.com/kevin/vigil/ent/service"
 	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
+	"github.com/kevin/vigil/ent/ticketintegration"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
 )
@@ -436,6 +437,30 @@ func init() {
 	team.DefaultUpdatedAt = teamDescUpdatedAt.Default.(func() time.Time)
 	// team.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	team.UpdateDefaultUpdatedAt = teamDescUpdatedAt.UpdateDefault.(func() time.Time)
+	ticketintegrationFields := schema.TicketIntegration{}.Fields()
+	_ = ticketintegrationFields
+	// ticketintegrationDescName is the schema descriptor for name field.
+	ticketintegrationDescName := ticketintegrationFields[0].Descriptor()
+	// ticketintegration.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	ticketintegration.NameValidator = ticketintegrationDescName.Validators[0].(func(string) error)
+	// ticketintegrationDescEndpoint is the schema descriptor for endpoint field.
+	ticketintegrationDescEndpoint := ticketintegrationFields[2].Descriptor()
+	// ticketintegration.EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
+	ticketintegration.EndpointValidator = ticketintegrationDescEndpoint.Validators[0].(func(string) error)
+	// ticketintegrationDescEnabled is the schema descriptor for enabled field.
+	ticketintegrationDescEnabled := ticketintegrationFields[5].Descriptor()
+	// ticketintegration.DefaultEnabled holds the default value on creation for the enabled field.
+	ticketintegration.DefaultEnabled = ticketintegrationDescEnabled.Default.(bool)
+	// ticketintegrationDescCreatedAt is the schema descriptor for created_at field.
+	ticketintegrationDescCreatedAt := ticketintegrationFields[6].Descriptor()
+	// ticketintegration.DefaultCreatedAt holds the default value on creation for the created_at field.
+	ticketintegration.DefaultCreatedAt = ticketintegrationDescCreatedAt.Default.(func() time.Time)
+	// ticketintegrationDescUpdatedAt is the schema descriptor for updated_at field.
+	ticketintegrationDescUpdatedAt := ticketintegrationFields[7].Descriptor()
+	// ticketintegration.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	ticketintegration.DefaultUpdatedAt = ticketintegrationDescUpdatedAt.Default.(func() time.Time)
+	// ticketintegration.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	ticketintegration.UpdateDefaultUpdatedAt = ticketintegrationDescUpdatedAt.UpdateDefault.(func() time.Time)
 	timelineitemFields := schema.TimelineItem{}.Fields()
 	_ = timelineitemFields
 	// timelineitemDescTimestamp is the schema descriptor for timestamp field.

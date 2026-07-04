@@ -49,6 +49,7 @@ func NewScopeResolver(db *ent.Client) *ScopeResolver {
 	s.resolvers["runbook"] = resolveDirect(db.Runbook.Get)
 	s.resolvers["service"] = resolveDirect(db.Service.Get)
 	s.resolvers["integration"] = resolveDirect(db.Integration.Get)
+	s.resolvers["ticket_integration"] = resolveDirect(db.TicketIntegration.Get)
 	s.resolvers["schedule"] = resolveDirect(db.Schedule.Get)
 	s.resolvers["escalation_policy"] = resolveDirect(db.EscalationPolicy.Get)
 	s.resolvers["notification_rule"] = resolveDirect(db.NotificationRule.Get)

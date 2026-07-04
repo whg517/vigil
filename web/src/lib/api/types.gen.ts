@@ -6145,6 +6145,218 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ticket-integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工单集成列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.TicketIntegration"][];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 创建工单集成 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 工单集成配置 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["ticket.createReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.TicketIntegration"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ticket-integrations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工单集成详情 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 工单集成 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.TicketIntegration"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** 删除工单集成 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 工单集成 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** 更新工单集成 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 工单集成 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 更新字段 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["ticket.updateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.TicketIntegration"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -7542,8 +7754,37 @@ export interface components {
             services?: components["schemas"]["ent.Service"][];
             /** @description SuppressionRules holds the value of the suppression_rules edge. */
             suppression_rules?: components["schemas"]["ent.SuppressionRule"][];
+            /** @description TicketIntegrations holds the value of the ticket_integrations edge. */
+            ticket_integrations?: components["schemas"]["ent.TicketIntegration"][];
             /** @description Users holds the value of the users edge. */
             users?: components["schemas"]["ent.User"][];
+        };
+        "ent.TicketIntegration": {
+            /** @description 目标项目/字段映射等类型相关配置 */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            edges?: components["schemas"]["ent.TicketIntegrationEdges"];
+            /** @description Enabled holds the value of the "enabled" field. */
+            enabled?: boolean;
+            /** @description 建单目标 URL */
+            endpoint?: string;
+            /** @description ID of the ent. */
+            id?: number;
+            /** @description Name holds the value of the "name" field. */
+            name?: string;
+            type?: components["schemas"]["ticketintegration.Type"];
+            /** @description UpdatedAt holds the value of the "updated_at" field. */
+            updated_at?: string;
+        };
+        /**
+         * @description Edges holds the relations/edges for other nodes in the graph.
+         *     The values are being populated by the TicketIntegrationQuery when eager-loading is set.
+         */
+        "ent.TicketIntegrationEdges": {
+            team?: components["schemas"]["ent.Team"];
         };
         "ent.TimelineItem": {
             /** @description actor: kind(system/user/integration/ai) + id */
@@ -8203,6 +8444,36 @@ export interface components {
          * @enum {string}
          */
         "suppressionrule.Action": "suppress" | "reduce_severity";
+        "ticket.createReq": {
+            /** @description 目标项目/字段映射 */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** @description 凭据（token/密码），仅入不出（Sensitive） */
+            credential?: string;
+            /** @description 建单目标 URL */
+            endpoint?: string;
+            name?: string;
+            /** @description 归属团队，0=org 级 */
+            team_id?: number;
+            /** @description webhook|jira|zentao（默认 webhook） */
+            type?: string;
+        };
+        "ticket.updateReq": {
+            config?: {
+                [key: string]: unknown;
+            };
+            /** @description 传则更新凭据（不回显） */
+            credential?: string;
+            enabled?: boolean;
+            endpoint?: string;
+            name?: string;
+        };
+        /**
+         * @description Type holds the value of the "type" field.
+         * @enum {string}
+         */
+        "ticketintegration.Type": "webhook" | "jira" | "zentao";
         /** @enum {integer} */
         "time.Duration": -9223372036854776000 | 9223372036854776000 | 1 | 1000 | 1000000 | 1000000000 | 60000000000 | 3600000000000;
         "timeline.addReq": {

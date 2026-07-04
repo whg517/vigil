@@ -2222,6 +2222,14 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "ticket_integrations": {
+                        "description": "TicketIntegrations holds the value of the ticket_integrations edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.TicketIntegration"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "users": {
                         "description": "Users holds the value of the users edge.",
                         "items": {
@@ -2229,6 +2237,55 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "ent.TicketIntegration": {
+                "properties": {
+                    "config": {
+                        "additionalProperties": {},
+                        "description": "目标项目/字段映射等类型相关配置",
+                        "type": "object"
+                    },
+                    "created_at": {
+                        "description": "CreatedAt holds the value of the \"created_at\" field.",
+                        "type": "string"
+                    },
+                    "edges": {
+                        "$ref": "#/components/schemas/ent.TicketIntegrationEdges"
+                    },
+                    "enabled": {
+                        "description": "Enabled holds the value of the \"enabled\" field.",
+                        "type": "boolean"
+                    },
+                    "endpoint": {
+                        "description": "建单目标 URL",
+                        "type": "string"
+                    },
+                    "id": {
+                        "description": "ID of the ent.",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "description": "Name holds the value of the \"name\" field.",
+                        "type": "string"
+                    },
+                    "type": {
+                        "$ref": "#/components/schemas/ticketintegration.Type"
+                    },
+                    "updated_at": {
+                        "description": "UpdatedAt holds the value of the \"updated_at\" field.",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.TicketIntegrationEdges": {
+                "description": "Edges holds the relations/edges for other nodes in the graph.\nThe values are being populated by the TicketIntegrationQuery when eager-loading is set.",
+                "properties": {
+                    "team": {
+                        "$ref": "#/components/schemas/ent.Team"
                     }
                 },
                 "type": "object"
@@ -3908,6 +3965,72 @@
                     "DefaultAction",
                     "ActionSuppress",
                     "ActionReduceSeverity"
+                ]
+            },
+            "ticket.createReq": {
+                "properties": {
+                    "config": {
+                        "additionalProperties": {},
+                        "description": "目标项目/字段映射",
+                        "type": "object"
+                    },
+                    "credential": {
+                        "description": "凭据（token/密码），仅入不出（Sensitive）",
+                        "type": "string"
+                    },
+                    "endpoint": {
+                        "description": "建单目标 URL",
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "team_id": {
+                        "description": "归属团队，0=org 级",
+                        "type": "integer"
+                    },
+                    "type": {
+                        "description": "webhook|jira|zentao（默认 webhook）",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ticket.updateReq": {
+                "properties": {
+                    "config": {
+                        "additionalProperties": {},
+                        "type": "object"
+                    },
+                    "credential": {
+                        "description": "传则更新凭据（不回显）",
+                        "type": "string"
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "endpoint": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ticketintegration.Type": {
+                "description": "Type holds the value of the \"type\" field.",
+                "enum": [
+                    "webhook",
+                    "jira",
+                    "zentao"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultType",
+                    "TypeWebhook",
+                    "TypeJira",
+                    "TypeZentao"
                 ]
             },
             "time.Duration": {
@@ -10906,6 +11029,264 @@
                 "summary": "移除团队成员",
                 "tags": [
                     "team"
+                ]
+            }
+        },
+        "/ticket-integrations": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ent.TicketIntegration"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "工单集成列表",
+                "tags": [
+                    "ticket-integration"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ticket.createReq",
+                                        "description": "工单集成配置",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "工单集成配置",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.TicketIntegration"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "创建工单集成",
+                "tags": [
+                    "ticket-integration"
+                ]
+            }
+        },
+        "/ticket-integrations/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "工单集成 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "删除工单集成",
+                "tags": [
+                    "ticket-integration"
+                ]
+            },
+            "get": {
+                "parameters": [
+                    {
+                        "description": "工单集成 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.TicketIntegration"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "工单集成详情",
+                "tags": [
+                    "ticket-integration"
+                ]
+            },
+            "patch": {
+                "parameters": [
+                    {
+                        "description": "工单集成 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/ticket.updateReq",
+                                        "description": "更新字段",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "更新字段",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.TicketIntegration"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "更新工单集成",
+                "tags": [
+                    "ticket-integration"
                 ]
             }
         },

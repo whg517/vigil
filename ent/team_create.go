@@ -21,6 +21,7 @@ import (
 	"github.com/kevin/vigil/ent/service"
 	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
+	"github.com/kevin/vigil/ent/ticketintegration"
 	"github.com/kevin/vigil/ent/user"
 )
 
@@ -262,6 +263,21 @@ func (_c *TeamCreate) AddIntegrations(v ...*Integration) *TeamCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddIntegrationIDs(ids...)
+}
+
+// AddTicketIntegrationIDs adds the "ticket_integrations" edge to the TicketIntegration entity by IDs.
+func (_c *TeamCreate) AddTicketIntegrationIDs(ids ...int) *TeamCreate {
+	_c.mutation.AddTicketIntegrationIDs(ids...)
+	return _c
+}
+
+// AddTicketIntegrations adds the "ticket_integrations" edges to the TicketIntegration entity.
+func (_c *TeamCreate) AddTicketIntegrations(v ...*TicketIntegration) *TeamCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddTicketIntegrationIDs(ids...)
 }
 
 // Mutation returns the TeamMutation object of the builder.
@@ -547,6 +563,22 @@ func (_c *TeamCreate) createSpec() (*Team, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(integration.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.TicketIntegrationsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.TicketIntegrationsTable,
+			Columns: []string{team.TicketIntegrationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(ticketintegration.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

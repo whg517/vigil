@@ -36,6 +36,7 @@ import (
 	"github.com/kevin/vigil/ent/service"
 	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
+	"github.com/kevin/vigil/ent/ticketintegration"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
 )
@@ -122,6 +123,7 @@ func checkColumn(t, c string) error {
 			service.Table:              service.ValidColumn,
 			suppressionrule.Table:      suppressionrule.ValidColumn,
 			team.Table:                 team.ValidColumn,
+			ticketintegration.Table:    ticketintegration.ValidColumn,
 			timelineitem.Table:         timelineitem.ValidColumn,
 			user.Table:                 user.ValidColumn,
 		})

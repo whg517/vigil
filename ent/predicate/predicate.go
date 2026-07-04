@@ -78,6 +78,9 @@ type SuppressionRule func(*sql.Selector)
 // Team is the predicate function for team builders.
 type Team func(*sql.Selector)
 
+// TicketIntegration is the predicate function for ticketintegration builders.
+type TicketIntegration func(*sql.Selector)
+
 // TimelineItem is the predicate function for timelineitem builders.
 type TimelineItem func(*sql.Selector)
 

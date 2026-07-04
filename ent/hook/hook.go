@@ -297,6 +297,18 @@ func (f TeamFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error)
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TeamMutation", m)
 }
 
+// The TicketIntegrationFunc type is an adapter to allow the use of ordinary
+// function as TicketIntegration mutator.
+type TicketIntegrationFunc func(context.Context, *ent.TicketIntegrationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TicketIntegrationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TicketIntegrationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TicketIntegrationMutation", m)
+}
+
 // The TimelineItemFunc type is an adapter to allow the use of ordinary
 // function as TimelineItem mutator.
 type TimelineItemFunc func(context.Context, *ent.TimelineItemMutation) (ent.Value, error)

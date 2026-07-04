@@ -1,0 +1,55 @@
+package schema
+
+import (
+	"time"
+
+	"entgo.io/ent"
+	"entgo.io/ent/schema/edge"
+	"entgo.io/ent/schema/field"
+	"entgo.io/ent/schema/index"
+)
+
+// TicketIntegration 出向工单集成配置 —— 复盘 ActionItem 自动建单的目标系统。
+//
+// 对应 docs/capabilities/10-integrations-analytics.md §A2 出向集成「工单系统」：
+// 复盘发布时把 ActionItem 推到外部工单系统（Jira/禅道/通用 webhook）建改进任务，回写 tracker_url。
+//
+// 与入向 Integration（告警源接入）分开建实体：语义正交（一个进告警、一个出工单），
+// 凭据与配置结构不同，混在一张表会让 config/token 字段语义含糊。归属沿用 Team 软隔离边界，
+// team_id 为空视为 org 级（全组织可用），与 Integration 同款。
+type TicketIntegration struct {
+	ent.Schema
+}
+
+func (TicketIntegration) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("name").NotEmpty(),
+		// type 决定用哪个适配器建单。
+		//   - webhook：通用 webhook 工单（POST 可配 URL，payload 含 ActionItem）——本轮实现。
+		//   - jira / zentao：预留适配器接口，当前未实现建单逻辑（走 webhook 兜底或不建单）。
+		field.Enum("type").Values("webhook", "jira", "zentao").Default("webhook"),
+		// endpoint 目标系统建单 URL（webhook 工单必填；Jira/禅道为其 REST base URL，预留）。
+		field.String("endpoint").NotEmpty().Comment("建单目标 URL"),
+		// credential 凭据（API token / 密码等），Sensitive 加密存储、list/get 不回显。
+		// 复用 Integration.token 的 Sensitive 模式（见 service.go Integration）。
+		field.String("credential").Sensitive().Optional().Comment("建单凭据（token/密码），加密存储不回显"),
+		// config 类型相关配置：目标项目 key、issue type、字段映射（owner→assignee 等）。
+		field.JSON("config", map[string]any{}).Optional().Comment("目标项目/字段映射等类型相关配置"),
+		field.Bool("enabled").Default(true),
+		field.Time("created_at").Default(time.Now).Immutable(),
+		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
+	}
+}
+
+func (TicketIntegration) Edges() []ent.Edge {
+	return []ent.Edge{
+		// TicketIntegration <- Team（归属团队，nil 视为 org 级）。
+		edge.From("team", Team.Type).Ref("ticket_integrations").Unique(),
+	}
+}
+
+func (TicketIntegration) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("enabled"),
+	}
+}

@@ -2,6 +2,7 @@
 package postmortem
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -28,12 +29,21 @@ import (
 // 错误处理器会跳过二次写。
 var errAccessDenied = errors.New("access denied (response already written)")
 
+// TicketSyncer ActionItem 状态变更单向同步到外部工单的接口（T4.3，可选注入）。
+//
+// 由 ticket.Engine 适配（SyncStatus）。ActionItem 状态改为 done 时调用，把 done 状态单向
+// 推到外部工单侧（不反向拉工单状态）。best-effort：同步失败不阻断状态更新。nil 时不同步。
+type TicketSyncer interface {
+	SyncStatus(ctx context.Context, ai *ent.ActionItem) bool
+}
+
 // Handler 复盘 API。
 type Handler struct {
 	db     *ent.Client
 	engine *Engine
 	authz  *auth.Authorizer    // 资源级鉴权（SEC-01，可选注入）
 	scope  *auth.ScopeResolver // 资源→team 反查（SEC-01，可选注入）
+	ticket TicketSyncer        // ActionItem done → 单向同步工单（T4.3，可选注入）
 }
 
 // NewHandler 创建复盘 handler。
@@ -47,6 +57,10 @@ func (h *Handler) SetAuthorizer(a *auth.Authorizer) { h.authz = a }
 
 // SetScopeResolver 注入 scope 解析器（配合 SetAuthorizer 使用）。
 func (h *Handler) SetScopeResolver(s *auth.ScopeResolver) { h.scope = s }
+
+// SetTicketSyncer 注入工单状态同步器（T4.3，main 装配时调用）。
+// 配置后 ActionItem 状态改为 done 会单向同步到外部工单（best-effort）。
+func (h *Handler) SetTicketSyncer(s TicketSyncer) { h.ticket = s }
 
 // actorFromContext 取当前操作人 ID。
 // 来自鉴权中间件注入的 ctxUser（auth.UserIDFromContext）。
@@ -391,6 +405,11 @@ func (h *Handler) updateActionItem(c *echo.Context) error {
 	ai, err := update.Save(c.Request().Context())
 	if err != nil {
 		return errs.Internal(c, nil, err)
+	}
+	// T4.3 单向同步：状态改为 done 时把 done 状态单向推到外部工单（best-effort，不阻断响应）。
+	// 仅本次请求显式把 status 置 done 才触发（避免每次 PATCH 都同步）。
+	if h.ticket != nil && req.Status != nil && actionitem.Status(*req.Status) == actionitem.StatusDone {
+		h.ticket.SyncStatus(c.Request().Context(), ai)
 	}
 	return c.JSON(http.StatusOK, ai)
 }

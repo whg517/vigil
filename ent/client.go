@@ -39,6 +39,7 @@ import (
 	"github.com/kevin/vigil/ent/service"
 	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/team"
+	"github.com/kevin/vigil/ent/ticketintegration"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
 )
@@ -96,6 +97,8 @@ type Client struct {
 	SuppressionRule *SuppressionRuleClient
 	// Team is the client for interacting with the Team builders.
 	Team *TeamClient
+	// TicketIntegration is the client for interacting with the TicketIntegration builders.
+	TicketIntegration *TicketIntegrationClient
 	// TimelineItem is the client for interacting with the TimelineItem builders.
 	TimelineItem *TimelineItemClient
 	// User is the client for interacting with the User builders.
@@ -135,6 +138,7 @@ func (c *Client) init() {
 	c.Service = NewServiceClient(c.config)
 	c.SuppressionRule = NewSuppressionRuleClient(c.config)
 	c.Team = NewTeamClient(c.config)
+	c.TicketIntegration = NewTicketIntegrationClient(c.config)
 	c.TimelineItem = NewTimelineItemClient(c.config)
 	c.User = NewUserClient(c.config)
 }
@@ -253,6 +257,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Service:              NewServiceClient(cfg),
 		SuppressionRule:      NewSuppressionRuleClient(cfg),
 		Team:                 NewTeamClient(cfg),
+		TicketIntegration:    NewTicketIntegrationClient(cfg),
 		TimelineItem:         NewTimelineItemClient(cfg),
 		User:                 NewUserClient(cfg),
 	}, nil
@@ -298,6 +303,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Service:              NewServiceClient(cfg),
 		SuppressionRule:      NewSuppressionRuleClient(cfg),
 		Team:                 NewTeamClient(cfg),
+		TicketIntegration:    NewTicketIntegrationClient(cfg),
 		TimelineItem:         NewTimelineItemClient(cfg),
 		User:                 NewUserClient(cfg),
 	}, nil
@@ -333,7 +339,8 @@ func (c *Client) Use(hooks ...Hook) {
 		c.IMAccountBinding, c.Incident, c.IncidentAction, c.Integration,
 		c.Notification, c.NotificationRule, c.NotificationTemplate, c.Override,
 		c.Postmortem, c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook,
-		c.Schedule, c.Service, c.SuppressionRule, c.Team, c.TimelineItem, c.User,
+		c.Schedule, c.Service, c.SuppressionRule, c.Team, c.TicketIntegration,
+		c.TimelineItem, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -347,7 +354,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.IMAccountBinding, c.Incident, c.IncidentAction, c.Integration,
 		c.Notification, c.NotificationRule, c.NotificationTemplate, c.Override,
 		c.Postmortem, c.RawEvent, c.Role, c.RoleBinding, c.Rotation, c.Runbook,
-		c.Schedule, c.Service, c.SuppressionRule, c.Team, c.TimelineItem, c.User,
+		c.Schedule, c.Service, c.SuppressionRule, c.Team, c.TicketIntegration,
+		c.TimelineItem, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -404,6 +412,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.SuppressionRule.mutate(ctx, m)
 	case *TeamMutation:
 		return c.Team.mutate(ctx, m)
+	case *TicketIntegrationMutation:
+		return c.TicketIntegration.mutate(ctx, m)
 	case *TimelineItemMutation:
 		return c.TimelineItem.mutate(ctx, m)
 	case *UserMutation:
@@ -4668,6 +4678,22 @@ func (c *TeamClient) QueryIntegrations(_m *Team) *IntegrationQuery {
 	return query
 }
 
+// QueryTicketIntegrations queries the ticket_integrations edge of a Team.
+func (c *TeamClient) QueryTicketIntegrations(_m *Team) *TicketIntegrationQuery {
+	query := (&TicketIntegrationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, id),
+			sqlgraph.To(ticketintegration.Table, ticketintegration.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, team.TicketIntegrationsTable, team.TicketIntegrationsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *TeamClient) Hooks() []Hook {
 	return c.hooks.Team
@@ -4690,6 +4716,155 @@ func (c *TeamClient) mutate(ctx context.Context, m *TeamMutation) (Value, error)
 		return (&TeamDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Team mutation op: %q", m.Op())
+	}
+}
+
+// TicketIntegrationClient is a client for the TicketIntegration schema.
+type TicketIntegrationClient struct {
+	config
+}
+
+// NewTicketIntegrationClient returns a client for the TicketIntegration from the given config.
+func NewTicketIntegrationClient(c config) *TicketIntegrationClient {
+	return &TicketIntegrationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ticketintegration.Hooks(f(g(h())))`.
+func (c *TicketIntegrationClient) Use(hooks ...Hook) {
+	c.hooks.TicketIntegration = append(c.hooks.TicketIntegration, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ticketintegration.Intercept(f(g(h())))`.
+func (c *TicketIntegrationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TicketIntegration = append(c.inters.TicketIntegration, interceptors...)
+}
+
+// Create returns a builder for creating a TicketIntegration entity.
+func (c *TicketIntegrationClient) Create() *TicketIntegrationCreate {
+	mutation := newTicketIntegrationMutation(c.config, OpCreate)
+	return &TicketIntegrationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TicketIntegration entities.
+func (c *TicketIntegrationClient) CreateBulk(builders ...*TicketIntegrationCreate) *TicketIntegrationCreateBulk {
+	return &TicketIntegrationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TicketIntegrationClient) MapCreateBulk(slice any, setFunc func(*TicketIntegrationCreate, int)) *TicketIntegrationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TicketIntegrationCreateBulk{err: fmt.Errorf("calling to TicketIntegrationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TicketIntegrationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TicketIntegrationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TicketIntegration.
+func (c *TicketIntegrationClient) Update() *TicketIntegrationUpdate {
+	mutation := newTicketIntegrationMutation(c.config, OpUpdate)
+	return &TicketIntegrationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TicketIntegrationClient) UpdateOne(_m *TicketIntegration) *TicketIntegrationUpdateOne {
+	mutation := newTicketIntegrationMutation(c.config, OpUpdateOne, withTicketIntegration(_m))
+	return &TicketIntegrationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TicketIntegrationClient) UpdateOneID(id int) *TicketIntegrationUpdateOne {
+	mutation := newTicketIntegrationMutation(c.config, OpUpdateOne, withTicketIntegrationID(id))
+	return &TicketIntegrationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TicketIntegration.
+func (c *TicketIntegrationClient) Delete() *TicketIntegrationDelete {
+	mutation := newTicketIntegrationMutation(c.config, OpDelete)
+	return &TicketIntegrationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TicketIntegrationClient) DeleteOne(_m *TicketIntegration) *TicketIntegrationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TicketIntegrationClient) DeleteOneID(id int) *TicketIntegrationDeleteOne {
+	builder := c.Delete().Where(ticketintegration.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TicketIntegrationDeleteOne{builder}
+}
+
+// Query returns a query builder for TicketIntegration.
+func (c *TicketIntegrationClient) Query() *TicketIntegrationQuery {
+	return &TicketIntegrationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTicketIntegration},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TicketIntegration entity by its id.
+func (c *TicketIntegrationClient) Get(ctx context.Context, id int) (*TicketIntegration, error) {
+	return c.Query().Where(ticketintegration.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TicketIntegrationClient) GetX(ctx context.Context, id int) *TicketIntegration {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryTeam queries the team edge of a TicketIntegration.
+func (c *TicketIntegrationClient) QueryTeam(_m *TicketIntegration) *TeamQuery {
+	query := (&TeamClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ticketintegration.Table, ticketintegration.FieldID, id),
+			sqlgraph.To(team.Table, team.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, ticketintegration.TeamTable, ticketintegration.TeamColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TicketIntegrationClient) Hooks() []Hook {
+	return c.hooks.TicketIntegration
+}
+
+// Interceptors returns the client interceptors.
+func (c *TicketIntegrationClient) Interceptors() []Interceptor {
+	return c.inters.TicketIntegration
+}
+
+func (c *TicketIntegrationClient) mutate(ctx context.Context, m *TicketIntegrationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TicketIntegrationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TicketIntegrationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TicketIntegrationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TicketIntegrationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TicketIntegration mutation op: %q", m.Op())
 	}
 }
 
@@ -5094,13 +5269,13 @@ type (
 		IMAccountBinding, Incident, IncidentAction, Integration, Notification,
 		NotificationRule, NotificationTemplate, Override, Postmortem, RawEvent, Role,
 		RoleBinding, Rotation, Runbook, Schedule, Service, SuppressionRule, Team,
-		TimelineItem, User []ent.Hook
+		TicketIntegration, TimelineItem, User []ent.Hook
 	}
 	inters struct {
 		AIInsight, APIKey, ActionItem, AuditLog, EscalationPolicy, Event,
 		IMAccountBinding, Incident, IncidentAction, Integration, Notification,
 		NotificationRule, NotificationTemplate, Override, Postmortem, RawEvent, Role,
 		RoleBinding, Rotation, Runbook, Schedule, Service, SuppressionRule, Team,
-		TimelineItem, User []ent.Interceptor
+		TicketIntegration, TimelineItem, User []ent.Interceptor
 	}
 )
