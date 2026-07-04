@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/actionitem"
@@ -238,6 +239,8 @@ type addActionItemReq struct {
 	Description string `json:"description"`
 	OwnerID     string `json:"owner_id"`
 	TrackerURL  string `json:"tracker_url"`
+	// DueDate 截止日期（可选，RFC3339）。schema 有 due_date 字段，此前请求体不收（M14）。
+	DueDate *time.Time `json:"due_date"`
 }
 
 // addActionItem 添加改进项。
@@ -266,23 +269,27 @@ func (h *Handler) addActionItem(c *echo.Context) error {
 	if err := c.Bind(&req); err != nil || req.Description == "" {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "description required"})
 	}
-	ai, err := h.db.ActionItem.Create().
+	aiCreate := h.db.ActionItem.Create().
 		SetDescription(req.Description).
 		SetOwnerID(req.OwnerID).
 		SetTrackerURL(req.TrackerURL).
-		SetPostmortemID(pmID).
-		Save(c.Request().Context())
+		SetPostmortemID(pmID)
+	if req.DueDate != nil {
+		aiCreate.SetDueDate(*req.DueDate)
+	}
+	ai, err := aiCreate.Save(c.Request().Context())
 	if err != nil {
 		return errs.FailConstraint(c, nil, err, "postmortem", "postmortem already exists")
 	}
 	return c.JSON(http.StatusCreated, ai)
 }
 
-// updateActionItemReq 更新改进项（状态/负责人/工单）。
+// updateActionItemReq 更新改进项（状态/负责人/工单/截止日期）。
 type updateActionItemReq struct {
-	Status     *string `json:"status"` // open | in_progress | done
-	OwnerID    *string `json:"owner_id"`
-	TrackerURL *string `json:"tracker_url"`
+	Status     *string    `json:"status"` // open | in_progress | done
+	OwnerID    *string    `json:"owner_id"`
+	TrackerURL *string    `json:"tracker_url"`
+	DueDate    *time.Time `json:"due_date"` // 可选，RFC3339；置空需清除时另议（当前仅支持设置）
 }
 
 // updateActionItem 更新改进项。
@@ -319,6 +326,9 @@ func (h *Handler) updateActionItem(c *echo.Context) error {
 	}
 	if req.TrackerURL != nil {
 		update.SetTrackerURL(*req.TrackerURL)
+	}
+	if req.DueDate != nil {
+		update.SetDueDate(*req.DueDate)
 	}
 	ai, err := update.Save(c.Request().Context())
 	if err != nil {

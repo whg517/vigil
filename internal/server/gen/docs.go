@@ -2903,6 +2903,10 @@ const docTemplate = `{
                     "enabled": {
                         "type": "boolean"
                     },
+                    "expires_at": {
+                        "description": "ExpiresAt B15：RFC3339 时间设置过期；显式传空串清除过期（改回永久生效）。",
+                        "type": "string"
+                    },
                     "match_labels": {
                         "additionalProperties": {
                             "type": "string"
@@ -3027,6 +3031,10 @@ const docTemplate = `{
                     "description": {
                         "type": "string"
                     },
+                    "due_date": {
+                        "description": "DueDate 截止日期（可选，RFC3339）。schema 有 due_date 字段，此前请求体不收（M14）。",
+                        "type": "string"
+                    },
                     "owner_id": {
                         "type": "string"
                     },
@@ -3047,6 +3055,10 @@ const docTemplate = `{
             },
             "postmortem.updateActionItemReq": {
                 "properties": {
+                    "due_date": {
+                        "description": "可选，RFC3339；置空需清除时另议（当前仅支持设置）",
+                        "type": "string"
+                    },
                     "owner_id": {
                         "type": "string"
                     },
@@ -3673,6 +3685,21 @@ const docTemplate = `{
                     "name": {
                         "type": "string"
                     },
+                    "runbook_ids": {
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "schedule_ids": {
+                        "description": "ScheduleIDs / RunbookIDs 关联排班/处置手册（M4.5 继承源）。\nService 是配置枢纽：路由命中后 Incident 继承 Service 的升级策略、排班、处置手册。\n此处仅暴露「配置入口」，让 schema 已有的边可经 API 建立；创建时全量设置。",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "slug": {
                         "type": "string"
                     },
@@ -3706,6 +3733,21 @@ const docTemplate = `{
                     },
                     "name": {
                         "type": "string"
+                    },
+                    "runbook_ids": {
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "schedule_ids": {
+                        "description": "ScheduleIDs / RunbookIDs 关联排班/处置手册，**全量替换**语义（指针区分）：\n  nil     —— 不修改（请求未带该字段）\n  []      —— 清空全部关联（显式传空数组）\n  [x,y]   —— 替换为指定集合（先清后加，最终关联即此集合）",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "slug": {
                         "type": "string"
@@ -3813,6 +3855,14 @@ const docTemplate = `{
                     "TypeAiInsight",
                     "TypeImMessage"
                 ]
+            },
+            "triage.rerouteReq": {
+                "properties": {
+                    "service_id": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
             },
             "user.Status": {
                 "description": "Status holds the value of the \"status\" field.",
@@ -5231,6 +5281,114 @@ const docTemplate = `{
                 "summary": "更新升级策略",
                 "tags": [
                     "escalation"
+                ]
+            }
+        },
+        "/events/{id}/reroute": {
+            "post": {
+                "description": "把未路由 Event 指派到指定 Service，并按该 Service 聚合/建单。",
+                "parameters": [
+                    {
+                        "description": "Event ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/triage.rerouteReq",
+                                        "description": "目标 service_id",
+                                        "summary": "request"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "目标 service_id",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "Reroute unrouted event",
+                "tags": [
+                    "triage"
                 ]
             }
         },

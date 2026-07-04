@@ -1244,6 +1244,100 @@ export interface paths {
         };
         trace?: never;
     };
+    "/events/{id}/reroute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reroute unrouted event
+         * @description 把未路由 Event 指派到指定 Service，并按该 Service 聚合/建单。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Event ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 目标 service_id */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["triage.rerouteReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/im/platforms": {
         parameters: {
             query?: never;
@@ -6881,6 +6975,8 @@ export interface components {
         "notification.updateSuppressionReq": {
             action?: string;
             enabled?: boolean;
+            /** @description ExpiresAt B15：RFC3339 时间设置过期；显式传空串清除过期（改回永久生效）。 */
+            expires_at?: string;
             match_labels?: {
                 [key: string]: string;
             };
@@ -6924,6 +7020,8 @@ export interface components {
         "postmortem.Status": "draft" | "in_review" | "published" | "archived";
         "postmortem.addActionItemReq": {
             description?: string;
+            /** @description DueDate 截止日期（可选，RFC3339）。schema 有 due_date 字段，此前请求体不收（M14）。 */
+            due_date?: string;
             owner_id?: string;
             tracker_url?: string;
         };
@@ -6932,6 +7030,8 @@ export interface components {
             status?: string;
         };
         "postmortem.updateActionItemReq": {
+            /** @description 可选，RFC3339；置空需清除时另议（当前仅支持设置） */
+            due_date?: string;
             owner_id?: string;
             /** @description open | in_progress | done */
             status?: string;
@@ -7175,6 +7275,13 @@ export interface components {
                 [key: string]: string;
             };
             name?: string;
+            runbook_ids?: number[];
+            /**
+             * @description ScheduleIDs / RunbookIDs 关联排班/处置手册（M4.5 继承源）。
+             *     Service 是配置枢纽：路由命中后 Incident 继承 Service 的升级策略、排班、处置手册。
+             *     此处仅暴露「配置入口」，让 schema 已有的边可经 API 建立；创建时全量设置。
+             */
+            schedule_ids?: number[];
             slug?: string;
             /** @description active | disabled */
             status?: string;
@@ -7194,6 +7301,14 @@ export interface components {
                 [key: string]: string;
             };
             name?: string;
+            runbook_ids?: number[];
+            /**
+             * @description ScheduleIDs / RunbookIDs 关联排班/处置手册，**全量替换**语义（指针区分）：
+             *       nil     —— 不修改（请求未带该字段）
+             *       []      —— 清空全部关联（显式传空数组）
+             *       [x,y]   —— 替换为指定集合（先清后加，最终关联即此集合）
+             */
+            schedule_ids?: number[];
             slug?: string;
             status?: string;
         };
@@ -7220,6 +7335,9 @@ export interface components {
          * @enum {string}
          */
         "timelineitem.Type": "incident_created" | "event_attached" | "status_changed" | "escalated" | "ack" | "resolved" | "reopened" | "responder_added" | "note_added" | "runbook_executed" | "ai_insight" | "im_message";
+        "triage.rerouteReq": {
+            service_id?: number;
+        };
         /**
          * @description Status holds the value of the "status" field.
          * @enum {string}

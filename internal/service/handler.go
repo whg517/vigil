@@ -7,6 +7,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -139,6 +140,11 @@ type createReq struct {
 	Status             string            `json:"status"` // active | disabled
 	TeamID             int               `json:"team_id"`
 	EscalationPolicyID int               `json:"escalation_policy_id"` // 可选，关联升级策略
+	// ScheduleIDs / RunbookIDs 关联排班/处置手册（M4.5 继承源）。
+	// Service 是配置枢纽：路由命中后 Incident 继承 Service 的升级策略、排班、处置手册。
+	// 此处仅暴露「配置入口」，让 schema 已有的边可经 API 建立；创建时全量设置。
+	ScheduleIDs []int `json:"schedule_ids"`
+	RunbookIDs  []int `json:"runbook_ids"`
 }
 
 // create 创建服务。
@@ -182,11 +188,19 @@ func (h *Handler) create(c *echo.Context) error {
 	if req.EscalationPolicyID > 0 {
 		b.SetEscalationPolicyID(req.EscalationPolicyID)
 	}
+	// 关联排班/处置手册（去重防重复添加导致的唯一约束冲突）。
+	if ids := dedupIDs(req.ScheduleIDs); len(ids) > 0 {
+		b.AddScheduleIDs(ids...)
+	}
+	if ids := dedupIDs(req.RunbookIDs); len(ids) > 0 {
+		b.AddRunbookIDs(ids...)
+	}
 	s, err := b.Save(c.Request().Context())
 	if err != nil {
 		return errs.FailConstraint(c, nil, err, "service", "service slug already exists")
 	}
-	return c.JSON(http.StatusCreated, s)
+	// 回带关联 id：前端配置页需知道当前关联了哪些排班/手册。
+	return c.JSON(http.StatusCreated, h.withAssociations(c.Request().Context(), s))
 }
 
 // get 服务详情。
@@ -216,7 +230,7 @@ func (h *Handler) get(c *echo.Context) error {
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
-	return c.JSON(http.StatusOK, s)
+	return c.JSON(http.StatusOK, h.withAssociations(c.Request().Context(), s))
 }
 
 // updateReq 更新服务请求（全部字段可选，部分更新）。
@@ -232,6 +246,12 @@ type updateReq struct {
 	//   0   —— 解除关联（显式清空）
 	//   >0  —— 关联指定策略
 	EscalationPolicyID *int `json:"escalation_policy_id"`
+	// ScheduleIDs / RunbookIDs 关联排班/处置手册，**全量替换**语义（指针区分）：
+	//   nil     —— 不修改（请求未带该字段）
+	//   []      —— 清空全部关联（显式传空数组）
+	//   [x,y]   —— 替换为指定集合（先清后加，最终关联即此集合）
+	ScheduleIDs *[]int `json:"schedule_ids"`
+	RunbookIDs  *[]int `json:"runbook_ids"`
 }
 
 // update 更新服务。
@@ -258,6 +278,12 @@ func (h *Handler) update(c *echo.Context) error {
 	var req updateReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
+	}
+	// 关联排班/处置手册是「配置枢纽」写操作，须 service.update（仅 view 的只读角色不得改关联）。
+	if req.ScheduleIDs != nil || req.RunbookIDs != nil {
+		if e := h.checkAccess(c, id, auth.PermServiceUpdate); e != nil {
+			return e
+		}
 	}
 	upd := h.db.Service.UpdateOneID(id)
 	if req.Name != nil {
@@ -286,11 +312,68 @@ func (h *Handler) update(c *echo.Context) error {
 			upd.ClearEscalationPolicy()
 		}
 	}
+	// 排班关联：全量替换（先清后加）。nil 不改，[] 清空，[x,y] 替换为该集合。
+	if req.ScheduleIDs != nil {
+		upd.ClearSchedules()
+		if ids := dedupIDs(*req.ScheduleIDs); len(ids) > 0 {
+			upd.AddScheduleIDs(ids...)
+		}
+	}
+	// 处置手册关联：同上全量替换。
+	if req.RunbookIDs != nil {
+		upd.ClearRunbooks()
+		if ids := dedupIDs(*req.RunbookIDs); len(ids) > 0 {
+			upd.AddRunbookIDs(ids...)
+		}
+	}
 	s, err := upd.Save(c.Request().Context())
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
-	return c.JSON(http.StatusOK, s)
+	return c.JSON(http.StatusOK, h.withAssociations(c.Request().Context(), s))
+}
+
+// serviceResponse 服务响应体：内嵌 ent.Service 全字段，附带关联的排班/处置手册 id。
+//
+// 背景：Service↔Schedule/Runbook 是多对多边，ent.Service 默认序列化不含边数据；
+// 前端配置页需要「当前关联了哪些排班/手册」的 id 列表来回显与增删，故显式回带。
+type serviceResponse struct {
+	*ent.Service
+	ScheduleIDs []int `json:"schedule_ids"`
+	RunbookIDs  []int `json:"runbook_ids"`
+}
+
+// withAssociations 为 Service 查出其关联的 schedule/runbook id 并包装为响应体。
+// 查询失败时降级为空列表（不阻断主响应，仅关联回显缺失）。
+func (h *Handler) withAssociations(ctx context.Context, s *ent.Service) serviceResponse {
+	resp := serviceResponse{Service: s, ScheduleIDs: []int{}, RunbookIDs: []int{}}
+	if ids, err := s.QuerySchedules().IDs(ctx); err == nil {
+		resp.ScheduleIDs = ids
+	}
+	if ids, err := s.QueryRunbooks().IDs(ctx); err == nil {
+		resp.RunbookIDs = ids
+	}
+	return resp
+}
+
+// dedupIDs 去重并剔除非正 id，避免重复关联触发唯一约束冲突或关联到无效 id。
+func dedupIDs(ids []int) []int {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[int]struct{}, len(ids))
+	out := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 // delete 删除服务。
