@@ -48,6 +48,18 @@ export function useTransitionPostmortem(id: number) {
   });
 }
 
+/** useEditSections 逐段编辑复盘章节（部分更新，T4.2）。 */
+export function useEditSections(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sections: Record<string, unknown>) => api.editPostmortemSections(id, sections),
+    onSuccess: (data) => {
+      toast.success("章节已保存");
+      qc.setQueryData(postmortemQk.postmortem(id), data);
+    },
+  });
+}
+
 export function useAddActionItem(id: number) {
   const qc = useQueryClient();
   return useMutation({

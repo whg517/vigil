@@ -273,6 +273,12 @@ export const api = {
       .patch<Postmortem>(`/postmortems/${id}/transition`, { status })
       .then((r) => r.data);
   },
+  /** editPostmortemSections 逐段编辑复盘章节（部分更新，T4.2）。仅 draft/in_review 可编辑。 */
+  editPostmortemSections(id: number, sections: Record<string, unknown>) {
+    return http
+      .patch<Postmortem>(`/postmortems/${id}/sections`, { sections })
+      .then((r) => r.data);
+  },
   addActionItem(id: number, body: { description: string; owner_id?: string }) {
     return http
       .post<ActionItem>(`/postmortems/${id}/action-items`, body)

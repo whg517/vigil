@@ -32,6 +32,26 @@ import (
 // 二次起草会无条件冲掉——handler 据此返回 409，让调用方感知"已存在不可覆盖"而非静默丢数据。
 var ErrPostmortemNotDraft = errors.New("postmortem is not in draft status, refusing to overwrite")
 
+// ErrPostmortemLocked 复盘已发布/归档，sections 已定稿锁定，拒绝逐段编辑（T4.2）。
+//
+// 为什么锁定 published/archived：published 复盘是组织知识库的定稿来源（M12.6 反哺相似检索，
+// embedding 已入库），archived 是其归档态。允许发布后随意改段会让「已发布 = 定稿事实」失效，
+// 且与 embedding 语义脱节。定稿后如需订正，走 archived 归档留存旧版，另起新复盘——而非原地改。
+// draft/in_review 仍是评审进行时，逐段编辑正是本任务要开的口子。
+var ErrPostmortemLocked = errors.New("postmortem is published/archived, sections are locked")
+
+// ErrNoSections 逐段编辑请求未携带任何有效段落，无可更新（handler 据此返回 400）。
+var ErrNoSections = errors.New("no sections to update")
+
+// aiSectionsKey sections JSON 内保留键：记录仍标记「AI 起草」的段落名列表（字段级来源标记，C29/M9）。
+//
+// 设计取舍：Postmortem schema 仅有复盘级 generated_by 枚举（有 LLM 恒 mixed），无段级来源字段。
+// 为支持「每段可标记 AI 草拟 vs 人工、编辑后清除该段 AI 标记」而不引入 schema 迁移，把段级标记
+// 内联进 sections JSON 的保留键 `_ai_sections`（值为 []string 段名）。GenerateDraft 时把 AI 起草的
+// 段落写入此列表；逐段编辑某段时从列表移除该段（人工已确认）。前端据此对每段渲染「AI 草拟」徽标。
+// 下划线前缀表明它是元数据而非业务章节，前端/extractPostmortemText 均应跳过。
+const aiSectionsKey = "_ai_sections"
+
 // LLMProvider LLM 接口（AI 起草用，可插拔）。nil 时降级为纯时间线草稿。
 // 对应 capabilities/07 §B5。
 type LLMProvider interface {
@@ -125,12 +145,18 @@ func (e *Engine) GenerateDraft(ctx context.Context, incID int) (*ent.Postmortem,
 		"title":    inc.Title,
 	}
 
-	sections["summary"] = e.draftOrFallback(ctx, "summary", ctxMap, fallbackSummary(inc))
-	sections["impact"] = e.draftOrFallback(ctx, "impact", ctxMap, fallbackImpact(inc))
-	sections["root_cause"] = e.draftOrFallback(ctx, "root_cause", ctxMap, "（待人工填写）")
+	// aiSections 收集本次「实际由 AI 起草成功」的段落名（字段级来源标记，C29/M9）。
+	// 仅 LLM 真产出内容的段落算 AI 草拟；降级到 fallback/占位的段落算人工待填，不打 AI 标记。
+	var aiSections []string
+	sections["summary"], aiSections = e.draftMark(ctx, "summary", ctxMap, fallbackSummary(inc), aiSections)
+	sections["impact"], aiSections = e.draftMark(ctx, "impact", ctxMap, fallbackImpact(inc), aiSections)
+	sections["root_cause"], aiSections = e.draftMark(ctx, "root_cause", ctxMap, "（待人工填写）", aiSections)
 	sections["what_went_well"] = []string{"（待人工补充）"}
 	sections["what_went_wrong"] = []string{"（待人工补充）"}
 	sections["action_items"] = []any{}
+	if len(aiSections) > 0 {
+		sections[aiSectionsKey] = aiSections
+	}
 
 	// 生成方式：有 AI 贡献则 mixed，纯规则则 human
 	genBy := postmortem.GeneratedByHuman
@@ -231,7 +257,7 @@ func (e *Engine) HasPublishedPostmortem(ctx context.Context, incID int) (bool, e
 		Exist(ctx)
 }
 
-// draftOrDraft 用 AI 起草，失败/无 LLM 则用 fallback。
+// draftOrFallback 用 AI 起草，失败/无 LLM 则用 fallback。
 func (e *Engine) draftOrFallback(ctx context.Context, section string, ctxMap map[string]any, fallback string) string {
 	if e.llm == nil {
 		return fallback
@@ -241,6 +267,106 @@ func (e *Engine) draftOrFallback(ctx context.Context, section string, ctxMap map
 		return fallback
 	}
 	return draft
+}
+
+// draftMark 在 draftOrFallback 基础上返回段级来源标记：AI 真产出内容时把 section 名追加进
+// aiSections（字段级「AI 草拟」标记）；降级到 fallback 则不追加（视为人工待填）。
+func (e *Engine) draftMark(ctx context.Context, section string, ctxMap map[string]any, fallback string, aiSections []string) (string, []string) {
+	if e.llm == nil {
+		return fallback, aiSections
+	}
+	draft, err := e.llm.DraftSection(ctx, section, ctxMap)
+	if err != nil || strings.TrimSpace(draft) == "" {
+		return fallback, aiSections
+	}
+	return draft, append(aiSections, section)
+}
+
+// EditSections 逐段编辑复盘 sections（T4.2，C29/M9）。
+//
+// 语义：**部分更新**——patch 里出现的段落覆盖原值，未出现的段落原样保留（非整体替换）。
+// 编辑过的段落从 `_ai_sections` 移除其 AI 草拟标记（人工已确认/改写该段，来源转为人工）。
+//
+// 状态门禁：仅 draft/in_review 可编辑（评审进行时）；published/archived 已定稿锁定，返 ErrPostmortemLocked。
+// 权限由 handler 侧 postmortem.update 校验，本方法只管领域逻辑。
+//
+// patch 里的保留键（_ai_sections 等下划线前缀）被忽略，不允许经编辑接口直接改标记。
+func (e *Engine) EditSections(ctx context.Context, pmID int, patch map[string]any) (*ent.Postmortem, error) {
+	pm, err := e.db.Postmortem.Get(ctx, pmID)
+	if err != nil {
+		return nil, fmt.Errorf("get postmortem: %w", err)
+	}
+	// 定稿锁定：published/archived 不许原地改段（见 ErrPostmortemLocked 注释）。
+	if s := postmortem.Status(pm.Status); s == postmortem.StatusPublished || s == postmortem.StatusArchived {
+		return nil, ErrPostmortemLocked
+	}
+
+	// 过滤保留键：编辑接口只改业务段落，不许直接写 _ai_sections 之类元数据。
+	edited := make([]string, 0, len(patch))
+	for k := range patch {
+		if strings.HasPrefix(k, "_") {
+			continue
+		}
+		edited = append(edited, k)
+	}
+	if len(edited) == 0 {
+		return nil, ErrNoSections
+	}
+
+	// 部分合并：复制原 sections，逐段覆盖 patch 提供的段落，其余保留。
+	sections := cloneSections(pm.Sections)
+	for _, k := range edited {
+		sections[k] = patch[k]
+	}
+	// 清除被编辑段落的 AI 草拟标记（人工确认过，来源转人工）。
+	sections[aiSectionsKey] = removeAISections(sections[aiSectionsKey], edited)
+	if len(sections[aiSectionsKey].([]string)) == 0 {
+		delete(sections, aiSectionsKey)
+	}
+
+	updated, err := e.db.Postmortem.UpdateOneID(pmID).SetSections(sections).Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("update sections: %w", err)
+	}
+	return updated, nil
+}
+
+// cloneSections 浅拷贝 sections map（避免直接改动 ent 实体持有的 map）。
+func cloneSections(src map[string]any) map[string]any {
+	dst := make(map[string]any, len(src)+1)
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+// removeAISections 从 AI 段标记列表中移除已被人工编辑的段落，返回剩余标记（[]string）。
+//
+// 兼容读取：sections 经 JSON 往返后 `_ai_sections` 可能是 []any（元素 string），也可能是
+// 内存态 []string；两种都归一处理。返回值恒为 []string，供 SetSections 序列化。
+func removeAISections(raw any, edited []string) []string {
+	editedSet := make(map[string]struct{}, len(edited))
+	for _, e := range edited {
+		editedSet[e] = struct{}{}
+	}
+	var cur []string
+	switch v := raw.(type) {
+	case []string:
+		cur = v
+	case []any:
+		for _, x := range v {
+			if s, ok := x.(string); ok {
+				cur = append(cur, s)
+			}
+		}
+	}
+	out := make([]string, 0, len(cur))
+	for _, s := range cur {
+		if _, hit := editedSet[s]; !hit {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // buildTimelineSection 把时间线条目组装成 timeline 章节内容。

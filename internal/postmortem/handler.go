@@ -85,6 +85,7 @@ func (h *Handler) Register(g *echo.Group) {
 	g.GET("/postmortems/:id", h.get)
 	g.POST("/incidents/:id/postmortem/draft", h.generateDraft) // 为事件生成草稿
 	g.PATCH("/postmortems/:id/transition", h.transition)       // 状态流转
+	g.PATCH("/postmortems/:id/sections", h.editSections)       // 逐段编辑（T4.2）
 	g.DELETE("/postmortems/:id", h.delete)                     // 删除复盘
 	// ActionItem
 	g.POST("/postmortems/:id/action-items", h.addActionItem)
@@ -230,6 +231,63 @@ func (h *Handler) transition(c *echo.Context) error {
 	pm, err := h.engine.Transition(c.Request().Context(), id, postmortem.Status(req.Status))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
+	}
+	return c.JSON(http.StatusOK, flatten(pm))
+}
+
+// editSectionsReq 逐段编辑请求（T4.2，C29/M9）。
+//
+// sections 为「段名 → 新内容」的部分集合：只需传要改的段落，未传的段落保留原值（部分更新，非整体替换）。
+// 段内容类型随段而异（summary/impact/root_cause 为字符串，what_went_well/wrong 为字符串数组），
+// 故用 map[string]any 透传，由前端/领域约定各段结构。
+type editSectionsReq struct {
+	Sections map[string]any `json:"sections"`
+}
+
+// editSections 逐段编辑复盘 sections（部分更新）。
+//
+// 权限 postmortem.update（评审修改，仅 view 只读角色不得改）；仅 draft/in_review 可编辑，
+// published/archived 已定稿锁定返 409。编辑过的段落自动清除其「AI 草拟」标记（人工确认）。
+//
+// @Summary      逐段编辑复盘章节
+// @Description  部分更新 sections：仅覆盖请求提供的段落，其余段落保留；编辑后清除该段 AI 草拟标记。
+// @Tags         postmortem
+// @Accept       json
+// @Produce      json
+// @Param        id    path     int             true  "复盘 ID"
+// @Param        body  body     editSectionsReq true  "要更新的段落集合"
+// @Success      200   {object} ent.Postmortem
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      403   {object} httputil.ErrorResponse
+// @Failure      404   {object} httputil.ErrorResponse
+// @Failure      409   {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /postmortems/{id}/sections [patch]
+func (h *Handler) editSections(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	// 逐段编辑属评审修改（写），须 postmortem.update；仅 view 的只读角色不得改。
+	if e := h.checkAccess(c, id, auth.PermPostmortemUpdate, "postmortem"); e != nil {
+		return e
+	}
+	var req editSectionsReq
+	if err := c.Bind(&req); err != nil || len(req.Sections) == 0 {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "sections required"})
+	}
+	pm, err := h.engine.EditSections(c.Request().Context(), id, req.Sections)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrPostmortemLocked):
+			return errs.Conflict(c, "复盘已发布/归档，章节已定稿锁定，不能编辑")
+		case errors.Is(err, ErrNoSections):
+			return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "no valid sections to update"})
+		case ent.IsNotFound(err):
+			return errs.NotFound(c)
+		default:
+			return errs.Internal(c, nil, err)
+		}
 	}
 	return c.JSON(http.StatusOK, flatten(pm))
 }

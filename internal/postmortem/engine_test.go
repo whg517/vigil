@@ -130,6 +130,140 @@ func TestGenerateDraft_WithLLM(t *testing.T) {
 	}
 }
 
+// TestGenerateDraft_MarksAISections 验证 AI 起草成功的段落被打上 _ai_sections 字段级标记，
+// 降级到 fallback 的段落不打标记（C29/M9 字段级 AI 草拟来源）。
+func TestGenerateDraft_MarksAISections(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c)
+	// 仅 summary 有 AI 产出；impact/root_cause 无（mockLLM 返回空串 → 降级 fallback）。
+	llm := &mockLLM{drafts: map[string]string{"summary": "AI 起草的摘要"}}
+	eng := NewEngine(c, llm)
+
+	pm, err := eng.GenerateDraft(context.Background(), inc.ID)
+	if err != nil {
+		t.Fatalf("GenerateDraft: %v", err)
+	}
+	ai, ok := pm.Sections[aiSectionsKey].([]string)
+	if !ok {
+		t.Fatalf("_ai_sections missing or wrong type: %#v", pm.Sections[aiSectionsKey])
+	}
+	if len(ai) != 1 || ai[0] != "summary" {
+		t.Errorf("_ai_sections: got %v, want [summary]", ai)
+	}
+}
+
+// TestGenerateDraft_NoLLM_NoAIMarkers 无 LLM 时不产生任何段级 AI 标记。
+func TestGenerateDraft_NoLLM_NoAIMarkers(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c)
+	pm, err := NewEngine(c, nil).GenerateDraft(context.Background(), inc.ID)
+	if err != nil {
+		t.Fatalf("GenerateDraft: %v", err)
+	}
+	if _, ok := pm.Sections[aiSectionsKey]; ok {
+		t.Errorf("_ai_sections should be absent without LLM, got %v", pm.Sections[aiSectionsKey])
+	}
+}
+
+// TestEditSections_PartialUpdate 逐段编辑部分更新：改 summary，其它段保留，且 AI 标记被清除。
+func TestEditSections_PartialUpdate(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c)
+	llm := &mockLLM{drafts: map[string]string{"summary": "AI 摘要", "root_cause": "AI 根因"}}
+	eng := NewEngine(c, llm)
+	pm, err := eng.GenerateDraft(context.Background(), inc.ID)
+	if err != nil {
+		t.Fatalf("GenerateDraft: %v", err)
+	}
+	origRootCause, _ := pm.Sections["root_cause"].(string)
+
+	// 只改 summary
+	got, err := eng.EditSections(context.Background(), pm.ID, map[string]any{"summary": "人工改写的摘要"})
+	if err != nil {
+		t.Fatalf("EditSections: %v", err)
+	}
+	if s, _ := got.Sections["summary"].(string); s != "人工改写的摘要" {
+		t.Errorf("summary not updated: got %q", s)
+	}
+	// root_cause 未传，保留原值
+	if rc, _ := got.Sections["root_cause"].(string); rc != origRootCause {
+		t.Errorf("root_cause should be preserved: got %q want %q", rc, origRootCause)
+	}
+	// timeline 段仍在（部分更新，非整体替换）
+	if _, ok := got.Sections["timeline"]; !ok {
+		t.Error("timeline section lost after partial edit")
+	}
+	// summary 的 AI 标记被清除，root_cause 仍标记 AI
+	ai := aiSectionSet(got.Sections[aiSectionsKey])
+	if _, hit := ai["summary"]; hit {
+		t.Error("summary AI marker should be cleared after edit")
+	}
+	if _, hit := ai["root_cause"]; !hit {
+		t.Error("root_cause AI marker should remain (not edited)")
+	}
+}
+
+// TestEditSections_LockedWhenPublished published/archived 定稿锁定，拒绝逐段编辑。
+func TestEditSections_LockedWhenPublished(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c)
+	eng := NewEngine(c, nil)
+	pm, _ := eng.GenerateDraft(context.Background(), inc.ID)
+	_, _ = eng.Transition(context.Background(), pm.ID, postmortem.StatusInReview)
+	_, _ = eng.Transition(context.Background(), pm.ID, postmortem.StatusPublished)
+
+	if _, err := eng.EditSections(context.Background(), pm.ID, map[string]any{"summary": "x"}); !errors.Is(err, ErrPostmortemLocked) {
+		t.Fatalf("edit published: got %v, want ErrPostmortemLocked", err)
+	}
+}
+
+// TestEditSections_InReviewEditable in_review 仍可逐段编辑（评审进行时）。
+func TestEditSections_InReviewEditable(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c)
+	eng := NewEngine(c, nil)
+	pm, _ := eng.GenerateDraft(context.Background(), inc.ID)
+	_, _ = eng.Transition(context.Background(), pm.ID, postmortem.StatusInReview)
+
+	got, err := eng.EditSections(context.Background(), pm.ID, map[string]any{"impact": "评审中补充影响"})
+	if err != nil {
+		t.Fatalf("edit in_review: %v", err)
+	}
+	if s, _ := got.Sections["impact"].(string); s != "评审中补充影响" {
+		t.Errorf("impact not updated: got %q", s)
+	}
+}
+
+// TestEditSections_NoValidSections 仅含保留键（下划线前缀）时无可更新段，返 ErrNoSections。
+func TestEditSections_NoValidSections(t *testing.T) {
+	c := newTestClient(t)
+	inc := seedIncidentWithTimeline(t, c)
+	eng := NewEngine(c, nil)
+	pm, _ := eng.GenerateDraft(context.Background(), inc.ID)
+
+	if _, err := eng.EditSections(context.Background(), pm.ID, map[string]any{"_ai_sections": []string{"x"}}); !errors.Is(err, ErrNoSections) {
+		t.Fatalf("edit reserved-only: got %v, want ErrNoSections", err)
+	}
+}
+
+// aiSectionSet 把 _ai_sections（可能 []string 或 []any）归一为 set，测试用。
+func aiSectionSet(raw any) map[string]struct{} {
+	out := map[string]struct{}{}
+	switch v := raw.(type) {
+	case []string:
+		for _, s := range v {
+			out[s] = struct{}{}
+		}
+	case []any:
+		for _, x := range v {
+			if s, ok := x.(string); ok {
+				out[s] = struct{}{}
+			}
+		}
+	}
+	return out
+}
+
 // TestGenerateDraft_Idempotent 验证重复生成更新而非新建。
 func TestGenerateDraft_Idempotent(t *testing.T) {
 	c := newTestClient(t)

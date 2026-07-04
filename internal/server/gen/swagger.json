@@ -3170,6 +3170,15 @@
                 },
                 "type": "object"
             },
+            "postmortem.editSectionsReq": {
+                "properties": {
+                    "sections": {
+                        "additionalProperties": {},
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
             "postmortem.transitionReq": {
                 "properties": {
                     "status": {
@@ -8348,6 +8357,103 @@
                     }
                 ],
                 "summary": "添加改进项",
+                "tags": [
+                    "postmortem"
+                ]
+            }
+        },
+        "/postmortems/{id}/sections": {
+            "patch": {
+                "description": "部分更新 sections：仅覆盖请求提供的段落，其余段落保留；编辑后清除该段 AI 草拟标记。",
+                "parameters": [
+                    {
+                        "description": "复盘 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/postmortem.editSectionsReq",
+                                        "description": "要更新的段落集合",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "要更新的段落集合",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Postmortem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "逐段编辑复盘章节",
                 "tags": [
                     "postmortem"
                 ]

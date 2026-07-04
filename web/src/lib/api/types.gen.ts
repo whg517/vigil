@@ -3957,6 +3957,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/postmortems/{id}/sections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 逐段编辑复盘章节
+         * @description 部分更新 sections：仅覆盖请求提供的段落，其余段落保留；编辑后清除该段 AI 草拟标记。
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 复盘 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 要更新的段落集合 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["postmortem.editSectionsReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Postmortem"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/postmortems/{id}/transition": {
         parameters: {
             query?: never;
@@ -7817,6 +7900,11 @@ export interface components {
             due_date?: string;
             owner_id?: string;
             tracker_url?: string;
+        };
+        "postmortem.editSectionsReq": {
+            sections?: {
+                [key: string]: unknown;
+            };
         };
         "postmortem.transitionReq": {
             /** @description in_review | published | archived */
