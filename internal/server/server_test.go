@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
 	"net/http"
@@ -9,7 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"entgo.io/ent/dialect"
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/enttest"
 	"github.com/kevin/vigil/internal/config"
 	"github.com/kevin/vigil/internal/store"
@@ -56,6 +60,35 @@ func TestHealth_RedisDown(t *testing.T) {
 	s.echo.ServeHTTP(rec, req)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Errorf("health with redis down: status %d, want 503", rec.Code)
+	}
+}
+
+// TestHealth_SchemaNotMigrated schema 未迁移（核心表缺失）时返回 503。
+// 用未跑 migrate 的裸 sqlite（不经 enttest 建表），核心表 users 不存在，
+// 探针应把 schema check 置 down 并整体返回 503——未 migrate 实例不应被判就绪。
+func TestHealth_SchemaNotMigrated(t *testing.T) {
+	rawDB, err := sql.Open("sqlite3", "file:server_test_nomigrate?mode=memory&cache=shared&_fk=1")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = rawDB.Close() })
+	// 用裸 *sql.DB 构造 ent client，但不建表（不调 Schema.Create）。
+	drv := entsql.OpenDB(dialect.SQLite, rawDB)
+	db := ent.NewClient(ent.Driver(drv))
+	t.Cleanup(func() { _ = db.Close() })
+
+	mr := miniredis.RunT(t)
+	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rc.Close() })
+
+	st := &store.Store{DB: db, Redis: rc}
+	s := New(&config.Config{}, st)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	s.echo.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("health with schema not migrated: status %d, want 503; body=%s", rec.Code, rec.Body.String())
 	}
 }
 

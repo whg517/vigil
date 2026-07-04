@@ -16,6 +16,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -85,11 +86,14 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	errs.SetLogger(log)
 
 	// —— 基础设施 seed（鉴权生效前提，幂等）——
+	// T0.1：seed 失败必须让装配返回错误、进程退出，而非 Warn 续跑。
+	// 内置角色是鉴权生效的前提，seed 失败（非幂等重复）却带病启动会导致所有请求被拒
+	// （无角色可授），且探针全绿——比直接崩溃更难排查。SeedBuiltinRoles 内部已把
+	// 唯一约束冲突（重复启动）视为幂等跳过，故这里的 err 一定是真失败。
 	if err := auth.SeedBuiltinRoles(ctx, st.DB); err != nil {
-		log.Warn("seed builtin roles failed", zap.Error(err))
-	} else {
-		log.Info("builtin roles seeded")
+		return nil, fmt.Errorf("seed builtin roles: %w", err)
 	}
+	log.Info("builtin roles seeded")
 
 	// —— 登录态：JWT 签发器 + 默认管理员 ——
 	jwtSigner := auth.NewJWTSigner(
@@ -100,8 +104,11 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	if !jwtSigner.Available() {
 		log.Warn("auth jwt secret not set; login disabled (set VIGIL_AUTH_JWT_SECRET)")
 	} else {
+		// T0.1：seed 失败让装配返回错误、进程退出，而非 Warn 续跑。
+		// SeedDefaultAdmin 对「admin 已存在」（唯一约束冲突）返回 (false, nil) 视为幂等，
+		// 故这里的 err 一定是真失败（如角色绑定失败），带病启动会让首个管理员无法登录/配置。
 		if created, err := auth.SeedDefaultAdmin(ctx, st.DB); err != nil {
-			log.Warn("seed default admin failed", zap.Error(err))
+			return nil, fmt.Errorf("seed default admin: %w", err)
 		} else if created {
 			log.Warn("default admin created (username=admin password=changeme) — CHANGE IMMEDIATELY")
 		}

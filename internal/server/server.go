@@ -115,6 +115,18 @@ func (s *Server) health(c *echo.Context) error {
 		}
 	}
 
+	// schema 就绪探测（T0.1）：单纯连得上 DB（SELECT 1 过）不代表迁移已执行。
+	// 未 migrate 的空库探针会全绿但业务全挂（所有查询 relation does not exist）。
+	// 这里用 ent 对核心表 users 做一次极轻查询（Limit(1).Count），表不存在即报错，
+	// 使 readiness 探针在迁移完成前保持 503，K8s 不会把流量导向未就绪实例。
+	// 走 ent client 而非 to_regstate('users')，是为了对 Postgres 与测试用 sqlite 一致生效。
+	if _, err := s.store.DB.User.Query().Limit(1).Count(ctx); err != nil {
+		checks["schema"] = "down: " + err.Error()
+		status = http.StatusServiceUnavailable
+	} else {
+		checks["schema"] = "up"
+	}
+
 	resp := map[string]any{
 		"status":  http.StatusText(status),
 		"checks":  checks,

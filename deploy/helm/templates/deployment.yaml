@@ -66,7 +66,10 @@ spec:
             # Redis
             - name: VIGIL_REDIS_ADDR
               value: "{{ .Values.redis.host }}:{{ .Values.redis.port }}"
-            {{- if .Values.redis.password }}
+            # T0.1：守卫改为基于 existingSecret（redis 块无 password 键，原条件恒 false
+            # → 即便 Secret 里有 redis-password 也永不注入，密码保护的 Redis 连不上）。
+            # 配了 existingSecret 即从其 redis-password 键注入；无密码 Redis 则留空该 Secret 键。
+            {{- if .Values.redis.existingSecret }}
             - name: VIGIL_REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
