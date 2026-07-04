@@ -337,7 +337,11 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	userHandler.SetIMAccountBinder(imMapper)
 	userHandler.SetIMAccountResolver(imMapperResolver{m: imMapper})
 	userHandler.Register(v1)
-	auth.NewTeamHandler(st.DB).Register(v1)
+	// T2.7：TeamHandler 注入审计器（成员增删留痕）+ 鉴权器（成员管理团队软隔离，跨团队拒）。
+	teamHandler := auth.NewTeamHandler(st.DB)
+	teamHandler.SetAuditRecorder(auditRecorder)
+	teamHandler.SetAuthorizer(authz)
+	teamHandler.Register(v1)
 	auth.NewAuditHandler(st.DB).Register(v1)
 	// Runbook（能力域 9）：注入时间线 + 升级触发器（包装 incService.Escalate）。
 	runbookEngine := runbook.NewEngine(st.DB, runbook.NewRegistry())
@@ -896,6 +900,8 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	// 读端点也登记（审计 S2）：角色/绑定关系暴露组织权限结构，仅 role.view 可见。
 	g.RoutePerm(http.MethodGet, "/roles", auth.PermRoleView)
 	g.RoutePerm(http.MethodPost, "/roles", auth.PermRoleCreate)
+	// T2.7/M2：编辑角色权限集/名称（内置角色 handler 内拒改）。
+	g.RoutePerm(http.MethodPatch, "/roles/:id", auth.PermRoleUpdate)
 	g.RoutePerm(http.MethodDelete, "/roles/:id", auth.PermRoleDelete)
 	g.RoutePerm(http.MethodGet, "/role-bindings", auth.PermRoleView)
 	g.RoutePerm(http.MethodPost, "/role-bindings", auth.PermRoleAssign)
@@ -904,7 +910,10 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	// GET /users 暴露全员名录 → user.view；PATCH /users/:id 改名/时区/启停 → user.update
 	//（改 status=disabled 时 handler 内再叠加 user.disable，见 auth.UserHandler.updateUser）。
 	g.RoutePerm(http.MethodGet, "/users", auth.PermUserView)
+	// T2.6/M1：建用户（user.create）；管理员重置他人密码（user.update，重置后吊销旧 token）。
+	g.RoutePerm(http.MethodPost, "/users", auth.PermUserCreate)
 	g.RoutePerm(http.MethodPatch, "/users/:id", auth.PermUserUpdate)
+	g.RoutePerm(http.MethodPost, "/users/:id/reset-password", auth.PermUserUpdate)
 	// API Key（M13.7）—— 审计点名：原不限 org_admin，任何人可签发。
 	g.RoutePerm(http.MethodPost, "/api-keys", auth.PermAdminAPIKeyManage)
 	g.RoutePerm(http.MethodDelete, "/api-keys/:id", auth.PermAdminAPIKeyManage)
@@ -952,6 +961,9 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/teams", auth.PermTeamCreate)
 	g.RoutePerm(http.MethodPatch, "/teams/:id", auth.PermTeamUpdate)
 	g.RoutePerm(http.MethodDelete, "/teams/:id", auth.PermTeamDelete)
+	// 团队成员增删（M3 / S15，T2.7）—— team.member.manage 悬空点落地。
+	g.RoutePerm(http.MethodPost, "/teams/:id/members", auth.PermTeamMemberManage)
+	g.RoutePerm(http.MethodDelete, "/teams/:id/members/:uid", auth.PermTeamMemberManage)
 	// IM 账号绑定（M8.6 / M13.1，QA 审计 C6）
 	g.RoutePerm(http.MethodPost, "/users/:id/im-accounts", auth.PermUserIMBind)
 	// 通知规则 / 抑制规则 / 模板写

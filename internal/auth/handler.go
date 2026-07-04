@@ -51,6 +51,9 @@ func (h *Handler) Register(g *echo.Group) {
 	// Role
 	g.GET("/roles", h.listRoles)
 	g.POST("/roles", h.createRole)
+	// T2.7/M2：编辑角色（名称/描述/权限集）。权限点 role.update 由 RouteGuard 登记。
+	// 内置角色不可编辑（可复制不可改，见 handler 内 builtin 校验）。
+	g.PATCH("/roles/:id", h.updateRole)
 	g.DELETE("/roles/:id", h.deleteRole)
 	// RoleBinding
 	g.GET("/role-bindings", h.listBindings)
@@ -128,6 +131,85 @@ func (h *Handler) createRole(c *echo.Context) error {
 		h.audit.MustRecord(c.Request().Context(), h.auditFrom(c, "role.create", "role", rl.ID, rl.Name))
 	}
 	return c.JSON(http.StatusCreated, rl)
+}
+
+// updateRoleReq 编辑角色请求（M2，T2.7）。指针字段区分「不改」与「置空/置换」。
+type updateRoleReq struct {
+	Name        *string   `json:"name"`
+	Description *string   `json:"description"`
+	Permissions *[]string `json:"permissions"` // 非 nil 则全量替换权限集
+}
+
+// updateRole 编辑角色的名称/描述/权限集（M2，T2.7）。
+//
+// 权限点 role.update 由 RouteGuard 登记（PATCH /roles/:id）。
+// 内置角色（builtin=true）不可编辑，返 403（与 deleteRole 同策略：内置可复制不可改，
+// 改内置权限集会静默扩大/收窄一批人的权限边界，风险过高）——要定制应复制后改副本。
+// 权限集全量替换前逐个校验合法性（必须是系统枚举），非法返 400。
+// 重名命中唯一约束归一返 409。
+//
+// @Summary      编辑角色
+// @Tags         rbac
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int             true  "角色 ID"
+// @Param        body  body      updateRoleReq   true  "更新字段"
+// @Success      200   {object} ent.Role
+// @Failure      400   {object} httputil.ErrorResponse
+// @Failure      403   {object} httputil.ErrorResponse
+// @Failure      404   {object} httputil.ErrorResponse
+// @Failure      409   {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /roles/{id} [patch]
+func (h *Handler) updateRole(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	var req updateRoleReq
+	if err := c.Bind(&req); err != nil {
+		return errs.BadRequest(c, "invalid body")
+	}
+	rl, err := h.db.Role.Get(c.Request().Context(), id)
+	if err != nil {
+		return errs.FailNotFound(c, nil, err, "role")
+	}
+	if rl.Builtin {
+		return errs.Forbidden(c, "builtin role cannot be edited")
+	}
+	// 权限集若给出则逐个校验合法性（角色配置必须从系统枚举选，防写入无效权限点）。
+	if req.Permissions != nil {
+		for _, p := range *req.Permissions {
+			if !Permission(p).IsValid() {
+				return errs.BadRequest(c, "invalid permission: "+p)
+			}
+		}
+	}
+	u := h.db.Role.UpdateOneID(id)
+	if req.Name != nil {
+		u.SetName(*req.Name)
+	}
+	if req.Description != nil {
+		u.SetDescription(*req.Description)
+	}
+	if req.Permissions != nil {
+		u.SetPermissions(*req.Permissions)
+	}
+	updated, err := u.Save(c.Request().Context())
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return errs.FailNotFound(c, nil, err, "role")
+		}
+		return errs.FailConstraint(c, nil, err, "role", "role name already exists")
+	}
+	if h.audit != nil {
+		e := h.auditFrom(c, ActionRoleUpdate, "role", updated.ID, updated.Name)
+		if req.Permissions != nil {
+			e.Detail = map[string]any{"permissions": *req.Permissions}
+		}
+		h.audit.MustRecord(c.Request().Context(), e)
+	}
+	return c.JSON(http.StatusOK, updated)
 }
 
 // deleteRole 删除角色（内置角色不可删）。

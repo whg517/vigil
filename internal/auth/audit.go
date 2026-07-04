@@ -44,6 +44,15 @@ const (
 	// 用户启停（C21 / S2）：禁用是高危动作，单独可检索。
 	ActionUserDisable = "user.disable"
 	ActionUserEnable  = "user.enable"
+	// 建用户 / 管理员重置他人密码（M1，T2.6）：账号生命周期高危动作，须可追溯。
+	// 重置密码会自增 token_version 吊销他人所有旧 token，等同强制下线，尤须留痕。
+	ActionUserCreate        = "user.create"
+	ActionUserResetPassword = "user.reset_password"
+	// 角色权限集编辑（M2，T2.7）：改角色 = 改一批人的权限边界，是 RBAC 最敏感动作。
+	ActionRoleUpdate = "role.update"
+	// 团队成员增删（M3 / S15，T2.7）：成员是数据归属边界的一部分，增删须可审计。
+	ActionTeamMemberAdd    = "team.member.add"
+	ActionTeamMemberRemove = "team.member.remove"
 	// 接入点配置变更（C21）：告警源接入是攻击面，创建/改动/删除都留痕。
 	ActionIntegrationCreate = "integration.create"
 	ActionIntegrationUpdate = "integration.update"

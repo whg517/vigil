@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/auditlog"
@@ -127,5 +128,151 @@ func TestUpdateUser_NoStatusChangeNoAudit(t *testing.T) {
 	total, _ := c.AuditLog.Query().Count(context.Background())
 	if total != 0 {
 		t.Errorf("expected 0 audit logs for no-op status, got %d", total)
+	}
+}
+
+// postJSON 走完整 echo 链路发一个 JSON POST，返回响应码 + body（测试辅助）。
+func postUserJSON(t *testing.T, h *UserHandler, method, path, body string, actorID int, handler echo.HandlerFunc, routePattern string) *httptest.ResponseRecorder {
+	t.Helper()
+	e := echo.New()
+	switch method {
+	case http.MethodPost:
+		e.POST(routePattern, handler, RequireUser(true, nil))
+	case http.MethodPatch:
+		e.PATCH(routePattern, handler, RequireUser(true, nil))
+	}
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set("X-Vigil-User-ID", strconv.Itoa(actorID))
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	return rec
+}
+
+// TestCreateUser_Success 建用户成功 → 201 + must_change_password=true + 审计（M1，T2.6）。
+func TestCreateUser_Success(t *testing.T) {
+	c, h, _ := newUserHandlerTest(t)
+	rec := postUserJSON(t, h, http.MethodPost, "/api/v1/users",
+		`{"username":"alice","email":"alice@x.com","name":"Alice","password":"Secret123"}`,
+		1, h.createUser, "/api/v1/users")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create user = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+	u, err := c.User.Query().Where(entuser.UsernameEQ("alice")).Only(context.Background())
+	if err != nil {
+		t.Fatalf("query created user: %v", err)
+	}
+	// 首登强制改密：管理员设的初始密码仅应急，用户首登须改。
+	if !u.MustChangePassword {
+		t.Error("created user must have must_change_password=true (首登强制改密)")
+	}
+	if u.Email != "alice@x.com" {
+		t.Errorf("email = %q, want alice@x.com", u.Email)
+	}
+	// 建用户落审计（M1）。
+	logs, _ := c.AuditLog.Query().Where(auditlog.ActionEQ(ActionUserCreate)).All(context.Background())
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 user.create audit, got %d", len(logs))
+	}
+	if logs[0].ResourceName != "alice" || logs[0].ActorUserID != 1 {
+		t.Errorf("audit = %s by %d, want alice by 1", logs[0].ResourceName, logs[0].ActorUserID)
+	}
+}
+
+// TestCreateUser_DuplicateUsername409 重复 username → 409（不泄底层 SQL）。
+func TestCreateUser_DuplicateUsername409(t *testing.T) {
+	_, h, _ := newUserHandlerTest(t)
+	// 第一次建成功
+	if rec := postUserJSON(t, h, http.MethodPost, "/api/v1/users",
+		`{"username":"bob","email":"bob@x.com","password":"Secret123"}`,
+		1, h.createUser, "/api/v1/users"); rec.Code != http.StatusCreated {
+		t.Fatalf("first create = %d, want 201", rec.Code)
+	}
+	// 同 username 再建 → 409
+	rec := postUserJSON(t, h, http.MethodPost, "/api/v1/users",
+		`{"username":"bob","email":"bob2@x.com","password":"Secret123"}`,
+		1, h.createUser, "/api/v1/users")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("dup username = %d, want 409; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCreateUser_DuplicateEmail409 重复 email → 409。
+func TestCreateUser_DuplicateEmail409(t *testing.T) {
+	_, h, _ := newUserHandlerTest(t)
+	if rec := postUserJSON(t, h, http.MethodPost, "/api/v1/users",
+		`{"username":"c1","email":"same@x.com","password":"Secret123"}`,
+		1, h.createUser, "/api/v1/users"); rec.Code != http.StatusCreated {
+		t.Fatalf("first create = %d", rec.Code)
+	}
+	rec := postUserJSON(t, h, http.MethodPost, "/api/v1/users",
+		`{"username":"c2","email":"same@x.com","password":"Secret123"}`,
+		1, h.createUser, "/api/v1/users")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("dup email = %d, want 409", rec.Code)
+	}
+}
+
+// TestCreateUser_WeakPassword400 初始密码过弱 → 400（管理员不能设首登也改不动的口令）。
+func TestCreateUser_WeakPassword400(t *testing.T) {
+	_, h, _ := newUserHandlerTest(t)
+	rec := postUserJSON(t, h, http.MethodPost, "/api/v1/users",
+		`{"username":"weak","email":"weak@x.com","password":"123"}`,
+		1, h.createUser, "/api/v1/users")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("weak password = %d, want 400", rec.Code)
+	}
+}
+
+// TestResetPassword_RevokesOldToken 管理员重置密码 → token_version 自增使旧 token 失效
+// + must_change_password=true + 审计（M1，T2.6，复用 T0.4 吊销机制）。
+func TestResetPassword_RevokesOldToken(t *testing.T) {
+	c, h, targetID := newUserHandlerTest(t)
+	ctx := context.Background()
+	// 记录重置前的 token_version（默认 0），据此签一枚"旧 token"。
+	before, _ := c.User.Get(ctx, targetID)
+	signer := NewJWTSigner("test-secret-please-change", time.Hour, 24*time.Hour)
+	oldRefresh, err := signer.GenerateRefreshToken(targetID, before.TokenVersion)
+	if err != nil {
+		t.Fatalf("mint old refresh: %v", err)
+	}
+
+	rec := postUserJSON(t, h, http.MethodPost, "/api/v1/users/"+strconv.Itoa(targetID)+"/reset-password",
+		`{"new_password":"NewSecret123"}`, 1, h.resetPassword, "/api/v1/users/:id/reset-password")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reset = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+
+	after, _ := c.User.Get(ctx, targetID)
+	// token_version 自增 → 旧 token（claims 停留旧版本）在 refresh 校验时版本不匹配被拒。
+	if after.TokenVersion != before.TokenVersion+1 {
+		t.Errorf("token_version = %d, want %d (自增吊销旧 token)", after.TokenVersion, before.TokenVersion+1)
+	}
+	// 模拟 refresh 校验：旧 token 的 token_version 与库中当前值不一致 = 已吊销。
+	claims, err := signer.ParseToken(oldRefresh)
+	if err != nil {
+		t.Fatalf("parse old refresh: %v", err)
+	}
+	if claims.TokenVersion == after.TokenVersion {
+		t.Error("old token still valid: token_version should differ after reset")
+	}
+	// 重置后须首登改密。
+	if !after.MustChangePassword {
+		t.Error("reset must set must_change_password=true")
+	}
+	// 落审计（M1）。
+	logs, _ := c.AuditLog.Query().Where(auditlog.ActionEQ(ActionUserResetPassword)).All(ctx)
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 user.reset_password audit, got %d", len(logs))
+	}
+}
+
+// TestResetPassword_NotFound404 重置不存在用户 → 404。
+func TestResetPassword_NotFound404(t *testing.T) {
+	_, h, _ := newUserHandlerTest(t)
+	rec := postUserJSON(t, h, http.MethodPost, "/api/v1/users/99999/reset-password",
+		`{"new_password":"NewSecret123"}`, 1, h.resetPassword, "/api/v1/users/:id/reset-password")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("reset missing user = %d, want 404", rec.Code)
 	}
 }
