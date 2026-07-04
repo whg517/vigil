@@ -14,6 +14,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/notificationrule"
@@ -523,6 +524,15 @@ func (h *Handler) createSuppression(c *echo.Context) error {
 	if req.Enabled != nil {
 		b.SetEnabled(*req.Enabled)
 	}
+	// B15：expires_at 可通过 API 设置——过期规则在评估时不命中（见 SuppressionEngine.Evaluate）。
+	// 空字符串视为不设置（永久生效，靠 enabled 控制启停）；非法时间返 400。
+	if req.ExpiresAt != nil && *req.ExpiresAt != "" {
+		exp, perr := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if perr != nil {
+			return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid expires_at (want RFC3339)"})
+		}
+		b.SetExpiresAt(exp)
+	}
 	r, err := b.Save(c.Request().Context())
 	if err != nil {
 		return errs.FailConstraint(c, nil, err, "suppression rule", "suppression rule already exists")
@@ -570,6 +580,8 @@ type updateSuppressionReq struct {
 	ReduceTo         *string            `json:"reduce_to"`
 	PreserveCritical *bool              `json:"preserve_critical"`
 	Enabled          *bool              `json:"enabled"`
+	// ExpiresAt B15：RFC3339 时间设置过期；显式传空串清除过期（改回永久生效）。
+	ExpiresAt *string `json:"expires_at"`
 }
 
 // UpdateSuppressionRule 更新抑制规则（部分字段）。
@@ -627,6 +639,18 @@ func (h *Handler) updateSuppression(c *echo.Context) error {
 	}
 	if req.Enabled != nil {
 		upd.SetEnabled(*req.Enabled)
+	}
+	// B15：expires_at 可改——空串清除（改回永久），有值则按 RFC3339 设置。
+	if req.ExpiresAt != nil {
+		if *req.ExpiresAt == "" {
+			upd.ClearExpiresAt()
+		} else {
+			exp, perr := time.Parse(time.RFC3339, *req.ExpiresAt)
+			if perr != nil {
+				return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid expires_at (want RFC3339)"})
+			}
+			upd.SetExpiresAt(exp)
+		}
 	}
 	r, err := upd.Save(c.Request().Context())
 	if err != nil {

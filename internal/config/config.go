@@ -44,6 +44,9 @@ type Config struct {
 	// Ingestion 接入配置（能力域 1，限流/背压保护）
 	Ingestion Ingestion `envconfig:"ingestion"`
 
+	// Triage 分诊配置（能力域 3-4，去重/聚合窗口）
+	Triage Triage `envconfig:"triage"`
+
 	// Notification 通知通道配置（能力域 7，邮件/电话/SMS）
 	Notification Notification `envconfig:"notification"`
 }
@@ -157,6 +160,31 @@ type Ingestion struct {
 	// BackpressureDepth 队列积压阈值，超过则接入层返回 503（payload 仍落库）。
 	// 0=不检查背压。
 	BackpressureDepth int `envconfig:"backpressure_depth" default:"10000"`
+}
+
+// Triage 分诊配置（能力域 3-4，C9：去重/聚合窗口可配，替代硬编码 5min）。
+// 窗口过小易裂单（长风暴每窗口新建一单），过大易误聚合无关故障——按告警源特性调整。
+type Triage struct {
+	// DedupWindow 去重窗口：同 dedup_key 在窗口内重复直接丢弃。默认 5min。
+	DedupWindow time.Duration `envconfig:"dedup_window" default:"5m"`
+	// AggregateWindow 聚合窗口：同 service+severity 在窗口内并入同一 Incident。默认 5min。
+	AggregateWindow time.Duration `envconfig:"aggregate_window" default:"5m"`
+}
+
+// EffectiveDedupWindow 返回去重窗口，零值回退 5min（envconfig 嵌套 default 兜底）。
+func (t Triage) EffectiveDedupWindow() time.Duration {
+	if t.DedupWindow <= 0 {
+		return 5 * time.Minute
+	}
+	return t.DedupWindow
+}
+
+// EffectiveAggregateWindow 返回聚合窗口，零值回退 5min。
+func (t Triage) EffectiveAggregateWindow() time.Duration {
+	if t.AggregateWindow <= 0 {
+		return 5 * time.Minute
+	}
+	return t.AggregateWindow
 }
 
 // Notification 通知通道配置（能力域 7，PRD M7.2/M7.3）。

@@ -247,6 +247,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 
 	// —— 分诊（能力域 3-4）：创建 Incident 后发事件（escalation 已订阅启动升级链）——
 	triageEngine := triage.NewEngine(st.DB, st.Redis)
+	// C9：去重/聚合窗口从配置注入（替代硬编码 5min），支持按告警源特性调窗防裂单。
+	triageEngine.SetWindows(cfg.Triage.EffectiveDedupWindow(), cfg.Triage.EffectiveAggregateWindow())
 	triageEngine.SetBus(bus)
 	// B3：注入时间线记录器，使自动恢复（handleResolved）写 status_changed 时间线。
 	triageEngine.SetRecorder(timelineRecorder)
@@ -318,6 +320,11 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	incidentH.SetAuthorizer(authz)
 	incidentH.SetScopeResolver(scopeResolver)
 	incidentH.Register(v1)
+	// M6：未路由 Event 人工重路由端点（POST /events/:id/reroute），复用分诊引擎聚合/建单。
+	triageH := triage.NewHandler(st.DB, triageEngine)
+	triageH.SetAuthorizer(authz)
+	triageH.SetScopeResolver(scopeResolver)
+	triageH.Register(v1)
 	rbacHandler := auth.NewHandler(st.DB)
 	rbacHandler.SetAuditRecorder(auditRecorder)
 	rbacHandler.Register(v1)
@@ -934,6 +941,9 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/services", auth.PermServiceCreate)
 	g.RoutePerm(http.MethodPatch, "/services/:id", auth.PermServiceUpdate)
 	g.RoutePerm(http.MethodDelete, "/services/:id", auth.PermServiceDelete)
+	// 未路由 Event 重路由（M6）—— 手动指派 Service，需路由改写权限（service.route_override）。
+	// 资源级 scope 在 handler 内按目标 service 反查 team 校验（团队软隔离）。
+	g.RoutePerm(http.MethodPost, "/events/:id/reroute", auth.PermServiceRouteOverride)
 	// 接入点写（含 token 生成，M1.5）
 	g.RoutePerm(http.MethodPost, "/integrations", auth.PermIntegrationCreate)
 	g.RoutePerm(http.MethodPatch, "/integrations/:id", auth.PermIntegrationUpdate)

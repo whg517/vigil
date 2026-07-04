@@ -261,6 +261,59 @@ func TestNormalizeSeverity(t *testing.T) {
 	}
 }
 
+// TestEvaluate_ExpiredRuleSkipped B15：过期规则（expires_at < now）不命中，即使 enabled。
+func TestEvaluate_ExpiredRuleSkipped(t *testing.T) {
+	c := newTestClient(t)
+	past := time.Now().Add(-time.Hour)
+	makeRule(t, c, "expired", map[string]string{"service": "payment"}, suppressionrule.ActionSuppress,
+		func(b *ent.SuppressionRuleCreate) { b.SetExpiresAt(past) })
+	se := NewSuppressionEngine(c)
+	evt := createSuppressEvent(t, c, event.SeverityWarning, "d1", map[string]string{"service": "payment"})
+	out, err := se.Evaluate(context.Background(), evt)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if out.Matched {
+		t.Errorf("过期规则不应命中，got %+v", out)
+	}
+}
+
+// TestEvaluate_FutureExpiryStillMatches B15：未到期规则（expires_at > now）正常命中。
+func TestEvaluate_FutureExpiryStillMatches(t *testing.T) {
+	c := newTestClient(t)
+	future := time.Now().Add(time.Hour)
+	makeRule(t, c, "future", map[string]string{"service": "payment"}, suppressionrule.ActionSuppress,
+		func(b *ent.SuppressionRuleCreate) { b.SetExpiresAt(future) })
+	se := NewSuppressionEngine(c)
+	evt := createSuppressEvent(t, c, event.SeverityWarning, "d1", map[string]string{"service": "payment"})
+	out, err := se.Evaluate(context.Background(), evt)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if !out.Matched {
+		t.Errorf("未到期规则应命中，got %+v", out)
+	}
+}
+
+// TestEvaluate_MostSpecificRuleWins B15：多规则命中时 match_labels 多的（更具体）优先。
+func TestEvaluate_MostSpecificRuleWins(t *testing.T) {
+	c := newTestClient(t)
+	// 宽松规则：只匹配 service=payment（1 标签），reduce_severity。
+	makeRule(t, c, "broad", map[string]string{"service": "payment"}, suppressionrule.ActionReduceSeverity)
+	// 具体规则：service=payment + env=prod（2 标签），suppress。
+	makeRule(t, c, "specific", map[string]string{"service": "payment", "env": "prod"}, suppressionrule.ActionSuppress)
+	se := NewSuppressionEngine(c)
+	// Event 两条都满足 → 命中更具体的 specific（suppress）。
+	evt := createSuppressEvent(t, c, event.SeverityWarning, "d1", map[string]string{"service": "payment", "env": "prod"})
+	out, err := se.Evaluate(context.Background(), evt)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if !out.Matched || out.RuleName != "specific" {
+		t.Errorf("应命中更具体的 specific 规则，got %+v", out)
+	}
+}
+
 // TestEngine_ProcessSuppressed 集成：Process 命中 suppress 返回 ActionSuppressed、不入 Incident。
 func TestEngine_ProcessSuppressed(t *testing.T) {
 	c := newTestClient(t)

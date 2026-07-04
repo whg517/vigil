@@ -12,6 +12,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path"
+	"sort"
 	"time"
 
 	"github.com/kevin/vigil/ent"
@@ -68,14 +70,31 @@ func (e *Engine) SetUnroutedNotifier(n UnroutedNotifier) {
 	e.unroutedNotifier = n
 }
 
-// NewEngine 创建分诊引擎。window 参数为 0 时用默认值。
+// 默认去重/聚合窗口（C9：可经 SetWindows 覆盖，未配置时用此默认）。
+const (
+	defaultDedupWindow     = 5 * time.Minute
+	defaultAggregateWindow = 5 * time.Minute
+)
+
+// NewEngine 创建分诊引擎。窗口用默认值（5min），可经 SetWindows 覆盖（C9）。
 func NewEngine(db *ent.Client, rc *redis.Client) *Engine {
 	return &Engine{
 		db:              db,
 		redis:           rc,
-		dedupWindow:     5 * time.Minute,
-		aggregateWindow: 5 * time.Minute,
+		dedupWindow:     defaultDedupWindow,
+		aggregateWindow: defaultAggregateWindow,
 		suppression:     NewSuppressionEngine(db),
+	}
+}
+
+// SetWindows 覆盖去重/聚合窗口（C9：从配置注入，替代硬编码 5min）。
+// 传入 <=0 的窗口保留当前值（默认），便于只改其一。
+func (e *Engine) SetWindows(dedup, aggregate time.Duration) {
+	if dedup > 0 {
+		e.dedupWindow = dedup
+	}
+	if aggregate > 0 {
+		e.aggregateWindow = aggregate
 	}
 }
 
@@ -218,6 +237,49 @@ func (e *Engine) Process(ctx context.Context, evtID int) (*Result, error) {
 	return res, nil
 }
 
+// ErrRerouteAlreadyRouted 目标 Event 已归属某 Service（非 unrouted），拒绝重路由。
+var ErrRerouteAlreadyRouted = fmt.Errorf("event already routed to a service")
+
+// Reroute 人工把一个未路由（unrouted）Event 指派到指定 Service（M6）。
+//
+// 语义：仅作用于尚无 Service 归属的 Event（unrouted 池）——已路由的 Event 不允许改派
+// （避免破坏既有 Incident 归属，改派既有单应走 incident.reassign）。指派后立即按目标
+// Service 走聚合（并入既有活跃单或建新单），与自动路由的后半段完全一致，使被误判为
+// 未路由的告警能真正进入处置流程。firing/resolved 分别走建单/解决路径。
+//
+// 返回分诊 Result（Action 为 aggregated/incident_created/resolved/unrouted）。
+func (e *Engine) Reroute(ctx context.Context, evtID, serviceID int) (*Result, error) {
+	evt, err := e.db.Event.Get(ctx, evtID)
+	if err != nil {
+		return nil, fmt.Errorf("get event %d: %w", evtID, err)
+	}
+	// 已有 Service 归属的 Event 不允许重路由（幂等保护，避免改派破坏既有单归属）。
+	if _, serr := evt.QueryService().Only(ctx); serr == nil {
+		return nil, ErrRerouteAlreadyRouted
+	} else if !ent.IsNotFound(serr) {
+		return nil, fmt.Errorf("check event service: %w", serr)
+	}
+
+	svc, err := e.db.Service.Get(ctx, serviceID)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, fmt.Errorf("service %d: %w", serviceID, err)
+		}
+		return nil, fmt.Errorf("get service %d: %w", serviceID, err)
+	}
+
+	// 绑定 Service 到 Event（清除 unrouted 状态）。
+	if err := e.db.Event.UpdateOneID(evtID).SetServiceID(svc.ID).Exec(ctx); err != nil {
+		return nil, fmt.Errorf("bind service: %w", err)
+	}
+
+	// resolved 事件走解决流程；firing 走聚合建单——与自动路由后半段一致。
+	if evt.Status == event.StatusResolved {
+		return e.handleResolved(ctx, evt, svc)
+	}
+	return e.aggregate(ctx, evt, svc)
+}
+
 // checkDedup 检查去重。窗口内已见过该 dedup_key 则返回 true（跳过）。
 func (e *Engine) checkDedup(ctx context.Context, dedupKey string) (bool, error) {
 	if e.redis == nil {
@@ -233,23 +295,121 @@ func (e *Engine) checkDedup(ctx context.Context, dedupKey string) (bool, error) 
 }
 
 // route 按 Event labels 匹配 Service。命中返回 Service，未命中返回 nil。
-// 当前实现：精确匹配 Service.labels 中的 service/env 键（capabilities §3.1）。
+//
+// 匹配优先级（capabilities §3.1，C2 路由增强，确定性裁决）：
+//  1. Event.labels["service"] 等值匹配 Service.slug —— 最常见、最明确的直达路径，优先返回。
+//  2. Service.labels 多标签子集匹配 —— Event.labels ⊇ Service.labels（Service 每个标签
+//     都能在 Event.labels 中找到、且值匹配，支持 glob path.Match，如 env=prod-*）。
+//     多命中时按「匹配标签数」降序（更具体的 Service 优先），标签数相同再按 ID 升序，
+//     保证同输入总得同一结果（确定性），避免"随机命中一条"。
+//  3. B14：以上均未命中时，回退 Event 所属 Integration 的默认 service（接入点直达归属），
+//     跳过 label 匹配——接入点预设归属服务时无需再配路由标签。
 func (e *Engine) route(ctx context.Context, evt *ent.Event) (*ent.Service, error) {
-	// 优先用 Event.labels["service"] 匹配 Service.slug（最常见路径）
-	svcName, ok := evt.Labels["service"]
-	if !ok || svcName == "" {
+	// —— 1. slug 直达（向后兼容旧行为）——
+	if svcName, ok := evt.Labels["service"]; ok && svcName != "" {
+		svc, err := e.db.Service.Query().
+			Where(service.SlugEQ(svcName), service.StatusEQ(service.StatusActive)).
+			Only(ctx)
+		if err == nil {
+			return svc, nil
+		}
+		if !ent.IsNotFound(err) {
+			return nil, err
+		}
+		// slug 未命中不直接返回 nil：继续尝试 label 子集匹配（同一 Event 可能靠其它标签命中）。
+	}
+
+	// —— 2. Service.labels 子集匹配（多标签 + glob + 具体度优先）——
+	if svc, err := e.matchByLabels(ctx, evt); err != nil {
+		return nil, err
+	} else if svc != nil {
+		return svc, nil
+	}
+
+	// —— 3. B14：回退 Integration 默认 service（接入点直达归属）——
+	return e.routeByIntegration(ctx, evt)
+}
+
+// matchByLabels 用 Service.labels 对 Event.labels 做子集匹配。
+// 命中条件：Service 的每个标签 k=pattern，Event.labels[k] 存在且 path.Match(pattern, value) 成立。
+// 空 labels 的 Service 不参与（否则会匹配所有 Event，语义上等于"兜底"，交由 Integration 回退处理）。
+// 多命中按匹配标签数降序、ID 升序取第一（更具体优先，确定性）。
+func (e *Engine) matchByLabels(ctx context.Context, evt *ent.Event) (*ent.Service, error) {
+	if len(evt.Labels) == 0 {
 		return nil, nil
 	}
-	svc, err := e.db.Service.Query().
-		Where(service.SlugEQ(svcName), service.StatusEQ(service.StatusActive)).
+	services, err := e.db.Service.Query().
+		Where(service.StatusEQ(service.StatusActive)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	type candidate struct {
+		svc     *ent.Service
+		matched int // 匹配的标签数（越多越具体）
+	}
+	var hits []candidate
+	for _, svc := range services {
+		if len(svc.Labels) == 0 {
+			continue // 无路由标签的 Service 不参与子集匹配（避免"空规则匹配一切"）
+		}
+		if labelsSubsetMatch(svc.Labels, evt.Labels) {
+			hits = append(hits, candidate{svc: svc, matched: len(svc.Labels)})
+		}
+	}
+	if len(hits) == 0 {
+		return nil, nil
+	}
+	// 更具体优先：匹配标签数降序；相同则 ID 升序（确定性裁决）。
+	sort.Slice(hits, func(i, j int) bool {
+		if hits[i].matched != hits[j].matched {
+			return hits[i].matched > hits[j].matched
+		}
+		return hits[i].svc.ID < hits[j].svc.ID
+	})
+	return hits[0].svc, nil
+}
+
+// routeByIntegration 回退到 Event 所属 Integration 预设的默认 service（B14）。
+// Integration 未绑定 service（或未关联 Integration）时返回 nil（仍走 unrouted）。
+// disabled 的默认 service 不回退——避免把告警派给已停用的服务。
+func (e *Engine) routeByIntegration(ctx context.Context, evt *ent.Event) (*ent.Service, error) {
+	svc, err := evt.QueryIntegration().QueryService().
+		Where(service.StatusEQ(service.StatusActive)).
 		Only(ctx)
 	if ent.IsNotFound(err) {
-		return nil, nil // 未命中
+		return nil, nil // 无 Integration / 无默认 service / 默认 service 已停用
 	}
 	if err != nil {
 		return nil, err
 	}
 	return svc, nil
+}
+
+// labelsSubsetMatch 判断 pattern 集是否是 target 的子集（值支持 glob）。
+// pattern 的每个 k=p，都须在 target 中存在 k 且 path.Match(p, target[k]) 成立。
+// path.Match 的模式非法时退化为等值比较（保守，绝不因非法模式误命中）。
+func labelsSubsetMatch(pattern, target map[string]string) bool {
+	for k, p := range pattern {
+		v, ok := target[k]
+		if !ok {
+			return false
+		}
+		if !globMatch(p, v) {
+			return false
+		}
+	}
+	return true
+}
+
+// globMatch 用 path.Match 做 glob 匹配（支持 * ? [chars]）。
+// 无通配符时等价于等值比较；模式非法时退化为等值（不误命中）。
+func globMatch(pattern, value string) bool {
+	ok, err := path.Match(pattern, value)
+	if err != nil {
+		return pattern == value // 模式非法 → 保守等值
+	}
+	return ok
 }
 
 // aggregate 相关性聚合：同 service+severity 在时间窗口内的活跃 Incident 并入；否则创建新 Incident。

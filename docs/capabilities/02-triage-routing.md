@@ -124,19 +124,26 @@ service:
     tier: "1"
 ```
 
-**匹配规则**：
-- Event 的 `Labels` 与 Service 的 `labels` 匹配（精确 + 通配 `*`）。
-- **多条命中**：按规则优先级取一条（M4.2）。优先级定义在 Service 或路由规则上。
+**匹配规则**（确定性裁决，同输入总得同一结果）：
+1. **slug 直达**：`Event.labels["service"]` 等值匹配 `Service.slug`——最明确的直达路径，优先。
+2. **多标签子集匹配**：`Event.labels ⊇ Service.labels`——Service 的每个标签 `k=pattern` 都能在
+   Event.labels 中找到对应 `k` 且值匹配。值支持 **glob**（`path.Match`，如 `env=prod-*`）。
+   无 labels 的 Service 不参与子集匹配（避免"空规则匹配一切"）。
+3. **多条命中裁决（M4.2）**：按**匹配标签数**降序（更具体的 Service 优先），标签数相同再按
+   Service ID 升序——保证多命中时结果稳定，不"随机命中一条"。
+4. **Integration 默认归属兜底（B14）**：以上均未命中时，回退 Event 所属 Integration 预设的默认
+   `service`（接入点直达归属，跳过 label 匹配；默认 service 已停用则不回退）。
 
 **匹配时机**：
 - 默认：归一化后立即路由（填 `Event.service_id`）。
-- 也可由 Integration 预设 `service_id`（接入点直接归属某服务，跳过 label 匹配）。
+- 也可由 Integration 预设 `service_id`（接入点直接归属某服务，作为 label 匹配的兜底，见规则 4）。
 
 ### 3.2 未命中路由（M4.3）
 
 匹配失败的 Event 进入 `unrouted` 池：
 - 需 `event.view_unrouted` 权限查看（避免越权）。
-- team_admin 可手动指派 Service，或补全路由规则。
+- team_admin 可手动指派 Service（`POST /events/:id/reroute`，权限 `service.route_override`，
+  对目标 Service 按 team 软隔离；指派后立即按该 Service 聚合/建单），或补全路由规则。
 - unrouted 的 critical 告警要有**兜底通知**（通知全员/admin，避免漏响应）。
 
 ### 3.3 服务拓扑（M4.4，可选）
@@ -205,10 +212,13 @@ received ──► normalized ──► [去重] ──┬──► dedup_skippe
 | 文档章节 | 代码位置 |
 |---------|---------|
 | §2.2 去重（M3.1） | `internal/triage/engine.go`（`checkDedup`：Redis SETNX + 窗口） |
-| §2.3 抑制规则（M3.2） | `internal/triage/suppression.go`（`SuppressionEngine.Evaluate/Apply`：label 全等 + 时间窗 + severity_filter + preserve_critical 守卫；action=suppress/reduce_severity） |
+| §2.2/§2.4 窗口可配（C9） | `internal/triage/engine.go`（`SetWindows`）+ `internal/config/config.go`（`Triage.{Dedup,Aggregate}Window`，env `VIGIL_TRIAGE_*`，默认 5m） |
+| §2.3 抑制规则（M3.2） | `internal/triage/suppression.go`（`SuppressionEngine.Evaluate/Apply`：label 全等 + 时间窗 + severity_filter + preserve_critical 守卫；过期规则跳过（B15）；多命中按 match_labels 具体度排序（B15）；action=suppress/reduce_severity） |
 | §2.3 抑制接入流水线 | `internal/triage/engine.go`（`Process` 去重后、路由前评估，§2.1 三层顺序） |
 | §2.4 相关性聚合（M3.3） | `internal/triage/engine.go`（`aggregate`：同 service+severity 窗口内并入/创建 Incident） |
 | §2.5 噪音判定 | `Event.is_noise`（suppress/dedup 标记，留痕可申诉） |
 | §2.7 resolved 处理（M3.7） | `internal/triage/engine.go`（`handleResolved`） |
-| 抑制规则 API | `internal/notification/handler.go`（SuppressionRule CRUD，权限 `suppression.*`） |
+| §3.1 路由匹配（M4.1/M4.2，C2/B14） | `internal/triage/engine.go`（`route`：slug 直达 → `Service.labels` 子集匹配（glob + 具体度优先）→ Integration 默认 service 兜底） |
+| §3.2 未路由重路由（M6） | `internal/triage/handler.go`（`POST /events/:id/reroute`，`Engine.Reroute`；权限 `service.route_override`，团队软隔离） |
+| 抑制规则 API（含 expires_at，B15） | `internal/notification/handler.go`（SuppressionRule CRUD + `expires_at` 可设/清除，权限 `suppression.*`） |
 

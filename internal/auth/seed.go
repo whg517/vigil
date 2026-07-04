@@ -33,8 +33,8 @@ var builtinRoles = []struct {
 		Permissions: concatPerms(
 			// team 自管理 + 成员
 			"team.view", "team.update", "team.member.manage",
-			// 服务/集成
-			"service.view", "service.create", "service.update", "service.delete",
+			// 服务/集成（含未路由 Event 重路由：service.route_override，M6）
+			"service.view", "service.create", "service.update", "service.delete", "service.route_override",
 			"integration.view", "integration.create", "integration.update", "integration.delete",
 			// 排班/升级（含换他人班：schedule.override，C5/M5.3）
 			"schedule.view", "schedule.create", "schedule.update", "schedule.delete", "schedule.override",

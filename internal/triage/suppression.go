@@ -11,6 +11,7 @@ package triage
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/kevin/vigil/ent"
@@ -52,7 +53,8 @@ func NewSuppressionEngine(db *ent.Client) *SuppressionEngine {
 }
 
 // Evaluate 评估一条 Event 是否命中任何启用的抑制规则。
-// 返回首个命中的规则结果（按 expires_at 升序、id 升序，先到期的先评估）。
+// 返回首个命中的规则结果。多规则命中按「具体度」排序（B15 确定性裁决）：
+// match_labels 数越多的规则越具体、优先评估；具体度相同则 id 升序，保证同输入同结果。
 // 命中 reduce_severity 但 preserve_critical 且 Event=critical 时，跳过该规则继续找下一条。
 func (e *SuppressionEngine) Evaluate(ctx context.Context, evt *ent.Event) (*SuppressionOutcome, error) {
 	if e.db == nil {
@@ -68,9 +70,17 @@ func (e *SuppressionEngine) Evaluate(ctx context.Context, evt *ent.Event) (*Supp
 	if err != nil {
 		return nil, fmt.Errorf("query suppression rules: %w", err)
 	}
+	// 按具体度排序（B15）：match_labels 多的规则更具体、优先；相同则 id 升序（确定性）。
+	// 与 route() 的"更具体优先"同款裁决，避免多规则命中时结果不稳定。
+	sort.SliceStable(rules, func(i, j int) bool {
+		if len(rules[i].MatchLabels) != len(rules[j].MatchLabels) {
+			return len(rules[i].MatchLabels) > len(rules[j].MatchLabels)
+		}
+		return rules[i].ID < rules[j].ID
+	})
 	now := e.now()
 	for _, r := range rules {
-		// 过期规则跳过
+		// 过期规则跳过（B15：expires_at 到期即失效，即使 enabled=true）
 		if r.ExpiresAt != nil && now.After(*r.ExpiresAt) {
 			continue
 		}
