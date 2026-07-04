@@ -245,6 +245,20 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// B11：把 WS hub 注入时间线记录器，使新增时间线条目（升级/自动恢复/runbook 等各域写入）
 	// 实时广播 timeline_added，Web 详情页时间线无需轮询即刷新。
 	timelineRecorder.SetBroadcaster(wsHub)
+	// T6.4 多副本 pub/sub：有 Redis 时挂 Redis pub/sub 中继，使某副本产生的 WS 推送
+	// （incident 变更 / timeline_added）跨副本广播到所有副本的连接——客户端连到任意副本
+	// 都能收到全局事件推送。去重防回环：消息带发起副本 id，收到自己发的丢弃（本地已直发）。
+	// 无 Redis / 单副本时不装配，退化纯进程内广播（向后兼容，见 ws/pubsub.go）。
+	// 订阅 goroutine 纳入优雅关闭（wsPubSubStop 退订并关闭订阅连接，在 wired 构造后登记）。
+	var wsPubSubStop func()
+	if st.Redis != nil {
+		wsPubSub := ws.NewRedisPubSub(st.Redis, wsHub, log)
+		wsHub.SetRelay(wsPubSub)
+		wsPubSubStop = wsPubSub.Start(ctx)
+		log.Info("websocket cross-replica pub/sub enabled (redis)")
+	} else {
+		log.Info("websocket in-process broadcast only (no redis; single replica)")
+	}
 
 	// —— incident 变更事件订阅：IM 卡片刷新 / Webhook 出口 / WebSocket 推送 ——
 	// B10：补 IncidentCreated 到多端同步订阅集。原先它只被 escalation 订阅（启动升级链），
@@ -521,6 +535,10 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// 聚合通知成死信（永滞 Redis）。周期扫 pending targets 合并发送，间隔 ≤ 聚合窗口。
 	flushCtx, flushCancel := context.WithCancel(ctx)
 	wired := &Wired{Server: srv, WebhookDispatcher: webhookDisp}
+	// T6.4：多副本 WS pub/sub 订阅 goroutine 的停止函数纳入优雅关闭（Redis 可用时非 nil）。
+	if wsPubSubStop != nil {
+		wired.Closers = append(wired.Closers, wsPubSubStop)
+	}
 	if notifAggregator != nil && st.Redis != nil {
 		interval := notifAggregator.Window() / 2
 		if interval <= 0 {
