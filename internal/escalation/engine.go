@@ -22,6 +22,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/schema"
 	"github.com/kevin/vigil/ent/timelineitem"
+	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/schedule"
@@ -40,11 +41,20 @@ type Engine struct {
 	redisOpt *asynq.RedisClientOpt // 用于创建 Inspector 删除待触发任务
 	recorder *timeline.Recorder    // 时间线记录器（统一 Recorder）；nil 则不记
 	logger   *zap.Logger           // 日志，nil 用 Nop
+	// bus 领域事件总线。B10：自动升级（计时器到点触发）后发布 IncidentEscalated 事件，
+	// 驱动 WS 推送 / IM 卡片刷新 / 出站 webhook 感知升级（原先只有手动/runbook escalate 走
+	// incident.Service 发事件，自动升级对多端全盲）。为 nil 时跳过发布（降级/测试）。
+	bus *domainevent.Bus
 }
 
 // SetRecorder 注入时间线记录器。
 func (e *Engine) SetRecorder(r *timeline.Recorder) {
 	e.recorder = r
+}
+
+// SetBus 注入领域事件总线（装配时调用）。为 nil 时自动升级不发布事件（多端不感知）。
+func (e *Engine) SetBus(b *domainevent.Bus) {
+	e.bus = b
 }
 
 // SetLogger 注入日志器。未注入时用 zap.NewNop()，不影响功能。
@@ -177,11 +187,13 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// 5. 记时间线 + 更新 Incident 升级状态
-	if err := e.db.Incident.UpdateOneID(inc.ID).
+	// 用 Save 拿回更新后的 incident 快照（供领域事件载荷携带最新状态/level）。
+	updated, err := e.db.Incident.UpdateOneID(inc.ID).
 		SetStatus(incident.StatusEscalated).
 		SetCurrentLevel(p.LevelIdx + 1).
 		SetEscalatedCount(inc.EscalatedCount + 1).
-		Exec(ctx); err != nil {
+		Save(ctx)
+	if err != nil {
 		return fmt.Errorf("update incident: %w", err)
 	}
 	// 埋点：升级触发次数
@@ -193,6 +205,21 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 			fmt.Sprintf("升级到 level %d，通知 %d 人", p.LevelIdx+1, len(targets)),
 			timeline.Actor{Kind: "system"}, timelineitem.SourceSystem,
 			map[string]any{"level": p.LevelIdx + 1, "notified": len(targets)})
+	}
+	// B10：自动升级发布 IncidentEscalated 领域事件，驱动 WS/IM 卡片/出站 webhook 同步。
+	// ActorID=0 表示系统触发（计时器到点），区别于手动升级（携带操作人 ID）。
+	// Level 携带本次触发的 level 索引，与 incident.Service 手动升级事件语义一致。
+	// SystemTriggered=true 打破反馈环：OnManualEscalate 据此跳过再触发（本 level 已处理完）。
+	// 同步派发在本任务 goroutine 内完成，订阅方（webhook）自行异步化，不阻塞升级链。
+	if e.bus != nil {
+		e.bus.Publish(ctx, domainevent.Event{
+			Type:            domainevent.IncidentEscalated,
+			Incident:        updated,
+			Action:          domainevent.Action("escalate"),
+			ActorID:         0,
+			Level:           p.LevelIdx,
+			SystemTriggered: true,
+		})
 	}
 
 	// 6. 安排下一步：repeat 或下一 level

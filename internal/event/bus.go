@@ -55,6 +55,14 @@ type Event struct {
 	// Level 升级目标层级（仅 IncidentEscalated 携带，escalation 订阅方用它触发目标 level）。
 	// 其它事件为 0。语义：与 escalation.Engine.TriggerLevelNow 的 levelIdx 一致。
 	Level int
+	// SystemTriggered 标记事件是否由后台引擎自身触发（而非人工/服务请求）。
+	//
+	// 用于打破升级事件的反馈环：escalation 订阅 IncidentEscalated（OnManualEscalate）以响应
+	// 手动升级请求触发目标 level；而 escalation 自动升级（计时器到点）处理完 level 后也发布
+	// IncidentEscalated 供 WS/卡片/webhook 同步——若该事件又喂回 OnManualEscalate 会重复触发同一
+	// level 形成死循环。故自动升级事件置 SystemTriggered=true，escalation 订阅方据此跳过再触发，
+	// 仅下游同步订阅方（ws/webhook/im）消费。
+	SystemTriggered bool
 }
 
 // Handler 订阅者处理函数。返回的 error 仅用于日志，不影响其他订阅方。

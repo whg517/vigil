@@ -57,8 +57,11 @@ func (e *Engine) OnCreated(ctx context.Context, ev event.Event) error {
 //
 // ev.Level 为目标 level 索引（由 incident.Service.Escalate 计算并携带）。
 // 无策略时不应收到此事件（incident 侧 policyLevels==0 时不发布），但这里仍防御性检查。
+//
+// B10：自动升级（计时器到点）处理完 level 后也发布 IncidentEscalated 供多端同步，
+// 该事件 SystemTriggered=true——若在此再触发同 level 会死循环，故直接跳过（本 level 已处理完）。
 func (e *Engine) OnManualEscalate(ctx context.Context, ev event.Event) error {
-	if ev.Incident == nil {
+	if ev.Incident == nil || ev.SystemTriggered {
 		return nil
 	}
 	return e.TriggerLevelNow(ctx, ev.Incident.ID, ev.Level)

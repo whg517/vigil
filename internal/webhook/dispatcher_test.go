@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/kevin/vigil/ent"
+	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/incident"
 )
 
@@ -140,5 +141,50 @@ func TestDispatcher_HasSubscriptions(t *testing.T) {
 	}
 	if !NewDispatcher([]string{"http://x"}).HasSubscriptions() {
 		t.Error("有 URL 时 HasSubscriptions 应为 true")
+	}
+}
+
+// TestDispatcher_CreatedAndEscalatedEvents 验证 C24：出站 webhook 覆盖 created 与升级事件。
+// 经领域事件总线（OnIncidentEvent）分发时，created/escalate 都能出站，且 event 名正确。
+func TestDispatcher_CreatedAndEscalatedEvents(t *testing.T) {
+	cases := []struct {
+		action    string
+		wantEvent string
+	}{
+		{"created", "incident.created"},   // B10/C24：新告警建单出站
+		{"escalate", "incident.escalate"}, // B10：自动升级出站
+	}
+	for _, tc := range cases {
+		t.Run(tc.action, func(t *testing.T) {
+			var mu sync.Mutex
+			var received map[string]any
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				var m map[string]any
+				_ = json.Unmarshal(body, &m)
+				mu.Lock()
+				received = m
+				mu.Unlock()
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			d := NewDispatcher([]string{srv.URL})
+			_ = d.OnIncidentEvent(context.Background(), domainevent.Event{
+				Type:     domainevent.IncidentCreated,
+				Incident: newTestIncident(),
+				Action:   domainevent.Action(tc.action),
+			})
+			d.Close()
+
+			mu.Lock()
+			defer mu.Unlock()
+			if received == nil {
+				t.Fatalf("%s 未收到出站推送", tc.action)
+			}
+			if received["event"] != tc.wantEvent {
+				t.Errorf("event: got %v, want %v", received["event"], tc.wantEvent)
+			}
+		})
 	}
 }

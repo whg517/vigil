@@ -17,8 +17,10 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/timelineitem"
 	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/metrics"
+	"github.com/kevin/vigil/internal/timeline"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -40,6 +42,10 @@ type Engine struct {
 	// 由 escalation 等订阅方启动升级链（替代原先的 OnIncidentCreated 回调，解耦）。
 	// 为 nil 时跳过发布（降级/测试）。
 	bus *domainevent.Bus
+
+	// recorder 时间线记录器。B3：自动恢复（handleResolved）解决 Incident 时写 status_changed
+	// 时间线（每次状态变更必产 TimelineItem 铁律）。为 nil 时跳过（降级/测试）。
+	recorder *timeline.Recorder
 }
 
 // NewEngine 创建分诊引擎。window 参数为 0 时用默认值。
@@ -56,6 +62,11 @@ func NewEngine(db *ent.Client, rc *redis.Client) *Engine {
 // SetBus 注入领域事件总线（装配时调用）。为 nil 时跳过事件发布。
 func (e *Engine) SetBus(b *domainevent.Bus) {
 	e.bus = b
+}
+
+// SetRecorder 注入时间线记录器（装配时调用）。B3：自动恢复写 status_changed 时间线用。
+func (e *Engine) SetRecorder(r *timeline.Recorder) {
+	e.recorder = r
 }
 
 // SetSuppressionEngine 注入抑制引擎（测试可替换 now）。
@@ -277,6 +288,11 @@ func (e *Engine) bindPolicyAndPublish(ctx context.Context, inc *ent.Incident, sv
 		e.bus.Publish(ctx, domainevent.Event{
 			Type:     domainevent.IncidentCreated,
 			Incident: inc,
+			// Action=created：下游同步订阅方（ws/webhook/im）据此区分语义。
+			// 尤其出站 webhook 用它拼 event 名（incident.created），否则名为 "incident."（空 action，C24）。
+			Action:          domainevent.Action("created"),
+			ActorID:         0,
+			SystemTriggered: true, // 系统建单（triage 自动），非人工请求
 		})
 	}
 }
@@ -331,31 +347,67 @@ func (e *Engine) createIncident(ctx context.Context, evt *ent.Event, svc *ent.Se
 	return inc, nil
 }
 
-// handleResolved 处理 resolved 事件：找到同 dedup 的活跃 Incident，按配置推进解决。
-// 当前实现：把 Incident 状态置为 resolved（简化；完整实现见 capabilities §2.7）。
+// handleResolved 处理 resolved 事件：找到同一告警对应的活跃 Incident，自动推进解决。
+//
+// B3 修复（对照 docs/audit journey-code-audit B3）：
+//  1. 收敛匹配到 dedup 维度——精确定位「就是这条告警」对应的 Incident，
+//     而非旧实现按 service 维度取最新活跃单（同 service 多告警时会误解无关单）。
+//     dedup_key 是同一告警 firing/resolved 的共同指纹（Event.dedup_key），
+//     故用「该 Incident 挂有相同 dedup_key 的 firing Event」定位，无匹配则不解任何单。
+//  2. 已 acked 的单不自动解决——ack 表示已有人接手处置，此时监控侧的 resolved 信号
+//     不应替人拍板关单（可能问题未真正闭环、责任人尚未确认）。故自动恢复只作用于
+//     triggered/escalated（尚无人介入）的单；acked/resolved/closed 交由人工 resolve/reopen。
+//     这与「IM/Web 手动 resolve 才是人拍板」的语义一致，避免系统把单从责任人手里抽走。
+//  3. 写 status_changed 时间线 + 发 IncidentResolved 领域事件——补齐「每次状态变更必产
+//     TimelineItem」铁律，并让 WS 推送 / IM 卡片刷新 / 出站 webhook 感知自动恢复。
 func (e *Engine) handleResolved(ctx context.Context, evt *ent.Event, svc *ent.Service) (*Result, error) {
-	// 找同 service 的活跃 Incident（简化：用 service 维度，完整用 dedup 维度）
+	// 按 dedup 维度定位：找挂有相同 dedup_key 的 firing Event、且仍为 triggered/escalated
+	// 的活跃 Incident（排除 acked——已有人接手，不自动关单）。
 	inc, err := e.db.Incident.Query().
 		Where(
-			incident.HasServiceWith(service.IDEQ(svc.ID)),
-			incident.StatusIn(incident.StatusTriggered, incident.StatusEscalated, incident.StatusAcked),
+			incident.HasEventsWith(
+				event.DedupKeyEQ(evt.DedupKey),
+				event.StatusEQ(event.StatusFiring),
+			),
+			incident.StatusIn(incident.StatusTriggered, incident.StatusEscalated),
 		).
 		Order(ent.Desc(incident.FieldCreatedAt)).
 		First(ctx)
 	if ent.IsNotFound(err) {
+		// 无同 dedup 的未介入活跃单（可能已 acked/已解决/无匹配）——不误解其它单，仅留痕返回。
 		return &Result{Action: ActionUnrouted, ServiceID: svc.ID, ServiceName: svc.Name}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query incident for resolve: %w", err)
 	}
-	// 推进到 resolved（生产可配为"仅提示"，这里简化为直接 resolve）
-	if err := e.db.Incident.UpdateOneID(inc.ID).
+	// 推进到 resolved（生产可配为"仅提示"，这里自动解决未介入的单）。
+	// 用 Save 拿回更新后快照，供时间线/领域事件携带最新状态。
+	resolved, err := e.db.Incident.UpdateOneID(inc.ID).
 		SetStatus(incident.StatusResolved).
 		SetResolvedAt(time.Now()).
-		Exec(ctx); err != nil {
+		Save(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("resolve incident: %w", err)
 	}
-	return &Result{Action: ActionResolved, IncidentID: inc.ID, IncidentNum: inc.Number, ServiceID: svc.ID, ServiceName: svc.Name}, nil
+	// 写 status_changed 时间线（系统触发的自动恢复，source=system）。失败不阻塞主流程。
+	if e.recorder != nil {
+		_ = e.recorder.Record(ctx, resolved.ID, timelineitem.TypeStatusChanged,
+			"系统自动恢复：收到告警 resolved 信号",
+			timeline.Actor{Kind: "system"}, timelineitem.SourceSystem,
+			map[string]any{"status": "resolved", "auto": true, "dedup_key": evt.DedupKey})
+	}
+	// 发 IncidentResolved 领域事件，驱动 WS/IM 卡片/出站 webhook 同步。
+	// SystemTriggered=true 标记系统触发（区别于人工 resolve），下游同步订阅方一致消费。
+	if e.bus != nil {
+		e.bus.Publish(ctx, domainevent.Event{
+			Type:            domainevent.IncidentResolved,
+			Incident:        resolved,
+			Action:          domainevent.Action("resolve"),
+			ActorID:         0,
+			SystemTriggered: true,
+		})
+	}
+	return &Result{Action: ActionResolved, IncidentID: resolved.ID, IncidentNum: resolved.Number, ServiceID: svc.ID, ServiceName: svc.Name}, nil
 }
 
 // nextIncidentNumber 生成人类可读编号 INC-XXXXXX。

@@ -105,6 +105,18 @@ func (h *Hub) BroadcastIncident(incidentID int, action string, snapshot any) {
 	})
 }
 
+// BroadcastTimelineAdded 广播时间线新增条目（B11）。
+// timeline.Recorder 写入新条目后调用（经 timeline.TimelineBroadcaster 接口），
+// 使订阅该 incident 的 Web 详情页时间线实时刷新（前端收到后 invalidate 时间线查询）。
+// item 为刚写入的条目（作为消息 Data 下发，前端可直接插入而无需重查）。
+func (h *Hub) BroadcastTimelineAdded(incidentID int, item any) {
+	h.Broadcast(incidentID, Message{
+		Type:       MsgTimelineAdded,
+		IncidentID: incidentID,
+		Data:       item,
+	})
+}
+
 // OnIncidentEvent 领域事件适配：收到 incident 变更事件时广播给订阅者。
 // 实现 event.Handler，供装配时 bus.Subscribe 挂载。
 // 所有 incident 动作事件（ack/resolve/escalate/reopen/add_responder）统一走此入口。

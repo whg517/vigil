@@ -26,15 +26,32 @@ type Actor struct {
 	ID   string // 执行者标识（user id 等）
 }
 
+// TimelineBroadcaster 时间线新增广播器（B11）。
+// 由 ws.Hub 实现（BroadcastTimelineAdded），装配时经 SetBroadcaster 注入。
+// 抽象成接口而非直接依赖 ws 包，避免 timeline→ws 的包依赖（ws 已依赖 event，
+// 若再让 timeline 依赖 ws 会增加耦合）。item 为刚写入的时间线条目（*ent.TimelineItem，
+// 用 any 以免 ws 侧被迫依赖 ent 具体类型——ws 只作为 WS Data 透传下发）。
+type TimelineBroadcaster interface {
+	BroadcastTimelineAdded(incidentID int, item any)
+}
+
 // Recorder 统一时间线记录器。各域（escalation/runbook/...）通过它写时间线。
 // 实现了 runbook.TimelineRecorder 接口（RecordRunbook）。
 type Recorder struct {
 	db *ent.Client
+	// broadcaster B11：写入时间线后经此广播 timeline_added WS 消息，使 Web 详情页时间线实时刷新。
+	// 为 nil 时跳过广播（降级/测试）。
+	broadcaster TimelineBroadcaster
 }
 
 // NewRecorder 创建记录器。
 func NewRecorder(db *ent.Client) *Recorder {
 	return &Recorder{db: db}
+}
+
+// SetBroadcaster 注入时间线广播器（B11）。装配时传入 ws.Hub，使新增条目实时推 WS。
+func (r *Recorder) SetBroadcaster(b TimelineBroadcaster) {
+	r.broadcaster = b
 }
 
 // Record 写一条时间线。
@@ -57,7 +74,16 @@ func (r *Recorder) Record(ctx context.Context, incID int, typ timelineitem.Type,
 	if detail != nil {
 		create = create.SetDetail(detail)
 	}
-	return create.Exec(ctx)
+	item, err := create.Save(ctx)
+	if err != nil {
+		return err
+	}
+	// B11：写入成功后广播 timeline_added WS 消息，使 Web 详情页时间线实时刷新。
+	// 广播为 best-effort（hub 内部对无订阅者静默跳过），不影响写入结果。
+	if r.broadcaster != nil {
+		r.broadcaster.BroadcastTimelineAdded(incID, item)
+	}
+	return nil
 }
 
 // RecordRunbook 实现 runbook.TimelineRecorder 接口。

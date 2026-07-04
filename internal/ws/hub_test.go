@@ -97,6 +97,34 @@ func TestHub_BroadcastNoSubscribers(t *testing.T) {
 	h.BroadcastIncident(999, "ack", nil)
 }
 
+// TestHub_BroadcastTimelineAdded 验证 B11：时间线新增广播 timeline_added 消息给订阅者。
+func TestHub_BroadcastTimelineAdded(t *testing.T) {
+	h := NewHub()
+	c := newClient()
+	defer h.Subscribe(7, c)()
+
+	h.BroadcastTimelineAdded(7, map[string]any{"id": 1, "type": "status_changed"})
+
+	select {
+	case raw := <-c.send:
+		var m Message
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if m.Type != MsgTimelineAdded {
+			t.Errorf("type: got %q, want %q", m.Type, MsgTimelineAdded)
+		}
+		if m.IncidentID != 7 {
+			t.Errorf("incident_id: got %d, want 7", m.IncidentID)
+		}
+		if m.Data == nil {
+			t.Error("timeline_added should carry item Data")
+		}
+	default:
+		t.Error("no timeline_added message received after broadcast")
+	}
+}
+
 // TestHub_UnsubscribeCleansUpMap 退订后 incident 的客户端集合被清理（防内存泄漏）。
 func TestHub_UnsubscribeCleansUpMap(t *testing.T) {
 	h := NewHub()

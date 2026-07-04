@@ -139,6 +139,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	escEngine := escalation.NewEngine(st.DB, q, schedEngine, notifier, escRedisOpt)
 	escEngine.SetRecorder(timelineRecorder)
 	escEngine.SetLogger(log)
+	// B10：注入事件总线，使自动升级（计时器到点触发）也发布 IncidentEscalated 领域事件，
+	// 驱动 WS 推送 / IM 卡片刷新 / 出站 webhook（原先自动升级对多端全盲）。
+	escEngine.SetBus(bus)
 	q.Register(escalation.TaskEscalation, escEngine.HandleTask)
 	// escalation 订阅 incident 事件：ack 取消升级、创建启动链、手动升级触发 level。
 	bus.Subscribe(domainevent.IncidentCreated, escEngine.OnCreated)
@@ -204,10 +207,18 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 
 	// —— WebSocket hub（能力域 8 状态同步）——
 	wsHub := ws.NewHub()
+	// B11：把 WS hub 注入时间线记录器，使新增时间线条目（升级/自动恢复/runbook 等各域写入）
+	// 实时广播 timeline_added，Web 详情页时间线无需轮询即刷新。
+	timelineRecorder.SetBroadcaster(wsHub)
 
 	// —— incident 变更事件订阅：IM 卡片刷新 / Webhook 出口 / WebSocket 推送 ——
+	// B10：补 IncidentCreated 到多端同步订阅集。原先它只被 escalation 订阅（启动升级链），
+	// 未接 ws/webhook/卡片 → 新告警建单后 Web 列表不实时刷新、出站 webhook 感知不到新单。
+	// 加入后：incident 创建（triage）、自动升级（escalation 计时器）、自动恢复（triage handleResolved）
+	// 三类系统触发的变更也统一驱动 WS 推送 + 出站 webhook + IM 卡片刷新。
 	cardRefresher := im.NewCardRefresher(imRegistry, imCards)
 	for _, typ := range []domainevent.Type{
+		domainevent.IncidentCreated,
 		domainevent.IncidentAcked,
 		domainevent.IncidentResolved,
 		domainevent.IncidentReopened,
@@ -222,6 +233,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// —— 分诊（能力域 3-4）：创建 Incident 后发事件（escalation 已订阅启动升级链）——
 	triageEngine := triage.NewEngine(st.DB, st.Redis)
 	triageEngine.SetBus(bus)
+	// B3：注入时间线记录器，使自动恢复（handleResolved）写 status_changed 时间线。
+	triageEngine.SetRecorder(timelineRecorder)
 	q.Register(triage.TaskTriage, triage.NewWorker(triageEngine).Handle)
 	log.Info("pipeline ready (ingestion → triage → escalation → notification)")
 
