@@ -2,6 +2,7 @@
 package postmortem
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -16,6 +17,15 @@ import (
 
 	"github.com/labstack/echo/v5"
 )
+
+// errAccessDenied 哨兵错误：checkAccess 已写出 403/500 响应，handler 应立即 return 中止后续逻辑。
+//
+// 背景：errs.Forbidden/Internal 写完响应后按 echo 惯例返回 nil，若 checkAccess 直接把
+// 该 nil 透传给调用方，则 `if e := checkAccess(...); e != nil { return e }` 永不触发，
+// handler 会在已写 403 的情况下继续执行写操作（删除/流转/覆盖草稿），造成"报 403 却已落库"
+// 的越权。故 checkAccess 拒绝时返回本哨兵（非 nil），调用方据此中止；响应已提交，echo
+// 错误处理器会跳过二次写。
+var errAccessDenied = errors.New("access denied (response already written)")
 
 // Handler 复盘 API。
 type Handler struct {
@@ -56,10 +66,14 @@ func (h *Handler) checkAccess(c *echo.Context, id int, perm auth.Permission, kin
 	}
 	allowed, err := auth.CheckResourceAccess(c.Request().Context(), h.authz, h.scope, h.actorFromContext(c), perm, kind, id)
 	if err != nil {
-		return errs.Internal(c, nil, err)
+		// errs.Internal 写完 500 返回 nil，必须换成非 nil 哨兵，否则调用方不会中止。
+		_ = errs.Internal(c, nil, err)
+		return errAccessDenied
 	}
 	if !allowed {
-		return errs.Forbidden(c, "")
+		// 同理：errs.Forbidden 写完 403 返回 nil，返回哨兵让调用方 return 中止后续写操作。
+		_ = errs.Forbidden(c, "")
+		return errAccessDenied
 	}
 	return nil
 }
@@ -161,6 +175,11 @@ func (h *Handler) generateDraft(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid incident id"})
 	}
+	// 资源级鉴权：草稿会新建/覆盖复盘，属创建语义，须 postmortem.create。
+	// path param 是 incident id，经 incident→team 回溯归属校验（跨 team 拦截）。
+	if e := h.checkAccess(c, incID, auth.PermPostmortemCreate, "incident"); e != nil {
+		return e
+	}
 	pm, err := h.engine.GenerateDraft(c.Request().Context(), incID)
 	if err != nil {
 		return errs.FailConstraint(c, nil, err, "postmortem", "postmortem already exists")
@@ -190,12 +209,18 @@ func (h *Handler) transition(c *echo.Context) error {
 	if err != nil {
 		return errs.BadRequest(c, "invalid id")
 	}
-	if e := h.checkAccess(c, id, auth.PermPostmortemView, "postmortem"); e != nil {
-		return e
-	}
 	var req transitionReq
 	if err := c.Bind(&req); err != nil || req.Status == "" {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "status required"})
+	}
+	// 按目标状态区分权限：发布须 postmortem.publish，其余流转（in_review/archived/
+	// 打回 draft）须 postmortem.update；仅 view 的只读角色不得推动状态机。
+	perm := auth.PermPostmortemUpdate
+	if postmortem.Status(req.Status) == postmortem.StatusPublished {
+		perm = auth.PermPostmortemPublish
+	}
+	if e := h.checkAccess(c, id, perm, "postmortem"); e != nil {
+		return e
 	}
 	pm, err := h.engine.Transition(c.Request().Context(), id, postmortem.Status(req.Status))
 	if err != nil {
@@ -314,7 +339,8 @@ func (h *Handler) delete(c *echo.Context) error {
 	if err != nil {
 		return errs.BadRequest(c, "invalid id")
 	}
-	if e := h.checkAccess(c, id, auth.PermPostmortemView, "postmortem"); e != nil {
+	// 删除复盘及其全部改进项属破坏性写操作，须 postmortem.update；仅 view 的只读角色不得删除。
+	if e := h.checkAccess(c, id, auth.PermPostmortemUpdate, "postmortem"); e != nil {
 		return e
 	}
 	ctx := c.Request().Context()
