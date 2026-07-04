@@ -111,6 +111,15 @@ var (
 		Help: "Total notifications sent by channel and result.",
 	}, []string{"channel", "result"})
 
+	// IMOncallChannelMissing IM 值班群未配置导致通知未送达的次数（B17）。
+	// 原实现 VIGIL_IM_ONCALL_CHANNEL 未配时静默 return（无 metric/无 log），
+	// 是可观测性盲区——值班人根本收不到 IM 卡片却无人知晓。此计数使盲区可观测，
+	// 供运维发现「配了 IM 却收不到告警」的配置遗漏。
+	IMOncallChannelMissing = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "vigil_im_oncall_channel_missing_total",
+		Help: "Total IM notifications skipped because no oncall channel is configured.",
+	})
+
 	// IncidentDuration 事件解决时长分布（秒）
 	IncidentDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name:    "vigil_incident_resolve_duration_seconds",

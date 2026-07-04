@@ -56,7 +56,7 @@ func TestIMChannel_Send(t *testing.T) {
 		t.Errorf("bot sendCount: got %d, want 1", bot.sendCount)
 	}
 	// CardStore 应记录卡片 ID
-	if _, ok := cards.Get(42, "feishu"); !ok {
+	if _, ok := cards.Get(context.Background(), 42, "feishu"); !ok {
 		t.Error("CardStore should record card after send")
 	}
 }

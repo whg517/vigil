@@ -112,6 +112,49 @@ func (m *Mapper) BindAccount(ctx context.Context, userID int, platform, unionID 
 	return m.db.User.UpdateOneID(userID).SetImAccounts(accounts).Exec(ctx)
 }
 
+// UnbindAccount 解除用户与某 IM 平台账号的绑定（M11，误绑可纠正）。
+// 双删：独立表 IMAccountBinding（按 user+platform 删）+ User.im_accounts JSON（幂等移除）。
+// 返回是否确实删除了绑定（false=该用户本无此平台绑定，供 handler 判 404）。
+//
+// 按 platform 而非 account_id 解绑：一个用户在一个平台只应有一条绑定（换账号=先解绑再绑），
+// handler 语义是「解除我在钉钉/飞书的绑定」，无需调用方知道具体 account_id。
+func (m *Mapper) UnbindAccount(ctx context.Context, userID int, platform string) (bool, error) {
+	if platform == "" {
+		return false, fmt.Errorf("platform required")
+	}
+	// 1. 独立表：删该用户在该平台的绑定（可能 0 条）。
+	deleted, err := m.db.IMAccountBinding.Delete().
+		Where(
+			imaccountbinding.PlatformEQ(imaccountbinding.Platform(platform)),
+			imaccountbinding.HasUserWith(user.IDEQ(userID)),
+		).
+		Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("delete im binding: %w", err)
+	}
+	// 2. JSON 字段：幂等移除该平台的所有条目（兼容旧数据双写路径）。
+	u, err := m.db.User.Get(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("get user: %w", err)
+	}
+	kept := make([]schema.IMAccount, 0, len(u.ImAccounts))
+	removedFromJSON := false
+	for _, acc := range u.ImAccounts {
+		if acc.Platform == platform {
+			removedFromJSON = true
+			continue // 丢弃该平台条目
+		}
+		kept = append(kept, acc)
+	}
+	if removedFromJSON {
+		if err := m.db.User.UpdateOneID(userID).SetImAccounts(kept).Exec(ctx); err != nil {
+			return false, fmt.Errorf("update user im_accounts: %w", err)
+		}
+	}
+	// 任一路径删到即视为「确有绑定被解除」。
+	return deleted > 0 || removedFromJSON, nil
+}
+
 // ListBindings 列出用户已绑定的全部 IM 账号（QA 审计 C6，供 UserHandler 查询）。
 // 优先查独立表；表无记录时回退 User.im_accounts JSON 字段。
 func (m *Mapper) ListBindings(ctx context.Context, userID int) ([]IMBindingView, error) {

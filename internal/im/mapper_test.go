@@ -212,5 +212,86 @@ func TestListBindings_Empty(t *testing.T) {
 	}
 }
 
+// TestUnbindAccount_DualDelete M11：解绑双删（独立表 + JSON 字段），解绑后 ResolveUser 失败。
+func TestUnbindAccount_DualDelete(t *testing.T) {
+	c := newMapperClient(t)
+	ctx := context.Background()
+	u, err := c.User.Create().SetUsername("ub").SetEmail("ub@x.com").Save(ctx)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	m := NewMapper(c)
+	// 绑两平台，解一个，另一个应保留。
+	if err := m.BindAccount(ctx, u.ID, "feishu", "ou_ub"); err != nil {
+		t.Fatalf("bind feishu: %v", err)
+	}
+	if err := m.BindAccount(ctx, u.ID, "dingtalk", "dt_ub"); err != nil {
+		t.Fatalf("bind dingtalk: %v", err)
+	}
+
+	removed, err := m.UnbindAccount(ctx, u.ID, "feishu")
+	if err != nil {
+		t.Fatalf("unbind: %v", err)
+	}
+	if !removed {
+		t.Fatal("removed should be true (feishu was bound)")
+	}
+	// 独立表：feishu 应删，dingtalk 保留（剩 1 条）。
+	cnt, _ := c.IMAccountBinding.Query().Count(ctx)
+	if cnt != 1 {
+		t.Errorf("bindings after unbind: got %d, want 1 (dingtalk remains)", cnt)
+	}
+	// JSON 字段：feishu 移除，dingtalk 保留。
+	reloaded, _ := c.User.Get(ctx, u.ID)
+	if len(reloaded.ImAccounts) != 1 || reloaded.ImAccounts[0].Platform != "dingtalk" {
+		t.Errorf("json accounts after unbind: got %+v, want [dingtalk]", reloaded.ImAccounts)
+	}
+	// 解绑后 feishu 不再可解析，dingtalk 仍可。
+	if _, err := m.ResolveUser(ctx, "feishu", "ou_ub"); !errors.Is(err, ErrNotBound) {
+		t.Errorf("feishu should be unbound, got %v", err)
+	}
+	if _, err := m.ResolveUser(ctx, "dingtalk", "dt_ub"); err != nil {
+		t.Errorf("dingtalk should still resolve, got %v", err)
+	}
+}
+
+// TestUnbindAccount_NotBound 无此平台绑定时 removed=false（供 handler 判 404）。
+func TestUnbindAccount_NotBound(t *testing.T) {
+	c := newMapperClient(t)
+	ctx := context.Background()
+	u, _ := c.User.Create().SetUsername("nb").SetEmail("nb@x.com").Save(ctx)
+	m := NewMapper(c)
+	removed, err := m.UnbindAccount(ctx, u.ID, "wecom")
+	if err != nil {
+		t.Fatalf("unbind not-bound: %v", err)
+	}
+	if removed {
+		t.Error("removed should be false when nothing bound")
+	}
+}
+
+// TestUnbindAccount_JSONOnly 仅 JSON 字段有绑定（历史数据，无独立表记录）时也能解绑。
+func TestUnbindAccount_JSONOnly(t *testing.T) {
+	c := newMapperClient(t)
+	ctx := context.Background()
+	u, err := c.User.Create().SetUsername("jo").SetEmail("jo@x.com").
+		SetImAccounts([]schema.IMAccount{{Platform: "feishu", AccountID: "ou_json"}}).Save(ctx)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	m := NewMapper(c)
+	removed, err := m.UnbindAccount(ctx, u.ID, "feishu")
+	if err != nil {
+		t.Fatalf("unbind json-only: %v", err)
+	}
+	if !removed {
+		t.Error("removed should be true (json binding existed)")
+	}
+	reloaded, _ := c.User.Get(ctx, u.ID)
+	if len(reloaded.ImAccounts) != 0 {
+		t.Errorf("json accounts after unbind: got %+v, want empty", reloaded.ImAccounts)
+	}
+}
+
 // 确保未使用导入不告警（schema 在 BindAccount_DoubleWrite 用过）
 var _ = schema.IMAccount{}

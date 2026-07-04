@@ -12488,6 +12488,80 @@
                 ]
             }
         },
+        "/users/{id}/im-accounts/{platform}": {
+            "delete": {
+                "description": "解除用户在指定 IM 平台（feishu/dingtalk/wecom）的账号绑定。本人或有 user.im.bind 权限者可操作。",
+                "parameters": [
+                    {
+                        "description": "用户 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "IM 平台",
+                        "in": "path",
+                        "name": "platform",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "feishu",
+                                "dingtalk",
+                                "wecom"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "解绑 IM 账号",
+                "tags": [
+                    "user"
+                ]
+            }
+        },
         "/users/{id}/reset-password": {
             "post": {
                 "description": "管理员重置指定用户密码：无需旧密码，重置后强制改密并吊销该用户所有旧 token。",

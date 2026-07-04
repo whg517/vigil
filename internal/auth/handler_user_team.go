@@ -34,6 +34,12 @@ type IMAccountResolver interface {
 	ListBindings(ctx context.Context, userID int) ([]IMAccountInfo, error)
 }
 
+// IMAccountUnbinder IM 账号解绑接口（M11，误绑可纠正）。
+// im.Mapper 实现此接口；返回 removed=false 表示该用户本无此平台绑定（handler 据此判 404）。
+type IMAccountUnbinder interface {
+	UnbindAccount(ctx context.Context, userID int, platform string) (removed bool, err error)
+}
+
 // IMAccountInfo IM 账号绑定信息（脱敏视图）。
 type IMAccountInfo struct {
 	Platform  string `json:"platform"`
@@ -45,8 +51,9 @@ type UserHandler struct {
 	db         *ent.Client
 	imBinder   IMAccountBinder // 可选：IM 账号绑定（C6）
 	imResolver IMAccountResolver
-	authz      *Authorizer    // 可选：细分「停用」为独立权限点（user.disable）用
-	audit      *AuditRecorder // 可选：用户启停留痕（C21，nil 时跳过）
+	imUnbinder IMAccountUnbinder // 可选：IM 账号解绑（M11）
+	authz      *Authorizer       // 可选：细分「停用」为独立权限点（user.disable）用
+	audit      *AuditRecorder    // 可选：用户启停留痕（C21，nil 时跳过）
 }
 
 // NewUserHandler 创建用户 handler。
@@ -69,6 +76,9 @@ func (h *UserHandler) SetIMAccountBinder(b IMAccountBinder) { h.imBinder = b }
 // SetIMAccountResolver 注入 IM 账号查询器。
 func (h *UserHandler) SetIMAccountResolver(r IMAccountResolver) { h.imResolver = r }
 
+// SetIMAccountUnbinder 注入 IM 账号解绑器（M11，main 装配时调用）。
+func (h *UserHandler) SetIMAccountUnbinder(u IMAccountUnbinder) { h.imUnbinder = u }
+
 // Register 挂载用户管理路由。
 func (h *UserHandler) Register(g *echo.Group) {
 	g.GET("/users", h.listUsers)
@@ -81,6 +91,9 @@ func (h *UserHandler) Register(g *echo.Group) {
 	// 用户无法绑定 IM → ResolveUser 永远 ErrNotBound → 所有 IM 操作 403）。
 	g.POST("/users/:id/im-accounts", h.bindIMAccount)
 	g.GET("/users/:id/im-accounts", h.listIMAccounts)
+	// M11：解绑 IM 账号（误绑可纠正）。权限「本人或 admin」在 handler 内判定
+	// （不走 RouteGuard 单权限点，否则会强制 admin-only，本人无法自助解绑）。
+	g.DELETE("/users/:id/im-accounts/:platform", h.unbindIMAccount)
 }
 
 // createUserReq 创建用户请求（管理员建号，M1）。
@@ -409,6 +422,79 @@ func (h *UserHandler) listIMAccounts(c *echo.Context) error {
 		out = append(out, IMAccountInfo{Platform: a.Platform, AccountID: a.AccountID})
 	}
 	return c.JSON(http.StatusOK, out)
+}
+
+// unbindIMAccount 解除用户在某 IM 平台的账号绑定（M11，误绑可纠正）。
+//
+// 鉴权「本人或 admin」：
+//   - 本人（登录态 user_id == :id）恒可自助解绑自己的 IM 账号（管理自己的偏好）。
+//   - 他人：须持 user.im.bind 权限（管理员代绑同权限，解绑归同一治理动作）。
+//
+// 不走 RouteGuard 单权限点：RouteGuard 只能挂一个权限点，挂上会强制 admin-only，
+// 本人无法自助解绑；故在 handler 内做「本人 OR 有权限」的复合判定。
+//
+// @Summary      解绑 IM 账号
+// @Description  解除用户在指定 IM 平台（feishu/dingtalk/wecom）的账号绑定。本人或有 user.im.bind 权限者可操作。
+// @Tags         user
+// @Produce      json
+// @Param        id        path      int     true  "用户 ID"
+// @Param        platform  path      string  true  "IM 平台"  Enums(feishu, dingtalk, wecom)
+// @Success      204
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      403  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /users/{id}/im-accounts/{platform} [delete]
+func (h *UserHandler) unbindIMAccount(c *echo.Context) error {
+	if h.imUnbinder == nil {
+		return c.JSON(http.StatusServiceUnavailable, httputil.ErrorResponse{Error: "im account unbinding not configured"})
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	platform := c.Param("platform")
+	if platform == "" {
+		return errs.BadRequest(c, "platform required")
+	}
+	ctx := c.Request().Context()
+	// 「本人或 admin」判定。
+	callerID, ok := UserIDFromContext(ctx)
+	if !ok {
+		return errs.Unauthorized(c, "not authenticated")
+	}
+	if callerID != id {
+		// 解他人绑定：须持 user.im.bind 权限（authz 未注入的测试装配下退化为拒绝他人，
+		// 保守安全——不因缺 authz 而放行跨用户解绑）。
+		if h.authz == nil {
+			return errs.Forbidden(c, "forbidden: cannot unbind other user's im account")
+		}
+		allowed, aerr := h.authz.Check(ctx, AuthzRequest{UserID: callerID, Permission: PermUserIMBind})
+		if aerr != nil {
+			return errs.Internal(c, nil, aerr)
+		}
+		if !allowed {
+			return errs.Forbidden(c, "forbidden: user.im.bind required to unbind others")
+		}
+	}
+	removed, err := h.imUnbinder.UnbindAccount(ctx, id, platform)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	if !removed {
+		// 该用户本无此平台绑定：返 404（幂等语义上无可删对象）。
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "im binding not found"})
+	}
+	// 解绑落审计（IM 账号是鉴权桥梁，误绑/恶意解绑须可追溯）。
+	if h.audit != nil {
+		e := AuditEntryFromRequest(c.Request(), callerID, "")
+		e.Action = ActionUserIMUnbind
+		e.ResourceType = "user"
+		e.ResourceID = id
+		e.Detail = map[string]any{"platform": platform}
+		h.audit.MustRecord(ctx, e)
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 // === Team 管理 ===

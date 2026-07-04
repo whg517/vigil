@@ -112,8 +112,9 @@ func TestSendCard_OTOSingleChat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendCard oto: %v", err)
 	}
-	if id != "pqk_001" {
-		t.Errorf("card id: got %q, want pqk_001", id)
+	// cardID 编码了 channel（供 UpdateCard 降级重发定位），msgID 部分应是 pqk_001。
+	if _, msgID, _ := decodeCardID(id); msgID != "pqk_001" {
+		t.Errorf("card id msgID: got %q, want pqk_001", msgID)
 	}
 	if atomic.LoadInt32(&m.otoHits) != 1 {
 		t.Errorf("oto 接口应被调 1 次，got %d", m.otoHits)
@@ -142,8 +143,8 @@ func TestSendCard_Group(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendCard group: %v", err)
 	}
-	if id != "msg_002" {
-		t.Errorf("card id: got %q, want msg_002", id)
+	if _, msgID, _ := decodeCardID(id); msgID != "msg_002" {
+		t.Errorf("card id msgID: got %q, want msg_002", msgID)
 	}
 	if atomic.LoadInt32(&m.groupHits) != 1 {
 		t.Errorf("group 接口应被调 1 次，got %d", m.groupHits)
@@ -206,11 +207,103 @@ func TestCreateWarRoom_NoMembers(t *testing.T) {
 	}
 }
 
-// TestUpdateCard_NoOp 钉钉无原地卡片更新，UpdateCard 应不报错（降级，不阻塞主流程）。
-func TestUpdateCard_NoOp(t *testing.T) {
+// TestUpdateCard_NoChannel 裸 cardID（无编码 channel，历史数据）无法定位群重发，
+// UpdateCard 应返回 ErrCardUpdateNoChannel（降级未成，best-effort 让调用方感知，不阻塞主流程）。
+func TestUpdateCard_NoChannel(t *testing.T) {
 	a := New(Config{AppKey: "k", AppSecret: "s"})
-	if err := a.UpdateCard(context.Background(), "msg_x", &im.Card{}); err != nil {
-		t.Errorf("UpdateCard 应降级不报错，got %v", err)
+	err := a.UpdateCard(context.Background(), "msg_x", &im.Card{})
+	if err != im.ErrCardUpdateNoChannel {
+		t.Errorf("裸 cardID 应返回 ErrCardUpdateNoChannel，got %v", err)
+	}
+}
+
+// TestUpdateCard_DegradeResend B16：钉钉卡片降级——UpdateCard 从 cardID 解出 channel，
+// 向同一群重发一条新消息标注最新状态（钉钉无原地更新能力）。
+func TestUpdateCard_DegradeResend(t *testing.T) {
+	m := newMockServer(t)
+	a := adapterFromMock(m)
+	// 先发一张群卡片，返回的 cardID 应编码了 channel。
+	cardID, err := a.SendCard(context.Background(), "openConversationId:ocid_group", &im.Card{
+		IncidentID: "42", Header: "[CRITICAL] INC-0042 db down", Severity: "critical",
+	})
+	if err != nil {
+		t.Fatalf("SendCard: %v", err)
+	}
+	groupBefore := atomic.LoadInt32(&m.groupHits)
+	// UpdateCard 降级：解出 channel 重发新消息（群发接口应再被调一次）。
+	statusCard := &im.Card{
+		IncidentID: "42", Header: "[CRITICAL] INC-0042 db down", Severity: "critical",
+		StatusBadge: "⚠️ INC-0042 已确认（by 张三）",
+	}
+	if err := a.UpdateCard(context.Background(), cardID, statusCard); err != nil {
+		t.Fatalf("UpdateCard 降级重发应成功，got %v", err)
+	}
+	if got := atomic.LoadInt32(&m.groupHits); got != groupBefore+1 {
+		t.Errorf("降级应向群重发一条新消息，groupHits: got %d, want %d", got, groupBefore+1)
+	}
+}
+
+// TestSendCard_CardIDEncodesChannel SendCard 返回的 cardID 应编码 channel（供 UpdateCard 降级重发定位群）。
+func TestSendCard_CardIDEncodesChannel(t *testing.T) {
+	m := newMockServer(t)
+	a := adapterFromMock(m)
+	cardID, err := a.SendCard(context.Background(), "openConversationId:ocid_group", &im.Card{IncidentID: "1", Header: "x"})
+	if err != nil {
+		t.Fatalf("SendCard: %v", err)
+	}
+	channel, msgID, ok := decodeCardID(cardID)
+	if !ok || channel != "openConversationId:ocid_group" {
+		t.Errorf("cardID 应编码 channel，got channel=%q ok=%v", channel, ok)
+	}
+	if msgID != "msg_002" {
+		t.Errorf("cardID 应保留原 msgID，got %q", msgID)
+	}
+}
+
+// TestParseCallback_Mention B16：钉钉群 @机器人 同时 @他人 → 解析为 mention（拉人）。
+func TestParseCallback_Mention(t *testing.T) {
+	a := New(Config{AppKey: "k", AppSecret: "s"})
+	// atUsers 含被 @的人（staffId 优先），文本含 incident 编号供上层解析。
+	body := []byte(`{"senderStaffId":"staff1","conversationId":"ocid_g","text":{"content":"@机器人 INC-0042 帮看 DB"},"atUsers":[{"dingtalkId":"ding_bob","staffId":"staff_bob"}]}`)
+	ev, err := a.ParseCallback(body)
+	if err != nil {
+		t.Fatalf("ParseCallback: %v", err)
+	}
+	if ev.Type != im.EventMention {
+		t.Fatalf("type: got %v, want mention", ev.Type)
+	}
+	if len(ev.MentionAt) != 1 || ev.MentionAt[0] != "staff_bob" {
+		t.Errorf("MentionAt: got %v, want [staff_bob]", ev.MentionAt)
+	}
+	if ev.UnionID != "staff1" {
+		t.Errorf("operator unionID: got %q, want staff1", ev.UnionID)
+	}
+}
+
+// TestParseCallback_MentionFallbackDingtalkID staffId 缺失时（钉钉权限限制）退回 dingtalkId。
+func TestParseCallback_MentionFallbackDingtalkID(t *testing.T) {
+	a := New(Config{AppKey: "k", AppSecret: "s"})
+	body := []byte(`{"senderStaffId":"staff1","conversationId":"ocid_g","text":{"content":"@机器人 42"},"atUsers":[{"dingtalkId":"ding_bob"}]}`)
+	ev, err := a.ParseCallback(body)
+	if err != nil {
+		t.Fatalf("ParseCallback: %v", err)
+	}
+	if ev.Type != im.EventMention || len(ev.MentionAt) != 1 || ev.MentionAt[0] != "ding_bob" {
+		t.Errorf("staffId 缺失应退回 dingtalkId，got type=%v mentions=%v", ev.Type, ev.MentionAt)
+	}
+}
+
+// TestParseCallback_MentionExcludesSelf 被 @的人里若含操作者本人，应排除（不把自己拉进来）。
+func TestParseCallback_MentionExcludesSelf(t *testing.T) {
+	a := New(Config{AppKey: "k", AppSecret: "s"})
+	body := []byte(`{"senderStaffId":"staff1","conversationId":"ocid_g","text":{"content":"@机器人 42"},"atUsers":[{"staffId":"staff1"}]}`)
+	ev, err := a.ParseCallback(body)
+	if err != nil {
+		t.Fatalf("ParseCallback: %v", err)
+	}
+	// 只 @了自己 → 无有效被拉人 → 退化为普通消息（非 mention）。
+	if ev.Type == im.EventMention {
+		t.Errorf("只 @自己不应成为 mention，got type=%v mentions=%v", ev.Type, ev.MentionAt)
 	}
 }
 

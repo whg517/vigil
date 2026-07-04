@@ -171,6 +171,7 @@ IM Webhook 回调（含 im_platform + im_unionid + action）
 
 - `User.im_accounts` 是映射的桥梁（data-model §3.1），一个 User 可绑多 IM 平台。
 - 未绑定 IM 账号的用户，IM 操作被拒（提示去 Web 绑定）。
+- **绑定/解绑**（T5.5/M11）：`POST /users/:id/im-accounts` 绑定（权限 `user.im.bind`），`DELETE /users/:id/im-accounts/:platform` 解绑（**本人或持 `user.im.bind` 者**，误绑可纠正）；解绑双删独立表 + JSON 字段并落审计（`user.im_unbind`）。
 
 ---
 
@@ -211,12 +212,20 @@ type IMBot interface {
 | 能力 | 钉钉 | 飞书 | 企微 | 降级方案 |
 |------|:--:|:--:|:--:|---------|
 | 交互卡片 | ✅ 已接入 | ✅ 已接入 | ⏳ | 降级为纯文本+链接 |
-| 卡片更新 | ⚠️ 降级 | ✅ 已接入 | ⏳ | 降级为发新消息标注最新状态 |
+| 卡片更新 | ✅ 降级已实现 | ✅ 已接入 | ⏳ | 钉钉发新消息标注最新状态（已实现） |
 | 建临时群 | ✅ 已接入 | ✅ 已接入 | ⏳ | — |
 | @人 API | ✅ 已接入 | ✅ 已接入 | ⏳ | 降级为手动@ |
 | 命令机器人 | ✅ 已接入 | ✅ 已接入 | ⏳ | — |
 
-> **实现现状**：飞书与钉钉为真实接入平台（`internal/im/feishu`、`internal/im/dingtalk`），卡片下发/建群/@人/回调签名校验均已实现，凭证缺失时 `Available()==false` 自动降级。钉钉卡片更新能力平台不支持原地刷新，按 §10 Q1 降级为发新消息；企微仍为 `NoopBot` 占位，待 PoC。
+> **实现现状**：飞书与钉钉为真实接入平台（`internal/im/feishu`、`internal/im/dingtalk`），卡片下发/建群/@人/回调签名校验均已实现，凭证缺失时 `Available()==false` 自动降级。
+>
+> **T5.4 补全（B16/B24/B17）**：
+> - **钉钉卡片更新降级**（B16）：钉钉 `sampleActionCard` 机器人消息无原地刷新能力，`UpdateCard` 按 §10 Q1 降级——`SendCard` 返回的 cardID 编码了目标 channel（`channel|msgID`），`UpdateCard` 解出 channel 向同群**重发一条带最新状态徽章的新消息**（如「⚠️ INC-xxx 已确认 by 张三」），群内成员可见状态变更，不再永停在下发时的样子。
+> - **钉钉 @人解析**（B16）：钉钉回调 `atUsers` 现被解析（staffId 优先、退回 dingtalkId），@人拉入与飞书对齐；钉钉权限限制下 staffId 缺失时用户需以 dingtalkId 绑定，两者皆空则该 @无法解析（如实跳过）。
+> - **CardStore 持久化**（B24）：incident→卡片 ID 映射从进程内存 map 改为 Redis 持久化（`RedisCardStore`，HASH 结构 + 7 天 TTL），进程重启后已发卡片仍可 `UpdateCard` 刷新；无 Redis 降级为内存实现（单副本可用）。
+> - **值班群未配可观测**（B17）：`VIGIL_IM_ONCALL_CHANNEL` 未配且已有可用 IM bot 时，不再静默 `return`，改为记 `vigil_im_oncall_channel_missing_total` metric + Warn 日志，消除「配了 IM 却收不到告警」盲区；通知仍交上层降级链走其它通道兜底（不阻断）。
+>
+> **企微**：仍为 `NoopBot` 占位（完整适配器待 PoC，是设计目标）。因 `Available()==false` 被 `registry.Available()` 排除，IM 对企微「不发」但**不静默丢告警**——通知走 notification 逐通道兜底降级链，IM 空转时降级到邮件/电话/短信，整条链全失败才兜底告警 org_admin。
 > ✅ =已接入　⏳ =占位待 PoC　⚠️ =平台部分支持　❌ =平台不支持
 
 ---
@@ -236,7 +245,7 @@ type IMBot interface {
 
 | # | 问题 | 倾向 | 状态 |
 |---|------|------|------|
-| Q1 | 卡片更新能力缺失平台的降级体验 | 发新消息 + 折叠旧消息，标注"最新状态见新消息" | 飞书已支持卡片更新；钉钉/企微待 PoC 后按此降级 |
+| Q1 | 卡片更新能力缺失平台的降级体验 | 发新消息 + 折叠旧消息，标注"最新状态见新消息" | 飞书原地更新已支持；钉钉降级发新消息**已实现**（T5.4/B16）；企微待 PoC |
 | Q2 | 作战室消息回写时间线的筛选（避免噪音） | 仅捕获含关键词/@机器人/带标记的消息 | 本期未实现回写，handler 对普通消息返回 ignored |
 | Q3 | 多 IM 平台同时绑定的主从关系 | 用户操作以触发的平台为准，不区分主从 | 已实现：`mapper.ResolveUser` 按触发的 platform 匹配，无主从 |
 
@@ -247,7 +256,8 @@ type IMBot interface {
 | 文档章节 | 代码位置 |
 |---------|---------|
 | §3 交互卡片 / §3.1 按权限渲染 | `internal/im/card.go`（`BuildCard` + `Renderer.WithPermittedButtons`）；平台卡片 JSON：`feishu.CardToFeishu` / `dingtalk.CardToActionCard` |
-| §3.2 卡片实时更新 | `internal/im/handler.go`（`refreshCard`）+ `internal/incident/service.go`（`OnIncidentChanged` 回调）。飞书原地更新；钉钉降级为发新消息（`dingtalk.UpdateCard`） |
+| §3.2 卡片实时更新 | `internal/im/handler.go`（`refreshCard`）+ `internal/im/card_refresher.go`（领域事件驱动 Web→IM 同步）。飞书原地更新；钉钉降级为发新消息（`dingtalk.UpdateCard` 解 cardID 编码的 channel 重发，B16）。卡片 ID 映射持久化见 `internal/im/cardstore.go`（`RedisCardStore`，B24） |
+| §7 IM 账号绑定/解绑 | `internal/im/mapper.go`（`BindAccount`/`UnbindAccount` 双写/双删）+ `internal/auth/handler_user_team.go`（`bindIMAccount`/`unbindIMAccount`，解绑「本人或 admin」+ 审计 `user.im_unbind`，M11） |
 | §5 拉人协同 | `internal/im/handler.go`（`handleMention` → `incident.Service.AddResponder`） |
 | §6 斜杠命令 | `internal/im/handler.go`（`handleCommand`）+ `feishu.parseSlashCommand` / `dingtalk.parseSlashCommand` |
 | §6 IM 账号映射与鉴权 | `internal/im/mapper.go`（`ResolveUser`）+ `handler.go`（`resolveAndCheck` → `authz.Check`） |

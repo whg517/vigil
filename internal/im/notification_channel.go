@@ -11,7 +11,10 @@ import (
 	"fmt"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/notification"
+
+	"go.uber.org/zap"
 )
 
 // 确保 IMChannel 实现 notification.Channel 接口。
@@ -21,22 +24,30 @@ var _ notification.Channel = (*IMChannel)(nil)
 // 升级通知触发时，把 Incident 渲染成卡片，通过可用 IM bot 发送。
 type IMChannel struct {
 	registry   *Registry                                                     // IM bot 注册表
-	cardStore  *CardStore                                                    // 记录已发卡片（供后续状态更新）
+	cardStore  CardStore                                                     // 记录已发卡片（供后续状态更新）
 	getChannel func(inc *ent.Incident, targets []notification.Target) string // 解析目标 IM channel（群ID/私聊）
 	renderer   *Renderer                                                     // 按接收者权限渲染按钮（QA 审计 C5）
+	log        *zap.Logger                                                   // 可选：值班群未配等可观测性告警（B17）
 }
 
 // NewIMChannel 创建 IM 通知通道。
 // getChannel 返回应发送到的 IM channel 标识（值班群 ID 或目标用户私聊标识）；
 // 为 nil 时跳过发送（无目标 channel）。
-func NewIMChannel(reg *Registry, cards *CardStore, getChannel func(inc *ent.Incident, targets []notification.Target) string) *IMChannel {
-	return &IMChannel{registry: reg, cardStore: cards, getChannel: getChannel}
+func NewIMChannel(reg *Registry, cards CardStore, getChannel func(inc *ent.Incident, targets []notification.Target) string) *IMChannel {
+	return &IMChannel{registry: reg, cardStore: cards, getChannel: getChannel, log: zap.NewNop()}
 }
 
 // SetRenderer 注入卡片渲染器（QA 审计 C5）。
 // 渲染器为 nil 时，卡片渲染全部默认按钮（宽松渲染，回调侧 resolveAndCheck 兜底鉴权）。
 // 渲染器非 nil 且能解析接收者 user_id 时，按其权限裁剪按钮（权限感知卡片 M8.7）。
 func (c *IMChannel) SetRenderer(r *Renderer) { c.renderer = r }
+
+// SetLogger 注入日志器（B17：值班群未配时记 Warn，消除可观测性盲区）。nil 时降级为 Nop。
+func (c *IMChannel) SetLogger(l *zap.Logger) {
+	if l != nil {
+		c.log = l
+	}
+}
 
 // Name 实现 notification.Channel。
 func (c *IMChannel) Name() string { return "im" }
@@ -46,13 +57,27 @@ func (c *IMChannel) Send(ctx context.Context, msg *notification.Message) ([]noti
 	if msg.Incident == nil {
 		return nil, fmt.Errorf("im channel requires incident in message")
 	}
+	// 只在有可用 IM bot 时才关心 channel 缺失：一个 bot 都没配（纯降级态）时静默跳过，
+	// 避免对「根本没启用 IM」的部署刷无意义告警。
+	available := c.registry.Available()
+
 	// 解析目标 channel
 	var channel string
 	if c.getChannel != nil {
 		channel = c.getChannel(msg.Incident, msg.Targets)
 	}
 	if channel == "" {
-		// 无目标 channel（如未配置值班群），跳过——不是错误
+		// B17：IM bot 已就绪但值班群未配 → 值班人收不到 IM 卡片，是可观测性盲区。
+		// 原实现在此静默 return（无 metric/无 log），运维无从发现「配了 IM 却收不到告警」。
+		// 改为记 metric + Warn（best-effort，不阻塞其它通道降级链）。
+		if len(available) > 0 {
+			metrics.IMOncallChannelMissing.Inc()
+			c.log.Warn("im notification skipped: no oncall channel configured",
+				zap.Int("incident_id", msg.Incident.ID),
+				zap.String("incident_number", msg.Incident.Number),
+				zap.Int("available_bots", len(available)))
+		}
+		// 仍返回 nil error：IM 通道无目标不视为失败，交上层通知链走其它通道兜底（C12）。
 		return nil, nil
 	}
 
@@ -83,7 +108,7 @@ func (c *IMChannel) Send(ctx context.Context, msg *notification.Message) ([]noti
 
 	var results []notification.SendResult
 	// 通过所有可用 IM bot 发送（多平台冗余送达）
-	for _, bot := range c.registry.Available() {
+	for _, bot := range available {
 		cardID, err := bot.SendCard(ctx, channel, card)
 		r := notification.SendResult{
 			Channel: "im",
@@ -97,7 +122,7 @@ func (c *IMChannel) Send(ctx context.Context, msg *notification.Message) ([]noti
 		r.Success = true
 		// 记录已发卡片，供后续状态变更时 UpdateCard（§8 双向同步）
 		if c.cardStore != nil {
-			c.cardStore.Put(msg.Incident.ID, bot.Platform(), cardID)
+			c.cardStore.Put(ctx, msg.Incident.ID, bot.Platform(), cardID)
 		}
 		results = append(results, r)
 	}

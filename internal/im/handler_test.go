@@ -124,7 +124,7 @@ func seedFullSetup(t *testing.T, c *ent.Client, grantAck bool) (incID, userID, t
 }
 
 // newHandlerWith 构造完整 handler（真实 authz + incident service + stub bot + 审计记录器）。
-func newHandlerWith(t *testing.T, c *ent.Client, bot *stubBot) (*Handler, *CardStore) {
+func newHandlerWith(t *testing.T, c *ent.Client, bot *stubBot) (*Handler, *MemoryCardStore) {
 	t.Helper()
 	authz := auth.NewAuthorizer(c)
 	rec := timeline.NewRecorder(c)
@@ -160,7 +160,7 @@ func TestHandleCardAction_AckSuccess(t *testing.T) {
 	bot := newStubBot("feishu", true)
 	h, cards := newHandlerWith(t, c, bot)
 	// 预置一张卡片（模拟之前发过的）
-	cards.Put(incID, "feishu", "card_pre")
+	cards.Put(context.Background(), incID, "feishu", "card_pre")
 
 	_ = userID
 	_ = teamID
@@ -333,6 +333,73 @@ func TestCallback_UnknownPlatform(t *testing.T) {
 	e.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status: got %d, want 404", rec.Code)
+	}
+}
+
+// TestHandleMention_DingtalkAddResponder B16：钉钉 @人拉入 —— 操作者（持 add_responder）@被 @人，
+// 被 @人经 dingtalk 绑定映射成 User 后加入 responders（与飞书 mention 对齐）。
+func TestHandleMention_DingtalkAddResponder(t *testing.T) {
+	c := newHandlerClient(t)
+	ctx := context.Background()
+	team, _ := c.Team.Create().SetName("支付").SetSlug("pay2").Save(ctx)
+	// 操作者：dingtalk 绑定 + team 级 add_responder 权限。
+	op, err := c.User.Create().SetUsername("op").SetEmail("op@x.com").
+		SetImAccounts([]schema.IMAccount{{Platform: "dingtalk", AccountID: "dt_op"}}).Save(ctx)
+	if err != nil {
+		t.Fatalf("create op: %v", err)
+	}
+	// 被拉的人：dingtalk 绑定（staffId=dt_bob）。
+	bob, err := c.User.Create().SetUsername("bob").SetEmail("bob@x.com").
+		SetImAccounts([]schema.IMAccount{{Platform: "dingtalk", AccountID: "dt_bob"}}).Save(ctx)
+	if err != nil {
+		t.Fatalf("create bob: %v", err)
+	}
+	inc, err := c.Incident.Create().SetNumber("INC-0009").SetTitle("db").
+		SetSeverity(incident.SeverityCritical).SetStatus(incident.StatusTriggered).
+		SetTeamID(team.ID).Save(ctx)
+	if err != nil {
+		t.Fatalf("create incident: %v", err)
+	}
+	// 授操作者 team 级 add_responder。
+	rl, _ := c.Role.Create().SetName("puller").SetScopeLevel(role.ScopeLevelTeam).
+		SetPermissions([]string{string(auth.PermIncidentAddResponder)}).Save(ctx)
+	if _, err := c.RoleBinding.Create().SetUserID(op.ID).SetRoleID(rl.ID).
+		SetScopeLevel(rolebinding.ScopeLevelTeam).SetTeamID(strconv.Itoa(team.ID)).
+		SetGrantedAt(time.Now()).Save(ctx); err != nil {
+		t.Fatalf("bind role: %v", err)
+	}
+
+	bot := newStubBot("dingtalk", true)
+	h, _ := newHandlerWith(t, c, bot)
+
+	e := echo.New()
+	// 钉钉 mention 事件：操作者 dt_op，@了 dt_bob，正文含 incident number。
+	payload := mustJSON(t, IMEvent{
+		Type: EventMention, Platform: "dingtalk", UnionID: "dt_op",
+		ChannelID: "ocid_g", Text: inc.Number + " 帮看 DB", MentionAt: []string{"dt_bob"},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/im/dingtalk/callback", bytes.NewReader(payload))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.POST("/api/v1/im/:platform/callback", h.callback)
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("mention callback = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	// bob 应已成为该 incident 的 responder。
+	responders, err := inc.QueryResponders().All(ctx)
+	if err != nil {
+		t.Fatalf("query responders: %v", err)
+	}
+	found := false
+	for _, r := range responders {
+		if r.ID == bob.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("bob 应被加入 responders，got %d responders", len(responders))
 	}
 }
 

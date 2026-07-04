@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
@@ -35,39 +34,7 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-// CardStore 记录 incident → 已发卡片 ID 的映射，供状态变更后 UpdateCard。
-// 本期为进程内 map（重启丢失，可重发卡片兜底）；生产可换 Redis 持久化。
-type CardStore struct {
-	mu    sync.RWMutex
-	cards map[int]map[string]string // incidentID → platform → cardID
-}
-
-// NewCardStore 创建卡片 ID 存储。
-func NewCardStore() *CardStore {
-	return &CardStore{cards: make(map[int]map[string]string)}
-}
-
-// Put 记录某 incident 在某平台下发的卡片 ID。
-func (s *CardStore) Put(incidentID int, platform, cardID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.cards[incidentID] == nil {
-		s.cards[incidentID] = make(map[string]string)
-	}
-	s.cards[incidentID][platform] = cardID
-}
-
-// Get 取某 incident 在某平台的卡片 ID。
-func (s *CardStore) Get(incidentID int, platform string) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if m, ok := s.cards[incidentID]; ok {
-		if id, ok2 := m[platform]; ok2 {
-			return id, true
-		}
-	}
-	return "", false
-}
+// CardStore 抽象与实现见 cardstore.go（内存 / Redis 持久化，B24）。
 
 // Handler IM Webhook 回调与卡片操作链路。
 type Handler struct {
@@ -77,7 +44,7 @@ type Handler struct {
 	authz    *auth.Authorizer
 	incSvc   *imincident.Service
 	renderer *Renderer
-	cards    *CardStore
+	cards    CardStore
 	audit    *auth.AuditRecorder // IM 越权拒绝留痕（S9，可选注入，nil 时跳过）
 }
 
@@ -91,7 +58,7 @@ func NewHandler(
 	authz *auth.Authorizer,
 	incSvc *imincident.Service,
 	renderer *Renderer,
-	cards *CardStore,
+	cards CardStore,
 	audit *auth.AuditRecorder,
 ) *Handler {
 	return &Handler{
@@ -294,14 +261,18 @@ func (h *Handler) handleCommand(c *echo.Context, ctx context.Context, bot IMBot,
 // handleMention @人协同：把被 @的人加入 responders（拉人即授权）。
 // 操作者需有 add_responder 权限；被拉的人无需在群里预先绑定。
 func (h *Handler) handleMention(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
-	user, err := h.resolveAndCheck(c, ctx, evt, ActionAddResponder)
-	if err != nil {
-		return replyErr(c, err, bot, evt.ChannelID)
-	}
-	// 从消息正文解析 incident id（约定 @机器人 <INC-id> 形式）
+	// 先从消息正文解析 incident id（约定 @机器人 <INC-id> 形式）。
+	// ★ 必须在鉴权前解析：resolveAndCheck 按 evt.IncidentID 取 team scope 判权限；
+	//   mention 事件的 IncidentID 不在 payload 顶层而在正文里，若不先回填，team scope 为 nil
+	//   → 团队级 add_responder 绑定判不出（org 级判定），持团队权限者会被误拒（403）。
 	incID, err := h.resolveIncidentArg(ctx, evt.Text)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
+	}
+	evt.IncidentID = strconv.Itoa(incID) // 回填供 resolveAndCheck 解 team scope
+	user, err := h.resolveAndCheck(c, ctx, evt, ActionAddResponder)
+	if err != nil {
+		return replyErr(c, err, bot, evt.ChannelID)
 	}
 	// 把被 @的 IM 用户映射成 User 并加入 responders
 	for _, unionID := range evt.MentionAt {
@@ -413,15 +384,17 @@ func (h *Handler) refreshCard(ctx context.Context, bot IMBot, inc *ent.Incident,
 	if inc == nil {
 		return
 	}
-	cardID, ok := h.cards.Get(inc.ID, bot.Platform())
+	cardID, ok := h.cards.Get(ctx, inc.ID, bot.Platform())
 	if !ok {
 		return // 无已发卡片记录（可能是命令触发，非卡片按钮）
 	}
 	card := BuildCard(inc, user.Name)
-	card.StatusBadge = fmt.Sprintf("%s 操作（by %s）", statusLabelCN(inc.Status), user.Name)
+	// B16：状态徽章标注最新状态 + 操作者。钉钉降级为发新消息时，这条徽章就是群内可见的
+	// 「⚠️ INC-xxx 已 acked by 张三」状态变更提示（飞书则原地刷新到卡片顶部）。
+	card.StatusBadge = fmt.Sprintf("⚠️ %s %s（by %s）", inc.Number, statusLabelCN(inc.Status), user.Name)
 	// 刷新后的卡片不再显示已完成的动作按钮（保持简洁）
 	if err := bot.UpdateCard(ctx, cardID, card); err != nil {
-		// 卡片更新失败不阻塞主流程（状态已落库）
+		// 卡片更新失败不阻塞主流程（状态已落库）。钉钉无 channel 无法降级重发时也走这里。
 		_ = err
 	}
 }
@@ -435,7 +408,7 @@ func (h *Handler) sendCardToUser(ctx context.Context, bot IMBot, inc *ent.Incide
 	}
 	cardID, err := bot.SendCard(ctx, channel, card)
 	if err == nil {
-		h.cards.Put(inc.ID, bot.Platform(), cardID)
+		h.cards.Put(ctx, inc.ID, bot.Platform(), cardID)
 	}
 }
 

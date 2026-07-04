@@ -48,6 +48,8 @@ const (
 	// 重置密码会自增 token_version 吊销他人所有旧 token，等同强制下线，尤须留痕。
 	ActionUserCreate        = "user.create"
 	ActionUserResetPassword = "user.reset_password"
+	// IM 账号解绑（M11）：IM 账号是 IM 操作的鉴权桥梁，误绑/恶意解绑须可追溯。
+	ActionUserIMUnbind = "user.im_unbind"
 	// 角色权限集编辑（M2，T2.7）：改角色 = 改一批人的权限边界，是 RBAC 最敏感动作。
 	ActionRoleUpdate = "role.update"
 	// 团队成员增删（M3 / S15，T2.7）：成员是数据归属边界的一部分，增删须可审计。

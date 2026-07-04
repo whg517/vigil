@@ -190,7 +190,16 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// —— IM 协同（能力域 8）：平台适配器 + 账号映射 + 卡片 + 回调 handler ——
 	imRegistry, feishuBot, dingtalkBot := buildIMRegistry(cfg)
 	imMapper := im.NewMapper(st.DB)
-	imCards := im.NewCardStore()
+	// B24：卡片 ID 映射持久化。有 Redis 则用 Redis（重启后已发卡片仍可 UpdateCard 刷新）；
+	// 无 Redis 降级为进程内存（单副本可用，重启丢失）。
+	var imCards im.CardStore
+	if st.Redis != nil {
+		imCards = im.NewRedisCardStore(st.Redis)
+		log.Info("im card store: redis (persistent across restarts)")
+	} else {
+		imCards = im.NewCardStore()
+		log.Info("im card store: in-memory (lost on restart; configure redis for persistence)")
+	}
 	// 卡片渲染器：按权限渲染按钮（无权不显示，IM 不成权限后门）。
 	imRenderer := im.NewRenderer(func(userID int, teamScope *int, perms []string) (map[string]bool, error) {
 		pp := make([]auth.Permission, 0, len(perms))
@@ -224,6 +233,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// QA 审计 C5：注入渲染器，使通知主路径卡片按接收者权限渲染操作按钮
 	// （旧实现主路径卡片零按钮，值班人收到告警只能看不能点，IM 差异化核心失效）。
 	imChannel.SetRenderer(imRenderer)
+	// B17：注入日志器，使 IM bot 就绪但值班群未配时记 Warn + metric（消除可观测性盲区）。
+	imChannel.SetLogger(log)
 	notifReg.Register(imChannel)
 	logIMStatus(log, feishuBot, dingtalkBot)
 
@@ -367,6 +378,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	userHandler.SetAuditRecorder(auditRecorder) // C21：用户启停留痕
 	userHandler.SetIMAccountBinder(imMapper)
 	userHandler.SetIMAccountResolver(imMapperResolver{m: imMapper})
+	// M11：注入解绑器（DELETE /users/:id/im-accounts/:platform，误绑可纠正）。
+	userHandler.SetIMAccountUnbinder(imMapper)
 	userHandler.Register(v1)
 	// T2.7：TeamHandler 注入审计器（成员增删留痕）+ 鉴权器（成员管理团队软隔离，跨团队拒）。
 	teamHandler := auth.NewTeamHandler(st.DB)
@@ -664,6 +677,9 @@ func logIMStatus(log *zap.Logger, feishuBot *feishu.Adapter, dingtalkBot *dingta
 	} else {
 		log.Info("im disabled (dingtalk credentials not configured)")
 	}
+	// 企微为 NoopBot 占位（完整适配器待 PoC，是设计目标）。明确记一行，
+	// 避免运维误以为企微已可用；不静默丢告警——IM 空转时通知走 notification 兜底降级链（C12）。
+	log.Info("im wecom placeholder (not implemented; notifications fall back to email/phone chain)")
 }
 
 // buildGLMProvider 构造 GLM LLM provider（含成本控制包装：缓存/限流/配额）。

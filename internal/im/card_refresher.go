@@ -9,6 +9,7 @@ package im
 
 import (
 	"context"
+	"fmt"
 
 	domainevent "github.com/kevin/vigil/internal/event"
 )
@@ -19,11 +20,11 @@ import (
 // 零值不可用，用 NewCardRefresher 构造。
 type CardRefresher struct {
 	registry *Registry
-	cards    *CardStore
+	cards    CardStore
 }
 
 // NewCardRefresher 创建卡片刷新器。
-func NewCardRefresher(reg *Registry, cards *CardStore) *CardRefresher {
+func NewCardRefresher(reg *Registry, cards CardStore) *CardRefresher {
 	return &CardRefresher{registry: reg, cards: cards}
 }
 
@@ -36,8 +37,10 @@ func (r *CardRefresher) OnIncidentEvent(ctx context.Context, e domainevent.Event
 	}
 	inc := e.Incident
 	card := BuildCard(inc, "")
+	// B16：Web→IM 同步的状态徽章，钉钉降级重发时作为群内可见的状态变更提示。
+	card.StatusBadge = fmt.Sprintf("⚠️ %s %s", inc.Number, statusLabelCN(inc.Status))
 	for _, bot := range r.registry.Available() {
-		if cardID, ok := r.cards.Get(inc.ID, bot.Platform()); ok {
+		if cardID, ok := r.cards.Get(ctx, inc.ID, bot.Platform()); ok {
 			_ = bot.UpdateCard(ctx, cardID, card)
 		}
 	}

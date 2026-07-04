@@ -12,6 +12,8 @@ import (
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/auditlog"
 	"github.com/kevin/vigil/ent/enttest"
+	"github.com/kevin/vigil/ent/role"
+	"github.com/kevin/vigil/ent/rolebinding"
 	entuser "github.com/kevin/vigil/ent/user"
 
 	"github.com/labstack/echo/v5"
@@ -275,4 +277,116 @@ func TestResetPassword_NotFound404(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("reset missing user = %d, want 404", rec.Code)
 	}
+}
+
+// === IM 解绑端点测试（M11）===
+
+// stubUnbinder 记录解绑调用的假 IMAccountUnbinder（避免依赖 im 包，防 import cycle）。
+type stubUnbinder struct {
+	calls   []string // "userID:platform"
+	removed bool     // Unbind 返回的 removed 值
+	err     error
+}
+
+func (s *stubUnbinder) UnbindAccount(_ context.Context, userID int, platform string) (bool, error) {
+	s.calls = append(s.calls, strconv.Itoa(userID)+":"+platform)
+	return s.removed, s.err
+}
+
+// deleteIMAccount 走完整 echo 链路 DELETE /users/:id/im-accounts/:platform，返回响应码。
+func deleteIMAccount(t *testing.T, h *UserHandler, actorID, targetID int, platform string) int {
+	t.Helper()
+	e := echo.New()
+	e.DELETE("/api/v1/users/:id/im-accounts/:platform", h.unbindIMAccount, RequireUser(true, nil))
+	req := httptest.NewRequest(http.MethodDelete,
+		"/api/v1/users/"+strconv.Itoa(targetID)+"/im-accounts/"+platform, nil)
+	req.Header.Set("X-Vigil-User-ID", strconv.Itoa(actorID))
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	return rec.Code
+}
+
+// TestUnbindIMAccount_SelfSuccess 本人解绑自己的 IM 账号 → 204 + 调用 unbinder + 审计。
+func TestUnbindIMAccount_SelfSuccess(t *testing.T) {
+	c, h, targetID := newUserHandlerTest(t)
+	ub := &stubUnbinder{removed: true}
+	h.SetIMAccountUnbinder(ub)
+
+	// actor == target（本人自助），无需任何权限。
+	if code := deleteIMAccount(t, h, targetID, targetID, "feishu"); code != http.StatusNoContent {
+		t.Fatalf("self unbind = %d, want 204", code)
+	}
+	if len(ub.calls) != 1 || ub.calls[0] != strconv.Itoa(targetID)+":feishu" {
+		t.Errorf("unbind calls = %v, want [%d:feishu]", ub.calls, targetID)
+	}
+	// 解绑落审计（M11）。
+	logs, _ := c.AuditLog.Query().Where(auditlog.ActionEQ(ActionUserIMUnbind)).All(context.Background())
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 user.im_unbind audit, got %d", len(logs))
+	}
+	if logs[0].Detail["platform"] != "feishu" || logs[0].ResourceID != targetID {
+		t.Errorf("audit = platform=%v resource=%d, want feishu/%d", logs[0].Detail["platform"], logs[0].ResourceID, targetID)
+	}
+}
+
+// TestUnbindIMAccount_NotBound404 该用户本无此平台绑定 → 404。
+func TestUnbindIMAccount_NotBound404(t *testing.T) {
+	_, h, targetID := newUserHandlerTest(t)
+	ub := &stubUnbinder{removed: false} // 无可删对象
+	h.SetIMAccountUnbinder(ub)
+	if code := deleteIMAccount(t, h, targetID, targetID, "dingtalk"); code != http.StatusNotFound {
+		t.Fatalf("unbind not-bound = %d, want 404", code)
+	}
+}
+
+// TestUnbindIMAccount_OtherWithoutAuthzForbidden 无 authz 注入时解他人绑定 → 403（保守拒绝）。
+func TestUnbindIMAccount_OtherWithoutAuthzForbidden(t *testing.T) {
+	_, h, targetID := newUserHandlerTest(t) // 未注入 authz
+	ub := &stubUnbinder{removed: true}
+	h.SetIMAccountUnbinder(ub)
+	// actor(999) != target → 无 authz 时不放行跨用户解绑。
+	if code := deleteIMAccount(t, h, 999, targetID, "feishu"); code != http.StatusForbidden {
+		t.Fatalf("other unbind without authz = %d, want 403", code)
+	}
+	if len(ub.calls) != 0 {
+		t.Errorf("forbidden 时不应调用 unbinder，calls = %v", ub.calls)
+	}
+}
+
+// TestUnbindIMAccount_OtherWithPermission admin（持 user.im.bind）解他人绑定 → 204。
+func TestUnbindIMAccount_OtherWithPermission(t *testing.T) {
+	c, h, targetID := newUserHandlerTest(t)
+	ub := &stubUnbinder{removed: true}
+	h.SetIMAccountUnbinder(ub)
+	// 注入真实 authz + 给 actor 授 org 级 user.im.bind 角色。
+	h.SetAuthorizer(NewAuthorizer(c))
+	adminID := seedUserWithOrgPerm(t, c, PermUserIMBind)
+
+	if code := deleteIMAccount(t, h, adminID, targetID, "feishu"); code != http.StatusNoContent {
+		t.Fatalf("admin unbind other = %d, want 204", code)
+	}
+	if len(ub.calls) != 1 {
+		t.Errorf("admin 解他人应调用 unbinder 1 次，got %v", ub.calls)
+	}
+}
+
+// seedUserWithOrgPerm 建一个持有指定 org 级权限点的用户，返回其 ID（供越权/授权测试）。
+func seedUserWithOrgPerm(t *testing.T, c *ent.Client, perm Permission) int {
+	t.Helper()
+	ctx := context.Background()
+	u, err := c.User.Create().SetUsername("admin_" + string(perm)).SetEmail(string(perm) + "@x.com").
+		SetStatus(entuser.StatusActive).Save(ctx)
+	if err != nil {
+		t.Fatalf("seed admin user: %v", err)
+	}
+	rl, err := c.Role.Create().SetName("r_" + string(perm)).
+		SetScopeLevel(role.ScopeLevelOrg).SetPermissions([]string{string(perm)}).Save(ctx)
+	if err != nil {
+		t.Fatalf("seed role: %v", err)
+	}
+	if _, err := c.RoleBinding.Create().SetUserID(u.ID).SetRoleID(rl.ID).
+		SetScopeLevel(rolebinding.ScopeLevelOrg).SetGrantedAt(time.Now()).Save(ctx); err != nil {
+		t.Fatalf("seed role binding: %v", err)
+	}
+	return u.ID
 }

@@ -2,11 +2,18 @@ package im
 
 import "context"
 
-// NoopBot 占位适配器，用于尚未接入真实 API 的 IM 平台（钉钉/企微）。
-// Available() 恒为 false——装配时调用方据此跳过该平台，
+// NoopBot 占位适配器，用于尚未接入真实 API 的 IM 平台（企微）。
+// Available() 恒为 false——装配时 registry.Available() 据此跳过该平台，
 // 对应 capabilities §10 平台能力降级矩阵中「留待 PoC」的条目。
 //
-// 所有操作返回 ErrUnsupported，避免误用。
+// ★ 不静默丢失保证（企微当前状态）：
+// NoopBot 因 Available()==false 被 registry.Available() 排除，故 IM 通道对企微「不发」，
+// 但这不等于「告警丢失」——通知走的是 notification 包的逐通道兜底降级链（C12）：
+// IM 环节对企微贡献为空时，同一 target 的通知会降级到链上下一通道（邮件/电话/短信），
+// 整条链全失败才记 failed 并兜底告警 org_admin（B22）。即企微未接入只会让「IM 这一跳」空转，
+// 绝不导致告警被静默吞掉。企微完整适配器（卡片/建群/@人/回调）是设计目标，体量大，留待 PoC。
+//
+// 所有操作返回 ErrUnsupported，避免误用（调用方本就不会调，因 Available()==false）。
 type NoopBot struct {
 	platform string
 }

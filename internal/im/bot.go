@@ -77,3 +77,8 @@ var ErrNotBound = errors.New("im account not bound to any user")
 
 // ErrUnsupported 不支持的平台操作（如某平台无卡片更新能力且未实现降级）。
 var ErrUnsupported = errors.New("operation unsupported by im platform")
+
+// ErrCardUpdateNoChannel 卡片降级重发时缺少目标 channel（无法定位重发目标）。
+// 钉钉等无原地更新能力的平台，UpdateCard 靠「重发到原 channel」降级；
+// cardID 未编码 channel（历史裸 msgID）时返回它——降级 best-effort 未成，不阻塞主流程。
+var ErrCardUpdateNoChannel = errors.New("im: card update degrade needs channel but none encoded")

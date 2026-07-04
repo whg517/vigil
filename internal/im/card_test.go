@@ -89,14 +89,15 @@ func TestWithPermittedButtons_NilAuthConservative(t *testing.T) {
 	}
 }
 
-// TestCardStore_PutGet 卡片 ID 存取。
+// TestCardStore_PutGet 卡片 ID 存取（内存实现）。
 func TestCardStore_PutGet(t *testing.T) {
+	ctx := context.Background()
 	s := NewCardStore()
-	s.Put(42, "feishu", "msg_xxx")
-	if id, ok := s.Get(42, "feishu"); !ok || id != "msg_xxx" {
+	s.Put(ctx, 42, "feishu", "msg_xxx")
+	if id, ok := s.Get(ctx, 42, "feishu"); !ok || id != "msg_xxx" {
 		t.Errorf("Get: got %q ok=%v, want msg_xxx true", id, ok)
 	}
-	if _, ok := s.Get(42, "dingtalk"); ok {
+	if _, ok := s.Get(ctx, 42, "dingtalk"); ok {
 		t.Error("dingtalk should not exist")
 	}
 }

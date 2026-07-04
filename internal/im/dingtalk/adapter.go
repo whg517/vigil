@@ -61,27 +61,62 @@ func (a *Adapter) SendCard(ctx context.Context, channel string, card *im.Card) (
 		return "", err
 	}
 	const msgKey = "sampleActionCard"
+	var msgID string
 	switch idType {
 	case "userId", "staffId":
-		return a.client.SendOTOMessages(ctx, []string{id}, msgKey, msgParam)
+		msgID, err = a.client.SendOTOMessages(ctx, []string{id}, msgKey, msgParam)
 	case "openConversationId", "conversationId", "cid":
-		return a.client.SendGroupMessage(ctx, id, msgKey, msgParam)
+		msgID, err = a.client.SendGroupMessage(ctx, id, msgKey, msgParam)
 	default:
 		return "", fmt.Errorf("dingtalk: unsupported channel type %q", idType)
 	}
+	if err != nil {
+		return "", err
+	}
+	// B16 降级前置：钉钉机器人消息无法原地更新，UpdateCard 只能「重发到同一 channel」。
+	// 故把 channel 编入返回的 cardID（channel|msgID），使无 channel 上下文的刷新路径
+	// （card_refresher 经领域事件、Web→IM 同步）也能解出目标群重发。msgID 保留供追踪/撤回。
+	return encodeCardID(channel, msgID), nil
 }
 
-// UpdateCard 更新已下发的卡片。
-// 钉钉机器人消息不支持在原消息上原地改卡片（与飞书卡片更新能力不同），
-// 按 capabilities §10 降级矩阵 Q1 的约定：降级为发一条新消息标注最新状态。
-// cardID 为原消息标识（messageId/processQueryKey），本实现忽略它，直接重发。
+// UpdateCard 更新已下发的卡片（B16 钉钉卡片降级）。
+//
+// 钉钉机器人 sampleActionCard 消息不支持在原消息上原地改卡片（与飞书卡片更新能力不同）。
+// 按 capabilities §10 降级矩阵 Q1 的约定：降级为向同一 channel 发一条新消息标注最新状态，
+// 使群内成员看到状态变更（如「⚠️ INC-xxx 已 acked by 张三」），不再永停在下发时的样子。
+//
+// cardID 由 SendCard 编码为 "channel|msgID"：解出 channel 重发。
+// 未含 channel（历史裸 msgID 或无法解析）时无法定位目标群，返回 ErrCardUpdateNoChannel
+// 让调用方感知降级未成（best-effort，主流程状态已落库，不阻塞）。
 func (a *Adapter) UpdateCard(ctx context.Context, cardID string, card *im.Card) error {
-	// 钉钉无卡片原地更新能力：降级为发新消息。
-	// cardID 在此场景不可用作发送目标（钉钉 messageId 不是发送目标），
-	// 故由调用方（im.Handler.refreshCard）保证仅在已知 channel 时调用。
-	// 本实现记录意图后返回 nil（不阻塞主流程，状态已落库）。
-	// 真实"重发到群"由上层 IMChannel 在新 channel 发卡片完成。
+	channel, _, ok := decodeCardID(cardID)
+	if !ok || channel == "" {
+		// 无 channel 上下文：无法重发（钉钉无原地更新能力），如实标注降级未成。
+		return im.ErrCardUpdateNoChannel
+	}
+	// 重发新卡片到同一 channel（发新消息即降级方案）。SendCard 内部按 channel 前缀路由。
+	if _, err := a.SendCard(ctx, channel, card); err != nil {
+		return fmt.Errorf("dingtalk update-card degrade resend: %w", err)
+	}
 	return nil
+}
+
+// cardIDSep 分隔 channel 与真实 msgID（编码进 cardID，供 UpdateCard 降级重发定位群）。
+const cardIDSep = "|"
+
+// encodeCardID 把 channel 与 msgID 编码为单一 cardID 字符串（channel|msgID）。
+func encodeCardID(channel, msgID string) string {
+	return channel + cardIDSep + msgID
+}
+
+// decodeCardID 从 cardID 解出 (channel, msgID)。
+// 无分隔符（历史裸 msgID）时 ok=false，channel 为空——调用方据此判定无法重发。
+func decodeCardID(cardID string) (channel, msgID string, ok bool) {
+	idx := strings.Index(cardID, cardIDSep)
+	if idx < 0 {
+		return "", cardID, false
+	}
+	return cardID[:idx], cardID[idx+1:], true
 }
 
 // CreateWarRoom 创建作战室群。members 为钉钉 staffId 列表。
@@ -157,6 +192,12 @@ func (a *Adapter) ParseCallback(payload []byte) (*im.IMEvent, error) {
 		SessionWebhook string `json:"sessionWebhook"`
 		// 卡片回调（richText / 互动卡片）专用字段
 		EventOrgType string `json:"eventOrgType"`
+		// B16 @人解析：钉钉群里 @机器人 时，被同时 @的其他人在 atUsers 里。
+		// dingtalkId 是被 @人的钉钉 openId；staffId 是企业内 userId（optional，取决于机器人权限）。
+		AtUsers []struct {
+			DingtalkID string `json:"dingtalkId"`
+			StaffID    string `json:"staffId"`
+		} `json:"atUsers"`
 	}
 	if err := json.Unmarshal(payload, &env); err != nil {
 		return nil, fmt.Errorf("dingtalk parse envelope: %w", err)
@@ -216,7 +257,27 @@ func (a *Adapter) ParseCallback(payload []byte) (*im.IMEvent, error) {
 		return ev, nil
 	}
 
-	// 3. 普通消息：保留正文，供上层（可选回写时间线）
+	// 3. @人协同（B16）：@机器人的同时 @了其他人 → 拉人（与飞书 mention 对齐）。
+	//    钉钉 atUsers 里优先取 staffId（企业内 userId，与绑定/发消息标识一致）；
+	//    机器人无「按 staffId 拉群」权限时 staffId 可能为空，退而用 dingtalkId（openId）。
+	//    ⚠️ 钉钉 API 限制：部分机器人权限下 atUsers 只回 dingtalkId 而无 staffId，
+	//    此时映射需用户以 dingtalkId 绑定；若两者皆空则该 @无法解析（如实跳过，不臆造）。
+	for _, at := range env.AtUsers {
+		id := at.StaffID
+		if id == "" {
+			id = at.DingtalkID
+		}
+		if id != "" && id != ev.UnionID { // 排除操作者本人被 @的情形
+			ev.MentionAt = append(ev.MentionAt, id)
+		}
+	}
+	if len(ev.MentionAt) > 0 {
+		ev.Type = im.EventMention
+		ev.Text = contentStr // 正文含 incident 编号，供上层 resolveIncidentArg 解析
+		return ev, nil
+	}
+
+	// 4. 普通消息：保留正文，供上层（可选回写时间线）
 	ev.Text = contentStr
 	return ev, nil
 }
