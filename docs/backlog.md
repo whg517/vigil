@@ -50,24 +50,25 @@
 
 | 项 | 出处 | 当前状态 | 说明 |
 |----|------|----------|------|
-| **subscriber / 团队 Leader 独立旅程** | personas.md P1-4 | 无旅程 | 订阅 Incident、团队看板、跟进复盘质量。当前仅在权限矩阵带过 |
-| **平台工程师 / API 消费者旅程** | personas.md P1-3 | 部分覆盖 | APIKey 创建已覆盖（B.1）；缺 webhook 出站**订阅 CRUD**（当前仅 `VIGIL_WEBHOOK_OUT_URLS` 环境变量）、IaC/Terraform、集成向导 M14.6 |
-| **维护窗口 / 抑制操作流（独立旅程）** | 能力域 3 M3.2 | 配置在 B.7 | 缺"为计划内变更立维护窗 → 自动到期"的独立操作流叙述 |
-| **AI 反馈改进闭环** | 能力域 11 M11.5 | 部分覆盖 | accept/reject 已覆盖（C.4）；知识库反馈改进相似检索/噪声学习较薄 |
+| **subscriber / 团队 Leader 独立旅程** | personas.md P1-4 | 后端已覆盖，缺 UI | 订阅 Incident 后端已落地（T4.4，`f3cae2a`，`GET\|POST\|DELETE /subscriptions` 自管 + min_severity + 定向通知复用 T2.2）；团队看板/复盘质量跟进的前端页面待补（Phase 2 B 项） |
+| **平台工程师 / API 消费者旅程** | personas.md P1-3 | 部分覆盖 | APIKey 创建已覆盖（B.1）+ 开放 API `POST /api/v1/events` 投递已落地（T5.1）；仍缺 webhook 出站**动态订阅 CRUD**（当前仅 `VIGIL_WEBHOOK_OUT_URLS` 环境变量，出站签名/死信/重放已由 T5.2 落地）、IaC/Terraform；集成向导 M14.6 后端辅助 `config-template` 端点已落地（T6.2），分步 wizard UI 待补 |
+| **维护窗口 / 抑制操作流（独立旅程）** | 能力域 3 M3.2 | 配置在 B.7 | 抑制规则 `expires_at` 可设/清除并生效已落地（T2.4）；缺"为计划内变更立维护窗 → 自动到期"的独立操作流叙述 |
+| **AI 反馈改进闭环** | 能力域 11 M11.5 | 部分覆盖 | accept/reject + 相似检索修复 + 反馈指标可查已落地（T3.4，`adc8385`）；**噪声学习自动闭环**（自动回训/自动生成 suppression 规则）仍未做——当前是「记录 + 可查」，不自动改变后续 AI 行为（Phase 2 C 项） |
 
 ### 既有项（前轮已记录）
 
 | 项 | 出处 | 当前状态 | 说明 |
 |----|------|----------|------|
-| 跨团队 @人 → 事件级临时授权 + 关闭自动失效 | PRD M8.3 / data-model §5.6 | 🟡 部分 | `AddResponder` 仅加入 responders 名单，不发临时 RoleBinding。详见 user-journeys.md C.3.4 |
-| 复盘 resolve 自动触发起草（critical 强制） | PRD M12.7 | 🟡 部分 | 当前需手动调 `POST /incidents/:id/postmortem/draft`。详见 user-journeys.md C.6 |
-| IM 斜杠命令全量 | PRD M8.5 | 📋 部分 | 部分命令已实现，全量待补 |
-| 首次部署向导（first-run wizard） | 待讨论 | 📋 无 | 当前靠环境变量 + 种子超管 |
-| **未路由事件重路由端点** | 能力域 4 M4.3 | 🟡 部分 | 当前只能修 Service labels，无对已 unrouted Event 的改派/重路由操作。详见 user-journeys.md B.13 |
-| **用户禁用自动交接提示** | 能力域 13 M13.1 | 🟡 部分 | 当前仅置 status=disabled，不提示待交接的排班/Action Item。详见 user-journeys.md B.14 |
-| **排班/升级引擎解算 oncall 不查 User.status** | 能力域 5/6 · 审计 B21/C4 | 🟡 部分 | 禁用用户仍会被 `schedule/engine.go`、`escalation/engine.go` 解算为 oncall 并通知（通知打扰/静默漏派，非鉴权旁路）。已修复的鉴权侧旁路（refresh/API Key 查 status，审计 S3/S4）不覆盖此路径。修复需在两处 oncall 解算过滤 disabled 成员，并补空班/降级信号。详见 user-journeys.md B.14 |
-| **报表/审计导出端点** | 能力域 15 / 13 M13.5 | 📋 无 | analytics 6 端点无 export；audit-logs 无导出。详见 user-journeys.md B.11/B.12 |
-| **migrate-down / 回滚** | H1.4 | ❌ 无 | 无；回滚靠备份恢复。详见 user-journeys.md D.1 |
-| **多副本 WebSocket pub/sub** | architecture §7 | 📋 无 | 单实例优先，多副本需 Redis pub/sub 广播。详见 user-journeys.md D.4 |
-| **Action Item 自动建工单 + 状态回写（M14.2）** | 能力域 12 §5 / 能力域 14 | 📋 无 | 复盘发布时自动在 Jira/禅道建改进任务并回写状态——当前无任何工单集成代码，`tracker_url` 为手填字符串、due_date API 未暴露。详见 user-journeys.md C.6.2 |
-| **analytics 报表团队 scope 隔离** | 能力域 11 / 审计 S14 | 🟡 部分 | 已修：6 个 `/analytics/*` 端点统一挂 `analytics.view`（当前仅 org_admin 持有），堵住「任意登录用户看全组织指标」的越权。**待做**：`analytics/engine.go` 全量查询未按 team 过滤，需引入 `Authorizer.VisibleTeamIDs` 做 team 级数据隔离；隔离落地后再把 `analytics.view` 授予 team_admin / responder_lead（团队维度看板）。详见 journey-code-audit-2026-07-03.md S14 |
+| 跨团队 @人 → 事件级临时授权 + 关闭自动失效 | PRD M8.3 / data-model §5.6 | 🟡 部分（保留） | `AddResponder` 仅加入 responders 名单，**事件级临时授权端点仍未做**（不发临时 RoleBinding、关闭不自动失效）。保留为待做（Phase 2 C 项）。详见 user-journeys.md C.3.4 |
+| IM 斜杠命令全量 | PRD M8.5 | 📋 部分（保留） | 部分命令已实现，runbook/oncall 等全量待补（Phase 2 D 项） |
+| 首次部署向导（first-run wizard） | 待讨论 | 📋 无（保留） | 当前靠环境变量 + 种子超管（Phase 2 E 项） |
+| **用户禁用自动交接提示** | 能力域 13 M13.1 | 🟡 部分（保留） | 鉴权侧已即时失效（T0.3）+ oncall 解算跳过禁用用户（T2.3），但仍不主动提示待交接的排班/Action Item（Phase 2 E 项）。详见 user-journeys.md B.14 |
+| **migrate-down / 回滚** | H1.4 | ❌ 无（保留） | 无；回滚靠备份恢复（Phase 2 E 项）。详见 user-journeys.md D.1 |
+| **webhook 出站动态订阅 CRUD** | 能力域 14 / personas P1-3 | 📋 无（保留） | 当前出站 URL 靠 `VIGIL_WEBHOOK_OUT_URLS` 环境变量（全局静态），缺 per-订阅动态管理端点（Phase 2 D 项）。注：出站签名 + 死信 + 重放已由 T5.2 落地 |
+| ~~复盘 resolve 自动触发起草（critical 强制）~~ | PRD M12.7 | ✅ 已完成（`9f49f77`，T4.1） | `postmortem/engine.go` `OnIncidentResolved` 订阅 IncidentResolved：critical 强制自动起草、warning 可配、info 不起草；不再需手动调 draft |
+| ~~未路由事件重路由端点~~ | 能力域 4 M4.3 | ✅ 已完成（`91143d5`，T2.4） | 新增 `POST /events/:id/reroute`（`triage/handler.go` + `Engine.Reroute`，权限 `service.route_override` 团队软隔离），可对已 unrouted Event 改派/重路由 |
+| ~~排班/升级引擎解算 oncall 不查 User.status~~ | 能力域 5/6 · 审计 B21/C4 | ✅ 已完成（T2.3/T2.4） | `schedule/engine.go:105/170/241` 与 `escalation/engine.go:304` 均已加 `user.StatusEQ(user.StatusActive)` 过滤，禁用用户不再被解算为 oncall；空班检测记 metric+Warn+告警 |
+| ~~报表/审计导出端点~~ | 能力域 15 / 13 M13.5 | ✅ 已完成（`2fbea67`，T6.1） | 新增 `GET /analytics/{alerts\|incidents\|team-load\|postmortems}/export` CSV 导出（`analytics/export.go`，复用 `analytics.view` + team 软隔离）。注：audit-logs 导出仍未做（如需可后续补） |
+| ~~多副本 WebSocket pub/sub~~ | architecture §7 | ✅ 已完成（`014a0d0`，T6.4） | `internal/ws/pubsub.go` + `hub.go`：多副本 Redis pub/sub 跨副本广播，单副本退化 + 跨副本去重 |
+| ~~Action Item 自动建工单 + 状态回写（M14.2）~~ | 能力域 12 §5 / 能力域 14 | ✅ 已完成（`466a01f`，T4.3） | 新增 `TicketIntegration` 实体 + `internal/ticket` 包：复盘发布经 `OnPostmortemPublished` 为未建单 ActionItem 建外部工单回写 tracker_url（通用 webhook + Jira/禅道预留适配器）、ActionItem→done 单向同步；`due_date` API 已暴露（T2.5）。**注**：工单侧反向回写仍单向未做（Phase 2 C 项）；完整 Jira/禅道 SDK 待补（Phase 2 D 项） |
+| ~~analytics 报表团队 scope 隔离~~ | 能力域 11 / 审计 S14 | ✅ 已完成（T0.7，`4e0ba13`） | `analytics/engine.go` 已引入 `Scope` 结构（`OrgWide`/`TeamIDs`）按 team 过滤各维度查询（event→service→team、incident→team、postmortem→incident→team、aiinsight→incident→team），team scope 但无可见 team 时返空指标；6 个 `/analytics/*` 端点挂 `analytics.view` + team 软隔离 |
