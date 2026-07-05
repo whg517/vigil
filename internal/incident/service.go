@@ -105,6 +105,7 @@ const (
 	ActionReopen       Action = "reopen"
 	ActionEscalate     Action = "escalate"
 	ActionAddResponder Action = "add_responder"
+	ActionMerge        Action = "merge"
 )
 
 // NewService 创建事件动作服务。

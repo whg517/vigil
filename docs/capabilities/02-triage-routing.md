@@ -216,6 +216,8 @@ received ──► normalized ──► [去重] ──┬──► dedup_skippe
 | §2.3 抑制规则（M3.2） | `internal/triage/suppression.go`（`SuppressionEngine.Evaluate/Apply`：label 全等 + 时间窗 + severity_filter + preserve_critical 守卫；过期规则跳过（B15）；多命中按 match_labels 具体度排序（B15）；action=suppress/reduce_severity） |
 | §2.3 抑制接入流水线 | `internal/triage/engine.go`（`Process` 去重后、路由前评估，§2.1 三层顺序） |
 | §2.4 相关性聚合（M3.3） | `internal/triage/engine.go`（`aggregate`：同 service+severity 窗口内并入/创建 Incident） |
+| §2.6 人工合并（M3.5/M3.6） | `internal/incident/merge.go`（`Service.Merge`：源单 `merged_into` 指向主单 + 置 closed，events/responders 转移，pending 升级取消，双写时间线 + merge 审计）；`POST /incidents/:id/merge`（权限 `incident.merge`）；被合并单发 `IncidentMerged` 事件 → escalation `OnMerged` 取消 pending、多端同步 |
+| §2.6 AI 合并联动 | `internal/ai/diagnose.go`（`applyDedupMerge`：accept `dedup_suggestion` 时经 `IncidentMerger` 接口调 `Service.Merge` 真正合并 `merge_candidate_ids` 并置 `applied`；未注入合并器时降级仅 `accepted`） |
 | §2.5 噪音判定 | `Event.is_noise`（suppress/dedup 标记，留痕可申诉） |
 | §2.7 resolved 处理（M3.7） | `internal/triage/engine.go`（`handleResolved`） |
 | §3.1 路由匹配（M4.1/M4.2，C2/B14） | `internal/triage/engine.go`（`route`：slug 直达 → `Service.labels` 子集匹配（glob + 具体度优先）→ Integration 默认 service 兜底） |

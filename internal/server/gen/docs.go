@@ -3078,6 +3078,18 @@ const docTemplate = `{
                     "TriggerTypeMerged"
                 ]
             },
+            "incident.mergeReq": {
+                "properties": {
+                    "source_incident_ids": {
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "incidentaction.Result": {
                 "description": "Result holds the value of the \"result\" field.",
                 "enum": [
@@ -3105,7 +3117,8 @@ const docTemplate = `{
                     "reassign",
                     "add_responder",
                     "runbook",
-                    "custom"
+                    "custom",
+                    "merge"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
@@ -3118,7 +3131,8 @@ const docTemplate = `{
                     "TypeReassign",
                     "TypeAddResponder",
                     "TypeRunbook",
-                    "TypeCustom"
+                    "TypeCustom",
+                    "TypeMerge"
                 ]
             },
             "incidentaction.Via": {
@@ -4716,7 +4730,8 @@ const docTemplate = `{
                     "runbook_executed",
                     "runbook_suggested",
                     "ai_insight",
-                    "im_message"
+                    "im_message",
+                    "merged"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
@@ -4732,7 +4747,8 @@ const docTemplate = `{
                     "TypeRunbookExecuted",
                     "TypeRunbookSuggested",
                     "TypeAiInsight",
-                    "TypeImMessage"
+                    "TypeImMessage",
+                    "TypeMerged"
                 ]
             },
             "triage.rerouteReq": {
@@ -7758,6 +7774,93 @@ const docTemplate = `{
                 "summary": "List AI insights of an incident",
                 "tags": [
                     "ai"
+                ]
+            }
+        },
+        "/incidents/{id}/merge": {
+            "post": {
+                "description": "把一个或多个源事件合并进目标主单：源单置 closed 并 merged_into 指向主单，events/responders 转移到主单。",
+                "parameters": [
+                    {
+                        "description": "目标主单事件 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/incident.mergeReq",
+                                        "description": "source_incident_ids: 要合并进主单的源单 id 列表",
+                                        "summary": "request"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "source_incident_ids: 要合并进主单的源单 id 列表",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.Incident"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "合并事件（merge）",
+                "tags": [
+                    "incident"
                 ]
             }
         },

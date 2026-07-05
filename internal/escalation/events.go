@@ -107,6 +107,23 @@ func (e *Engine) OnReopened(ctx context.Context, ev event.Event) error {
 	return e.StartEscalation(ctx, inc.ID, policy.Levels)
 }
 
+// OnMerged 处理 IncidentMerged 事件：取消被合并源单的所有待触发升级任务。
+//
+// 合并把源单置 closed 终态（merged_into 指向主单）。若不取消其 pending 升级计时器，
+// 到点后 HandleTask 的状态守卫虽会因源单非活跃而跳过（不误升级），但残留的延迟任务
+// 仍占用队列且可能干扰后续同 id 复用——与 ack 收口同理，主动清一遍更干净。
+// 与 OnAcked 同款：从 DB 查 policy levels，无策略/查询失败则跳过（状态守卫兜底）。
+func (e *Engine) OnMerged(ctx context.Context, ev event.Event) error {
+	if ev.Incident == nil {
+		return nil
+	}
+	policy, err := ev.Incident.QueryEscalationPolicy().Only(ctx)
+	if err != nil || len(policy.Levels) == 0 {
+		return nil // 无升级策略，无需取消
+	}
+	return e.CancelOnAck(ctx, ev.Incident.ID, policy.Levels, policy.RepeatTimes)
+}
+
 // OnManualEscalate 处理 IncidentEscalated 事件：立即触发目标 level 的升级任务。
 //
 // ev.Level 为目标 level 索引（由 incident.Service.Escalate 计算并携带）。

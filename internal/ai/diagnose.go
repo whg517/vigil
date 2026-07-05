@@ -33,6 +33,18 @@ import (
 // 为 nil 时 FindSimilar 的 pgvector 路径降级为 LIKE 文本匹配。
 type SQLRunner func(ctx context.Context, query string, args []any, scan func(rows *sql.Rows) error) error
 
+// IncidentMerger 把源单合并进目标主单的接口（dedup_suggestion accept 联动用，M3.5/M3.6）。
+//
+// 由 incident.Service.Merge 适配注入（ai 包不反向依赖 incident 包，避免构建期依赖环——
+// 与 postmortem.IncidentCloser / TicketCreator 同款解耦）。
+// nil 时 dedup_suggestion accept 降级为仅 accepted（不真正合并，退回未实现 merge 端点前的行为）。
+type IncidentMerger interface {
+	// Merge 把 sourceIDs 合并进 targetID 主单。actorID 为发起人（0=系统/AI 自动）。
+	// 实现方（incident.Service.Merge）保证：源/目标校验、events/responders 转移、pending 取消、
+	// 时间线 + 审计。返回 error 表示合并未成功（调用方据此保持 accepted 不升级 applied）。
+	Merge(ctx context.Context, targetID int, sourceIDs []int, actorID int) error
+}
+
 // DiagnoseEngine AI 诊断引擎。
 type DiagnoseEngine struct {
 	db       *ent.Client
@@ -42,6 +54,8 @@ type DiagnoseEngine struct {
 	// recorder 时间线记录器。诊断产出 AIInsight 后写 ai_insight 时间线（原先零写入）。
 	// 为 nil 时跳过（降级/测试），不阻塞诊断主流程。
 	recorder *timeline.Recorder
+	// merger dedup_suggestion accept 时真正执行合并的入口；nil 时降级为仅 accepted（不合并）。
+	merger IncidentMerger
 }
 
 // NewDiagnoseEngine 创建诊断引擎。
@@ -54,6 +68,11 @@ func (e *DiagnoseEngine) SetSQLRunner(r SQLRunner) { e.runSQL = r }
 
 // SetRecorder 注入时间线记录器（装配时调用）：诊断产出 AI 洞察后写 ai_insight 时间线。
 func (e *DiagnoseEngine) SetRecorder(r *timeline.Recorder) { e.recorder = r }
+
+// SetIncidentMerger 注入合并器（装配时调用，M3.5/M3.6）：
+// dedup_suggestion accept 时据 content.merge_candidate_ids 真正把候选单合并进本单，置 applied。
+// 未注入时 dedup_suggestion accept 仅 accepted（不合并）。
+func (e *DiagnoseEngine) SetIncidentMerger(m IncidentMerger) { e.merger = m }
 
 // DiagnoseResult 诊断结果。
 // json tag 必填：Go 默认序列化为 PascalCase（InsightID/RootCause），
@@ -480,7 +499,8 @@ func (e *DiagnoseEngine) ResolveInsight(ctx context.Context, insightID, actorID 
 		st = aiinsight.StatusAccepted
 		// 尝试实际应用建议：成功则升级为 applied（终态）。
 		// 应用失败不阻断改判（仍记 accepted），失败原因记日志供排查。
-		if e.applyInsight(ctx, ins) {
+		// 传 actorID：合并类应用（dedup_suggestion）需归因发起人（谁 accept 即谁触发合并）。
+		if e.applyInsight(ctx, ins, actorID) {
 			st = aiinsight.StatusApplied
 		}
 	}
@@ -495,19 +515,30 @@ func (e *DiagnoseEngine) ResolveInsight(ctx context.Context, insightID, actorID 
 
 // applyInsight 执行建议的「实际应用动作」，返回是否真正应用了副作用。
 //
-// 当前仅 severity_adjustment 有实际动作：把关联 incident 的 severity 改成建议值。
-// content 期望形如 {"target_severity":"critical"}（LLM 分诊建议产出，T3.2 补齐产出侧）。
-// 目标严重度非法/缺失、与当前一致、或 incident 缺失时不改（返回 false，保持 accepted）。
+// 有实际动作的类型：
+//   - severity_adjustment：把关联 incident 的 severity 改成建议值（content.target_severity）。
+//   - dedup_suggestion：把 content.merge_candidate_ids 指向的候选单真正合并进本 incident（M3.5/M3.6）。
+//
 // 其余类型（root_cause_hint/similar_incident/draft_summary/runbook_suggestion/...）无自动副作用，
 // 返回 false，accept 即终态——这些是只读线索/展示建议，采纳与否由人后续手动落地。
 //
 // ★ 安全红线（T3.3）：runbook_suggestion 明确不在此触发任何执行。accept 只把该建议置
 // accepted（供前端高亮/呈现推荐的 Runbook），绝不调用 runbook 引擎。真正执行仍须响应者显式
 // 走 Runbook 端点并遵循两档安全（readonly 自动 / 写操作 require_approval）——AI 推荐不绕过审批。
-func (e *DiagnoseEngine) applyInsight(ctx context.Context, ins *ent.AIInsight) bool {
-	if ins.Type != aiinsight.TypeSeverityAdjustment {
+func (e *DiagnoseEngine) applyInsight(ctx context.Context, ins *ent.AIInsight, actorID int) bool {
+	switch ins.Type {
+	case aiinsight.TypeSeverityAdjustment:
+		return e.applySeverityAdjustment(ctx, ins)
+	case aiinsight.TypeDedupSuggestion:
+		return e.applyDedupMerge(ctx, ins, actorID)
+	default:
 		return false // 无实际应用动作的类型（含 runbook_suggestion）：accept=终态，不产生副作用
 	}
+}
+
+// applySeverityAdjustment 采纳严重度建议：把关联 incident 的 severity 改成建议值。
+// 目标严重度非法/缺失、与当前一致、或 incident 缺失时不改（返回 false，保持 accepted）。
+func (e *DiagnoseEngine) applySeverityAdjustment(ctx context.Context, ins *ent.AIInsight) bool {
 	target, _ := ins.Content["target_severity"].(string)
 	if target != string(incident.SeverityCritical) &&
 		target != string(incident.SeverityWarning) &&
@@ -539,6 +570,91 @@ func (e *DiagnoseEngine) applyInsight(ctx context.Context, ins *ent.AIInsight) b
 			map[string]any{"insight_id": ins.ID, "from": string(inc.Severity), "to": target})
 	}
 	return true
+}
+
+// applyDedupMerge 采纳合并建议：把 content.merge_candidate_ids 指向的候选单真正合并进本 incident（M3.5/M3.6）。
+//
+// 本 incident（ins 关联的那张）是合并「目标主单」，候选单是被合并的「源单」——与 triage_ai
+// suggestDedup 产出方向一致（对目标单跑相似检索，候选是可并入它的其它单）。
+//
+// 返回 true（升级 applied）当且仅当合并真正执行成功。以下情形返回 false（保持 accepted，不合并）：
+//   - 未注入 merger（降级：无合并端点，退回旧行为——仅 accepted）。
+//   - content.merge_candidate_ids 缺失/为空/解析不出有效 id（无可合并对象）。
+//   - 关联 incident 查询失败。
+//   - merger.Merge 返回错误（如源/目标已终态、跨校验失败）——合并未成，不谎报 applied。
+//
+// merge 内部已负责源/目标校验、events/responders 转移、pending 取消、时间线 + 审计，
+// 这里只做「取参数 + 调用」的编排，不重复合并语义。
+func (e *DiagnoseEngine) applyDedupMerge(ctx context.Context, ins *ent.AIInsight, actorID int) bool {
+	if e.merger == nil {
+		return false // 未注入合并器：降级为仅 accepted（不合并）
+	}
+	sourceIDs := parseMergeCandidateIDs(ins.Content["merge_candidate_ids"])
+	if len(sourceIDs) == 0 {
+		slog.Warn("ai insight apply: dedup suggestion has no valid merge candidates, skip",
+			"insight_id", ins.ID)
+		return false
+	}
+	inc, err := ins.QueryIncident().Only(ctx)
+	if err != nil {
+		slog.Warn("ai insight apply: query incident failed, skip",
+			"insight_id", ins.ID, "error", err)
+		return false
+	}
+	if err := e.merger.Merge(ctx, inc.ID, sourceIDs, actorID); err != nil {
+		// 合并未成（源/目标已终态、候选已被合并等）：保持 accepted，不谎报 applied。
+		slog.Warn("ai insight apply: dedup merge failed, keep accepted",
+			"insight_id", ins.ID, "target_incident_id", inc.ID, "source_ids", sourceIDs, "error", err)
+		return false
+	}
+	// 合并成功写 ai_insight 时间线（AI 合并建议被采纳并真正合并，全程留痕）。
+	if e.recorder != nil {
+		_ = e.recorder.Record(ctx, inc.ID, timelineitem.TypeAiInsight,
+			fmt.Sprintf("采纳 AI 合并建议：合入 %d 个候选单", len(sourceIDs)),
+			timeline.Actor{Kind: "ai"}, timelineitem.SourceAi,
+			map[string]any{"insight_id": ins.ID, "merged_source_ids": sourceIDs})
+	}
+	return true
+}
+
+// parseMergeCandidateIDs 从 AIInsight.Content 的 merge_candidate_ids 解出源单 id 列表。
+//
+// content 是 map[string]any（JSON 反序列化），数值元素可能是 float64（encoding/json 默认）
+// 或 int（同进程内直接写入）。这里兼容两种，忽略非数值/<=0 的元素（防脏数据）。
+func parseMergeCandidateIDs(raw any) []int {
+	arr, ok := raw.([]any)
+	if !ok {
+		// 也可能是 []int（同进程写入未经 JSON round-trip）。
+		if ints, ok2 := raw.([]int); ok2 {
+			return positiveInts(ints)
+		}
+		return nil
+	}
+	out := make([]int, 0, len(arr))
+	for _, v := range arr {
+		switch n := v.(type) {
+		case float64:
+			if n > 0 {
+				out = append(out, int(n))
+			}
+		case int:
+			if n > 0 {
+				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
+// positiveInts 过滤出 >0 的 id（防 0/负数脏数据）。
+func positiveInts(ids []int) []int {
+	out := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // buildDiagnosePrompt 构造根因诊断 prompt。

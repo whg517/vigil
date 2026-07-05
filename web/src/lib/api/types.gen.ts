@@ -2696,6 +2696,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/incidents/{id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 合并事件（merge）
+         * @description 把一个或多个源事件合并进目标主单：源单置 closed 并 merged_into 指向主单，events/responders 转移到主单。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 目标主单事件 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description source_incident_ids: 要合并进主单的源单 id 列表 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["incident.mergeReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.Incident"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/incidents/{id}/notifications": {
         parameters: {
             query?: never;
@@ -9411,6 +9485,9 @@ export interface components {
          * @enum {string}
          */
         "incident.TriggerType": "auto" | "manual" | "merged";
+        "incident.mergeReq": {
+            source_incident_ids?: number[];
+        };
         /**
          * @description Result holds the value of the "result" field.
          * @enum {string}
@@ -9420,7 +9497,7 @@ export interface components {
          * @description Type holds the value of the "type" field.
          * @enum {string}
          */
-        "incidentaction.Type": "ack" | "escalate" | "resolve" | "reopen" | "close" | "snooze" | "reassign" | "add_responder" | "runbook" | "custom";
+        "incidentaction.Type": "ack" | "escalate" | "resolve" | "reopen" | "close" | "snooze" | "reassign" | "add_responder" | "runbook" | "custom" | "merge";
         /**
          * @description Via holds the value of the "via" field.
          * @enum {string}
@@ -10054,7 +10131,7 @@ export interface components {
          * @description Type holds the value of the "type" field.
          * @enum {string}
          */
-        "timelineitem.Type": "incident_created" | "event_attached" | "status_changed" | "escalated" | "ack" | "resolved" | "reopened" | "responder_added" | "note_added" | "runbook_executed" | "runbook_suggested" | "ai_insight" | "im_message";
+        "timelineitem.Type": "incident_created" | "event_attached" | "status_changed" | "escalated" | "ack" | "resolved" | "reopened" | "responder_added" | "note_added" | "runbook_executed" | "runbook_suggested" | "ai_insight" | "im_message" | "merged";
         "triage.rerouteReq": {
             service_id?: number;
         };

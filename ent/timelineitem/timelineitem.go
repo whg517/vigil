@@ -100,6 +100,7 @@ const (
 	TypeRunbookSuggested Type = "runbook_suggested"
 	TypeAiInsight        Type = "ai_insight"
 	TypeImMessage        Type = "im_message"
+	TypeMerged           Type = "merged"
 )
 
 func (_type Type) String() string {
@@ -109,7 +110,7 @@ func (_type Type) String() string {
 // TypeValidator is a validator for the "type" field enum values. It is called by the builders before save.
 func TypeValidator(_type Type) error {
 	switch _type {
-	case TypeIncidentCreated, TypeEventAttached, TypeStatusChanged, TypeEscalated, TypeAck, TypeResolved, TypeReopened, TypeResponderAdded, TypeNoteAdded, TypeRunbookExecuted, TypeRunbookSuggested, TypeAiInsight, TypeImMessage:
+	case TypeIncidentCreated, TypeEventAttached, TypeStatusChanged, TypeEscalated, TypeAck, TypeResolved, TypeReopened, TypeResponderAdded, TypeNoteAdded, TypeRunbookExecuted, TypeRunbookSuggested, TypeAiInsight, TypeImMessage, TypeMerged:
 		return nil
 	default:
 		return fmt.Errorf("timelineitem: invalid enum value for type field: %q", _type)

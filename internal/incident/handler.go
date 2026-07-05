@@ -71,6 +71,12 @@ func (h *Handler) Register(g *echo.Group) {
 	g.POST("/incidents/:id/escalate", h.escalate)
 	g.POST("/incidents/:id/reopen", h.reopen)
 	g.POST("/incidents/:id/skip-postmortem", h.skipPostmortem) // T4.1 显式跳过复盘闸门
+	g.POST("/incidents/:id/merge", h.merge)                    // M3.5/M3.6 人工合并
+}
+
+// mergeReq 合并请求：把 source_incident_ids 指向的源单合并进路径 id 的主单。
+type mergeReq struct {
+	SourceIncidentIDs []int `json:"source_incident_ids"`
 }
 
 // sourceFromRequest 从请求判定动作来源（C30 归因）。
@@ -454,6 +460,60 @@ func (h *Handler) reopen(c *echo.Context) error {
 	inc, err := h.svc.Reopen(c.Request().Context(), id, h.actorFromContext(c), h.sourceFromRequest(c))
 	if err != nil {
 		// B25 归一：不存在 → 404；状态非法 → 400 failed_precondition。
+		return errs.FailActionState(c, nil, err, "incident")
+	}
+	return c.JSON(http.StatusOK, inc)
+}
+
+// merge 人工合并事件（M3.5/M3.6）：把 source_incident_ids 指向的一个或多个源单合并进路径 id 主单。
+//
+// 合并语义见 service Merge：源单 merged_into 指向主单 + 置 closed 终态，其 events/responders
+// 转移到主单，取消源单 pending 升级，双写时间线 + 落 merge 审计。合并一般不可逆。
+//
+// 权限：incident.merge（处置级写操作，非只读 incident.view）。对路径 id 主单按 team 软隔离校验；
+// 源单归属校验由 service 层的存在性 + 终态校验兜底（实际跨 team 合并的更严隔离见前端约束/后续）。
+//
+// 错误归一：
+//   - 主单/源单不存在 → 404 not_found。
+//   - 合并进自己 / 源单为空 / 源或目标已终态 → 400 failed_precondition。
+//
+// @Summary      合并事件（merge）
+// @Description  把一个或多个源事件合并进目标主单：源单置 closed 并 merged_into 指向主单，events/responders 转移到主单。
+// @Tags         incident
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int       true  "目标主单事件 ID"
+// @Param        request  body      mergeReq  true  "source_incident_ids: 要合并进主单的源单 id 列表"
+// @Success      200      {object}  ent.Incident
+// @Failure      400      {object}  httputil.ErrorResponse
+// @Failure      403      {object}  httputil.ErrorResponse
+// @Failure      404      {object}  httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /incidents/{id}/merge [post]
+func (h *Handler) merge(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	// 资源级鉴权：合并是处置级写操作，须 incident.merge；对目标主单按 team 软隔离校验。
+	if e := h.checkAccess(c, id, auth.PermIncidentMerge); e != nil {
+		return e
+	}
+	var req mergeReq
+	if bindErr := c.Bind(&req); bindErr != nil {
+		return errs.BadRequest(c, "invalid request body")
+	}
+	if len(req.SourceIncidentIDs) == 0 {
+		return errs.BadRequestWith(c, "failed_precondition", "source_incident_ids 不能为空")
+	}
+	inc, err := h.svc.Merge(c.Request().Context(), id, req.SourceIncidentIDs, h.actorFromContext(c), h.sourceFromRequest(c))
+	if err != nil {
+		// 合并进自己 / 源为空 / 源或目标已终态 → 400 failed_precondition（业务前置校验，非状态机转换）。
+		if errors.Is(err, ErrMergeIntoSelf) || errors.Is(err, ErrMergeNoSources) ||
+			errors.Is(err, ErrMergeTargetTerminal) || errors.Is(err, ErrMergeSourceTerminal) {
+			return errs.BadRequestWith(c, "failed_precondition", err.Error())
+		}
+		// 不存在（主单或源单）→ 404；其余走 FailActionState 归一。
 		return errs.FailActionState(c, nil, err, "incident")
 	}
 	return c.JSON(http.StatusOK, inc)

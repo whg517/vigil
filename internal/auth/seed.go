@@ -50,7 +50,7 @@ var builtinRoles = []struct {
 			// 事件全管理（团队范围内）
 			"incident.view", "incident.create", "incident.ack", "incident.escalate",
 			"incident.resolve", "incident.close", "incident.reopen", "incident.reassign", "incident.snooze",
-			"incident.add_responder", "incident.runbook.execute",
+			"incident.add_responder", "incident.runbook.execute", "incident.merge",
 			// AI 建议采纳/拒绝（处置级，非只读）
 			"ai.insight.resolve",
 			// 事件查看
@@ -90,7 +90,7 @@ var builtinRoles = []struct {
 		Permissions: []string{
 			"incident.view", "incident.ack", "incident.escalate", "incident.resolve",
 			"incident.close", "incident.reopen", "incident.reassign", "incident.snooze", "incident.add_responder",
-			"incident.runbook.execute",
+			"incident.runbook.execute", "incident.merge",
 			"event.view",
 			"runbook.view", "runbook.execute",
 			"postmortem.view", "postmortem.create", "postmortem.update", "postmortem.publish",

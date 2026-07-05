@@ -25,6 +25,8 @@ func (TimelineItem) Fields() []ent.Field {
 			"escalated", "ack", "resolved", "reopened",
 			"responder_added", "note_added",
 			"runbook_executed", "runbook_suggested", "ai_insight", "im_message",
+			// merged 合并留痕（M3.5/M3.6）：主单记「合入了哪些单」，被合并单记「并入了哪个主单」。
+			"merged",
 		),
 		// actor 谁干的
 		field.JSON("actor", map[string]string{}).Comment("actor: kind(system/user/integration/ai) + id"),
@@ -65,6 +67,8 @@ func (IncidentAction) Fields() []ent.Field {
 		field.Enum("type").Values(
 			"ack", "escalate", "resolve", "reopen", "close", "snooze",
 			"reassign", "add_responder", "runbook", "custom",
+			// merge 人工合并（M3.5/M3.6）：把一个或多个 incident 合并进目标主单。
+			"merge",
 		),
 		// actor
 		field.JSON("actor", map[string]string{}).Comment("actor: kind + id"),

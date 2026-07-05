@@ -161,6 +161,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// reopen（resolved/closed → triggered）后从首层重启升级链：不订阅则 incident 静默停在
 	// triggered，不重发通知、不再升级，等于「重开了但没人管」。见 escEngine.OnReopened。
 	bus.Subscribe(domainevent.IncidentReopened, escEngine.OnReopened)
+	// M3.5/M3.6：被合并源单置终态后，取消其 pending 升级计时器（复用 CancelOnAck 语义）。
+	bus.Subscribe(domainevent.IncidentMerged, escEngine.OnMerged)
 
 	// —— 鉴权（能力域 13）：RBAC + 审计 ——
 	authz := auth.NewAuthorizer(st.DB)
@@ -274,6 +276,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		domainevent.IncidentReopened,
 		domainevent.IncidentEscalated,
 		domainevent.IncidentResponderAdded,
+		// M3.5/M3.6：源单被合并收口，也驱动多端同步（WS 列表刷新 / 出站 webhook / IM 卡片）。
+		domainevent.IncidentMerged,
 	} {
 		bus.Subscribe(typ, cardRefresher.OnIncidentEvent)
 		bus.Subscribe(typ, webhookDisp.OnIncidentEvent)
@@ -484,6 +488,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	credentialH.Register(v1)
 	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)
 	aiDiagEngine.SetRecorder(timelineRecorder) // 诊断产出 AI 洞察后写 ai_insight 时间线（原先零写入）
+	// M3.5/M3.6：dedup_suggestion accept 时经此把候选单真正合并进本单（置 applied）。
+	// 走 incService.Merge（同一状态机/时间线/审计），ai 不反向依赖 incident 包。
+	aiDiagEngine.SetIncidentMerger(incidentMerger{inc: incService})
 	if st.SQL != nil {
 		aiDiagEngine.SetSQLRunner(pgvectorRunner(st.SQL))
 	}
@@ -1082,6 +1089,18 @@ func (c incidentCloser) Close(ctx context.Context, incID int, actorID int) error
 	if errors.Is(err, incident.ErrAlreadyClosed) {
 		return nil // 已 closed：幂等成功
 	}
+	return err
+}
+
+// incidentMerger 实现 ai.IncidentMerger，包装 incident.Service.Merge（M3.5/M3.6）。
+// dedup_suggestion accept 时把 AI 建议的候选单真正合并进本单（source=system——AI 联动触发）。
+// 与 incidentCloser 同款：ai 包不反向依赖 incident 包，经接口注入解耦。
+type incidentMerger struct {
+	inc *incident.Service
+}
+
+func (m incidentMerger) Merge(ctx context.Context, targetID int, sourceIDs []int, actorID int) error {
+	_, err := m.inc.Merge(ctx, targetID, sourceIDs, actorID, incident.SourceSystem)
 	return err
 }
 

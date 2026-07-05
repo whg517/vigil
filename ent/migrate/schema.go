@@ -409,7 +409,7 @@ var (
 	// IncidentActionsColumns holds the columns for the "incident_actions" table.
 	IncidentActionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"ack", "escalate", "resolve", "reopen", "close", "snooze", "reassign", "add_responder", "runbook", "custom"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"ack", "escalate", "resolve", "reopen", "close", "snooze", "reassign", "add_responder", "runbook", "custom", "merge"}},
 		{Name: "actor", Type: field.TypeJSON},
 		{Name: "payload", Type: field.TypeJSON, Nullable: true},
 		{Name: "via", Type: field.TypeEnum, Enums: []string{"web", "im", "api", "automation"}},
@@ -1041,7 +1041,7 @@ var (
 	TimelineItemsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "timestamp", Type: field.TypeTime},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"incident_created", "event_attached", "status_changed", "escalated", "ack", "resolved", "reopened", "responder_added", "note_added", "runbook_executed", "runbook_suggested", "ai_insight", "im_message"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"incident_created", "event_attached", "status_changed", "escalated", "ack", "resolved", "reopened", "responder_added", "note_added", "runbook_executed", "runbook_suggested", "ai_insight", "im_message", "merged"}},
 		{Name: "actor", Type: field.TypeJSON},
 		{Name: "content", Type: field.TypeString, Size: 2147483647},
 		{Name: "detail", Type: field.TypeJSON, Nullable: true},

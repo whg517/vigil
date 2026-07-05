@@ -92,6 +92,7 @@ const (
 	TypeAddResponder Type = "add_responder"
 	TypeRunbook      Type = "runbook"
 	TypeCustom       Type = "custom"
+	TypeMerge        Type = "merge"
 )
 
 func (_type Type) String() string {
@@ -101,7 +102,7 @@ func (_type Type) String() string {
 // TypeValidator is a validator for the "type" field enum values. It is called by the builders before save.
 func TypeValidator(_type Type) error {
 	switch _type {
-	case TypeAck, TypeEscalate, TypeResolve, TypeReopen, TypeClose, TypeSnooze, TypeReassign, TypeAddResponder, TypeRunbook, TypeCustom:
+	case TypeAck, TypeEscalate, TypeResolve, TypeReopen, TypeClose, TypeSnooze, TypeReassign, TypeAddResponder, TypeRunbook, TypeCustom, TypeMerge:
 		return nil
 	default:
 		return fmt.Errorf("incidentaction: invalid enum value for type field: %q", _type)

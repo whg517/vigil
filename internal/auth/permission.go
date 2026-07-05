@@ -22,6 +22,10 @@ const (
 	PermIncidentAddResponder Permission = "incident.add_responder"
 	PermIncidentRunbookExec  Permission = "incident.runbook.execute"
 	PermIncidentDelete       Permission = "incident.delete"
+	// incident.merge 人工合并（M3.5/M3.6）：把一个或多个 incident 合并进目标主单。
+	// 合并会把源单置终态并转移其 events/responders/时间线到主单，是处置级写操作，
+	// 须显式授权（不能挂只读 incident.view）。授予有处置权的角色（team_admin/responder_lead）。
+	PermIncidentMerge Permission = "incident.merge"
 
 	// —— event 告警查看 / 投递 ——
 	PermEventView         Permission = "event.view"
@@ -157,7 +161,7 @@ const (
 var AllPermissions = []Permission{
 	PermIncidentView, PermIncidentCreate, PermIncidentAck, PermIncidentEscalate,
 	PermIncidentResolve, PermIncidentClose, PermIncidentReopen, PermIncidentReassign, PermIncidentSnooze,
-	PermIncidentAddResponder, PermIncidentRunbookExec, PermIncidentDelete,
+	PermIncidentAddResponder, PermIncidentRunbookExec, PermIncidentDelete, PermIncidentMerge,
 	PermEventView, PermEventViewUnrouted, PermEventCreate,
 	PermRawEventView, PermRawEventReplay,
 	PermWebhookDeliveryView, PermWebhookDeliveryReplay,

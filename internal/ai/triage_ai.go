@@ -4,8 +4,8 @@
 //   - severity_adjustment：基于 Incident + 关联 Event 让 LLM 判断当前严重度是否偏高/偏低，
 //     产出建议调整值（带 evidence + 置信度）。accept 走 T3.1 的 applied 路径真正改严重度。
 //   - dedup_suggestion：借助相似检索找出可能同根因的多个 Incident，让 LLM 判断是否建议合并，
-//     产出合并建议（带 evidence 列出候选单）。实际合并依赖 merge 端点（审计 M7，未实现），
-//     故本阶段只产出「建议 + 展示」，accept 仅置 accepted（合并执行待 merge 端点）。
+//     产出合并建议（带 evidence 列出候选单）。accept 时经 diagnose.go applyDedupMerge 走 merge
+//     真正把候选单合并进本单并置 applied（M3.5/M3.6）；无合并器注入时降级为仅 accepted。
 //
 // 全程遵循 §B1 设计原则与本任务基线：
 //   - human-in-the-loop：产出 status=suggested，须人 accept/reject 才生效。
@@ -199,7 +199,7 @@ func (e *TriageAIEngine) suggestSeverity(ctx context.Context, inc *ent.Incident)
 // 复用相似检索（finder）取候选活跃 Incident，让 LLM 判断是否建议合并。
 // 无 finder / 无候选 / LLM 判断不合并 / 置信度不足时不产出。
 // evidence = 候选 Incident（编号+标题），使响应者可核对「建议合并哪些单」。
-// 实际合并依赖 merge 端点（审计 M7 未实现）——accept 仅置 accepted（合并执行待 merge 端点）。
+// accept 时经 applyDedupMerge 真正把 merge_candidate_ids 合并进本单并置 applied（M3.5/M3.6）。
 func (e *TriageAIEngine) suggestDedup(ctx context.Context, inc *ent.Incident) (*ent.AIInsight, error) {
 	if e.finder == nil {
 		return nil, nil // 无检索器，无候选可判 → 不产出
@@ -242,8 +242,8 @@ func (e *TriageAIEngine) suggestDedup(ctx context.Context, inc *ent.Incident) (*
 		SetContent(map[string]any{
 			"merge_candidate_ids": mergeIDs,
 			"reason":              reason,
-			// 提示合并执行待 merge 端点（M7 未实现）：accept 仅置 accepted，不自动合并。
-			"note": "合并执行待 merge 端点（M7），当前 accept 仅记录采纳",
+			// accept 时 applyDedupMerge 据此把候选单合并进本单（M3.5/M3.6），置 applied。
+			"note": "accept 将把候选单合并进本单（终态 applied）",
 		}).
 		SetConfidence(conf).
 		SetEvidence(evidence).

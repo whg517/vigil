@@ -40,6 +40,11 @@ const (
 	IncidentReopened Type = "incident.reopened"
 	// IncidentResponderAdded 拉入响应者。
 	IncidentResponderAdded Type = "incident.responder_added"
+	// IncidentMerged Incident 被合并进主单（M3.5/M3.6）。
+	// incident.Service 对每个被合并的源单发布（携带源单快照），escalation 订阅后取消其
+	// pending 升级计时器（复用 CancelOnAck），ws/webhook/卡片订阅后同步多端。
+	// 主单不发本事件（主单本身状态不变，只是吸收了源单的关联）。
+	IncidentMerged Type = "incident.merged"
 )
 
 // Action 触发事件的动作标签（与 incident.Action 同值集合，但独立定义避免反向依赖 incident 包）。
