@@ -173,6 +173,13 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 
 	// —— 事件动作服务（能力域 8 复用层）：发布事件，不持 escalation ——
 	incService := incident.NewService(st.DB, timelineRecorder, bus)
+	// M8.3 跨团队 @人 → 事件级临时授权：AddResponder 时为无该 team 权限的被拉人发放
+	// team scope 临时 responder 授权（带 expires_at + source_incident_id），incident 收口时撤销。
+	// 复用 authz（判是否已有权）+ auditRecorder（发放/撤销留痕），不放宽软隔离（team scope、实时过期）。
+	responderGranter := incident.NewResponderGranter(st.DB, authz, auditRecorder, incident.DefaultTempGrantTTL)
+	incService.SetResponderGranter(responderGranter)
+	// 订阅收口事件（closed/resolved/merged）自动撤销临时授权；expires_at 作兜底。
+	incService.SubscribeRevocation(bus)
 	// 操作审计（IncidentAction，审计 B4/B5）：订阅处置事件，每个动作落一条审计记录。
 	// 事件驱动——与时间线/通知/升级各订阅方并列，系统自动动作（自动恢复/自动升级）同样留痕（via=automation）。
 	incidentActionRecorder := incident.NewActionRecorder(st.DB)

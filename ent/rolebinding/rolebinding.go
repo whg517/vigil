@@ -23,6 +23,8 @@ const (
 	FieldGrantedBy = "granted_by"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
 	FieldExpiresAt = "expires_at"
+	// FieldSourceIncidentID holds the string denoting the source_incident_id field in the database.
+	FieldSourceIncidentID = "source_incident_id"
 	// FieldGrantedAt holds the string denoting the granted_at field in the database.
 	FieldGrantedAt = "granted_at"
 	// EdgeRole holds the string denoting the role edge name in mutations.
@@ -61,6 +63,7 @@ var Columns = []string{
 	FieldTeamID,
 	FieldGrantedBy,
 	FieldExpiresAt,
+	FieldSourceIncidentID,
 	FieldGrantedAt,
 }
 
@@ -93,6 +96,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// DefaultSourceIncidentID holds the default value on creation for the "source_incident_id" field.
+	DefaultSourceIncidentID int
 	// DefaultGrantedAt holds the default value on creation for the "granted_at" field.
 	DefaultGrantedAt func() time.Time
 )
@@ -146,6 +151,11 @@ func ByGrantedBy(opts ...sql.OrderTermOption) OrderOption {
 // ByExpiresAt orders the results by the expires_at field.
 func ByExpiresAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldExpiresAt, opts...).ToFunc()
+}
+
+// BySourceIncidentID orders the results by the source_incident_id field.
+func BySourceIncidentID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSourceIncidentID, opts...).ToFunc()
 }
 
 // ByGrantedAt orders the results by the granted_at field.

@@ -126,6 +126,17 @@ IM 层收到 @ 事件
 - 拉人即授权（data-model §5.6 跨团队拉人）：被拉的人获得事件级临时权限。
 - 跨团队拉人也走此路径（软隔离下的协作方式）。
 
+> **实现现状（M8.3 临时授权）**：`incident.Service.AddResponder` 委托 `ResponderGranter`
+> （`internal/incident/temp_grant.go`）自动发放临时授权：
+> - **仅在被拉人对该 incident 所属 team 无处置权限时发放**（authz 探针 `incident.ack`）——
+>   已在该 team / 有 org 级授权 / 已有临时授权者不重复发。
+> - 发的是 **team scope** 的内置 `responder` 角色绑定（不放宽软隔离：只对这一个 team 生效，不给 org 级），
+>   带 `expires_at`（默认 24h 兜底）与 `source_incident_id`（标记来源，供精确撤销）。
+> - **自动撤销**：incident 收口（`IncidentClosed`/`IncidentResolved`/`IncidentMerged`）时按
+>   `source_incident_id` 删除对应临时授权（authz 实时查库，撤销即失效）；即使漏删，`expires_at` 也会过期兜底。
+> - 发放/撤销均落审计（`role.temp_grant` / `role.temp_revoke`，M13.5）。
+> - 未装配 granter 时降级为「仅加入 responders 名单、不发临时授权」（向后兼容）。
+
 ---
 
 ## 6. 斜杠命令（M8.5）

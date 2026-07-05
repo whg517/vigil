@@ -56,6 +56,11 @@ func (RoleBinding) Fields() []ent.Field {
 		field.String("granted_by").Optional(),
 		// expires_at 可选，临时授权（如值班期间临时给某人 team_admin）
 		field.Time("expires_at").Optional().Nillable().Comment("临时授权到期时间"),
+		// source_incident_id 事件级临时授权来源（跨团队 @人 → 自动发 responder 权限，M8.3/data-model §5.6）。
+		// >0 表示此绑定是「因被拉进某 incident 协同」而自动发放的临时授权，值为该 incident id。
+		// 用途：incident 关闭时按此字段精确撤销对应临时授权（expires_at 作兜底，即使漏删也会过期失效）。
+		// 0（默认）表示常规人工授权，不受事件关闭联动撤销影响。
+		field.Int("source_incident_id").Default(0).Comment("事件级临时授权来源 incident id（0=非临时授权）"),
 		field.Time("granted_at").Default(time.Now).Immutable(),
 	}
 }

@@ -105,6 +105,27 @@ func (_u *RoleBindingUpdate) ClearExpiresAt() *RoleBindingUpdate {
 	return _u
 }
 
+// SetSourceIncidentID sets the "source_incident_id" field.
+func (_u *RoleBindingUpdate) SetSourceIncidentID(v int) *RoleBindingUpdate {
+	_u.mutation.ResetSourceIncidentID()
+	_u.mutation.SetSourceIncidentID(v)
+	return _u
+}
+
+// SetNillableSourceIncidentID sets the "source_incident_id" field if the given value is not nil.
+func (_u *RoleBindingUpdate) SetNillableSourceIncidentID(v *int) *RoleBindingUpdate {
+	if v != nil {
+		_u.SetSourceIncidentID(*v)
+	}
+	return _u
+}
+
+// AddSourceIncidentID adds value to the "source_incident_id" field.
+func (_u *RoleBindingUpdate) AddSourceIncidentID(v int) *RoleBindingUpdate {
+	_u.mutation.AddSourceIncidentID(v)
+	return _u
+}
+
 // SetRoleID sets the "role" edge to the Role entity by ID.
 func (_u *RoleBindingUpdate) SetRoleID(id int) *RoleBindingUpdate {
 	_u.mutation.SetRoleID(id)
@@ -255,6 +276,12 @@ func (_u *RoleBindingUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if _u.mutation.ExpiresAtCleared() {
 		_spec.ClearField(rolebinding.FieldExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.SourceIncidentID(); ok {
+		_spec.SetField(rolebinding.FieldSourceIncidentID, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSourceIncidentID(); ok {
+		_spec.AddField(rolebinding.FieldSourceIncidentID, field.TypeInt, value)
 	}
 	if _u.mutation.RoleCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -453,6 +480,27 @@ func (_u *RoleBindingUpdateOne) ClearExpiresAt() *RoleBindingUpdateOne {
 	return _u
 }
 
+// SetSourceIncidentID sets the "source_incident_id" field.
+func (_u *RoleBindingUpdateOne) SetSourceIncidentID(v int) *RoleBindingUpdateOne {
+	_u.mutation.ResetSourceIncidentID()
+	_u.mutation.SetSourceIncidentID(v)
+	return _u
+}
+
+// SetNillableSourceIncidentID sets the "source_incident_id" field if the given value is not nil.
+func (_u *RoleBindingUpdateOne) SetNillableSourceIncidentID(v *int) *RoleBindingUpdateOne {
+	if v != nil {
+		_u.SetSourceIncidentID(*v)
+	}
+	return _u
+}
+
+// AddSourceIncidentID adds value to the "source_incident_id" field.
+func (_u *RoleBindingUpdateOne) AddSourceIncidentID(v int) *RoleBindingUpdateOne {
+	_u.mutation.AddSourceIncidentID(v)
+	return _u
+}
+
 // SetRoleID sets the "role" edge to the Role entity by ID.
 func (_u *RoleBindingUpdateOne) SetRoleID(id int) *RoleBindingUpdateOne {
 	_u.mutation.SetRoleID(id)
@@ -633,6 +681,12 @@ func (_u *RoleBindingUpdateOne) sqlSave(ctx context.Context) (_node *RoleBinding
 	}
 	if _u.mutation.ExpiresAtCleared() {
 		_spec.ClearField(rolebinding.FieldExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.SourceIncidentID(); ok {
+		_spec.SetField(rolebinding.FieldSourceIncidentID, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSourceIncidentID(); ok {
+		_spec.AddField(rolebinding.FieldSourceIncidentID, field.TypeInt, value)
 	}
 	if _u.mutation.RoleCleared() {
 		edge := &sqlgraph.EdgeSpec{

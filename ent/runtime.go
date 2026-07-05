@@ -387,8 +387,12 @@ func init() {
 	role.UpdateDefaultUpdatedAt = roleDescUpdatedAt.UpdateDefault.(func() time.Time)
 	rolebindingFields := schema.RoleBinding{}.Fields()
 	_ = rolebindingFields
+	// rolebindingDescSourceIncidentID is the schema descriptor for source_incident_id field.
+	rolebindingDescSourceIncidentID := rolebindingFields[4].Descriptor()
+	// rolebinding.DefaultSourceIncidentID holds the default value on creation for the source_incident_id field.
+	rolebinding.DefaultSourceIncidentID = rolebindingDescSourceIncidentID.Default.(int)
 	// rolebindingDescGrantedAt is the schema descriptor for granted_at field.
-	rolebindingDescGrantedAt := rolebindingFields[4].Descriptor()
+	rolebindingDescGrantedAt := rolebindingFields[5].Descriptor()
 	// rolebinding.DefaultGrantedAt holds the default value on creation for the granted_at field.
 	rolebinding.DefaultGrantedAt = rolebindingDescGrantedAt.Default.(func() time.Time)
 	rotationFields := schema.Rotation{}.Fields()

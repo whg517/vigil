@@ -71,6 +71,20 @@ func (_c *RoleBindingCreate) SetNillableExpiresAt(v *time.Time) *RoleBindingCrea
 	return _c
 }
 
+// SetSourceIncidentID sets the "source_incident_id" field.
+func (_c *RoleBindingCreate) SetSourceIncidentID(v int) *RoleBindingCreate {
+	_c.mutation.SetSourceIncidentID(v)
+	return _c
+}
+
+// SetNillableSourceIncidentID sets the "source_incident_id" field if the given value is not nil.
+func (_c *RoleBindingCreate) SetNillableSourceIncidentID(v *int) *RoleBindingCreate {
+	if v != nil {
+		_c.SetSourceIncidentID(*v)
+	}
+	return _c
+}
+
 // SetGrantedAt sets the "granted_at" field.
 func (_c *RoleBindingCreate) SetGrantedAt(v time.Time) *RoleBindingCreate {
 	_c.mutation.SetGrantedAt(v)
@@ -157,6 +171,10 @@ func (_c *RoleBindingCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *RoleBindingCreate) defaults() {
+	if _, ok := _c.mutation.SourceIncidentID(); !ok {
+		v := rolebinding.DefaultSourceIncidentID
+		_c.mutation.SetSourceIncidentID(v)
+	}
 	if _, ok := _c.mutation.GrantedAt(); !ok {
 		v := rolebinding.DefaultGrantedAt()
 		_c.mutation.SetGrantedAt(v)
@@ -172,6 +190,9 @@ func (_c *RoleBindingCreate) check() error {
 		if err := rolebinding.ScopeLevelValidator(v); err != nil {
 			return &ValidationError{Name: "scope_level", err: fmt.Errorf(`ent: validator failed for field "RoleBinding.scope_level": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.SourceIncidentID(); !ok {
+		return &ValidationError{Name: "source_incident_id", err: errors.New(`ent: missing required field "RoleBinding.source_incident_id"`)}
 	}
 	if _, ok := _c.mutation.GrantedAt(); !ok {
 		return &ValidationError{Name: "granted_at", err: errors.New(`ent: missing required field "RoleBinding.granted_at"`)}
@@ -223,6 +244,10 @@ func (_c *RoleBindingCreate) createSpec() (*RoleBinding, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ExpiresAt(); ok {
 		_spec.SetField(rolebinding.FieldExpiresAt, field.TypeTime, value)
 		_node.ExpiresAt = &value
+	}
+	if value, ok := _c.mutation.SourceIncidentID(); ok {
+		_spec.SetField(rolebinding.FieldSourceIncidentID, field.TypeInt, value)
+		_node.SourceIncidentID = value
 	}
 	if value, ok := _c.mutation.GrantedAt(); ok {
 		_spec.SetField(rolebinding.FieldGrantedAt, field.TypeTime, value)

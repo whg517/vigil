@@ -752,6 +752,7 @@ var (
 		{Name: "team_id", Type: field.TypeString, Nullable: true},
 		{Name: "granted_by", Type: field.TypeString, Nullable: true},
 		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "source_incident_id", Type: field.TypeInt, Default: 0},
 		{Name: "granted_at", Type: field.TypeTime},
 		{Name: "role_role_bindings", Type: field.TypeInt},
 		{Name: "user_role_bindings", Type: field.TypeInt},
@@ -764,13 +765,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "role_bindings_roles_role_bindings",
-				Columns:    []*schema.Column{RoleBindingsColumns[6]},
+				Columns:    []*schema.Column{RoleBindingsColumns[7]},
 				RefColumns: []*schema.Column{RolesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "role_bindings_users_role_bindings",
-				Columns:    []*schema.Column{RoleBindingsColumns[7]},
+				Columns:    []*schema.Column{RoleBindingsColumns[8]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},

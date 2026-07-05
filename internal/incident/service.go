@@ -88,12 +88,45 @@ type Service struct {
 	recorder *timeline.Recorder
 	bus      *event.Bus
 	pmGate   PostmortemGate
+	granter  ResponderGranter
 }
 
 // SetPostmortemGate 注入复盘闸门（main 装配时调用，T4.1）。
 // 配置后 critical 事件 resolved→closed 前校验复盘已完成（published/archived）或已显式跳过。
 // 未注入时降级为无闸门（任何 resolved 单可直接 close）。
 func (s *Service) SetPostmortemGate(g PostmortemGate) { s.pmGate = g }
+
+// SetResponderGranter 注入事件级临时授权发放器（main 装配时调用，M8.3）。
+//
+// 配置后 AddResponder 会为「对该 incident 所属 team 无处置权限」的被拉人自动发放
+// 事件级临时 responder 授权（跨团队协作，但不放宽软隔离，见 temp_grant.go）；
+// 并在 incident 关闭/解决/合并时按 source_incident_id 撤销（须调用 SubscribeRevocation 订阅事件）。
+//
+// 未注入（nil）时降级为「仅加入 responders 名单、不发临时授权」——回退到旧行为
+// （被拉人若不在该 team 仍需人工授权），保持向后兼容与单测可控。
+func (s *Service) SetResponderGranter(g ResponderGranter) { s.granter = g }
+
+// SubscribeRevocation 订阅 incident 收口事件（closed/resolved/merged），自动撤销该 incident 的临时授权。
+//
+// 为何订阅三种事件：closed 是标准终态；但很多流程停在 resolved 长期不 close，
+// resolved 时协同已结束，临时授权应随之回收（不留权限尾巴）；merged 的源单被吸收进主单，
+// 源单的临时授权应撤销（协同上下文转移到主单）。expires_at 作兜底，即使漏订阅也会过期。
+//
+// granter 未注入或 bus 为 nil 时为 no-op（降级）。装配时在 SetResponderGranter 之后调用。
+func (s *Service) SubscribeRevocation(bus *event.Bus) {
+	if s.granter == nil || bus == nil {
+		return
+	}
+	revoke := func(ctx context.Context, e event.Event) error {
+		if e.Incident == nil {
+			return nil
+		}
+		return s.granter.RevokeForIncident(ctx, e.Incident.ID)
+	}
+	bus.Subscribe(event.IncidentClosed, revoke)
+	bus.Subscribe(event.IncidentResolved, revoke)
+	bus.Subscribe(event.IncidentMerged, revoke)
+}
 
 // Action 动作类型，随事件发布供订阅方区分语义。
 type Action string
@@ -384,9 +417,12 @@ func (s *Service) Escalate(ctx context.Context, incID int, actorID int, src Sour
 	return inc, nil
 }
 
-// AddResponder 拉人协同：把 targetUserID 加入 responders（去重）。
-// 对应 capabilities §5 拉人即授权——临时权限授予由调用方（IM 层）处理，
-// 本服务只负责加入 responders + 时间线。
+// AddResponder 拉人协同：把 targetUserID 加入 responders（去重）+ 事件级临时授权（M8.3）。
+//
+// 拉人即授权（data-model §5.6）：若被拉人对该 incident 所属 team 无处置权限（跨团队 @人），
+// 自动发放事件级临时 responder 授权（team scope + expires_at + source_incident_id），
+// incident 关闭时撤销、过期兜底——跨团队协同不被软隔离挡住，但也不放宽软隔离边界。
+// 授权逻辑委托给 granter（SetResponderGranter 注入）；未注入时降级为仅加入 responders 名单。
 func (s *Service) AddResponder(ctx context.Context, incID, opUserID, targetUserID int, src Source) (*ent.Incident, error) {
 	inc, err := s.db.Incident.Get(ctx, incID)
 	if err != nil {
@@ -405,6 +441,15 @@ func (s *Service) AddResponder(ctx context.Context, incID, opUserID, targetUserI
 		Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("add responder: %w", err)
+	}
+
+	// 事件级临时授权：仅在被拉人对该 team 无权限时发放（granter 内部自行判权去重）。
+	// 授权失败不回滚拉人（已加入名单是主动作），返回错误让上层记日志/告警——
+	// 与「审计/通知失败不阻塞主流程」的降级基调一致，但发放失败作为可观测错误上抛。
+	if s.granter != nil {
+		if gerr := s.granter.GrantForIncident(ctx, inc, opUserID, targetUserID); gerr != nil {
+			return nil, fmt.Errorf("grant temp responder authz: %w", gerr)
+		}
 	}
 
 	s.record(ctx, inc, timelineitem.TypeResponderAdded, opUserID, src,

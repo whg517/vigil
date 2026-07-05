@@ -504,6 +504,7 @@ RoleBinding:            # 把角色授予用户（带作用域）
   granted_by:
   granted_at:
   expires_at:           # 可选，临时授权
+  source_incident_id:   # 事件级临时授权来源（跨团队 @人自动发放，M8.3；0=非临时授权），供 incident 收口精确撤销
 ```
 
 ### 5.3 权限点清单（系统内置，使用者在此基础上配角色）
@@ -573,6 +574,12 @@ RoleBinding:            # 把角色授予用户（带作用域）
 | 跨团队协作 | 通过 `add_responder` 把 B 团队的人拉进事件，拉进来的人获得**该事件范围**的临时 responder 权限（事件关闭即失效） |
 | 组织级管理者 | 在 org scope 授 role，跨所有团队生效 |
 | 平台级配置（角色定义、全局集成） | 仅 `org_admin`，不可下放到团队 |
+
+> **实现（M8.3）**：临时授权是一个 **team scope**（该 incident 所属 team，非 org）的内置 `responder`
+> RoleBinding，带 `expires_at`（默认 24h 兜底）与 `source_incident_id`（标记来源）。
+> 仅在被拉人对该 team 无处置权限时发放（不放宽软隔离），incident 收口（closed/resolved/merged）时按
+> `source_incident_id` 撤销，`expires_at` 作过期兜底。见 `internal/incident/temp_grant.go`、
+> capabilities/05-im-chatops.md §5。
 
 ### 5.7 RBAC 在 IM-first 下的延伸
 

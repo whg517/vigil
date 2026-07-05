@@ -8991,6 +8991,8 @@ export interface components {
             /** @description ID of the ent. */
             id?: number;
             scope_level?: components["schemas"]["rolebinding.ScopeLevel"];
+            /** @description 事件级临时授权来源 incident id（0=非临时授权） */
+            source_incident_id?: number;
             /** @description team scope 时必填 */
             team_id?: string;
         };

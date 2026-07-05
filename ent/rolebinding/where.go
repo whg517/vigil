@@ -70,6 +70,11 @@ func ExpiresAt(v time.Time) predicate.RoleBinding {
 	return predicate.RoleBinding(sql.FieldEQ(FieldExpiresAt, v))
 }
 
+// SourceIncidentID applies equality check predicate on the "source_incident_id" field. It's identical to SourceIncidentIDEQ.
+func SourceIncidentID(v int) predicate.RoleBinding {
+	return predicate.RoleBinding(sql.FieldEQ(FieldSourceIncidentID, v))
+}
+
 // GrantedAt applies equality check predicate on the "granted_at" field. It's identical to GrantedAtEQ.
 func GrantedAt(v time.Time) predicate.RoleBinding {
 	return predicate.RoleBinding(sql.FieldEQ(FieldGrantedAt, v))
@@ -293,6 +298,46 @@ func ExpiresAtIsNil() predicate.RoleBinding {
 // ExpiresAtNotNil applies the NotNil predicate on the "expires_at" field.
 func ExpiresAtNotNil() predicate.RoleBinding {
 	return predicate.RoleBinding(sql.FieldNotNull(FieldExpiresAt))
+}
+
+// SourceIncidentIDEQ applies the EQ predicate on the "source_incident_id" field.
+func SourceIncidentIDEQ(v int) predicate.RoleBinding {
+	return predicate.RoleBinding(sql.FieldEQ(FieldSourceIncidentID, v))
+}
+
+// SourceIncidentIDNEQ applies the NEQ predicate on the "source_incident_id" field.
+func SourceIncidentIDNEQ(v int) predicate.RoleBinding {
+	return predicate.RoleBinding(sql.FieldNEQ(FieldSourceIncidentID, v))
+}
+
+// SourceIncidentIDIn applies the In predicate on the "source_incident_id" field.
+func SourceIncidentIDIn(vs ...int) predicate.RoleBinding {
+	return predicate.RoleBinding(sql.FieldIn(FieldSourceIncidentID, vs...))
+}
+
+// SourceIncidentIDNotIn applies the NotIn predicate on the "source_incident_id" field.
+func SourceIncidentIDNotIn(vs ...int) predicate.RoleBinding {
+	return predicate.RoleBinding(sql.FieldNotIn(FieldSourceIncidentID, vs...))
+}
+
+// SourceIncidentIDGT applies the GT predicate on the "source_incident_id" field.
+func SourceIncidentIDGT(v int) predicate.RoleBinding {
+	return predicate.RoleBinding(sql.FieldGT(FieldSourceIncidentID, v))
+}
+
+// SourceIncidentIDGTE applies the GTE predicate on the "source_incident_id" field.
+func SourceIncidentIDGTE(v int) predicate.RoleBinding {
+	return predicate.RoleBinding(sql.FieldGTE(FieldSourceIncidentID, v))
+}
+
+// SourceIncidentIDLT applies the LT predicate on the "source_incident_id" field.
+func SourceIncidentIDLT(v int) predicate.RoleBinding {
+	return predicate.RoleBinding(sql.FieldLT(FieldSourceIncidentID, v))
+}
+
+// SourceIncidentIDLTE applies the LTE predicate on the "source_incident_id" field.
+func SourceIncidentIDLTE(v int) predicate.RoleBinding {
+	return predicate.RoleBinding(sql.FieldLTE(FieldSourceIncidentID, v))
 }
 
 // GrantedAtEQ applies the EQ predicate on the "granted_at" field.

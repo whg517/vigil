@@ -27,6 +27,8 @@ type RoleBinding struct {
 	GrantedBy string `json:"granted_by,omitempty"`
 	// 临时授权到期时间
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	// 事件级临时授权来源 incident id（0=非临时授权）
+	SourceIncidentID int `json:"source_incident_id,omitempty"`
 	// GrantedAt holds the value of the "granted_at" field.
 	GrantedAt time.Time `json:"granted_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -86,7 +88,7 @@ func (*RoleBinding) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case rolebinding.FieldID:
+		case rolebinding.FieldID, rolebinding.FieldSourceIncidentID:
 			values[i] = new(sql.NullInt64)
 		case rolebinding.FieldScopeLevel, rolebinding.FieldTeamID, rolebinding.FieldGrantedBy:
 			values[i] = new(sql.NullString)
@@ -141,6 +143,12 @@ func (_m *RoleBinding) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ExpiresAt = new(time.Time)
 				*_m.ExpiresAt = value.Time
+			}
+		case rolebinding.FieldSourceIncidentID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field source_incident_id", values[i])
+			} else if value.Valid {
+				_m.SourceIncidentID = int(value.Int64)
 			}
 		case rolebinding.FieldGrantedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -226,6 +234,9 @@ func (_m *RoleBinding) String() string {
 		builder.WriteString("expires_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("source_incident_id=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SourceIncidentID))
 	builder.WriteString(", ")
 	builder.WriteString("granted_at=")
 	builder.WriteString(_m.GrantedAt.Format(time.ANSIC))

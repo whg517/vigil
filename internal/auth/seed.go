@@ -12,6 +12,11 @@ import (
 	"github.com/kevin/vigil/ent/role"
 )
 
+// ResponderRoleName 内置一线值班角色名（team scope，最小处置权限集）。
+// 跨团队 @人 → 事件级临时授权即发放此角色的 team scope 绑定（M8.3/data-model §5.6）。
+// 与下方 builtinRoles 中 responder 条目的 Name 保持一致。
+const ResponderRoleName = "responder"
+
 // builtinRoles 内置角色定义（name -> 权限点列表 + scope_level）。
 // 对应 data-model.md §5.4 表格。
 var builtinRoles = []struct {
@@ -68,7 +73,7 @@ var builtinRoles = []struct {
 		),
 	},
 	{
-		Name:        "responder",
+		Name:        ResponderRoleName,
 		Description: "一线值班，处置事件",
 		Scope:       role.ScopeLevelTeam,
 		Permissions: []string{

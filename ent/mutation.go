@@ -18201,25 +18201,27 @@ func (m *RoleMutation) ResetEdge(name string) error {
 // RoleBindingMutation represents an operation that mutates the RoleBinding nodes in the graph.
 type RoleBindingMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int
-	scope_level   *rolebinding.ScopeLevel
-	team_id       *string
-	granted_by    *string
-	expires_at    *time.Time
-	granted_at    *time.Time
-	clearedFields map[string]struct{}
-	role          *int
-	clearedrole   bool
-	user          *int
-	cleareduser   bool
-	team          map[int]struct{}
-	removedteam   map[int]struct{}
-	clearedteam   bool
-	done          bool
-	oldValue      func(context.Context) (*RoleBinding, error)
-	predicates    []predicate.RoleBinding
+	op                    Op
+	typ                   string
+	id                    *int
+	scope_level           *rolebinding.ScopeLevel
+	team_id               *string
+	granted_by            *string
+	expires_at            *time.Time
+	source_incident_id    *int
+	addsource_incident_id *int
+	granted_at            *time.Time
+	clearedFields         map[string]struct{}
+	role                  *int
+	clearedrole           bool
+	user                  *int
+	cleareduser           bool
+	team                  map[int]struct{}
+	removedteam           map[int]struct{}
+	clearedteam           bool
+	done                  bool
+	oldValue              func(context.Context) (*RoleBinding, error)
+	predicates            []predicate.RoleBinding
 }
 
 var _ ent.Mutation = (*RoleBindingMutation)(nil)
@@ -18503,6 +18505,62 @@ func (m *RoleBindingMutation) ResetExpiresAt() {
 	delete(m.clearedFields, rolebinding.FieldExpiresAt)
 }
 
+// SetSourceIncidentID sets the "source_incident_id" field.
+func (m *RoleBindingMutation) SetSourceIncidentID(i int) {
+	m.source_incident_id = &i
+	m.addsource_incident_id = nil
+}
+
+// SourceIncidentID returns the value of the "source_incident_id" field in the mutation.
+func (m *RoleBindingMutation) SourceIncidentID() (r int, exists bool) {
+	v := m.source_incident_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSourceIncidentID returns the old "source_incident_id" field's value of the RoleBinding entity.
+// If the RoleBinding object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RoleBindingMutation) OldSourceIncidentID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSourceIncidentID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSourceIncidentID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSourceIncidentID: %w", err)
+	}
+	return oldValue.SourceIncidentID, nil
+}
+
+// AddSourceIncidentID adds i to the "source_incident_id" field.
+func (m *RoleBindingMutation) AddSourceIncidentID(i int) {
+	if m.addsource_incident_id != nil {
+		*m.addsource_incident_id += i
+	} else {
+		m.addsource_incident_id = &i
+	}
+}
+
+// AddedSourceIncidentID returns the value that was added to the "source_incident_id" field in this mutation.
+func (m *RoleBindingMutation) AddedSourceIncidentID() (r int, exists bool) {
+	v := m.addsource_incident_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSourceIncidentID resets all changes to the "source_incident_id" field.
+func (m *RoleBindingMutation) ResetSourceIncidentID() {
+	m.source_incident_id = nil
+	m.addsource_incident_id = nil
+}
+
 // SetGrantedAt sets the "granted_at" field.
 func (m *RoleBindingMutation) SetGrantedAt(t time.Time) {
 	m.granted_at = &t
@@ -18705,7 +18763,7 @@ func (m *RoleBindingMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RoleBindingMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m.scope_level != nil {
 		fields = append(fields, rolebinding.FieldScopeLevel)
 	}
@@ -18717,6 +18775,9 @@ func (m *RoleBindingMutation) Fields() []string {
 	}
 	if m.expires_at != nil {
 		fields = append(fields, rolebinding.FieldExpiresAt)
+	}
+	if m.source_incident_id != nil {
+		fields = append(fields, rolebinding.FieldSourceIncidentID)
 	}
 	if m.granted_at != nil {
 		fields = append(fields, rolebinding.FieldGrantedAt)
@@ -18737,6 +18798,8 @@ func (m *RoleBindingMutation) Field(name string) (ent.Value, bool) {
 		return m.GrantedBy()
 	case rolebinding.FieldExpiresAt:
 		return m.ExpiresAt()
+	case rolebinding.FieldSourceIncidentID:
+		return m.SourceIncidentID()
 	case rolebinding.FieldGrantedAt:
 		return m.GrantedAt()
 	}
@@ -18756,6 +18819,8 @@ func (m *RoleBindingMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldGrantedBy(ctx)
 	case rolebinding.FieldExpiresAt:
 		return m.OldExpiresAt(ctx)
+	case rolebinding.FieldSourceIncidentID:
+		return m.OldSourceIncidentID(ctx)
 	case rolebinding.FieldGrantedAt:
 		return m.OldGrantedAt(ctx)
 	}
@@ -18795,6 +18860,13 @@ func (m *RoleBindingMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetExpiresAt(v)
 		return nil
+	case rolebinding.FieldSourceIncidentID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSourceIncidentID(v)
+		return nil
 	case rolebinding.FieldGrantedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -18809,13 +18881,21 @@ func (m *RoleBindingMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *RoleBindingMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addsource_incident_id != nil {
+		fields = append(fields, rolebinding.FieldSourceIncidentID)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *RoleBindingMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case rolebinding.FieldSourceIncidentID:
+		return m.AddedSourceIncidentID()
+	}
 	return nil, false
 }
 
@@ -18824,6 +18904,13 @@ func (m *RoleBindingMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *RoleBindingMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case rolebinding.FieldSourceIncidentID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSourceIncidentID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown RoleBinding numeric field %s", name)
 }
@@ -18883,6 +18970,9 @@ func (m *RoleBindingMutation) ResetField(name string) error {
 		return nil
 	case rolebinding.FieldExpiresAt:
 		m.ResetExpiresAt()
+		return nil
+	case rolebinding.FieldSourceIncidentID:
+		m.ResetSourceIncidentID()
 		return nil
 	case rolebinding.FieldGrantedAt:
 		m.ResetGrantedAt()

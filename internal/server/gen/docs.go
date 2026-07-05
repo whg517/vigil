@@ -1889,6 +1889,10 @@ const docTemplate = `{
                     "scope_level": {
                         "$ref": "#/components/schemas/rolebinding.ScopeLevel"
                     },
+                    "source_incident_id": {
+                        "description": "事件级临时授权来源 incident id（0=非临时授权）",
+                        "type": "integer"
+                    },
                     "team_id": {
                         "description": "team scope 时必填",
                         "type": "string"
