@@ -29,11 +29,24 @@ func (Schedule) Fields() []ent.Field {
 
 // ScheduleLayer 排班分层（Schedule.layers 元素）。
 // primary 没接到 → secondary；override 层覆盖临时换班。
+//
+// follow_the_sun（日不落接力）扩展字段：Timezone/WorkStart/WorkEnd。
+// 每个 layer 代表一个时区区域（如亚太/欧洲/美洲），配本地时区 + 工作时段；
+// 解算 oncall 时，把查询时刻（UTC）转到各 layer 本地时间，落在哪个 layer
+// 工作时段内即由该 layer 值班，实现跨时区接力。calendar/rotation 型忽略这些字段。
 type ScheduleLayer struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`     // 如 "一线"
 	Priority   int    `json:"priority"` // 数字越小优先级越高
 	RotationID string `json:"rotation_id"`
+	// Timezone 该层本地时区（follow_the_sun 用），如 "Asia/Shanghai"/"Europe/London"/"America/New_York"。
+	// 空则回退 Schedule.timezone。IANA 时区名，用 time.LoadLocation 解析。
+	Timezone string `json:"timezone,omitempty"`
+	// WorkStart/WorkEnd 该层本地工作时段（follow_the_sun 用），"HH:MM" 24 小时制，如 "09:00"/"17:00"。
+	// 命中判定：WorkStart <= 本地时刻 < WorkEnd。支持跨午夜（WorkStart > WorkEnd，如 "22:00"~"06:00"）。
+	// 二者任一为空则该层视为全天工作（00:00~24:00）。
+	WorkStart string `json:"work_start,omitempty"`
+	WorkEnd   string `json:"work_end,omitempty"`
 }
 
 func (Schedule) Edges() []ent.Edge {

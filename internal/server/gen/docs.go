@@ -4308,6 +4308,18 @@ const docTemplate = `{
                     "start_date": {
                         "description": "开始日期 RFC3339（默认现在）",
                         "type": "string"
+                    },
+                    "timezone": {
+                        "description": "follow_the_sun 专用：本层时区 + 本地工作时段（跨时区接力）。calendar/rotation 忽略。",
+                        "type": "string"
+                    },
+                    "work_end": {
+                        "description": "本地工作止 \"HH:MM\"，如 \"17:00\"；支持跨午夜（start\u003eend）",
+                        "type": "string"
+                    },
+                    "work_start": {
+                        "description": "本地工作起 \"HH:MM\"，如 \"09:00\"",
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -4501,6 +4513,17 @@ const docTemplate = `{
                         "type": "integer"
                     },
                     "rotation_id": {
+                        "type": "string"
+                    },
+                    "timezone": {
+                        "description": "Timezone 该层本地时区（follow_the_sun 用），如 \"Asia/Shanghai\"/\"Europe/London\"/\"America/New_York\"。\n空则回退 Schedule.timezone。IANA 时区名，用 time.LoadLocation 解析。",
+                        "type": "string"
+                    },
+                    "work_end": {
+                        "type": "string"
+                    },
+                    "work_start": {
+                        "description": "WorkStart/WorkEnd 该层本地工作时段（follow_the_sun 用），\"HH:MM\" 24 小时制，如 \"09:00\"/\"17:00\"。\n命中判定：WorkStart \u003c= 本地时刻 \u003c WorkEnd。支持跨午夜（WorkStart \u003e WorkEnd，如 \"22:00\"~\"06:00\"）。\n二者任一为空则该层视为全天工作（00:00~24:00）。",
                         "type": "string"
                     }
                 },

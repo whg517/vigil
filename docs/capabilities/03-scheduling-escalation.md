@@ -55,6 +55,30 @@ rotation:
 - **handoff_time**：交接时刻（如每天 09:00 换班），保证换班发生在工作时间。
 - **跨时区**：每个 Schedule 独立 timezone，团队跨时区各自正确计算。
 
+### 2.3.1 follow_the_sun（日不落接力，P3.2）
+
+**设计意图**：多个分布在不同时区的 layer（如亚太/欧洲/美洲），按**当前 UTC 时刻落在哪个 layer 的本地工作时段**选出该时区值班人，实现"日不落"接力——亚太白天亚太值班、欧洲白天欧洲值班、美洲白天美洲值班，24h 无缝覆盖。
+
+**时区/时段承载**：复用 `Schedule.layers`（JSON），每个 `ScheduleLayer` 扩展三字段（仅 follow_the_sun 型解析）：
+
+```yaml
+layer:
+  timezone:   "Europe/London"   # IANA 时区名；空则回退 Schedule.timezone，再回退 UTC
+  work_start: "09:00"           # 本地工作起（含），"HH:MM"
+  work_end:   "17:00"           # 本地工作止（不含）；支持跨午夜（start>end，如夜班 22:00~06:00）
+```
+
+**接力解算**（`resolveFollowTheSun`）：对给定 UTC 时刻 T：
+
+1. 把 T 转到各 layer 本地时间，判断是否落在 `[work_start, work_end)`（跨午夜时段：`t>=start || t<end`；任一字段空视为全天）。
+2. **命中的 layer 全部返回**（多区工作时段重叠段两层同时在班，交接更平滑）；层内多人仍走 rotation 班次序号轮换（同一时区区域内多人轮班保留 rotation 语义）。
+3. **空档兜底**：若无任何 layer 在工作时段（接力空档），取本地时间距各自 `work_start` **最快到来**的 layer 兜底返回真实在班人（层名加"（接力空档兜底）"提示），避免"无人值班"盲区。
+4. 与 rotation/calendar 并存（仅 `type==follow_the_sun` 走此路径），跳过禁用用户、Override 叠加均沿用统一框架。
+
+**preview** 对 follow_the_sun 按当天每 4h 采样接力在班层取并集，完整呈现"这一天由哪些时区区域接力覆盖"（单一时刻只反映某一区，会误导）。
+
+**边界**：时区/DST 由 `time.LoadLocation` + `time.In` 处理（工作时段按本地墙钟判定，DST 切换自动跟随本地时刻）；无效时区名逐级降级不阻断解算。
+
 ### 2.4 Override（临时换班，M5.3）
 
 ```yaml
@@ -240,6 +264,6 @@ Incident 触发升级
 
 | # | 问题 | 倾向 |
 |---|------|------|
-| Q1 | follow_the_sun（跟随太阳）排班类型的具体实现 | 多时区 schedule 链式接力，初期可仅支持 calendar/rotation |
+| Q1 | ~~follow_the_sun（跟随太阳）排班类型的具体实现~~ | ✅ 已实现（P3.2）：每 layer 配 timezone + 本地工作时段，按当前 UTC 落在哪个 layer 工作时段接力选人，空档取最快上班层兜底。见 §2.3.1。 |
 | Q2 | 升级策略的继承（子服务继承父服务策略） | 不继承，每个 Service 显式绑定（避免隐式行为） |
 | Q3 | repeat 通知的退避策略 | 固定间隔为主，避免复杂退避逻辑 |

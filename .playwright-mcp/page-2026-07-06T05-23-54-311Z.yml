@@ -1,0 +1,96 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e8]: Vigil
+      - navigation [ref=e9]:
+        - link "仪表盘" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "事件" [ref=e11] [cursor=pointer]:
+          - /url: /incidents
+        - link "值班排班" [ref=e12] [cursor=pointer]:
+          - /url: /oncall
+        - link "服务" [ref=e13] [cursor=pointer]:
+          - /url: /services
+        - link "接入管理" [ref=e14] [cursor=pointer]:
+          - /url: /integrations
+        - link "出站订阅" [ref=e15] [cursor=pointer]:
+          - /url: /webhook-subscriptions
+        - link "工单集成" [ref=e16] [cursor=pointer]:
+          - /url: /ticket-integrations
+        - link "凭据托管" [ref=e17] [cursor=pointer]:
+          - /url: /credentials
+        - link "升级策略" [ref=e18] [cursor=pointer]:
+          - /url: /escalation-policies
+        - link "用户与团队" [ref=e19] [cursor=pointer]:
+          - /url: /users-teams
+        - link "Runbook" [ref=e20] [cursor=pointer]:
+          - /url: /runbooks
+        - link "复盘" [ref=e21] [cursor=pointer]:
+          - /url: /postmortems
+        - link "设置" [ref=e22] [cursor=pointer]:
+          - /url: /settings
+      - button "登出" [ref=e24]:
+        - img [ref=e25]
+        - text: 登出
+    - main [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - heading "接入管理" [level=1] [ref=e32]
+            - paragraph [ref=e33]: 告警源接入点 · webhook 鉴权 token
+          - generic [ref=e34]:
+            - button "快速创建" [ref=e35]:
+              - img [ref=e36]
+              - text: 快速创建
+            - button "新建接入向导" [ref=e37]:
+              - img [ref=e38]
+              - text: 新建接入向导
+        - generic [ref=e44]:
+          - img [ref=e46]
+          - paragraph [ref=e50]: 暂无接入点
+          - paragraph [ref=e51]: 用「新建接入向导」分步接入告警源，或点「快速创建」直接建点。
+          - button "新建接入向导" [ref=e52]:
+            - img [ref=e53]
+            - text: 新建接入向导
+        - generic [ref=e57]:
+          - generic [ref=e58]:
+            - generic [ref=e59]:
+              - heading "新建接入向导" [level=2] [ref=e60]
+              - paragraph [ref=e61]: 分步接入告警源：选类型 → 配置 → 生成接入信息 → 验证。
+            - button "关闭" [ref=e62]:
+              - img [ref=e63]
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - generic [ref=e69]:
+                - img [ref=e125]
+                - generic [ref=e71]: 选类型
+              - generic [ref=e74]:
+                - generic [ref=e75]: "2"
+                - generic [ref=e76]: 配置
+              - generic [ref=e79]:
+                - generic [ref=e80]: "3"
+                - generic [ref=e81]: 生成接入信息
+              - generic [ref=e84]:
+                - generic [ref=e85]: "4"
+                - generic [ref=e86]: 验证
+            - generic [ref=e127]:
+              - generic [ref=e128]:
+                - text: 接入点名称
+                - textbox "prod-prometheus" [active] [ref=e129]: prometheus
+              - generic [ref=e130]:
+                - text: 每分钟限流
+                - textbox "600" [ref=e131]
+                - paragraph [ref=e132]: 单接入点每分钟最大请求数，0=不限流。
+              - generic [ref=e133]:
+                - paragraph [ref=e134]: 上游如何指向 Vigil
+                - paragraph [ref=e135]: "在 Alertmanager 的 receivers 中配置 webhook_config：url 指向 `https://<vigil-host>/api/v1/webhook/<token>`（token 见创建接入点时返回）。Vigil 按告警 labels（env/service/tier 等）匹配 Service.labels 完成路由。"
+              - generic [ref=e136]:
+                - button "上一步" [ref=e137]:
+                  - img [ref=e138]
+                  - text: 上一步
+                - button "创建接入点" [ref=e140]:
+                  - text: 创建接入点
+                  - img [ref=e141]
+  - region "Notifications alt+T"

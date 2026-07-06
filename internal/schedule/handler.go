@@ -160,6 +160,10 @@ type createLayerReq struct {
 	ShiftLength  string `json:"shift_length"`  // 班次时长 "24h"/"1week"（默认 24h）
 	HandoffTime  string `json:"handoff_time"`  // 交接时刻 "HH:MM"（默认 09:00）
 	StartDate    string `json:"start_date"`    // 开始日期 RFC3339（默认现在）
+	// follow_the_sun 专用：本层时区 + 本地工作时段（跨时区接力）。calendar/rotation 忽略。
+	Timezone  string `json:"timezone"`   // IANA 时区名，如 "Europe/London"；空则回退 Schedule.timezone
+	WorkStart string `json:"work_start"` // 本地工作起 "HH:MM"，如 "09:00"
+	WorkEnd   string `json:"work_end"`   // 本地工作止 "HH:MM"，如 "17:00"；支持跨午夜（start>end）
 }
 
 // create 创建排班。
@@ -205,7 +209,7 @@ func (h *Handler) create(c *echo.Context) error {
 	for _, lr := range req.Layers {
 		// 无 participants 的 layer 跳过 Rotation 创建（无法算在班人，仅保留层信息）
 		if len(lr.Participants) == 0 {
-			layers = append(layers, schema.ScheduleLayer{Name: lr.Name, Priority: lr.Priority})
+			layers = append(layers, layerFromReq(lr, 0))
 			continue
 		}
 		rot, rerr := buildRotation(ctx, tx, lr)
@@ -214,12 +218,7 @@ func (h *Handler) create(c *echo.Context) error {
 			return errs.BadRequest(c, "invalid layer "+lr.Name+": "+rerr.Error())
 		}
 		rotationIDs = append(rotationIDs, rot.ID)
-		layers = append(layers, schema.ScheduleLayer{
-			ID:         strconv.Itoa(rot.ID),
-			Name:       lr.Name,
-			Priority:   lr.Priority,
-			RotationID: strconv.Itoa(rot.ID),
-		})
+		layers = append(layers, layerFromReq(lr, rot.ID))
 	}
 
 	b := tx.Schedule.Create().
@@ -244,6 +243,24 @@ func (h *Handler) create(c *echo.Context) error {
 		return errs.Internal(c, nil, err)
 	}
 	return c.JSON(http.StatusCreated, s)
+}
+
+// layerFromReq 从 createLayerReq 组装 schema.ScheduleLayer（JSON 层元数据）。
+// rotID<=0 表示该层无 Rotation（无 participants），ID/RotationID 留空。
+// 统一带上 follow_the_sun 的 timezone/work_start/work_end，避免多处遗漏。
+func layerFromReq(lr createLayerReq, rotID int) schema.ScheduleLayer {
+	l := schema.ScheduleLayer{
+		Name:      lr.Name,
+		Priority:  lr.Priority,
+		Timezone:  lr.Timezone,
+		WorkStart: lr.WorkStart,
+		WorkEnd:   lr.WorkEnd,
+	}
+	if rotID > 0 {
+		l.ID = strconv.Itoa(rotID)
+		l.RotationID = strconv.Itoa(rotID)
+	}
+	return l
 }
 
 // buildRotation 从 createLayerReq 构造 Rotation 实体（FIX-D）。
@@ -398,7 +415,7 @@ func (h *Handler) update(c *echo.Context) error {
 		newRotIDs := make([]int, 0, len(*req.Layers))
 		for _, lr := range *req.Layers {
 			if len(lr.Participants) == 0 {
-				layers = append(layers, schema.ScheduleLayer{Name: lr.Name, Priority: lr.Priority})
+				layers = append(layers, layerFromReq(lr, 0))
 				continue
 			}
 			rot, rerr := buildRotation(ctx, tx, lr)
@@ -407,12 +424,7 @@ func (h *Handler) update(c *echo.Context) error {
 				return errs.BadRequest(c, "invalid layer "+lr.Name+": "+rerr.Error())
 			}
 			newRotIDs = append(newRotIDs, rot.ID)
-			layers = append(layers, schema.ScheduleLayer{
-				ID:         strconv.Itoa(rot.ID),
-				Name:       lr.Name,
-				Priority:   lr.Priority,
-				RotationID: strconv.Itoa(rot.ID),
-			})
+			layers = append(layers, layerFromReq(lr, rot.ID))
 		}
 		upd.ClearRotations().SetLayers(layers)
 		if len(newRotIDs) > 0 {

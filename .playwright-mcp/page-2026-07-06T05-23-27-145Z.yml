@@ -1,0 +1,116 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e8]: Vigil
+      - navigation [ref=e9]:
+        - link "仪表盘" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "事件" [ref=e11] [cursor=pointer]:
+          - /url: /incidents
+        - link "值班排班" [ref=e12] [cursor=pointer]:
+          - /url: /oncall
+        - link "服务" [ref=e13] [cursor=pointer]:
+          - /url: /services
+        - link "接入管理" [ref=e14] [cursor=pointer]:
+          - /url: /integrations
+        - link "出站订阅" [ref=e15] [cursor=pointer]:
+          - /url: /webhook-subscriptions
+        - link "工单集成" [ref=e16] [cursor=pointer]:
+          - /url: /ticket-integrations
+        - link "凭据托管" [ref=e17] [cursor=pointer]:
+          - /url: /credentials
+        - link "升级策略" [ref=e18] [cursor=pointer]:
+          - /url: /escalation-policies
+        - link "用户与团队" [ref=e19] [cursor=pointer]:
+          - /url: /users-teams
+        - link "Runbook" [ref=e20] [cursor=pointer]:
+          - /url: /runbooks
+        - link "复盘" [ref=e21] [cursor=pointer]:
+          - /url: /postmortems
+        - link "设置" [ref=e22] [cursor=pointer]:
+          - /url: /settings
+      - button "登出" [ref=e24]:
+        - img [ref=e25]
+        - text: 登出
+    - main [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - heading "接入管理" [level=1] [ref=e32]
+            - paragraph [ref=e33]: 告警源接入点 · webhook 鉴权 token
+          - generic [ref=e34]:
+            - button "快速创建" [ref=e35]:
+              - img [ref=e36]
+              - text: 快速创建
+            - button "新建接入向导" [active] [ref=e37]:
+              - img [ref=e38]
+              - text: 新建接入向导
+        - generic [ref=e44]:
+          - img [ref=e46]
+          - paragraph [ref=e50]: 暂无接入点
+          - paragraph [ref=e51]: 用「新建接入向导」分步接入告警源，或点「快速创建」直接建点。
+          - button "新建接入向导" [ref=e52]:
+            - img [ref=e53]
+            - text: 新建接入向导
+        - generic [ref=e57]:
+          - generic [ref=e58]:
+            - generic [ref=e59]:
+              - heading "新建接入向导" [level=2] [ref=e60]
+              - paragraph [ref=e61]: 分步接入告警源：选类型 → 配置 → 生成接入信息 → 验证。
+            - button "关闭" [ref=e62]:
+              - img [ref=e63]
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - generic [ref=e69]:
+                - generic [ref=e70]: "1"
+                - generic [ref=e71]: 选类型
+              - generic [ref=e74]:
+                - generic [ref=e75]: "2"
+                - generic [ref=e76]: 配置
+              - generic [ref=e79]:
+                - generic [ref=e80]: "3"
+                - generic [ref=e81]: 生成接入信息
+              - generic [ref=e84]:
+                - generic [ref=e85]: "4"
+                - generic [ref=e86]: 验证
+            - generic [ref=e87]:
+              - paragraph [ref=e88]: 选择要接入的告警源类型：
+              - generic [ref=e89]:
+                - button "Prometheus Alertmanager prometheus 接收 Alertmanager 的 webhook 告警推送，按 labels 路由到服务。" [ref=e90]:
+                  - generic [ref=e91]:
+                    - generic [ref=e92]: Prometheus Alertmanager
+                    - generic [ref=e93]: prometheus
+                  - paragraph [ref=e94]: 接收 Alertmanager 的 webhook 告警推送，按 labels 路由到服务。
+                - button "Grafana Alerting grafana 接收 Grafana 统一告警（Unified Alerting）的 contact point webhook。" [ref=e95]:
+                  - generic [ref=e96]:
+                    - generic [ref=e97]: Grafana Alerting
+                    - generic [ref=e98]: grafana
+                  - paragraph [ref=e99]: 接收 Grafana 统一告警（Unified Alerting）的 contact point webhook。
+                - button "Zabbix zabbix 接收 Zabbix media type（webhook 脚本）推送的问题事件。" [ref=e100]:
+                  - generic [ref=e101]:
+                    - generic [ref=e102]: Zabbix
+                    - generic [ref=e103]: zabbix
+                  - paragraph [ref=e104]: 接收 Zabbix media type（webhook 脚本）推送的问题事件。
+                - button "通用 Webhook / JSON webhook 任意系统按通用 JSON 格式 POST 告警，适配器做通用归一化。" [ref=e105]:
+                  - generic [ref=e106]:
+                    - generic [ref=e107]: 通用 Webhook / JSON
+                    - generic [ref=e108]: webhook
+                  - paragraph [ref=e109]: 任意系统按通用 JSON 格式 POST 告警，适配器做通用归一化。
+                - button "开放 API 投递 api 外部系统凭 API Key 程序化投递 Event（POST /api/v1/events）。" [ref=e110]:
+                  - generic [ref=e111]:
+                    - generic [ref=e112]: 开放 API 投递
+                    - generic [ref=e113]: api
+                  - paragraph [ref=e114]: 外部系统凭 API Key 程序化投递 Event（POST /api/v1/events）。
+                - button "云监控 cloud 接收云厂商监控（阿里云/腾讯云/AWS CloudWatch 等）的告警回调。" [ref=e115]:
+                  - generic [ref=e116]:
+                    - generic [ref=e117]: 云监控
+                    - generic [ref=e118]: cloud
+                  - paragraph [ref=e119]: 接收云厂商监控（阿里云/腾讯云/AWS CloudWatch 等）的告警回调。
+                - button "邮件接入 email 通过邮件接收告警（设计目标：邮件解析适配器待实现）。" [ref=e120]:
+                  - generic [ref=e121]:
+                    - generic [ref=e122]: 邮件接入
+                    - generic [ref=e123]: email
+                  - paragraph [ref=e124]: 通过邮件接收告警（设计目标：邮件解析适配器待实现）。
+  - region "Notifications alt+T"

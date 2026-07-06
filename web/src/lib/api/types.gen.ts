@@ -10378,6 +10378,12 @@ export interface components {
             shift_length?: string;
             /** @description 开始日期 RFC3339（默认现在） */
             start_date?: string;
+            /** @description follow_the_sun 专用：本层时区 + 本地工作时段（跨时区接力）。calendar/rotation 忽略。 */
+            timezone?: string;
+            /** @description 本地工作止 "HH:MM"，如 "17:00"；支持跨午夜（start>end） */
+            work_end?: string;
+            /** @description 本地工作起 "HH:MM"，如 "09:00" */
+            work_start?: string;
         };
         "schedule.createOverrideReq": {
             /** @description RFC3339 */
@@ -10453,6 +10459,18 @@ export interface components {
             /** @description 数字越小优先级越高 */
             priority?: number;
             rotation_id?: string;
+            /**
+             * @description Timezone 该层本地时区（follow_the_sun 用），如 "Asia/Shanghai"/"Europe/London"/"America/New_York"。
+             *     空则回退 Schedule.timezone。IANA 时区名，用 time.LoadLocation 解析。
+             */
+            timezone?: string;
+            work_end?: string;
+            /**
+             * @description WorkStart/WorkEnd 该层本地工作时段（follow_the_sun 用），"HH:MM" 24 小时制，如 "09:00"/"17:00"。
+             *     命中判定：WorkStart <= 本地时刻 < WorkEnd。支持跨午夜（WorkStart > WorkEnd，如 "22:00"~"06:00"）。
+             *     二者任一为空则该层视为全天工作（00:00~24:00）。
+             */
+            work_start?: string;
         };
         "schema.StepAction": {
             params?: {

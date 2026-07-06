@@ -1,0 +1,49 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - generic [ref=e8]: Vigil
+      - navigation [ref=e9]:
+        - link "仪表盘" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "事件" [ref=e11] [cursor=pointer]:
+          - /url: /incidents
+        - link "值班排班" [ref=e12] [cursor=pointer]:
+          - /url: /oncall
+        - link "服务" [ref=e13] [cursor=pointer]:
+          - /url: /services
+        - link "接入管理" [ref=e14] [cursor=pointer]:
+          - /url: /integrations
+        - link "出站订阅" [ref=e15] [cursor=pointer]:
+          - /url: /webhook-subscriptions
+        - link "工单集成" [ref=e16] [cursor=pointer]:
+          - /url: /ticket-integrations
+        - link "凭据托管" [ref=e17] [cursor=pointer]:
+          - /url: /credentials
+        - link "升级策略" [ref=e18] [cursor=pointer]:
+          - /url: /escalation-policies
+        - link "用户与团队" [ref=e19] [cursor=pointer]:
+          - /url: /users-teams
+        - link "Runbook" [ref=e20] [cursor=pointer]:
+          - /url: /runbooks
+        - link "复盘" [ref=e21] [cursor=pointer]:
+          - /url: /postmortems
+        - link "设置" [ref=e22] [cursor=pointer]:
+          - /url: /settings
+      - button "登出" [ref=e24]:
+        - img [ref=e25]
+        - text: 登出
+    - main [ref=e28]:
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - heading "接入管理" [level=1] [ref=e32]
+          - paragraph [ref=e33]: 告警源接入点 · webhook 鉴权 token
+        - generic [ref=e34]:
+          - button "快速创建" [ref=e35]:
+            - img [ref=e36]
+            - text: 快速创建
+          - button "新建接入向导" [ref=e37]:
+            - img [ref=e38]
+            - text: 新建接入向导
+  - region "Notifications alt+T"
