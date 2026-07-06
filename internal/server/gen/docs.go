@@ -2454,6 +2454,9 @@ const docTemplate = `{
                         "description": "ID of the ent.",
                         "type": "integer"
                     },
+                    "kind": {
+                        "$ref": "#/components/schemas/suppressionrule.Kind"
+                    },
                     "match_labels": {
                         "additionalProperties": {
                             "type": "string"
@@ -3690,6 +3693,10 @@ const docTemplate = `{
                     "expires_at": {
                         "type": "string"
                     },
+                    "kind": {
+                        "description": "adhoc（默认）| maintenance",
+                        "type": "string"
+                    },
                     "match_labels": {
                         "additionalProperties": {
                             "type": "string"
@@ -3797,6 +3804,10 @@ const docTemplate = `{
                     },
                     "expires_at": {
                         "description": "ExpiresAt B15：RFC3339 时间设置过期；显式传空串清除过期（改回永久生效）。",
+                        "type": "string"
+                    },
+                    "kind": {
+                        "description": "adhoc | maintenance",
                         "type": "string"
                     },
                     "match_labels": {
@@ -4859,6 +4870,19 @@ const docTemplate = `{
                     "DefaultAction",
                     "ActionSuppress",
                     "ActionReduceSeverity"
+                ]
+            },
+            "suppressionrule.Kind": {
+                "description": "规则类别：adhoc 日常降噪 / maintenance 计划内维护窗口（有起止时间窗、到期自动失效）",
+                "enum": [
+                    "adhoc",
+                    "maintenance"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultKind",
+                    "KindAdhoc",
+                    "KindMaintenance"
                 ]
             },
             "suppressionrule.Source": {
@@ -6371,6 +6395,92 @@ const docTemplate = `{
                     }
                 ],
                 "summary": "审计日志查询",
+                "tags": [
+                    "audit"
+                ]
+            }
+        },
+        "/audit-logs/export": {
+            "get": {
+                "description": "按 list 同一套筛选参数导出审计日志 CSV（附件下载，不分页，最多 50000 行）。达上限置响应头 X-Vigil-Truncated: true。权限同 list（admin.audit.view，org 级）。",
+                "parameters": [
+                    {
+                        "description": "按操作者过滤",
+                        "in": "query",
+                        "name": "actor_user_id",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "按操作类型过滤",
+                        "in": "query",
+                        "name": "action",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "按对象类型过滤",
+                        "in": "query",
+                        "name": "resource_type",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "按对象 ID 过滤",
+                        "in": "query",
+                        "name": "resource_id",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "起始时间（含），RFC3339 或 unix 秒",
+                        "in": "query",
+                        "name": "from",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "结束时间（含），RFC3339 或 unix 秒",
+                        "in": "query",
+                        "name": "to",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "CSV 文件"
+                    },
+                    "500": {
+                        "content": {
+                            "text/csv": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "审计日志 CSV 导出",
                 "tags": [
                     "audit"
                 ]
@@ -12697,7 +12807,17 @@ const docTemplate = `{
         },
         "/suppression-rules": {
             "get": {
-                "description": "返回全部 SuppressionRule（无分页）。",
+                "description": "返回全部 SuppressionRule（无分页）。可用 ?kind=maintenance|adhoc 过滤，便于前端维护窗口专属列表。",
+                "parameters": [
+                    {
+                        "description": "按类别过滤：adhoc（日常降噪）| maintenance（维护窗口）",
+                        "in": "query",
+                        "name": "kind",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "content": {
@@ -12711,6 +12831,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
                     },
                     "500": {
                         "content": {

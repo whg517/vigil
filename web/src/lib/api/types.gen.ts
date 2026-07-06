@@ -1089,6 +1089,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/audit-logs/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 审计日志 CSV 导出
+         * @description 按 list 同一套筛选参数导出审计日志 CSV（附件下载，不分页，最多 50000 行）。达上限置响应头 X-Vigil-Truncated: true。权限同 list（admin.audit.view，org 级）。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 按操作者过滤 */
+                    actor_user_id?: number;
+                    /** @description 按操作类型过滤 */
+                    action?: string;
+                    /** @description 按对象类型过滤 */
+                    resource_type?: string;
+                    /** @description 按对象 ID 过滤 */
+                    resource_id?: number;
+                    /** @description 起始时间（含），RFC3339 或 unix 秒 */
+                    from?: string;
+                    /** @description 结束时间（含），RFC3339 或 unix 秒 */
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CSV 文件 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/change-password": {
         parameters: {
             query?: never;
@@ -6791,11 +6852,14 @@ export interface paths {
         };
         /**
          * List suppression rules
-         * @description 返回全部 SuppressionRule（无分页）。
+         * @description 返回全部 SuppressionRule（无分页）。可用 ?kind=maintenance|adhoc 过滤，便于前端维护窗口专属列表。
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description 按类别过滤：adhoc（日常降噪）| maintenance（维护窗口） */
+                    kind?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -6809,6 +6873,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ent.SuppressionRule"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -9649,6 +9722,7 @@ export interface components {
             expires_at?: string;
             /** @description ID of the ent. */
             id?: number;
+            kind?: components["schemas"]["suppressionrule.Kind"];
             /** @description label 匹配条件，全等匹配 */
             match_labels?: {
                 [key: string]: string;
@@ -10137,6 +10211,8 @@ export interface components {
             action?: string;
             enabled?: boolean;
             expires_at?: string;
+            /** @description adhoc（默认）| maintenance */
+            kind?: string;
             match_labels?: {
                 [key: string]: string;
             };
@@ -10180,6 +10256,8 @@ export interface components {
             enabled?: boolean;
             /** @description ExpiresAt B15：RFC3339 时间设置过期；显式传空串清除过期（改回永久生效）。 */
             expires_at?: string;
+            /** @description adhoc | maintenance */
+            kind?: string;
             match_labels?: {
                 [key: string]: string;
             };
@@ -10616,6 +10694,11 @@ export interface components {
          * @enum {string}
          */
         "suppressionrule.Action": "suppress" | "reduce_severity";
+        /**
+         * @description 规则类别：adhoc 日常降噪 / maintenance 计划内维护窗口（有起止时间窗、到期自动失效）
+         * @enum {string}
+         */
+        "suppressionrule.Kind": "adhoc" | "maintenance";
         /**
          * @description 规则来源：manual 人工 / ai 由采纳的降噪建议沉淀
          * @enum {string}
