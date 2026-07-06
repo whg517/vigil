@@ -139,6 +139,26 @@ type IncidentAction struct {
 - 所有事件操作落 Action，支持审计 + 回溯。
 - `via` 字段标记来源，可统计"多少操作在 IM 完成"。
 
+### 6.3 查询与导出端点
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/audit-logs` | `admin.audit.view` | 分页查询（`limit` 默认 50 / 上限 200，`offset`），`created_at` 倒序 |
+| GET | `/audit-logs/export` | `admin.audit.view` | **CSV 导出**（附件下载，不分页，含上限保护） |
+
+审计为 org 级（无 team scope），两端点权限一致。共用同一套筛选参数：
+`actor_user_id` / `action` / `resource_type` / `resource_id` / `from` / `to`
+（`from`/`to` 支持 RFC3339 或 unix 秒；解析失败宽松忽略该边界）。
+
+**CSV 导出（M13.5）**：
+
+- 列顺序固定：`created_at`(RFC3339) · `actor_user_id` · `actor_name` · `action` ·
+  `resource_type` · `resource_id` · `resource_name` · `result` · `ip` · `user_agent` ·
+  `detail`（JSON 压平成单列，逗号/引号由 CSV 标准转义）。
+- 响应 `Content-Type: text/csv`，`Content-Disposition: attachment; filename=audit-logs_<时间戳>.csv`。
+- **上限保护**：单次最多导出 **50000 行**（`created_at` 倒序取最近）。达上限**不静默截断**——
+  记 `warn` 日志 + 置响应头 `X-Vigil-Truncated: true`，调用方应缩小 `from`/`to` 时间窗后重导。
+
 ---
 
 ## 7. API Key 管理（M13.7）

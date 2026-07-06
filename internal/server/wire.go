@@ -422,7 +422,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	teamHandler.SetAuditRecorder(auditRecorder)
 	teamHandler.SetAuthorizer(authz)
 	teamHandler.Register(v1)
-	auth.NewAuditHandler(st.DB).Register(v1)
+	auditH := auth.NewAuditHandler(st.DB)
+	auditH.SetLogger(log) // M13.5：CSV 导出达上限时记 warn（不静默截断）
+	auditH.Register(v1)
 	// T6.3/S16：凭据加密托管。构造 AES-256-GCM 加密器（密钥从 env，缺失则托管未启用）。
 	// 同一 cipher 供 Runbook 执行器解密注入凭据 + 凭据管理端点加密存储，避免两套加密（统一机制）。
 	credCipher := buildCredentialCipher(cfg, log)
@@ -1348,6 +1350,8 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodDelete, "/api-keys/:id", auth.PermAdminAPIKeyManage)
 	// 审计日志查看（M13.5）
 	g.RoutePerm(http.MethodGet, "/audit-logs", auth.PermAdminAuditView)
+	// 审计日志 CSV 导出（M13.5）—— 精确匹配，与 /audit-logs 同权限点（org 级）。
+	g.RoutePerm(http.MethodGet, "/audit-logs/export", auth.PermAdminAuditView)
 	// incident 生命周期操作（M6.5 手动升级等）
 	g.RoutePerm(http.MethodPost, "/incidents/:id/ack", auth.PermIncidentAck)
 	g.RoutePerm(http.MethodPost, "/incidents/:id/resolve", auth.PermIncidentResolve)

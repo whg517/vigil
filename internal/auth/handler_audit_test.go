@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/csv"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -136,6 +137,94 @@ func TestAuditHandler_FilterByTime(t *testing.T) {
 	// unix 秒格式同样支持（to=昨天+1h → 仅命中昨天 1 条）。
 	if body := call("to=" + strconv.FormatInt(yesterday.Add(time.Hour).Unix(), 10)); !contains(body, `"total":1`) {
 		t.Errorf("unix to filter total not 1: %s", body)
+	}
+}
+
+// TestAuditHandler_Export 验证 CSV 导出：header 行、数据行数、列内容、detail 压平与转义。
+func TestAuditHandler_Export(t *testing.T) {
+	c := enttest.Open(t, "sqlite3", "file:audit_export_test?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = c.Close() })
+	ctx := context.Background()
+	r := NewAuditRecorder(c)
+	_ = r.Record(ctx, AuditEntry{ActorUserID: 1, ActorName: "alice", Action: "role.create", ResourceType: "role", ResourceID: 1, ResourceName: "on-call", Result: AuditResultSuccess, IP: "10.0.0.1", UserAgent: "curl/8"})
+	// detail 带逗号/引号，验证 CSV 转义正确（csv.Writer 应给该单元格加引号）。
+	_ = r.Record(ctx, AuditEntry{ActorUserID: 2, Action: "auth.login", ResourceType: "user", Result: AuditResultFailed, Detail: map[string]any{"reason": "bad, \"password\""}})
+
+	h := NewAuditHandler(c)
+	e := echo.New()
+	e.GET("/api/v1/audit-logs/export", h.exportAuditLogs, RequireUser(true, nil))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit-logs/export", nil)
+	req.Header.Set("X-Vigil-User-ID", "1")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); !contains(ct, "text/csv") {
+		t.Errorf("content-type not csv: %q", ct)
+	}
+	if cd := rec.Header().Get("Content-Disposition"); !contains(cd, "attachment") || !contains(cd, "audit-logs_") {
+		t.Errorf("content-disposition unexpected: %q", cd)
+	}
+
+	rows, err := csv.NewReader(rec.Body).ReadAll()
+	if err != nil {
+		t.Fatalf("parse csv: %v", err)
+	}
+	// header + 2 数据行
+	if len(rows) != 3 {
+		t.Fatalf("expected 3 rows (header+2), got %d: %v", len(rows), rows)
+	}
+	wantHeader := []string{"created_at", "actor_user_id", "actor_name", "action", "resource_type", "resource_id", "resource_name", "result", "ip", "user_agent", "detail"}
+	if len(rows[0]) != len(wantHeader) {
+		t.Fatalf("header len %d != %d", len(rows[0]), len(wantHeader))
+	}
+	for i, col := range wantHeader {
+		if rows[0][i] != col {
+			t.Errorf("header[%d]=%q want %q", i, rows[0][i], col)
+		}
+	}
+	// 倒序：最新（auth.login）在前。断言 detail 列包含转义后的原始内容（csv 解析后还原）。
+	if rows[1][3] != "auth.login" {
+		t.Errorf("row1 action=%q want auth.login (desc order)", rows[1][3])
+	}
+	// detail 列是 JSON 压平串；csv 解析后应还原为 {"reason":"bad, \"password\""}。
+	if !contains(rows[1][10], `"reason"`) || !contains(rows[1][10], `bad, `) {
+		t.Errorf("row1 detail not preserved: %q", rows[1][10])
+	}
+	// 第二条数据行（role.create）字段抽查。
+	if rows[2][2] != "alice" || rows[2][6] != "on-call" || rows[2][8] != "10.0.0.1" {
+		t.Errorf("row2 fields unexpected: %v", rows[2])
+	}
+}
+
+// TestAuditHandler_ExportFilter 验证导出复用 list 同一套筛选（按 action 过滤）。
+func TestAuditHandler_ExportFilter(t *testing.T) {
+	seedAuditLogs(t)
+	c := enttest.Open(t, "sqlite3", "file:audit_handler_test?mode=memory&cache=shared&_fk=1")
+	t.Cleanup(func() { _ = c.Close() })
+	h := NewAuditHandler(c)
+	e := echo.New()
+	e.GET("/api/v1/audit-logs/export", h.exportAuditLogs, RequireUser(true, nil))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit-logs/export?action=auth.login", nil)
+	req.Header.Set("X-Vigil-User-ID", "1")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	rows, err := csv.NewReader(rec.Body).ReadAll()
+	if err != nil {
+		t.Fatalf("parse csv: %v", err)
+	}
+	// header + 1 命中行（seedAuditLogs 中 auth.login 只有 1 条）
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows (header+1 filtered), got %d: %v", len(rows), rows)
+	}
+	if rows[1][3] != "auth.login" {
+		t.Errorf("filtered row action=%q want auth.login", rows[1][3])
 	}
 }
 
