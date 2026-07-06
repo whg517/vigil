@@ -5,7 +5,7 @@
  * 后端：GET /schedules，POST/PATCH/DELETE /schedules/:id，GET /schedules/:id/oncall，GET /schedules/:id/preview。
  */
 import { useState } from "react";
-import { CalendarDays, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,12 +16,17 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useCreateSchedule,
+  useCreateScheduleOverride,
   useDeleteSchedule,
+  useDeleteScheduleOverride,
   useOncall,
   useSchedulePreview,
+  useScheduleOverrides,
   useSchedules,
   useUpdateSchedule,
 } from "@/hooks/oncall";
+import { useUsers } from "@/hooks/users-teams";
+import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Schedule, ScheduleLayer } from "@/lib/types";
 
@@ -210,6 +215,9 @@ export function Oncall() {
         </div>
       )}
 
+      {/* 换班 Override（能力域 5）：临时顶替某段值班，改变实时在班人 */}
+      {id > 0 && <OverrideSection scheduleId={id} />}
+
       {creating && <ScheduleFormDialog onClose={() => setCreating(false)} />}
       {editing && (
         <ScheduleFormDialog schedule={editing} onClose={() => setEditing(undefined)} />
@@ -375,6 +383,178 @@ function ScheduleFormDialog({
       </form>
     </Dialog>
   );
+}
+
+/**
+ * OverrideSection 换班 Override 区（能力域 5）。
+ * 列出某排班的换班记录 + 新建/删除。本人可换自己班，admin 可指派他人（权限由后端 403 兜底）。
+ */
+function OverrideSection({ scheduleId }: { scheduleId: number }) {
+  const { data, isLoading } = useScheduleOverrides(scheduleId);
+  const del = useDeleteScheduleOverride(scheduleId);
+  const [creating, setCreating] = useState(false);
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ArrowLeftRight className="h-4 w-4" /> 换班 / Override
+        </CardTitle>
+        <Button size="sm" onClick={() => setCreating(true)}>
+          <Plus className="mr-1 h-4 w-4" /> 新建换班
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : !data || data.length === 0 ? (
+          <EmptyState
+            icon={<ArrowLeftRight className="h-8 w-8" />}
+            title="暂无换班"
+            description="临时顶替某段值班，实时在班人会随之改变。"
+          />
+        ) : (
+          <div className="space-y-2">
+            {data.map((o) => (
+              <div
+                key={o.id}
+                className="flex items-center justify-between rounded-md border p-2 text-sm"
+              >
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{o.user_name || `用户 ${o.user_id}`}</span>
+                    <Badge variant="secondary" className="text-xs">顶替</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatTime(o.start_time)} → {formatTime(o.end_time)}
+                    {o.reason && <span> · {o.reason}</span>}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="删除换班"
+                  disabled={del.isPending}
+                  onClick={() => {
+                    if (confirm("确认删除此换班？删除后值班将恢复原排班。")) {
+                      del.mutate(o.id);
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+      {creating && (
+        <CreateOverrideDialog scheduleId={scheduleId} onClose={() => setCreating(false)} />
+      )}
+    </Card>
+  );
+}
+
+/** CreateOverrideDialog 新建换班（替班人 + 起止时间 + 原因）。 */
+function CreateOverrideDialog({
+  scheduleId,
+  onClose,
+}: {
+  scheduleId: number;
+  onClose: () => void;
+}) {
+  const create = useCreateScheduleOverride(scheduleId);
+  const { data: users } = useUsers();
+  const [userId, setUserId] = useState("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [reason, setReason] = useState("");
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // datetime-local 无时区，转 RFC3339（后端按本地时区解析：附加浏览器时区偏移）。
+    create.mutate(
+      {
+        user_id: Number(userId),
+        start_time: toRFC3339(start),
+        end_time: toRFC3339(end),
+        reason: reason || undefined,
+      },
+      { onSuccess: onClose },
+    );
+  };
+
+  const invalid = !userId || !start || !end || (!!start && !!end && end <= start);
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="新建换班 / Override"
+      description="临时指定某段值班的顶替人。本人换自己班或 admin 指派他人（无权限时后端会拒绝）。"
+    >
+      <form className="space-y-3" onSubmit={onSubmit}>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">替班人</label>
+          <Select value={userId} onChange={(e) => setUserId(e.target.value)} required>
+            <option value="" disabled>
+              选择替班人…
+            </option>
+            {(users ?? []).map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">开始时间</label>
+            <Input
+              type="datetime-local"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">结束时间</label>
+            <Input
+              type="datetime-local"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+        {!!start && !!end && end <= start && (
+          <p className="text-xs text-destructive">结束时间必须晚于开始时间。</p>
+        )}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">原因（可选）</label>
+          <Input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="临时调休 / 出差顶班"
+          />
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="outline" onClick={onClose}>
+            取消
+          </Button>
+          <Button type="submit" disabled={create.isPending || invalid}>
+            {create.isPending ? "创建中..." : "创建换班"}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** toRFC3339 把 datetime-local 值（无时区）转为带本地时区偏移的 RFC3339。 */
+function toRFC3339(local: string): string {
+  // local 形如 "2026-07-06T14:30"；new Date 按本地时区解析，toISOString 输出 UTC（后端可解析）。
+  return new Date(local).toISOString();
 }
 
 /** isToday 判断日期串（YYYY-MM-DD 或 RFC3339）是否今天。 */

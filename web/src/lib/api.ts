@@ -40,11 +40,13 @@ import type {
   Runbook,
   RunbookExecuteResult,
   Schedule,
+  ScheduleOverride,
   Service,
   Subscription,
   SuppressionRule,
   TicketIntegration,
   TimelineItem,
+  WebhookSubscription,
 } from "@/lib/types";
 
 export interface ListIncidentsParams {
@@ -89,6 +91,14 @@ export const api = {
     // 重新打开已解决/已关闭事件，回退为 triggered
     return http
       .post<Incident>(`/incidents/${id}/reopen`, {})
+      .then((r) => r.data);
+  },
+
+  // mergeIncident 把源事件合并进本单（不可逆）：源单置 closed + merged_into 指向本单，
+  // events/responders 转移。后端 POST /incidents/:id/merge（能力域 3 去重合并）。
+  mergeIncident(id: number, sourceIncidentIds: number[]) {
+    return http
+      .post<Incident>(`/incidents/${id}/merge`, { source_incident_ids: sourceIncidentIds })
       .then((r) => r.data);
   },
 
@@ -289,6 +299,26 @@ export const api = {
       .get<PreviewResult>(`/schedules/${id}/preview`, { params: { days } })
       .then((r) => r.data);
   },
+  // —— Schedule Override 换班（能力域 5，POST/GET/DELETE /schedules/:id/overrides）——
+  // 本人换自己班或 admin 指派他人（前端不做强门控，靠后端 403）。
+  listScheduleOverrides(scheduleId: number) {
+    return http
+      .get<ScheduleOverride[]>(`/schedules/${scheduleId}/overrides`)
+      .then((r) => r.data);
+  },
+  createScheduleOverride(
+    scheduleId: number,
+    body: { user_id: number; start_time: string; end_time: string; reason?: string },
+  ) {
+    return http
+      .post<ScheduleOverride>(`/schedules/${scheduleId}/overrides`, body)
+      .then((r) => r.data);
+  },
+  deleteScheduleOverride(scheduleId: number, overrideId: number) {
+    return http
+      .delete(`/schedules/${scheduleId}/overrides/${overrideId}`)
+      .then((r) => r.data);
+  },
 
   // —— Runbook（能力域 9）——
   listRunbooks() {
@@ -440,5 +470,32 @@ export const api = {
   // ===== 审计日志（能力域 13 §审计日志，只读查询）=====
   listAuditLogs(params?: { actor_user_id?: number; action?: string; resource_type?: string; limit?: number; offset?: number }) {
     return http.get<AuditLogListResponse>("/audit-logs", { params }).then((r) => r.data);
+  },
+  // ===== 出站 webhook 订阅（能力域 1，N2.2）=====
+  // signing_secret 经 Sensitive 恒不回显；create/update 收明文加密落库（updateReq 传空串=清空签名）。
+  listWebhookSubscriptions() {
+    return http.get<WebhookSubscription[]>("/webhook-subscriptions").then((r) => r.data);
+  },
+  createWebhookSubscription(body: {
+    name?: string;
+    url: string;
+    event_types?: string[];
+    signing_secret?: string;
+    enabled?: boolean;
+    team_id?: number;
+  }) {
+    return http.post<WebhookSubscription>("/webhook-subscriptions", body).then((r) => r.data);
+  },
+  updateWebhookSubscription(id: number, body: {
+    name?: string;
+    url?: string;
+    event_types?: string[];
+    signing_secret?: string;
+    enabled?: boolean;
+  }) {
+    return http.patch<WebhookSubscription>(`/webhook-subscriptions/${id}`, body).then((r) => r.data);
+  },
+  deleteWebhookSubscription(id: number) {
+    return http.delete(`/webhook-subscriptions/${id}`).then((r) => r.data);
   },
 };

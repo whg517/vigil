@@ -7,6 +7,7 @@ import { IncidentDetail } from "@/pages/incident-detail";
 import { Oncall } from "@/pages/oncall";
 import { Services } from "@/pages/services";
 import { Integrations } from "@/pages/integrations";
+import { WebhookSubscriptions } from "@/pages/webhook-subscriptions";
 import { TicketIntegrations } from "@/pages/ticket-integrations";
 import { Credentials } from "@/pages/credentials";
 import { EscalationPolicies } from "@/pages/escalation-policies";
@@ -57,6 +58,7 @@ function App() {
         <Route path="oncall" element={<Oncall />} />
         <Route path="services" element={<Services />} />
         <Route path="integrations" element={<Integrations />} />
+        <Route path="webhook-subscriptions" element={<WebhookSubscriptions />} />
         <Route path="ticket-integrations" element={<TicketIntegrations />} />
         <Route path="credentials" element={<Credentials />} />
         <Route path="escalation-policies" element={<EscalationPolicies />} />

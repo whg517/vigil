@@ -11,6 +11,7 @@ export const oncallQk = {
   schedule: (id: number) => ["schedule", id] as const,
   oncall: (id: number, time?: string) => ["oncall", id, time] as const,
   preview: (id: number, days: number) => ["preview", id, days] as const,
+  overrides: (id: number) => ["schedule-overrides", id] as const,
 };
 
 /** useSchedules 排班列表。 */
@@ -81,6 +82,55 @@ export function useDeleteSchedule() {
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : "删除失败";
       toast.error(`排班删除失败：${msg}`);
+    },
+  });
+}
+
+// —— 换班 Override（能力域 5，POST/GET/DELETE /schedules/:id/overrides）——
+
+/** useScheduleOverrides 某排班的换班列表。 */
+export function useScheduleOverrides(scheduleId: number) {
+  return useQuery({
+    queryKey: oncallQk.overrides(scheduleId),
+    queryFn: () => api.listScheduleOverrides(scheduleId),
+    enabled: !!scheduleId,
+  });
+}
+
+/** useCreateScheduleOverride 创建换班（本人换自己班或 admin 指派他人，权限由后端 403 兜底）。 */
+export function useCreateScheduleOverride(scheduleId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Parameters<typeof api.createScheduleOverride>[1]) =>
+      api.createScheduleOverride(scheduleId, body),
+    onSuccess: () => {
+      toast.success("换班已创建");
+      qc.invalidateQueries({ queryKey: oncallQk.overrides(scheduleId) });
+      // 换班改变实时在班人：刷新在班/预览缓存
+      qc.invalidateQueries({ queryKey: ["oncall", scheduleId] });
+      qc.invalidateQueries({ queryKey: ["preview", scheduleId] });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "创建失败";
+      toast.error(`换班创建失败：${msg}`);
+    },
+  });
+}
+
+/** useDeleteScheduleOverride 删除换班。 */
+export function useDeleteScheduleOverride(scheduleId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (overrideId: number) => api.deleteScheduleOverride(scheduleId, overrideId),
+    onSuccess: () => {
+      toast.success("换班已删除");
+      qc.invalidateQueries({ queryKey: oncallQk.overrides(scheduleId) });
+      qc.invalidateQueries({ queryKey: ["oncall", scheduleId] });
+      qc.invalidateQueries({ queryKey: ["preview", scheduleId] });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "删除失败";
+      toast.error(`换班删除失败：${msg}`);
     },
   });
 }

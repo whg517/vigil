@@ -87,3 +87,23 @@ export function useIncidentAction(id: number) {
     },
   });
 }
+
+/**
+ * useMergeIncident 把源事件合并进本单（能力域 3 去重合并，不可逆）。
+ * 成功后：源单被关闭、本单吸并 events/responders；刷新详情/时间线/列表。
+ */
+export function useMergeIncident(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sourceIncidentIds: number[]) => api.mergeIncident(id, sourceIncidentIds),
+    onSuccess: (data) => {
+      toast.success(`已合并事件到 ${data.number}`);
+      qc.setQueryData(qk.incident(id), data);
+      qc.invalidateQueries({ queryKey: qk.timeline(id) });
+      qc.invalidateQueries({ queryKey: ["incidents"] });
+    },
+    onError: () => {
+      // 错误提示由 http 拦截器统一处理（toast）
+    },
+  });
+}

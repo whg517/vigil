@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Brain, Check, ChevronUp, Hand, RotateCcw, Sparkles, X } from "lucide-react";
-import { useIncident, useIncidentAction, useTimeline } from "@/hooks/incidents";
+import { ArrowLeft, Brain, Check, ChevronUp, GitMerge, Hand, RotateCcw, Sparkles, X } from "lucide-react";
+import { useIncident, useIncidentAction, useIncidents, useMergeIncident, useTimeline } from "@/hooks/incidents";
 import { useIncidentWS } from "@/hooks/use-incident-ws";
 import {
   useDiagnoseIncident,
@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SeverityBadge, StatusBadge } from "@/lib/badges";
@@ -40,6 +41,7 @@ export function IncidentDetail() {
 	const { data: inc, isLoading } = useIncident(incId);
   const { data: tl } = useTimeline(incId);
   const action = useIncidentAction(incId);
+  const [merging, setMerging] = useState(false);
 
   if (isLoading) return <DetailSkeleton />;
   if (!inc) {
@@ -129,10 +131,27 @@ export function IncidentDetail() {
               >
                 <Check className="h-4 w-4" /> 解决
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={action.isPending}
+                onClick={() => setMerging(true)}
+              >
+                <GitMerge className="h-4 w-4" /> 合并
+              </Button>
             </>
           )}
         </div>
       </div>
+
+      {/* 合并对话框（能力域 3 去重合并，不可逆）：选源单并入本单 */}
+      {merging && (
+        <MergeDialog
+          incidentId={incId}
+          targetNumber={inc.number}
+          onClose={() => setMerging(false)}
+        />
+      )}
 
       {/* AI 诊断（能力域 11）：根因诊断 + human-in-the-loop 确认 + 相似事件 */}
       <AIDiagnoseCard incidentId={incId} />
@@ -185,6 +204,96 @@ function BackButton({ onClick }: { onClick: () => void }) {
     >
       <ArrowLeft className="h-4 w-4" /> 返回列表
     </button>
+  );
+}
+
+/**
+ * MergeDialog 合并对话框（能力域 3 去重合并，不可逆）。
+ * 勾选一个或多个源事件并入本单：源单被关闭、events/responders 转移到本单。
+ * 候选列表排除本单自身与已关闭/已解决单（这些不适合作为待合并源）。
+ */
+function MergeDialog({
+  incidentId,
+  targetNumber,
+  onClose,
+}: {
+  incidentId: number;
+  targetNumber: string;
+  onClose: () => void;
+}) {
+  const merge = useMergeIncident(incidentId);
+  // 拉取活跃事件作为候选（limit 从大取，前端再过滤本单/已关闭单）。
+  const { data, isLoading } = useIncidents({ limit: 100 });
+  const [selected, setSelected] = useState<number[]>([]);
+
+  const candidates = (data?.items ?? []).filter(
+    (i) => i.id !== incidentId && i.status !== "resolved" && i.status !== "closed",
+  );
+
+  const toggle = (id: number) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const onConfirm = () => {
+    if (selected.length === 0) return;
+    merge.mutate(selected, { onSuccess: onClose });
+  };
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`合并事件到 ${targetNumber}`}
+      description="选中的源事件将并入本单：源单被关闭，其 events/responders 转移到本单。此操作不可逆。"
+    >
+      <div className="space-y-3">
+        <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+          ⚠️ 合并不可逆。源单会被关闭并标记 merged_into 指向本单，请确认选择无误。
+        </div>
+        {isLoading ? (
+          <Skeleton className="h-32 w-full" />
+        ) : candidates.length === 0 ? (
+          <EmptyState title="无可合并的事件" description="没有其他活跃事件可并入本单。" />
+        ) : (
+          <div className="max-h-72 space-y-1 overflow-auto pr-1">
+            {candidates.map((c) => (
+              <label
+                key={c.id}
+                className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm hover:bg-muted/40"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(c.id)}
+                  onChange={() => toggle(c.id)}
+                  className="h-4 w-4"
+                />
+                <span className="font-mono text-xs text-muted-foreground">{c.number}</span>
+                <SeverityBadge severity={c.severity} />
+                <span className="flex-1 truncate">{c.title}</span>
+                <StatusBadge status={c.status} />
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-xs text-muted-foreground">
+            已选 {selected.length} 个源事件
+          </span>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={merge.isPending || selected.length === 0}
+              onClick={onConfirm}
+            >
+              {merge.isPending ? "合并中..." : `确认合并（${selected.length}）`}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

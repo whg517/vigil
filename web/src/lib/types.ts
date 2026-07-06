@@ -142,6 +142,15 @@ export type OncallResult = Required<Schemas["schedule.OncallResult"]>;
 // 预览：日期 → 在班人（schedule.PreviewResult，days 为数组形态）
 export type PreviewResult = Required<Schemas["schedule.PreviewResult"]>;
 
+// —— Schedule Override 换班（schedule.overrideView，能力域 5）——
+// 临时顶替某段值班：本人换自己班或 admin 指派他人。视图含顶替人显示名。
+export type ScheduleOverride = Required<
+  Omit<Schemas["schedule.overrideView"], "reason" | "user_name">
+> & {
+  reason?: string;
+  user_name?: string;
+};
+
 // —— Runbook（ent/schema/runbook.go，能力域 9）——
 export type RunbookType = Schemas["runbook.Type"];
 export type Runbook = Required<
@@ -297,6 +306,17 @@ export type TicketIntegration = Required<
   Omit<Schemas["ent.TicketIntegration"], "edges" | "config">
 > & {
   config?: Record<string, unknown>;
+  team?: { id: number; [k: string]: unknown };
+};
+
+// —— WebhookSubscription 出站 webhook 订阅（ent/schema/webhook_subscription.go，能力域 1 N2.2）——
+// signing_secret 经 Sensitive 恒不回显（list/get 不返），故派生类型无该字段。
+// event_types 为空数组=订阅所有事件类型（不过滤）。
+export type WebhookSubscription = Required<
+  Omit<Schemas["ent.WebhookSubscription"], "edges" | "name" | "event_types">
+> & {
+  name?: string;
+  event_types?: string[];
   team?: { id: number; [k: string]: unknown };
 };
 
