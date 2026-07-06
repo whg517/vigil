@@ -140,11 +140,32 @@ type LLMProvider interface {
 
 | 类型 | Provider | 场景 |
 |------|----------|------|
-| 云端 | OpenAI / 智谱 / 通义 | 效果好，需联网 |
+| 云端 | 智谱 GLM（默认） | 效果好，中文优先，需联网 |
 | 本地 | Ollama | 数据不出境，隐私场景 |
 
 - 配置驱动选择，业务层不感知。
 - **成本控制**：缓存 + 限流 + 配额（详见开放问题）。
+
+> **Provider 选择（实现现状）**：`VIGIL_LLM_PROVIDER` 选 `glm`（默认）或 `ollama`，未知值回退 glm。
+> 装配在 `wire.go` 的 `buildLLMProvider`：按选型构造 `GLMProvider` 或 `OllamaProvider`，外层统一
+> 包 `CostController`（缓存/限流/配额）——两条路径对上层同一 `Provider` 接口，业务层不感知。
+>
+> **Ollama 本地 Provider（`internal/ai/ollama.go`）**：走 Ollama 原生 HTTP 契约（非 OpenAI 兼容层）：
+> · `Complete` → POST `{base_url}/api/chat`（`stream=false`，解析 `.message.content`）
+> · `Embed` → POST `{base_url}/api/embeddings`（解析 `.embedding`）
+> 配置 `VIGIL_LLM_OLLAMA_BASE_URL`（默认 `http://localhost:11434`）、`VIGIL_LLM_OLLAMA_MODEL`
+> （默认 `llama3`）、`VIGIL_LLM_OLLAMA_EMBED_MODEL`（默认 `nomic-embed-text`）。`Available()` 只看
+> base_url 是否配置，本地服务不可达时在调用层报错并降级（与 GLM 同款容错哲学，不在构造期探测）。
+>
+> **⚠️ embed 维度必须与 pgvector 列匹配**：`Incident.embedding` 列是 `vector(1536)`，对齐 GLM
+> `embedding-3`（1536 维）。Ollama 默认 `nomic-embed-text` 是 **768 维**——切到 Ollama embed 前须：
+> 要么把 pgvector 列维度改成与所选 embed 模型一致，要么接受相似检索降级为 LIKE 文本匹配
+> （`diagnose.go` 的 `FindSimilar` 已有该降级路径，维度不符时向量写入/余弦检索不可用）。
+
+> **置信度阈值配置化（Q2）**：AI 建议产出门槛由 `VIGIL_LLM_CONFIDENCE_THRESHOLD`（默认 0.6）控制，
+> 低于此值的 LLM 建议不产出（避免低置信度建议打扰响应者、拉低 AI 可信度）。`wire.go` 装配时把
+> `cfg.LLM.ConfidenceThreshold` 注入 `TriageAIEngine` 与 `CopilotEngine` 的 `SetConfidenceThreshold`
+> （Setter 内部 `<=0 保留默认 0.6`，防误配为 0 使一切建议都产出）。
 
 > **实现现状**：`internal/ai/cost.go` 的 `CostController` 实现 `Provider` 接口包装底层 GLM，
 > Complete 内部按 缓存→限流→配额→真实调用 顺序过三道闸：
@@ -169,6 +190,25 @@ type LLMProvider interface {
 | # | 问题 | 倾向 |
 |---|------|------|
 | Q1 | LLM 成本控制（限流/缓存/配额） | ✅ 已实现：CostController 三道闸（缓存+限流+配额），按 org 维度，无 Redis 降级 |
-| Q2 | AI 建议的置信度阈值（低于多少不展示） | 默认 0.6，可配 |
-| Q3 | 本地模型（Ollama）的效果兜底 | 效果差时降级为规则式，不硬依赖 LLM |
+| Q2 | AI 建议的置信度阈值（低于多少不展示） | ✅ 默认 0.6，`VIGIL_LLM_CONFIDENCE_THRESHOLD` 可配（见 B5） |
+| Q3 | 本地模型（Ollama）的效果兜底 | ✅ Ollama Provider 已实现（`VIGIL_LLM_PROVIDER=ollama`）；效果差时降级为规则式，不硬依赖 LLM |
 | Q4 | 时间线 IM 消息捕获的噪音过滤 | 仅含关键词/命令/标记消息 |
+| Q5 | 智能降噪是否做「自动学习/回训」 | ❌ **不做自动回训**（见下方决策）|
+
+### Q5 决策：智能降噪不做无监督自学习 / 模型回训
+
+**结论：不实现自动回训，保留「人确认沉淀」现状。**
+
+现状闭环（已实现，无需回训即可持续优化）：
+`TriageAIEngine.suggestNoise` 产出降噪建议 → handler resolve accept →
+`diagnose.go` `applyNoiseSuggestion` 把建议沉淀为 `SuppressionRule`；
+`/analytics/ai-feedback` 端点已提供各类建议的采纳率反馈，供人工调优 prompt / 规则。
+
+**为什么不做自动回训**：无监督自学习 / 模型回训会**自动改变模型或规则行为**，
+这与项目设计基线第 4 条「AI 产出带 evidence + human-in-the-loop」**直接冲突**——
+自动改判绕过了人确认这道闸。降噪规则一旦被 AI 自动收紧，可能把真实告警误抑制，
+且无人为此负责。因此本期只做「AI 建议 → 人确认 → 沉淀为显式规则」，不做任何
+自动改变模型/规则行为的代码。
+
+**未来若要做**：须作为独立能力单独评审，且必须保留人的否决权（建议先影子运行、
+人工审阅采纳率与误抑制样本后再灰度，绝不无人值守地自动生效）。

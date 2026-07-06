@@ -291,14 +291,30 @@ type Voice struct {
 	From       string `envconfig:"from"`        // 主叫/发件标识（可选）
 }
 
-// LLM 配置（智谱 GLM）。APIKey 为空时 AI 功能自动降级（设计基线第 7 条）。
+// LLM 配置（云端智谱 GLM / 本地 Ollama）。APIKey/BaseURL 缺失时 AI 功能自动降级（设计基线第 7 条）。
 // ⚠️ Key 仅从环境变量读取，绝不硬编码/提交 git。
 type LLM struct {
-	APIKey  string `envconfig:"api_key"`                                                 // 智谱 API Key（VIGIL_LLM_API_KEY）
-	Model   string `envconfig:"model" default:"glm-4-flash"`                             // 模型，glm-4-flash 轻量低成本
-	BaseURL string `envconfig:"base_url" default:"https://open.bigmodel.cn/api/paas/v4"` // 智谱 OpenAPI 根
+	// Provider 选择 LLM 提供方："glm"（云端，默认）| "ollama"（本地，数据不出境）。
+	// VIGIL_LLM_PROVIDER。未知值回退到 glm。
+	Provider string `envconfig:"provider" default:"glm"`
+	APIKey   string `envconfig:"api_key"`                                                 // 智谱 API Key（VIGIL_LLM_API_KEY）
+	Model    string `envconfig:"model" default:"glm-4-flash"`                             // GLM 模型，glm-4-flash 轻量低成本
+	BaseURL  string `envconfig:"base_url" default:"https://open.bigmodel.cn/api/paas/v4"` // 智谱 OpenAPI 根
+	// ConfidenceThreshold AI 建议产出置信度门槛（低于此值不产建议，见 capabilities/07 Q2）。
+	// 默认 0.6，可经 VIGIL_LLM_CONFIDENCE_THRESHOLD 覆盖；<=0 时各引擎 Setter 内部保留默认。
+	ConfidenceThreshold float32 `envconfig:"confidence_threshold" default:"0.6"`
+	// Ollama 本地 Provider 子配置（Provider=="ollama" 时生效）。VIGIL_LLM_OLLAMA_*。
+	Ollama LLMOllama `envconfig:"ollama"`
 	// Cost LLM 成本控制（能力域 11，缓存/限流/配额）。无 Redis 时全部降级跳过。
 	Cost LLMCost `envconfig:"cost"`
+}
+
+// LLMOllama 本地 Ollama Provider 配置（M11.10：隐私场景数据不出境）。
+// ⚠️ EmbedModel 维度须与 pgvector 列（vector(1536)）匹配，否则相似检索降级为文本匹配。
+type LLMOllama struct {
+	BaseURL    string `envconfig:"base_url" default:"http://localhost:11434"` // Ollama 服务根，空=禁用
+	Model      string `envconfig:"model" default:"llama3"`                    // 补全模型
+	EmbedModel string `envconfig:"embed_model" default:"nomic-embed-text"`    // embedding 模型（768 维，注意 pgvector 匹配）
 }
 
 // LLMCost LLM 成本控制配置（capabilities/07 §B5 Q1）。

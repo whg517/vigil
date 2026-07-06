@@ -81,9 +81,17 @@ VIGIL_IM_ONCALL_CHANNEL=
 ### 3.3 LLM / AI（能力域 11，按需配）
 
 ```bash
+VIGIL_LLM_PROVIDER=glm                 # 提供方：glm（云端，默认）| ollama（本地，数据不出境）
+# --- 云端智谱 GLM（Provider=glm 时生效）---
 VIGIL_LLM_API_KEY=                     # 智谱 API Key，空则 AI 降级
 VIGIL_LLM_MODEL=glm-4-flash
-# 成本控制（缓存/限流/配额）
+# --- 本地 Ollama（Provider=ollama 时生效，隐私场景数据不出境）---
+VIGIL_LLM_OLLAMA_BASE_URL=http://localhost:11434
+VIGIL_LLM_OLLAMA_MODEL=llama3
+VIGIL_LLM_OLLAMA_EMBED_MODEL=nomic-embed-text  # ⚠️ 768 维；pgvector 列为 1536 维，维度不符则相似检索降级为 LIKE 文本匹配
+# --- AI 建议置信度门槛 ---
+VIGIL_LLM_CONFIDENCE_THRESHOLD=0.6     # 低于此值的 AI 建议不产出（防低置信度打扰）
+# 成本控制（缓存/限流/配额，两种 Provider 通用）
 VIGIL_LLM_COST_CACHE_TTL_SECONDS=3600
 VIGIL_LLM_COST_RATE_LIMIT_PER_MIN=0    # 0=不限
 VIGIL_LLM_COST_TOKEN_QUOTA=0           # 0=不限

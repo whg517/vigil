@@ -456,10 +456,10 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	timelineH.SetScopeResolver(scopeResolver)
 	timelineH.Register(v1)
 	// 复盘（能力域 12）+ AI 诊断（能力域 11）：共享 GLM provider（成本控制包装）。
-	glmProvider := buildGLMProvider(cfg, log, st)
-	postmortemEngine := postmortem.NewEngine(st.DB, postmortemLLM(glmProvider, log))
-	if glmProvider.Available() {
-		postmortemEngine.SetEmbedder(glmProvider) // 知识沉淀：published 复盘计算 embedding
+	llmProvider := buildLLMProvider(cfg, log, st)
+	postmortemEngine := postmortem.NewEngine(st.DB, postmortemLLM(llmProvider, log))
+	if llmProvider.Available() {
+		postmortemEngine.SetEmbedder(llmProvider) // 知识沉淀：published 复盘计算 embedding
 	}
 	// 复盘发布 → 关联 incident 推进到 closed 终态（收口闭环）。
 	// 走 incService.Close（同一状态机/时间线/领域事件），复盘不反向依赖 incident 包。
@@ -521,7 +521,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	webhookSubH.SetScopeResolver(scopeResolver)
 	webhookSubH.SetAuditRecorder(auditRecorder) // 订阅配置变更留痕（只记元数据）
 	webhookSubH.Register(v1)
-	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)
+	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, llmProvider)
 	aiDiagEngine.SetRecorder(timelineRecorder) // 诊断产出 AI 洞察后写 ai_insight 时间线（原先零写入）
 	// M3.5/M3.6：dedup_suggestion accept 时经此把候选单真正合并进本单（置 applied）。
 	// 走 incService.Merge（同一状态机/时间线/审计），ai 不反向依赖 incident 包。
@@ -531,18 +531,20 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	}
 	// T3.2 分诊 AI：与诊断链共享 GLM provider + 时间线记录器，复用相似检索（dedup 建议）。
 	// 建单后异步触发（不阻塞分诊），也经 POST /incidents/:id/triage-ai 手动触发。
-	triageAIEngine := ai.NewTriageAIEngine(st.DB, glmProvider)
-	triageAIEngine.SetRecorder(timelineRecorder)  // 产出建议后写 ai_insight 时间线
-	triageAIEngine.SetSimilarFinder(aiDiagEngine) // dedup 建议复用诊断链的 pgvector/LIKE 相似检索
+	triageAIEngine := ai.NewTriageAIEngine(st.DB, llmProvider)
+	triageAIEngine.SetRecorder(timelineRecorder)                       // 产出建议后写 ai_insight 时间线
+	triageAIEngine.SetSimilarFinder(aiDiagEngine)                      // dedup 建议复用诊断链的 pgvector/LIKE 相似检索
+	triageAIEngine.SetConfidenceThreshold(cfg.LLM.ConfidenceThreshold) // 置信度门槛配置化（<=0 保留默认 0.6）
 	// 注入分诊引擎：新建 Incident 后异步跑 severity/dedup 建议（analyzer 内部 LLM 不可用自行降级）。
 	triageEngine.SetAIAnalyzer(triageAIAnalyzerAdapter{e: triageAIEngine})
 
 	// T3.3 处置 Copilot：与诊断链共享 GLM provider + 时间线记录器，复用相似检索（runbook 推荐）。
 	// 经 POST /incidents/:id/ai-copilot 手动触发。★ 安全红线：推荐仅呈现/高亮，accept 不触发执行——
 	// 执行仍走 Runbook 两档安全（写操作 require_approval），AI 推荐不绕过审批。
-	copilotEngine := ai.NewCopilotEngine(st.DB, glmProvider)
-	copilotEngine.SetRecorder(timelineRecorder)  // 产出建议后写 ai_insight 时间线
-	copilotEngine.SetSimilarFinder(aiDiagEngine) // runbook 推荐复用诊断链的相似检索（取历史处置痕迹）
+	copilotEngine := ai.NewCopilotEngine(st.DB, llmProvider)
+	copilotEngine.SetRecorder(timelineRecorder)                       // 产出建议后写 ai_insight 时间线
+	copilotEngine.SetSimilarFinder(aiDiagEngine)                      // runbook 推荐复用诊断链的相似检索（取历史处置痕迹）
+	copilotEngine.SetConfidenceThreshold(cfg.LLM.ConfidenceThreshold) // 置信度门槛配置化（<=0 保留默认 0.6）
 
 	aiH := ai.NewHandler(aiDiagEngine)
 	aiH.SetTriageAI(triageAIEngine) // 启用手动触发端点（T3.2）
@@ -846,20 +848,31 @@ func buildCredentialCipher(cfg *config.Config, log *zap.Logger) *crypto.Cipher {
 	return c
 }
 
-// buildGLMProvider 构造 GLM LLM provider（含成本控制包装：缓存/限流/配额）。
-// 无 Redis 时成本控制降级为透传（仅保证调用可达）。
-func buildGLMProvider(cfg *config.Config, log *zap.Logger, st *store.Store) ai.Provider {
-	p := ai.Provider(ai.NewGLMProvider(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.BaseURL))
-	p = ai.NewCostController(p, st.Redis, "org:default", ai.CostConfig{
+// buildLLMProvider 按 cfg.LLM.Provider 构造 LLM provider（glm 云端 / ollama 本地），
+// 外层统一包成本控制（缓存/限流/配额）。无 Redis 时成本控制降级为透传（仅保证调用可达）。
+// 未知 Provider 值回退到 glm，保持向后兼容。
+func buildLLMProvider(cfg *config.Config, log *zap.Logger, st *store.Store) ai.Provider {
+	var base ai.Provider
+	var kind string
+	switch cfg.LLM.Provider {
+	case "ollama":
+		// 本地 Ollama：数据不出境。⚠️ embed 维度须与 pgvector 列匹配（见 config LLMOllama 注释）。
+		base = ai.NewOllamaProvider(cfg.LLM.Ollama.BaseURL, cfg.LLM.Ollama.Model, cfg.LLM.Ollama.EmbedModel)
+		kind = "ollama"
+	default:
+		base = ai.NewGLMProvider(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.BaseURL)
+		kind = "glm"
+	}
+	p := ai.NewCostController(base, st.Redis, "org:default", ai.CostConfig{
 		CacheTTL:        time.Duration(cfg.LLM.Cost.CacheTTLSeconds) * time.Second,
 		DisableCache:    cfg.LLM.Cost.DisableCache,
 		RateLimitPerMin: cfg.LLM.Cost.RateLimitPerMin,
 		TokenQuota:      cfg.LLM.Cost.TokenQuota,
 	})
 	if p.Available() {
-		log.Info("ai llm ready (glm)")
+		log.Info("ai llm ready (" + kind + ")")
 	} else {
-		log.Info("ai llm disabled (no api key), postmortem uses fallback drafts")
+		log.Info("ai llm disabled (provider not configured), postmortem uses fallback drafts")
 	}
 	return p
 }
