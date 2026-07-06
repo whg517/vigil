@@ -74,6 +74,8 @@ type Tx struct {
 	User *UserClient
 	// WebhookDelivery is the client for interacting with the WebhookDelivery builders.
 	WebhookDelivery *WebhookDeliveryClient
+	// WebhookSubscription is the client for interacting with the WebhookSubscription builders.
+	WebhookSubscription *WebhookSubscriptionClient
 
 	// lazily loaded.
 	client     *Client
@@ -236,6 +238,7 @@ func (tx *Tx) init() {
 	tx.TimelineItem = NewTimelineItemClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 	tx.WebhookDelivery = NewWebhookDeliveryClient(tx.config)
+	tx.WebhookSubscription = NewWebhookSubscriptionClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

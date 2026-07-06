@@ -2547,6 +2547,14 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "webhook_subscriptions": {
+                        "description": "WebhookSubscriptions holds the value of the webhook_subscriptions edge.",
+                        "items": {
+                            "$ref": "#/components/schemas/ent.WebhookSubscription"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -2777,6 +2785,55 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "ent.WebhookSubscription": {
+                "properties": {
+                    "created_at": {
+                        "description": "CreatedAt holds the value of the \"created_at\" field.",
+                        "type": "string"
+                    },
+                    "edges": {
+                        "$ref": "#/components/schemas/ent.WebhookSubscriptionEdges"
+                    },
+                    "enabled": {
+                        "description": "Enabled holds the value of the \"enabled\" field.",
+                        "type": "boolean"
+                    },
+                    "event_types": {
+                        "description": "订阅的事件类型，空=所有",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "id": {
+                        "description": "ID of the ent.",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "description": "订阅名（管理识别用）",
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "description": "UpdatedAt holds the value of the \"updated_at\" field.",
+                        "type": "string"
+                    },
+                    "url": {
+                        "description": "出站目标 URL",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "ent.WebhookSubscriptionEdges": {
+                "description": "Edges holds the relations/edges for other nodes in the graph.\nThe values are being populated by the WebhookSubscriptionQuery when eager-loading is set.",
+                "properties": {
+                    "team": {
+                        "$ref": "#/components/schemas/ent.Team"
                     }
                 },
                 "type": "object"
@@ -4804,6 +4861,37 @@
                     "StatusDisabled"
                 ]
             },
+            "webhook.createReq": {
+                "properties": {
+                    "enabled": {
+                        "description": "缺省视为 true",
+                        "type": "boolean"
+                    },
+                    "event_types": {
+                        "description": "空=所有事件类型",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "signing_secret": {
+                        "description": "明文签名密钥，加密后落库，永不回显",
+                        "type": "string"
+                    },
+                    "team_id": {
+                        "description": "0=org 级",
+                        "type": "integer"
+                    },
+                    "url": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "webhook.deliveryView": {
                 "properties": {
                     "attempts": {
@@ -4854,6 +4942,31 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "webhook.updateReq": {
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "event_types": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "signing_secret": {
+                        "description": "传则更新（重加密）；空字符串=清空密钥（停用签名）",
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -13867,6 +13980,255 @@
                     }
                 ],
                 "summary": "重放出站 webhook 投递",
+                "tags": [
+                    "webhook"
+                ]
+            }
+        },
+        "/webhook-subscriptions": {
+            "get": {
+                "description": "按 team 数据隔离返回动态出站订阅；signing_secret 不回显。",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ent.WebhookSubscription"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "出站 webhook 订阅列表",
+                "tags": [
+                    "webhook"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/webhook.createReq",
+                                        "description": "订阅（含明文 signing_secret，加密存储）",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "订阅（含明文 signing_secret，加密存储）",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.WebhookSubscription"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "创建出站 webhook 订阅",
+                "tags": [
+                    "webhook"
+                ]
+            }
+        },
+        "/webhook-subscriptions/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "订阅 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "删除出站 webhook 订阅",
+                "tags": [
+                    "webhook"
+                ]
+            },
+            "get": {
+                "parameters": [
+                    {
+                        "description": "订阅 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.WebhookSubscription"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "出站 webhook 订阅详情",
+                "tags": [
+                    "webhook"
+                ]
+            },
+            "patch": {
+                "parameters": [
+                    {
+                        "description": "订阅 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/webhook.updateReq",
+                                        "description": "更新字段",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "更新字段",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ent.WebhookSubscription"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "更新出站 webhook 订阅",
                 "tags": [
                     "webhook"
                 ]

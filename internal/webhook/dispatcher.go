@@ -61,18 +61,51 @@ type DeliveryRecord struct {
 	LastStatusCode int
 }
 
+// SubscriptionResolver 出站动态订阅解析器（N2.2）。dispatcher 出站时查 DB 活跃订阅，
+// 与 env 静态订阅合并投递。由装配层用 ent 实现（EntSubscriptionResolver），nil 时只用 env（向后兼容）。
+//
+// 全部 best-effort：解析失败只应记日志/返回空，绝不阻塞出站主流程（出站本就是 best-effort 语义）。
+type SubscriptionResolver interface {
+	// Resolve 返回当前活跃（enabled）的动态订阅目标列表。
+	Resolve(ctx context.Context) []Subscription
+}
+
+// Subscription 一条动态订阅目标（N2.2）：URL + 事件类型过滤 + 独立签名密钥。
+type Subscription struct {
+	URL string
+	// EventTypes 订阅的事件类型（如 incident.created）。空=订阅所有事件类型（不过滤）。
+	EventTypes []string
+	// SigningSecret 该订阅独立的出站签名密钥（HMAC-SHA256）。空=该订阅出站不签名。
+	SigningSecret string
+}
+
+// matches 判断该订阅是否订阅了 eventName（EventTypes 为空=订阅全部）。
+func (s Subscription) matches(eventName string) bool {
+	if len(s.EventTypes) == 0 {
+		return true
+	}
+	for _, t := range s.EventTypes {
+		if t == eventName {
+			return true
+		}
+	}
+	return false
+}
+
 // Dispatcher Webhook 出口分发器。
 type Dispatcher struct {
-	urls   []string // 订阅 URL 列表（配置式）
+	urls   []string // env 静态订阅 URL 列表（VIGIL_WEBHOOK_OUT_URLS，配置式）
 	client *http.Client
 	wg     sync.WaitGroup // 跟踪在途推送 goroutine，供 Close 等待
-	// signingSecret 出站签名密钥（S13）。空=不签名（向后兼容）。
+	// signingSecret env 静态订阅的全局出站签名密钥（S13）。空=env 订阅不签名（向后兼容）。
 	signingSecret string
 	// recorder 出站投递记录器（C24 死信）。nil=不记录（向后兼容/测试桩）。
 	recorder DeliveryRecorder
+	// subs 动态订阅解析器（N2.2）。nil=只用 env 静态订阅（向后兼容）。
+	subs SubscriptionResolver
 }
 
-// NewDispatcher 创建分发器。urls 为订阅 URL 列表（空则不推送）。
+// NewDispatcher 创建分发器。urls 为 env 静态订阅 URL 列表（空则仅靠动态订阅推送）。
 func NewDispatcher(urls []string) *Dispatcher {
 	return &Dispatcher{
 		urls:   urls,
@@ -80,23 +113,33 @@ func NewDispatcher(urls []string) *Dispatcher {
 	}
 }
 
-// SetSigningSecret 设置出站签名密钥（S13）。空串=不签名（向后兼容既有订阅端）。
+// SetSigningSecret 设置 env 静态订阅的全局出站签名密钥（S13）。空串=不签名（向后兼容既有订阅端）。
 func (d *Dispatcher) SetSigningSecret(secret string) { d.signingSecret = secret }
 
 // SetDeliveryRecorder 注入出站投递记录器（C24 死信）。nil=不记录。
 func (d *Dispatcher) SetDeliveryRecorder(r DeliveryRecorder) { d.recorder = r }
 
-// HasSubscriptions 是否有订阅（无则跳过，避免无谓开销）。
+// SetSubscriptionResolver 注入动态订阅解析器（N2.2）。nil=只用 env 静态订阅。
+func (d *Dispatcher) SetSubscriptionResolver(r SubscriptionResolver) { d.subs = r }
+
+// HasSubscriptions 是否有 env 静态订阅（无则该源跳过；动态订阅在出站时实时查，不计入此判定）。
 func (d *Dispatcher) HasSubscriptions() bool { return len(d.urls) > 0 }
 
 // OnIncidentChanged 实现 incident 变更回调（供 incident.Service.SetOnIncidentChanged 注入）。
-// 真异步推送：每个 URL 独立 goroutine，使用独立 context（脱离请求 ctx，
+// 真异步推送：每个目标独立 goroutine，使用独立 context（脱离请求 ctx，
 // 避免请求结束 ctx 取消导致推送中断）。返回不等待推送完成，由 Close() 等待。
-func (d *Dispatcher) OnIncidentChanged(_ context.Context, inc *ent.Incident, action incident.Action) {
-	if !d.HasSubscriptions() {
+//
+// N2.2：合并 env 静态订阅（全局签名密钥）与 DB 动态订阅（按事件类型过滤 + 每订阅独立签名密钥）。
+// 向后兼容：无动态订阅解析器时退化为仅 env 静态订阅（原行为）。
+func (d *Dispatcher) OnIncidentChanged(ctx context.Context, inc *ent.Incident, action incident.Action) {
+	eventName := fmt.Sprintf("incident.%s", action)
+
+	// 合并投递目标：env 静态（全局密钥，不过滤事件类型） + DB 动态（按事件类型过滤，独立密钥）。
+	targets := d.resolveTargets(ctx, eventName)
+	if len(targets) == 0 {
 		return
 	}
-	eventName := fmt.Sprintf("incident.%s", action)
+
 	payload := map[string]any{
 		"event":       eventName,
 		"incident_id": inc.ID,
@@ -109,15 +152,51 @@ func (d *Dispatcher) OnIncidentChanged(_ context.Context, inc *ent.Incident, act
 	}
 	body, _ := json.Marshal(payload)
 
-	// 每个 URL 独立 goroutine 推送，wg 跟踪以便 Close 等待
-	for _, u := range d.urls {
+	// 每个目标独立 goroutine 推送，wg 跟踪以便 Close 等待
+	for _, tgt := range targets {
 		d.wg.Add(1)
-		go func(url string) {
+		go func(t deliveryTarget) {
 			defer d.wg.Done()
 			// 用独立 context.Background()，不被请求生命周期绑定
-			d.push(context.Background(), url, eventName, inc.ID, body)
-		}(u)
+			d.push(context.Background(), t, eventName, inc.ID, body)
+		}(tgt)
 	}
+}
+
+// deliveryTarget 一个出站投递目标：URL + 该目标的签名密钥（env 用全局密钥，动态订阅用各自密钥）。
+type deliveryTarget struct {
+	url    string
+	secret string
+}
+
+// resolveTargets 合并 env 静态订阅与 DB 动态订阅为本次事件的投递目标列表。
+//   - env 静态订阅：全部投递（不按事件类型过滤，向后兼容全量语义），用全局 signingSecret。
+//   - DB 动态订阅：按 eventName 过滤（EventTypes 为空=全部），用各订阅独立 SigningSecret。
+//
+// 去重：同一 URL 若既在 env 又在动态订阅命中，只投递一次（以先出现的 env 目标为准），
+// 避免重复投递同一订阅端。
+func (d *Dispatcher) resolveTargets(ctx context.Context, eventName string) []deliveryTarget {
+	seen := make(map[string]bool)
+	var targets []deliveryTarget
+	// env 静态订阅（全局密钥）。
+	for _, u := range d.urls {
+		if seen[u] {
+			continue
+		}
+		seen[u] = true
+		targets = append(targets, deliveryTarget{url: u, secret: d.signingSecret})
+	}
+	// DB 动态订阅（按事件类型过滤 + 独立密钥）。
+	if d.subs != nil {
+		for _, s := range d.subs.Resolve(ctx) {
+			if s.URL == "" || seen[s.URL] || !s.matches(eventName) {
+				continue
+			}
+			seen[s.URL] = true
+			targets = append(targets, deliveryTarget{url: s.URL, secret: s.SigningSecret})
+		}
+	}
+	return targets
 }
 
 // OnIncidentEvent 领域事件适配：收到 incident 变更事件时转发给 OnIncidentChanged。
@@ -135,15 +214,16 @@ func (d *Dispatcher) Close() {
 	d.wg.Wait()
 }
 
-// push 推送单个 URL（含重试）。全部重试失败进死信（若配置了 recorder）。
-func (d *Dispatcher) push(ctx context.Context, url, eventName string, incidentID int, body []byte) {
+// push 推送单个目标（含重试）。全部重试失败进死信（若配置了 recorder）。
+// tgt.secret 为该目标的签名密钥（env 用全局密钥，动态订阅用各自密钥），空则该目标出站不签名。
+func (d *Dispatcher) push(ctx context.Context, tgt deliveryTarget, eventName string, incidentID int, body []byte) {
 	const maxRetries = 3
 	var lastErr error
 	lastStatus := 0
 	attempts := 0
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		attempts++
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, tgt.url, bytes.NewReader(body))
 		if err != nil {
 			lastErr = err
 			continue
@@ -151,7 +231,7 @@ func (d *Dispatcher) push(ctx context.Context, url, eventName string, incidentID
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", "Vigil-Webhook/1.0")
 		// S13：非空密钥时加签名头（时间戳 + body 一同签，接收端验源 + 防重放）。
-		d.sign(req, body)
+		signRequest(req, tgt.secret, body)
 		resp, err := d.client.Do(req)
 		if err != nil {
 			lastErr = err
@@ -166,7 +246,7 @@ func (d *Dispatcher) push(ctx context.Context, url, eventName string, incidentID
 		lastStatus = resp.StatusCode
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			metrics.NotificationsSent.WithLabelValues("webhook_out", "success").Inc()
-			d.record(ctx, url, eventName, incidentID, body, true, attempts, "", lastStatus)
+			d.record(ctx, tgt.url, eventName, incidentID, body, true, attempts, "", lastStatus)
 			return
 		}
 		lastErr = fmt.Errorf("status %d", resp.StatusCode)
@@ -177,7 +257,7 @@ func (d *Dispatcher) push(ctx context.Context, url, eventName string, incidentID
 	if lastErr != nil {
 		errStr = lastErr.Error()
 	}
-	d.record(ctx, url, eventName, incidentID, body, false, attempts, errStr, lastStatus)
+	d.record(ctx, tgt.url, eventName, incidentID, body, false, attempts, errStr, lastStatus)
 }
 
 // SendResult 单次同步投递的结果（供重放端点判定成功/失败并回写记录）。
@@ -198,7 +278,8 @@ func (d *Dispatcher) SendOnce(ctx context.Context, url string, body []byte) Send
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "Vigil-Webhook/1.0")
-	d.sign(req, body)
+	// 重放沿用全局签名密钥（重放的是 env 静态订阅的死信；动态订阅 payload 也用同一算法）。
+	signRequest(req, d.signingSecret, body)
 	resp, err := d.client.Do(req)
 	if err != nil {
 		return SendResult{Err: err}
@@ -213,16 +294,17 @@ func (d *Dispatcher) SendOnce(ctx context.Context, url string, body []byte) Send
 	return SendResult{Success: ok, StatusCode: resp.StatusCode}
 }
 
-// sign 给请求加 HMAC-SHA256 签名头（S13）。空密钥时 no-op（向后兼容）。
+// signRequest 给请求加 HMAC-SHA256 签名头（S13）。空密钥时 no-op（向后兼容）。
+// 密钥参数化：env 静态订阅用全局密钥，动态订阅用各自密钥（N2.2），各目标独立签名。
 //
 // 签名基串 = timestamp + "." + body：把时间戳纳入签名，使接收端能在验签同时判定时效
 // （拒绝超出容忍窗口的旧请求 → 防重放）。签名值为 hex 编码，头名见 HeaderSignature/HeaderTimestamp。
-func (d *Dispatcher) sign(req *http.Request, body []byte) {
-	if d.signingSecret == "" {
+func signRequest(req *http.Request, secret string, body []byte) {
+	if secret == "" {
 		return
 	}
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
-	mac := hmac.New(sha256.New, []byte(d.signingSecret))
+	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(ts))
 	mac.Write([]byte("."))
 	mac.Write(body)

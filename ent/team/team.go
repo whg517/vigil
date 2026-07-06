@@ -52,6 +52,8 @@ const (
 	EdgeTicketIntegrations = "ticket_integrations"
 	// EdgeCredentials holds the string denoting the credentials edge name in mutations.
 	EdgeCredentials = "credentials"
+	// EdgeWebhookSubscriptions holds the string denoting the webhook_subscriptions edge name in mutations.
+	EdgeWebhookSubscriptions = "webhook_subscriptions"
 	// EdgeSubscriptions holds the string denoting the subscriptions edge name in mutations.
 	EdgeSubscriptions = "subscriptions"
 	// EdgeMetricsSnapshots holds the string denoting the metrics_snapshots edge name in mutations.
@@ -145,6 +147,13 @@ const (
 	CredentialsInverseTable = "credentials"
 	// CredentialsColumn is the table column denoting the credentials relation/edge.
 	CredentialsColumn = "team_credentials"
+	// WebhookSubscriptionsTable is the table that holds the webhook_subscriptions relation/edge.
+	WebhookSubscriptionsTable = "webhook_subscriptions"
+	// WebhookSubscriptionsInverseTable is the table name for the WebhookSubscription entity.
+	// It exists in this package in order to avoid circular dependency with the "webhooksubscription" package.
+	WebhookSubscriptionsInverseTable = "webhook_subscriptions"
+	// WebhookSubscriptionsColumn is the table column denoting the webhook_subscriptions relation/edge.
+	WebhookSubscriptionsColumn = "team_webhook_subscriptions"
 	// SubscriptionsTable is the table that holds the subscriptions relation/edge.
 	SubscriptionsTable = "subscriptions"
 	// SubscriptionsInverseTable is the table name for the Subscription entity.
@@ -422,6 +431,20 @@ func ByCredentials(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByWebhookSubscriptionsCount orders the results by webhook_subscriptions count.
+func ByWebhookSubscriptionsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newWebhookSubscriptionsStep(), opts...)
+	}
+}
+
+// ByWebhookSubscriptions orders the results by webhook_subscriptions terms.
+func ByWebhookSubscriptions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newWebhookSubscriptionsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // BySubscriptionsCount orders the results by subscriptions count.
 func BySubscriptionsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -538,6 +561,13 @@ func newCredentialsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(CredentialsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, CredentialsTable, CredentialsColumn),
+	)
+}
+func newWebhookSubscriptionsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(WebhookSubscriptionsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, WebhookSubscriptionsTable, WebhookSubscriptionsColumn),
 	)
 }
 func newSubscriptionsStep() *sqlgraph.Step {

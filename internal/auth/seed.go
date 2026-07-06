@@ -47,6 +47,8 @@ var builtinRoles = []struct {
 			"ticket_integration.view", "ticket_integration.create", "ticket_integration.update", "ticket_integration.delete",
 			// Runbook 执行器加密托管凭据（T6.3/S16，团队级配置）
 			"credential.view", "credential.create", "credential.update", "credential.delete",
+			// 出站 webhook 动态订阅（N2.2，团队级配置——替代/补充 env 静态订阅）
+			"webhook_subscription.view", "webhook_subscription.create", "webhook_subscription.update", "webhook_subscription.delete",
 			// 排班/升级（含换他人班：schedule.override，C5/M5.3）
 			"schedule.view", "schedule.create", "schedule.update", "schedule.delete", "schedule.override",
 			"escalation.view", "escalation.create", "escalation.update", "escalation.delete",

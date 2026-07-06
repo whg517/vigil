@@ -27,6 +27,9 @@ import (
 	"github.com/kevin/vigil/ent/notificationrule"
 	"github.com/kevin/vigil/ent/role"
 	"github.com/kevin/vigil/ent/rolebinding"
+	entrunbook "github.com/kevin/vigil/ent/runbook"
+	entservice "github.com/kevin/vigil/ent/service"
+	entteam "github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/ai"
 	"github.com/kevin/vigil/internal/analytics"
@@ -229,6 +232,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	})
 	// S9：IM 越权拒绝落审计（IM 是主交互面，越权探测须与 Web 同样留痕）。
 	imHandler := im.NewHandler(st.DB, imRegistry, imMapper, authz, incService, imRenderer, imCards, auditRecorder)
+	// M8.5 斜杠命令 /vigil oncall：注入排班值班解析器（schedEngine 已在前文构造）。
+	imHandler.SetOncallResolver(imOncallResolver{engine: schedEngine, db: st.DB})
+	// M8.5 /vigil runbook 的执行引擎在下方 runbook 装配处注入（runbookEngine 尚未构造）。
 	// IM 也作为 notification 通道（升级通知走 IM 卡片送达，IM-first 闭环）。
 	notifReg := notifier.Registry() // 注册 IMChannel 到同一 registry（晚注册也能生效，notifier 实时查）
 	// FIX-H：OncallChannel 可能仍是占位配置（如 "# 值班群 chat_id..."），
@@ -428,6 +434,8 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// 并发保护（C.5.1 / audit S10）：(runbook, incident) 维度执行锁，防连点/并发重复触发写步骤。
 	// 无 Redis 时降级为无锁（TTL 用默认兜底值）。
 	runbookEngine.SetRedis(st.Redis, 0)
+	// M8.5 /vigil runbook 斜杠命令：把执行引擎注入 IM handler（approved 恒 false，IM 内不放行写操作）。
+	imHandler.SetRunbookTrigger(imRunbookTrigger{engine: runbookEngine, db: st.DB})
 	runbookH := runbook.NewHandler(st.DB, runbookEngine)
 	runbookH.SetAuthorizer(authz)
 	runbookH.SetScopeResolver(scopeResolver)
@@ -501,6 +509,15 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	credentialH.SetScopeResolver(scopeResolver)
 	credentialH.SetAuditRecorder(auditRecorder) // 凭据配置变更留痕（只记元数据）
 	credentialH.Register(v1)
+	// N2.2 出站 webhook 动态订阅：CRUD 管理端点 + 把动态订阅解析器注入 dispatcher（env + DB 合并投递）。
+	// signing_secret 与凭据同源密钥（credCipher）加密存储、出站前解密。
+	webhookDisp.SetSubscriptionResolver(webhook.NewEntSubscriptionResolver(st.DB, credCipher))
+	webhookSubH := webhook.NewSubscriptionHandler(st.DB)
+	webhookSubH.SetCipher(credCipher) // signing_secret 加密存储
+	webhookSubH.SetAuthorizer(authz)
+	webhookSubH.SetScopeResolver(scopeResolver)
+	webhookSubH.SetAuditRecorder(auditRecorder) // 订阅配置变更留痕（只记元数据）
+	webhookSubH.Register(v1)
 	aiDiagEngine := ai.NewDiagnoseEngine(st.DB, glmProvider)
 	aiDiagEngine.SetRecorder(timelineRecorder) // 诊断产出 AI 洞察后写 ai_insight 时间线（原先零写入）
 	// M3.5/M3.6：dedup_suggestion accept 时经此把候选单真正合并进本单（置 applied）。
@@ -1089,6 +1106,119 @@ func (r runbookEscalator) Trigger(ctx context.Context, incID int, reason string,
 	return err
 }
 
+// imRunbookTrigger 把 *runbook.Engine 适配成 im.RunbookTrigger（M8.5 /vigil runbook 命令）。
+// im 包不反向依赖 runbook 包，经接口注入解耦（与 incidentMerger 同款）。
+// ★ 安全：Execute 透传 approved（IM 侧恒 false → 写步骤被审批闸门阻断，不在 IM 内放行）。
+type imRunbookTrigger struct {
+	engine *runbook.Engine
+	db     *ent.Client
+}
+
+func (t imRunbookTrigger) Execute(ctx context.Context, runbookID, incID int, approved bool, actorID int) (*im.RunbookRunResult, error) {
+	res, err := t.engine.Execute(ctx, runbookID, incID, approved, actorID)
+	if err != nil {
+		return nil, err
+	}
+	out := &im.RunbookRunResult{
+		PendingApproval: res.PendingApproval,
+		Aborted:         res.Aborted,
+		Reason:          res.Reason,
+	}
+	for _, s := range res.Steps {
+		label := "✅"
+		switch {
+		case s.Skipped:
+			label = "⏸ 待审批"
+		case !s.Success:
+			label = "❌"
+		}
+		out.StepSummaries = append(out.StepSummaries, fmt.Sprintf("%s %s", label, s.Name))
+	}
+	return out, nil
+}
+
+func (t imRunbookTrigger) LookupByName(ctx context.Context, name string) (int, int, error) {
+	rb, err := t.db.Runbook.Query().Where(entrunbook.NameEQ(name)).WithTeam().Only(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	teamID := 0
+	if rb.Edges.Team != nil {
+		teamID = rb.Edges.Team.ID
+	}
+	return rb.ID, teamID, nil
+}
+
+// imOncallResolver 把 *schedule.Engine + team/service 解析适配成 im.OncallResolver
+// （M8.5 /vigil oncall 命令）。im 包不反向依赖 schedule 包，经接口注入解耦。
+type imOncallResolver struct {
+	engine *schedule.Engine
+	db     *ent.Client
+}
+
+// OncallForTeam 汇总某 team 下全部 Schedule 的当前值班（每行一条摘要）。
+func (r imOncallResolver) OncallForTeam(ctx context.Context, teamID int) ([]string, error) {
+	scheds, err := r.db.Team.Query().Where(entteam.IDEQ(teamID)).QuerySchedules().All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return r.oncallLines(ctx, scheds)
+}
+
+func (r imOncallResolver) OncallForTeamName(ctx context.Context, name string) ([]string, error) {
+	t, err := r.db.Team.Query().Where(entteam.NameEQ(name)).Only(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return r.OncallForTeam(ctx, t.ID)
+}
+
+func (r imOncallResolver) OncallForServiceName(ctx context.Context, name string) ([]string, error) {
+	svc, err := r.db.Service.Query().Where(entservice.NameEQ(name)).Only(ctx)
+	if err != nil {
+		return nil, err
+	}
+	scheds, err := svc.QuerySchedules().All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return r.oncallLines(ctx, scheds)
+}
+
+// oncallLines 把一组 Schedule 的当前值班解算成可读文本行。
+func (r imOncallResolver) oncallLines(ctx context.Context, scheds []*ent.Schedule) ([]string, error) {
+	var lines []string
+	for _, s := range scheds {
+		res, err := r.engine.OncallNow(ctx, s.ID)
+		if err != nil {
+			continue // 单个 schedule 解算失败不影响其它
+		}
+		names := oncallUserNames(res)
+		if names == "" {
+			lines = append(lines, fmt.Sprintf("%s：无在班人", res.ScheduleName))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s：%s", res.ScheduleName, names))
+	}
+	return lines, nil
+}
+
+// oncallUserNames 取排班结果里所有层的在班人名（去重，逗号连接）。
+func oncallUserNames(res *schedule.OncallResult) string {
+	seen := map[string]bool{}
+	var names []string
+	for _, layer := range res.Layers {
+		for _, u := range layer.Users {
+			if seen[u.Name] {
+				continue
+			}
+			seen[u.Name] = true
+			names = append(names, u.Name)
+		}
+	}
+	return strings.Join(names, ", ")
+}
+
 // incidentCloser 实现 postmortem.IncidentCloser，包装 incident.Service.Close。
 // 复盘发布（→published）时联动把关联 incident 从 resolved 推进到 closed 终态。
 // 幂等：已 closed（ErrAlreadyClosed）视为成功无操作——复盘可能被重复发布/联动，
@@ -1245,6 +1375,13 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/credentials", auth.PermCredentialCreate)
 	g.RoutePerm(http.MethodPatch, "/credentials/:id", auth.PermCredentialUpdate)
 	g.RoutePerm(http.MethodDelete, "/credentials/:id", auth.PermCredentialDelete)
+	// 出站 webhook 动态订阅写（N2.2，含签名密钥密文存储）——读端点也登记：订阅 URL 列表暴露出站目标，
+	// 仅 webhook_subscription.view 可见（密钥永不回显，Sensitive）。归属同 ticket_integration（团队级配置）。
+	g.RoutePerm(http.MethodGet, "/webhook-subscriptions", auth.PermWebhookSubscriptionView)
+	g.RoutePerm(http.MethodGet, "/webhook-subscriptions/:id", auth.PermWebhookSubscriptionView)
+	g.RoutePerm(http.MethodPost, "/webhook-subscriptions", auth.PermWebhookSubscriptionCreate)
+	g.RoutePerm(http.MethodPatch, "/webhook-subscriptions/:id", auth.PermWebhookSubscriptionUpdate)
+	g.RoutePerm(http.MethodDelete, "/webhook-subscriptions/:id", auth.PermWebhookSubscriptionDelete)
 	// 团队写（M13.2）
 	g.RoutePerm(http.MethodPost, "/teams", auth.PermTeamCreate)
 	g.RoutePerm(http.MethodPatch, "/teams/:id", auth.PermTeamUpdate)

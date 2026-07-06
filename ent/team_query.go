@@ -29,6 +29,7 @@ import (
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/ticketintegration"
 	"github.com/kevin/vigil/ent/user"
+	"github.com/kevin/vigil/ent/webhooksubscription"
 )
 
 // TeamQuery is the builder for querying Team entities.
@@ -51,6 +52,7 @@ type TeamQuery struct {
 	withIntegrations          *IntegrationQuery
 	withTicketIntegrations    *TicketIntegrationQuery
 	withCredentials           *CredentialQuery
+	withWebhookSubscriptions  *WebhookSubscriptionQuery
 	withSubscriptions         *SubscriptionQuery
 	withMetricsSnapshots      *MetricsSnapshotQuery
 	// intermediate query (i.e. traversal path).
@@ -375,6 +377,28 @@ func (_q *TeamQuery) QueryCredentials() *CredentialQuery {
 	return query
 }
 
+// QueryWebhookSubscriptions chains the current query on the "webhook_subscriptions" edge.
+func (_q *TeamQuery) QueryWebhookSubscriptions() *WebhookSubscriptionQuery {
+	query := (&WebhookSubscriptionClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, selector),
+			sqlgraph.To(webhooksubscription.Table, webhooksubscription.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, team.WebhookSubscriptionsTable, team.WebhookSubscriptionsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // QuerySubscriptions chains the current query on the "subscriptions" edge.
 func (_q *TeamQuery) QuerySubscriptions() *SubscriptionQuery {
 	query := (&SubscriptionClient{config: _q.config}).Query()
@@ -624,6 +648,7 @@ func (_q *TeamQuery) Clone() *TeamQuery {
 		withIntegrations:          _q.withIntegrations.Clone(),
 		withTicketIntegrations:    _q.withTicketIntegrations.Clone(),
 		withCredentials:           _q.withCredentials.Clone(),
+		withWebhookSubscriptions:  _q.withWebhookSubscriptions.Clone(),
 		withSubscriptions:         _q.withSubscriptions.Clone(),
 		withMetricsSnapshots:      _q.withMetricsSnapshots.Clone(),
 		// clone intermediate query.
@@ -775,6 +800,17 @@ func (_q *TeamQuery) WithCredentials(opts ...func(*CredentialQuery)) *TeamQuery 
 	return _q
 }
 
+// WithWebhookSubscriptions tells the query-builder to eager-load the nodes that are connected to
+// the "webhook_subscriptions" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TeamQuery) WithWebhookSubscriptions(opts ...func(*WebhookSubscriptionQuery)) *TeamQuery {
+	query := (&WebhookSubscriptionClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withWebhookSubscriptions = query
+	return _q
+}
+
 // WithSubscriptions tells the query-builder to eager-load the nodes that are connected to
 // the "subscriptions" edge. The optional arguments are used to configure the query builder of the edge.
 func (_q *TeamQuery) WithSubscriptions(opts ...func(*SubscriptionQuery)) *TeamQuery {
@@ -875,7 +911,7 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 	var (
 		nodes       = []*Team{}
 		_spec       = _q.querySpec()
-		loadedTypes = [15]bool{
+		loadedTypes = [16]bool{
 			_q.withUsers != nil,
 			_q.withServices != nil,
 			_q.withSchedules != nil,
@@ -889,6 +925,7 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 			_q.withIntegrations != nil,
 			_q.withTicketIntegrations != nil,
 			_q.withCredentials != nil,
+			_q.withWebhookSubscriptions != nil,
 			_q.withSubscriptions != nil,
 			_q.withMetricsSnapshots != nil,
 		}
@@ -1003,6 +1040,15 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 		if err := _q.loadCredentials(ctx, query, nodes,
 			func(n *Team) { n.Edges.Credentials = []*Credential{} },
 			func(n *Team, e *Credential) { n.Edges.Credentials = append(n.Edges.Credentials, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withWebhookSubscriptions; query != nil {
+		if err := _q.loadWebhookSubscriptions(ctx, query, nodes,
+			func(n *Team) { n.Edges.WebhookSubscriptions = []*WebhookSubscription{} },
+			func(n *Team, e *WebhookSubscription) {
+				n.Edges.WebhookSubscriptions = append(n.Edges.WebhookSubscriptions, e)
+			}); err != nil {
 			return nil, err
 		}
 	}
@@ -1481,6 +1527,37 @@ func (_q *TeamQuery) loadCredentials(ctx context.Context, query *CredentialQuery
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "team_credentials" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *TeamQuery) loadWebhookSubscriptions(ctx context.Context, query *WebhookSubscriptionQuery, nodes []*Team, init func(*Team), assign func(*Team, *WebhookSubscription)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Team)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.WebhookSubscription(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(team.WebhookSubscriptionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.team_webhook_subscriptions
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "team_webhook_subscriptions" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "team_webhook_subscriptions" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
 	}

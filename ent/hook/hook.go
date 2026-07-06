@@ -381,6 +381,18 @@ func (f WebhookDeliveryFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Va
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WebhookDeliveryMutation", m)
 }
 
+// The WebhookSubscriptionFunc type is an adapter to allow the use of ordinary
+// function as WebhookSubscription mutator.
+type WebhookSubscriptionFunc func(context.Context, *ent.WebhookSubscriptionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f WebhookSubscriptionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.WebhookSubscriptionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WebhookSubscriptionMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

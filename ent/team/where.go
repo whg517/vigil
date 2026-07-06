@@ -744,6 +744,29 @@ func HasCredentialsWith(preds ...predicate.Credential) predicate.Team {
 	})
 }
 
+// HasWebhookSubscriptions applies the HasEdge predicate on the "webhook_subscriptions" edge.
+func HasWebhookSubscriptions() predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, WebhookSubscriptionsTable, WebhookSubscriptionsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasWebhookSubscriptionsWith applies the HasEdge predicate on the "webhook_subscriptions" edge with a given conditions (other predicates).
+func HasWebhookSubscriptionsWith(preds ...predicate.WebhookSubscription) predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := newWebhookSubscriptionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasSubscriptions applies the HasEdge predicate on the "subscriptions" edge.
 func HasSubscriptions() predicate.Team {
 	return predicate.Team(func(s *sql.Selector) {

@@ -98,3 +98,6 @@ type User func(*sql.Selector)
 
 // WebhookDelivery is the predicate function for webhookdelivery builders.
 type WebhookDelivery func(*sql.Selector)
+
+// WebhookSubscription is the predicate function for webhooksubscription builders.
+type WebhookSubscription func(*sql.Selector)

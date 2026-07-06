@@ -63,13 +63,15 @@ type TeamEdges struct {
 	TicketIntegrations []*TicketIntegration `json:"ticket_integrations,omitempty"`
 	// Credentials holds the value of the credentials edge.
 	Credentials []*Credential `json:"credentials,omitempty"`
+	// WebhookSubscriptions holds the value of the webhook_subscriptions edge.
+	WebhookSubscriptions []*WebhookSubscription `json:"webhook_subscriptions,omitempty"`
 	// Subscriptions holds the value of the subscriptions edge.
 	Subscriptions []*Subscription `json:"subscriptions,omitempty"`
 	// MetricsSnapshots holds the value of the metrics_snapshots edge.
 	MetricsSnapshots []*MetricsSnapshot `json:"metrics_snapshots,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [15]bool
+	loadedTypes [16]bool
 }
 
 // UsersOrErr returns the Users value or an error if the edge
@@ -189,10 +191,19 @@ func (e TeamEdges) CredentialsOrErr() ([]*Credential, error) {
 	return nil, &NotLoadedError{edge: "credentials"}
 }
 
+// WebhookSubscriptionsOrErr returns the WebhookSubscriptions value or an error if the edge
+// was not loaded in eager-loading.
+func (e TeamEdges) WebhookSubscriptionsOrErr() ([]*WebhookSubscription, error) {
+	if e.loadedTypes[13] {
+		return e.WebhookSubscriptions, nil
+	}
+	return nil, &NotLoadedError{edge: "webhook_subscriptions"}
+}
+
 // SubscriptionsOrErr returns the Subscriptions value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) SubscriptionsOrErr() ([]*Subscription, error) {
-	if e.loadedTypes[13] {
+	if e.loadedTypes[14] {
 		return e.Subscriptions, nil
 	}
 	return nil, &NotLoadedError{edge: "subscriptions"}
@@ -201,7 +212,7 @@ func (e TeamEdges) SubscriptionsOrErr() ([]*Subscription, error) {
 // MetricsSnapshotsOrErr returns the MetricsSnapshots value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) MetricsSnapshotsOrErr() ([]*MetricsSnapshot, error) {
-	if e.loadedTypes[14] {
+	if e.loadedTypes[15] {
 		return e.MetricsSnapshots, nil
 	}
 	return nil, &NotLoadedError{edge: "metrics_snapshots"}
@@ -351,6 +362,11 @@ func (_m *Team) QueryTicketIntegrations() *TicketIntegrationQuery {
 // QueryCredentials queries the "credentials" edge of the Team entity.
 func (_m *Team) QueryCredentials() *CredentialQuery {
 	return NewTeamClient(_m.config).QueryCredentials(_m)
+}
+
+// QueryWebhookSubscriptions queries the "webhook_subscriptions" edge of the Team entity.
+func (_m *Team) QueryWebhookSubscriptions() *WebhookSubscriptionQuery {
+	return NewTeamClient(_m.config).QueryWebhookSubscriptions(_m)
 }
 
 // QuerySubscriptions queries the "subscriptions" edge of the Team entity.

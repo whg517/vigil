@@ -8045,6 +8045,212 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/webhook-subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 出站 webhook 订阅列表
+         * @description 按 team 数据隔离返回动态出站订阅；signing_secret 不回显。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.WebhookSubscription"][];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 创建出站 webhook 订阅 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 订阅（含明文 signing_secret，加密存储） */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["webhook.createReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.WebhookSubscription"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook-subscriptions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 出站 webhook 订阅详情 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 订阅 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.WebhookSubscription"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** 删除出站 webhook 订阅 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 订阅 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** 更新出站 webhook 订阅 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 订阅 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 更新字段 */
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never> | components["schemas"]["webhook.updateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ent.WebhookSubscription"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/webhook/{token}": {
         parameters: {
             query?: never;
@@ -9349,6 +9555,8 @@ export interface components {
             ticket_integrations?: components["schemas"]["ent.TicketIntegration"][];
             /** @description Users holds the value of the users edge. */
             users?: components["schemas"]["ent.User"][];
+            /** @description WebhookSubscriptions holds the value of the webhook_subscriptions edge. */
+            webhook_subscriptions?: components["schemas"]["ent.WebhookSubscription"][];
         };
         "ent.TicketIntegration": {
             /** @description 目标项目/字段映射等类型相关配置 */
@@ -9453,6 +9661,30 @@ export interface components {
             subscriptions?: components["schemas"]["ent.Subscription"][];
             /** @description Teams holds the value of the teams edge. */
             teams?: components["schemas"]["ent.Team"][];
+        };
+        "ent.WebhookSubscription": {
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            edges?: components["schemas"]["ent.WebhookSubscriptionEdges"];
+            /** @description Enabled holds the value of the "enabled" field. */
+            enabled?: boolean;
+            /** @description 订阅的事件类型，空=所有 */
+            event_types?: string[];
+            /** @description ID of the ent. */
+            id?: number;
+            /** @description 订阅名（管理识别用） */
+            name?: string;
+            /** @description UpdatedAt holds the value of the "updated_at" field. */
+            updated_at?: string;
+            /** @description 出站目标 URL */
+            url?: string;
+        };
+        /**
+         * @description Edges holds the relations/edges for other nodes in the graph.
+         *     The values are being populated by the WebhookSubscriptionQuery when eager-loading is set.
+         */
+        "ent.WebhookSubscriptionEdges": {
+            team?: components["schemas"]["ent.Team"];
         };
         "escalation.createReq": {
             levels?: components["schemas"]["schema.EscalationLevel"][];
@@ -10239,6 +10471,18 @@ export interface components {
          * @enum {string}
          */
         "user.Status": "active" | "disabled";
+        "webhook.createReq": {
+            /** @description 缺省视为 true */
+            enabled?: boolean;
+            /** @description 空=所有事件类型 */
+            event_types?: string[];
+            name?: string;
+            /** @description 明文签名密钥，加密后落库，永不回显 */
+            signing_secret?: string;
+            /** @description 0=org 级 */
+            team_id?: number;
+            url?: string;
+        };
         "webhook.deliveryView": {
             attempts?: number;
             created_at?: string;
@@ -10257,6 +10501,14 @@ export interface components {
                 [key: string]: number;
             };
             items?: components["schemas"]["webhook.deliveryView"][];
+        };
+        "webhook.updateReq": {
+            enabled?: boolean;
+            event_types?: string[];
+            name?: string;
+            /** @description 传则更新（重加密）；空字符串=清空密钥（停用签名） */
+            signing_secret?: string;
+            url?: string;
         };
     };
     responses: never;

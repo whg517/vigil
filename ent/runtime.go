@@ -37,6 +37,7 @@ import (
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/ent/webhookdelivery"
+	"github.com/kevin/vigil/ent/webhooksubscription"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -613,4 +614,24 @@ func init() {
 	webhookdelivery.DefaultUpdatedAt = webhookdeliveryDescUpdatedAt.Default.(func() time.Time)
 	// webhookdelivery.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	webhookdelivery.UpdateDefaultUpdatedAt = webhookdeliveryDescUpdatedAt.UpdateDefault.(func() time.Time)
+	webhooksubscriptionFields := schema.WebhookSubscription{}.Fields()
+	_ = webhooksubscriptionFields
+	// webhooksubscriptionDescURL is the schema descriptor for url field.
+	webhooksubscriptionDescURL := webhooksubscriptionFields[1].Descriptor()
+	// webhooksubscription.URLValidator is a validator for the "url" field. It is called by the builders before save.
+	webhooksubscription.URLValidator = webhooksubscriptionDescURL.Validators[0].(func(string) error)
+	// webhooksubscriptionDescEnabled is the schema descriptor for enabled field.
+	webhooksubscriptionDescEnabled := webhooksubscriptionFields[4].Descriptor()
+	// webhooksubscription.DefaultEnabled holds the default value on creation for the enabled field.
+	webhooksubscription.DefaultEnabled = webhooksubscriptionDescEnabled.Default.(bool)
+	// webhooksubscriptionDescCreatedAt is the schema descriptor for created_at field.
+	webhooksubscriptionDescCreatedAt := webhooksubscriptionFields[5].Descriptor()
+	// webhooksubscription.DefaultCreatedAt holds the default value on creation for the created_at field.
+	webhooksubscription.DefaultCreatedAt = webhooksubscriptionDescCreatedAt.Default.(func() time.Time)
+	// webhooksubscriptionDescUpdatedAt is the schema descriptor for updated_at field.
+	webhooksubscriptionDescUpdatedAt := webhooksubscriptionFields[6].Descriptor()
+	// webhooksubscription.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	webhooksubscription.DefaultUpdatedAt = webhooksubscriptionDescUpdatedAt.Default.(func() time.Time)
+	// webhooksubscription.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	webhooksubscription.UpdateDefaultUpdatedAt = webhooksubscriptionDescUpdatedAt.UpdateDefault.(func() time.Time)
 }

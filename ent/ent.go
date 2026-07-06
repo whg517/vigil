@@ -43,6 +43,7 @@ import (
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/ent/webhookdelivery"
+	"github.com/kevin/vigil/ent/webhooksubscription"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -134,6 +135,7 @@ func checkColumn(t, c string) error {
 			timelineitem.Table:         timelineitem.ValidColumn,
 			user.Table:                 user.ValidColumn,
 			webhookdelivery.Table:      webhookdelivery.ValidColumn,
+			webhooksubscription.Table:  webhooksubscription.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

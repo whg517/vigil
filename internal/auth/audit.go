@@ -82,6 +82,11 @@ const (
 	// 出站 webhook 死信重放（T5.2）：把失败的出站投递重新推给订阅端，会向外部再发一次事件，
 	// 属对外写动作，须留痕（谁重放了哪条、成功与否）。
 	ActionWebhookDeliveryReplay = "webhook_delivery.replay"
+	// 出站 webhook 动态订阅配置变更（N2.2）：增删订阅决定事件往哪些外部 URL 投递，
+	// 属对外集成配置写动作，须留痕（只记元数据：名/id/url，绝不含 signing_secret）。
+	ActionWebhookSubscriptionCreate = "webhook_subscription.create"
+	ActionWebhookSubscriptionUpdate = "webhook_subscription.update"
+	ActionWebhookSubscriptionDelete = "webhook_subscription.delete"
 )
 
 // AuditEntry 审计日志条目（调用方构造，Recorder 持久化）。

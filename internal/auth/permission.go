@@ -47,6 +47,14 @@ const (
 	PermWebhookDeliveryView   Permission = "webhook_delivery.view"
 	PermWebhookDeliveryReplay Permission = "webhook_delivery.replay"
 
+	// —— webhook_subscription 出站 webhook 动态订阅（N2.2，替代/补充 env 静态订阅）——
+	// 动态订阅是团队级配置资源（team_id 可空为 org 级），管理面 CRUD 决定哪些 URL 被订阅、
+	// 订阅哪些事件类型、用什么签名密钥。授给 team_admin/org_admin（同 ticket_integration/credential 档）。
+	PermWebhookSubscriptionView   Permission = "webhook_subscription.view"
+	PermWebhookSubscriptionCreate Permission = "webhook_subscription.create"
+	PermWebhookSubscriptionUpdate Permission = "webhook_subscription.update"
+	PermWebhookSubscriptionDelete Permission = "webhook_subscription.delete"
+
 	// —— service 服务管理 ——
 	PermServiceView          Permission = "service.view"
 	PermServiceCreate        Permission = "service.create"
@@ -165,6 +173,7 @@ var AllPermissions = []Permission{
 	PermEventView, PermEventViewUnrouted, PermEventCreate,
 	PermRawEventView, PermRawEventReplay,
 	PermWebhookDeliveryView, PermWebhookDeliveryReplay,
+	PermWebhookSubscriptionView, PermWebhookSubscriptionCreate, PermWebhookSubscriptionUpdate, PermWebhookSubscriptionDelete,
 	PermServiceView, PermServiceCreate, PermServiceUpdate, PermServiceDelete, PermServiceRouteOverride,
 	PermScheduleView, PermScheduleCreate, PermScheduleUpdate, PermScheduleDelete, PermScheduleOverride,
 	PermEscalationView, PermEscalationCreate, PermEscalationUpdate, PermEscalationDelete,

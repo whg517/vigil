@@ -1151,6 +1151,39 @@ var (
 			},
 		},
 	}
+	// WebhookSubscriptionsColumns holds the columns for the "webhook_subscriptions" table.
+	WebhookSubscriptionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString, Nullable: true},
+		{Name: "url", Type: field.TypeString},
+		{Name: "event_types", Type: field.TypeJSON, Nullable: true},
+		{Name: "signing_secret", Type: field.TypeString, Nullable: true},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "team_webhook_subscriptions", Type: field.TypeInt, Nullable: true},
+	}
+	// WebhookSubscriptionsTable holds the schema information for the "webhook_subscriptions" table.
+	WebhookSubscriptionsTable = &schema.Table{
+		Name:       "webhook_subscriptions",
+		Columns:    WebhookSubscriptionsColumns,
+		PrimaryKey: []*schema.Column{WebhookSubscriptionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "webhook_subscriptions_teams_webhook_subscriptions",
+				Columns:    []*schema.Column{WebhookSubscriptionsColumns[8]},
+				RefColumns: []*schema.Column{TeamsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "webhooksubscription_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{WebhookSubscriptionsColumns[5]},
+			},
+		},
+	}
 	// EscalationPolicySchedulesColumns holds the columns for the "escalation_policy_schedules" table.
 	EscalationPolicySchedulesColumns = []*schema.Column{
 		{Name: "escalation_policy_id", Type: field.TypeInt},
@@ -1384,6 +1417,7 @@ var (
 		TimelineItemsTable,
 		UsersTable,
 		WebhookDeliveriesTable,
+		WebhookSubscriptionsTable,
 		EscalationPolicySchedulesTable,
 		IncidentRespondersTable,
 		RotationParticipantsTable,
@@ -1434,6 +1468,7 @@ func init() {
 	SuppressionRulesTable.ForeignKeys[0].RefTable = TeamsTable
 	TicketIntegrationsTable.ForeignKeys[0].RefTable = TeamsTable
 	TimelineItemsTable.ForeignKeys[0].RefTable = IncidentsTable
+	WebhookSubscriptionsTable.ForeignKeys[0].RefTable = TeamsTable
 	EscalationPolicySchedulesTable.ForeignKeys[0].RefTable = EscalationPoliciesTable
 	EscalationPolicySchedulesTable.ForeignKeys[1].RefTable = SchedulesTable
 	IncidentRespondersTable.ForeignKeys[0].RefTable = IncidentsTable

@@ -26,6 +26,7 @@ import (
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/ticketintegration"
 	"github.com/kevin/vigil/ent/user"
+	"github.com/kevin/vigil/ent/webhooksubscription"
 )
 
 // TeamCreate is the builder for creating a Team entity.
@@ -296,6 +297,21 @@ func (_c *TeamCreate) AddCredentials(v ...*Credential) *TeamCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddCredentialIDs(ids...)
+}
+
+// AddWebhookSubscriptionIDs adds the "webhook_subscriptions" edge to the WebhookSubscription entity by IDs.
+func (_c *TeamCreate) AddWebhookSubscriptionIDs(ids ...int) *TeamCreate {
+	_c.mutation.AddWebhookSubscriptionIDs(ids...)
+	return _c
+}
+
+// AddWebhookSubscriptions adds the "webhook_subscriptions" edges to the WebhookSubscription entity.
+func (_c *TeamCreate) AddWebhookSubscriptions(v ...*WebhookSubscription) *TeamCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddWebhookSubscriptionIDs(ids...)
 }
 
 // AddSubscriptionIDs adds the "subscriptions" edge to the Subscription entity by IDs.
@@ -643,6 +659,22 @@ func (_c *TeamCreate) createSpec() (*Team, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(credential.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.WebhookSubscriptionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   team.WebhookSubscriptionsTable,
+			Columns: []string{team.WebhookSubscriptionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(webhooksubscription.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

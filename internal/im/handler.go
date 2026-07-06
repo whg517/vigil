@@ -26,6 +26,9 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
+	entservice "github.com/kevin/vigil/ent/service"
+	entteam "github.com/kevin/vigil/ent/team"
+	entuser "github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/auth"
 	"github.com/kevin/vigil/internal/errs"
 	"github.com/kevin/vigil/internal/httputil"
@@ -46,6 +49,39 @@ type Handler struct {
 	renderer *Renderer
 	cards    CardStore
 	audit    *auth.AuditRecorder // IM 越权拒绝留痕（S9，可选注入，nil 时跳过）
+	// runbooks / schedules 为 M8.5 斜杠命令 /vigil runbook / /vigil oncall 依赖的引擎（可选注入）。
+	// 解耦：用接口而非直接持 runbook.Engine / schedule.Engine，避免 im→runbook/schedule 反向耦合，
+	// 且便于测试注入桩。nil 时对应命令回「命令未启用」。
+	runbooks  RunbookTrigger
+	schedules OncallResolver
+}
+
+// RunbookTrigger 抽象 Runbook 执行引擎（/vigil runbook 命令用）。
+// 由装配层用 runbook.Engine 适配注入。approved=false 时写步骤被审批闸门阻断（不在 IM 内绕过）。
+type RunbookTrigger interface {
+	// Execute 执行指定 Runbook 对该 incident；approved 恒 false（IM 内绝不代替人工审批）。
+	// 返回结构应至少能判定是否有写步骤被阻断（PendingApproval）与每步成败摘要。
+	Execute(ctx context.Context, runbookID, incID int, approved bool, actorID int) (*RunbookRunResult, error)
+	// LookupByName 按名解析 Runbook（团队软隔离由调用方用 team scope 校验权限保证）。
+	LookupByName(ctx context.Context, name string) (runbookID, teamID int, err error)
+}
+
+// RunbookRunResult IM 侧需要的 Runbook 执行结果摘要（与 runbook.ExecuteResult 字段对齐子集）。
+type RunbookRunResult struct {
+	PendingApproval bool     // 是否存在因未获审批被阻断的写步骤（human-in-the-loop 闸门生效）
+	Aborted         bool     // 是否中止
+	Reason          string   // 中止原因
+	StepSummaries   []string // 每步一行摘要（名称 + 成败/跳过）
+}
+
+// OncallResolver 抽象排班引擎的「查当前值班」（/vigil oncall 命令用）。
+// 由装配层用 schedule.Engine + team/service 解析适配注入。
+type OncallResolver interface {
+	// OncallForTeam 查某 team 全部 Schedule 的当前值班摘要（每行一条）。
+	OncallForTeam(ctx context.Context, teamID int) ([]string, error)
+	// OncallForTeamName / OncallForServiceName 按名解析后查值班。名不存在返回 error。
+	OncallForTeamName(ctx context.Context, name string) ([]string, error)
+	OncallForServiceName(ctx context.Context, name string) ([]string, error)
 }
 
 // NewHandler 创建 IM handler。
@@ -66,6 +102,12 @@ func NewHandler(
 		incSvc: incSvc, renderer: renderer, cards: cards, audit: audit,
 	}
 }
+
+// SetRunbookTrigger 注入 Runbook 执行引擎（启用 /vigil runbook 命令）。nil 时该命令回「未启用」。
+func (h *Handler) SetRunbookTrigger(r RunbookTrigger) { h.runbooks = r }
+
+// SetOncallResolver 注入排班值班解析器（启用 /vigil oncall 命令）。nil 时该命令回「未启用」。
+func (h *Handler) SetOncallResolver(o OncallResolver) { h.schedules = o }
 
 // Register 挂载 IM 回调路由。
 //
@@ -219,7 +261,17 @@ func (h *Handler) handleCardAction(c *echo.Context, ctx context.Context, bot IMB
 
 // handleCommand 斜杠命令：/vigil ack INC-0042 等。
 // 命令格式：<command> <incident_id|number> [args]
+//
+// runbook / oncall 命令参数形态与状态变更类命令不同（runbook 参数是 <name> <id>，
+// oncall 可无参数），故先单独派发，再走通用「解析 incident → 鉴权 → 动作」路径。
 func (h *Handler) handleCommand(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
+	switch evt.Command {
+	case "runbook":
+		return h.handleRunbookCommand(c, ctx, bot, evt)
+	case "oncall":
+		return h.handleOncallCommand(c, ctx, bot, evt)
+	}
+
 	cmd := evt.Command
 	// 权限点按命令映射
 	action := commandToAction(cmd)
@@ -258,6 +310,209 @@ func (h *Handler) handleCommand(c *echo.Context, ctx context.Context, bot IMBot,
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok", "command": cmd})
 }
 
+// handleRunbookCommand /vigil runbook <runbook> <incident>：在 IM 内触发/展示 Runbook 执行。
+//
+// 安全铁律（capabilities §5 + 设计基线第 5/8 条）：
+//   - 复用 runbook 执行引擎两档安全：只读诊断步骤自动执行；写步骤 require_approval。
+//   - IM 内 approved 恒 false → 写步骤一律被 human-in-the-loop 闸门阻断（PendingApproval），
+//     绝不在 IM 内代替人工审批放行写操作（写操作确认仍须回 Web/审批流）。
+//   - 权限点 runbook.execute，team scope 取 incident 归属团队（与 Web 触发同一鉴权链）。
+func (h *Handler) handleRunbookCommand(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
+	if h.runbooks == nil {
+		return c.JSON(http.StatusServiceUnavailable, httputil.ErrorResponse{Error: "runbook command not enabled"})
+	}
+	// 参数解析：<runbook> <incident>（两段）。缺参回明确用法提示。
+	rbName, incArg := splitTwo(evt.CommandArg)
+	if rbName == "" || incArg == "" {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "usage: /vigil runbook <runbook> <incident>"})
+	}
+	incID, err := h.resolveIncidentArg(ctx, incArg)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: err.Error()})
+	}
+	// ★ 关键：先回填 IncidentID 供 resolveAndCheck 解 team scope，否则团队级 runbook.execute
+	//   会被当 org 级判定，持团队权限者误拒（与 handleMention 同款回填）。
+	evt.IncidentID = strconv.Itoa(incID)
+	user, err := h.resolveAndCheck(c, ctx, evt, ActionRunbook)
+	if err != nil {
+		return replyErr(c, err, bot, evt.ChannelID)
+	}
+	// 按名解析 runbook（找不到回明确错误，不泄露存在性以外的信息）。
+	rbID, _, err := h.runbooks.LookupByName(ctx, rbName)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: fmt.Sprintf("runbook %q not found", rbName)})
+	}
+	// approved=false：IM 内绝不代替人工审批放行写操作。
+	res, err := h.runbooks.Execute(ctx, rbID, incID, false, user.ID)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	// 回一张纯文本结果卡片（无按钮），把执行摘要 + 待审批提示呈现给触发者。
+	h.sendRunbookResultCard(ctx, bot, evt.ChannelID, rbName, incID, res)
+	return c.JSON(http.StatusOK, map[string]any{
+		"status":           "ok",
+		"command":          "runbook",
+		"pending_approval": res.PendingApproval,
+	})
+}
+
+// handleOncallCommand /vigil oncall [service|team]：查当前值班人。
+//
+// 无参数：查调用者所属团队的值班（多团队则汇总，只汇总有 schedule.view 权限的团队）。
+// 有参数：按名解析为 service 或 team 后查（先试 team，再试 service），按目标团队判 schedule.view。
+//
+// ★ 鉴权铁律：team 级 schedule.view 绑定在 team scope=nil 时不生效（authz 只查 org 级），
+// 故必须按目标团队显式判权限——先解析目标团队，再以该团队 scope 判 schedule.view，
+// 避免持团队权限者被误判 org 级而拒（与 handleMention/handleRunbookCommand 回填 scope 同理）。
+func (h *Handler) handleOncallCommand(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
+	if h.schedules == nil {
+		return c.JSON(http.StatusServiceUnavailable, httputil.ErrorResponse{Error: "oncall command not enabled"})
+	}
+	arg := firstToken(strings.TrimSpace(evt.CommandArg))
+	if arg == "" {
+		return h.oncallForUserTeams(c, ctx, bot, evt)
+	}
+	return h.oncallForNamed(c, ctx, bot, evt, arg)
+}
+
+// oncallForUserTeams 处理无参 oncall：查调用者所属全部团队的值班（只含有 schedule.view 权限的团队）。
+func (h *Handler) oncallForUserTeams(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
+	// 先解析 actor（每团队判权限需要 user.ID；未绑定同样落 denied 审计）。
+	user, err := h.mapper.ResolveUser(ctx, evt.Platform, evt.UnionID)
+	if err != nil {
+		h.auditDenied(c, 0, evt, ActionOncall, "im account not bound")
+		return replyErr(c, fmt.Errorf("im account not bound: %w", err), bot, evt.ChannelID)
+	}
+	teams, err := h.db.User.Query().Where(entuser.IDEQ(user.ID)).QueryTeams().All(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	if len(teams) == 0 {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "you are not a member of any team; use /vigil oncall <team|service>"})
+	}
+	perm := auth.Permission(PermissionMap[ActionOncall])
+	var lines []string
+	permitted := 0
+	for _, t := range teams {
+		tid := t.ID
+		ok, cerr := h.authz.Check(ctx, auth.AuthzRequest{UserID: user.ID, Permission: perm, TeamScope: &tid})
+		if cerr != nil {
+			return errs.Internal(c, nil, cerr)
+		}
+		if !ok {
+			continue // 该团队无 schedule.view，跳过（不汇总，不报错）
+		}
+		permitted++
+		tl, lerr := h.schedules.OncallForTeam(ctx, tid)
+		if lerr != nil {
+			continue
+		}
+		lines = append(lines, tl...)
+	}
+	if permitted == 0 {
+		// 所有团队都无 schedule.view → 越权，落审计 + 403（与其它拒绝路径一致）。
+		h.auditDenied(c, user.ID, evt, ActionOncall, "no permission")
+		return c.JSON(http.StatusForbidden, httputil.ErrorResponse{Error: "forbidden: no schedule.view in your teams"})
+	}
+	h.sendOncallResultCard(ctx, bot, evt.ChannelID, "", lines)
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok", "command": "oncall"})
+}
+
+// oncallForNamed 处理带参 oncall：按 team/service 名解析目标团队 → 判 schedule.view → 查值班。
+func (h *Handler) oncallForNamed(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent, arg string) error {
+	// 先按 team 名解析目标团队 id 以判权限；未命中再按 service 名解析其归属团队。
+	teamID, byTeam, found := h.resolveOncallScopeTeam(ctx, arg)
+	if !found {
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: fmt.Sprintf("no team or service named %q", arg)})
+	}
+	// 以目标团队 scope 判 schedule.view（团队级绑定必须带 scope 才生效）。
+	user, err := h.resolveAndCheckScope(c, ctx, evt, ActionOncall, teamID)
+	if err != nil {
+		return replyErr(c, err, bot, evt.ChannelID)
+	}
+	_ = user
+	var lines []string
+	if byTeam {
+		lines, err = h.schedules.OncallForTeamName(ctx, arg)
+	} else {
+		lines, err = h.schedules.OncallForServiceName(ctx, arg)
+	}
+	if err != nil {
+		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: fmt.Sprintf("no schedule found for %q", arg)})
+	}
+	h.sendOncallResultCard(ctx, bot, evt.ChannelID, arg, lines)
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok", "command": "oncall"})
+}
+
+// resolveOncallScopeTeam 把 oncall 参数（team 名或 service 名）解析成用于判权限的目标团队 id。
+// 返回 (teamID, byTeam, found)：byTeam 标记命中的是 team 名（用于后续查值班走 team 还是 service）。
+// team 名优先；未命中再按 service 名（取 service 归属团队作 scope）。都未命中 found=false。
+// teamID 可能为 nil（资源无团队归属 → org 级判定），此时仍视为 found。
+func (h *Handler) resolveOncallScopeTeam(ctx context.Context, name string) (teamID *int, byTeam, found bool) {
+	if t, err := h.db.Team.Query().Where(entteam.NameEQ(name)).Only(ctx); err == nil {
+		id := t.ID
+		return &id, true, true
+	}
+	if svc, err := h.db.Service.Query().Where(entservice.NameEQ(name)).WithTeam().Only(ctx); err == nil {
+		if svc.Edges.Team != nil {
+			id := svc.Edges.Team.ID
+			return &id, false, true
+		}
+		return nil, false, true // service 无团队归属 → org 级判定
+	}
+	return nil, false, false
+}
+
+// sendRunbookResultCard 把 Runbook 执行结果渲染为纯文本卡片回给触发者（无操作按钮）。
+func (h *Handler) sendRunbookResultCard(ctx context.Context, bot IMBot, channel, rbName string, incID int, res *RunbookRunResult) {
+	if channel == "" {
+		return
+	}
+	card := &Card{
+		Header:   fmt.Sprintf("Runbook「%s」执行结果", rbName),
+		Severity: "info",
+		Rows: []CardRow{
+			{Label: "关联事件", Value: fmt.Sprintf("#%d", incID)},
+		},
+	}
+	for _, s := range res.StepSummaries {
+		card.Rows = append(card.Rows, CardRow{Label: "步骤", Value: s})
+	}
+	switch {
+	case res.PendingApproval:
+		// ★ 写步骤被审批闸门阻断：明确提示须回 Web 审批，绝不在 IM 内放行。
+		card.StatusBadge = "⚠️ 含写操作步骤，需在 Web 审批后执行（IM 内不放行写操作）"
+	case res.Aborted:
+		card.StatusBadge = "⛔ 已中止：" + res.Reason
+	default:
+		card.StatusBadge = "✅ 只读诊断已执行"
+	}
+	if id, err := bot.SendCard(ctx, channel, card); err == nil {
+		_ = id
+	}
+}
+
+// sendOncallResultCard 把当前值班人渲染为纯文本卡片回给触发者（无操作按钮）。
+func (h *Handler) sendOncallResultCard(ctx context.Context, bot IMBot, channel, scope string, lines []string) {
+	if channel == "" {
+		return
+	}
+	header := "当前值班"
+	if scope != "" {
+		header = fmt.Sprintf("当前值班（%s）", scope)
+	}
+	card := &Card{Header: header, Severity: "info"}
+	for _, l := range lines {
+		card.Rows = append(card.Rows, CardRow{Label: "值班", Value: l})
+	}
+	if len(card.Rows) == 0 {
+		card.StatusBadge = "无在班人"
+	}
+	if id, err := bot.SendCard(ctx, channel, card); err == nil {
+		_ = id
+	}
+}
+
 // handleMention @人协同：把被 @的人加入 responders（拉人即授权）。
 // 操作者需有 add_responder 权限；被拉的人无需在群里预先绑定。
 func (h *Handler) handleMention(c *echo.Context, ctx context.Context, bot IMBot, evt *IMEvent) error {
@@ -289,8 +544,18 @@ func (h *Handler) handleMention(c *echo.Context, ctx context.Context, bot IMBot,
 
 // resolveAndCheck 账号映射 + 权限校验（IM 鉴权铁律 §6）。
 // action 为按钮/命令对应的动作（ack/escalate/resolve/detail/add_responder），用于映射权限点。
+// team scope 从 evt.IncidentID 解析（incident.team）。
 // 每条拒绝路径（未绑定/无权限映射/越权）都落一条 denied 审计（S9）——IM 越权探测须与 Web 同样可追溯。
 func (h *Handler) resolveAndCheck(c *echo.Context, ctx context.Context, evt *IMEvent, action string) (*ent.User, error) {
+	teamScope, _ := h.incidentTeamScope(ctx, evt.IncidentID)
+	return h.resolveAndCheckScope(c, ctx, evt, action, teamScope)
+}
+
+// resolveAndCheckScope 与 resolveAndCheck 同链路，但 team scope 由调用方显式给定。
+// 供无 incident 关联但需团队 scope 判权限的命令用（如 /vigil oncall 按目标团队判 schedule.view）——
+// 团队级权限绑定在 teamScope=nil 时不生效（authz 只查 org 级），故必须显式传入目标团队，
+// 否则持团队级 schedule.view 者会被误判 org 级而拒（与 handleMention 回填 IncidentID 同理）。
+func (h *Handler) resolveAndCheckScope(c *echo.Context, ctx context.Context, evt *IMEvent, action string, teamScope *int) (*ent.User, error) {
 	// 1. im_unionid → User（未绑定拒绝）
 	user, err := h.mapper.ResolveUser(ctx, evt.Platform, evt.UnionID)
 	if err != nil {
@@ -304,9 +569,7 @@ func (h *Handler) resolveAndCheck(c *echo.Context, ctx context.Context, evt *IME
 		h.auditDenied(c, user.ID, evt, action, "no permission mapping")
 		return nil, fmt.Errorf("no permission mapping for action %q", action)
 	}
-	// 3. 解析资源 scope（incident.team）
-	teamScope, _ := h.incidentTeamScope(ctx, evt.IncidentID)
-	// 4. authz.Check（与 Web 同一链路）
+	// 3. authz.Check（与 Web 同一链路）
 	ok, err = h.authz.Check(ctx, auth.AuthzRequest{
 		UserID:     user.ID,
 		Permission: auth.Permission(perm),
@@ -413,6 +676,9 @@ func (h *Handler) sendCardToUser(ctx context.Context, bot IMBot, inc *ent.Incide
 }
 
 // commandToAction 斜杠命令 → 动作（用于权限点映射）。
+// 注：runbook / oncall 命令在 handleCommand 前置分支处理，不经此表（参数形态不同），
+//
+//	此处仍登记以保持命令→动作映射完整（便于集中查阅）。
 func commandToAction(cmd string) string {
 	switch cmd {
 	case "ack":
@@ -425,9 +691,28 @@ func commandToAction(cmd string) string {
 		return ActionAddResponder
 	case "status":
 		return ActionDetail
+	case "runbook":
+		return ActionRunbook
+	case "oncall":
+		return ActionOncall
 	default:
 		return ""
 	}
+}
+
+// splitTwo 把命令参数按首个空白切成两段（如 "<runbook> <incident>"）。
+// 第二段保留剩余全部文本（去首尾空白）；无第二段则第二段为空。
+func splitTwo(s string) (first, rest string) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", ""
+	}
+	parts := strings.SplitN(s, " ", 2)
+	first = parts[0]
+	if len(parts) > 1 {
+		rest = strings.TrimSpace(parts[1])
+	}
+	return first, rest
 }
 
 var _ = ActionAddResponder // 保留引用（commandToAction 与 handleMention 使用）

@@ -47,6 +47,12 @@ const (
 	ActionResolve      = "resolve"
 	ActionAddResponder = "add_responder"
 	ActionDetail       = "detail" // 跳转 Web 详情页，非状态变更
+	// ActionRunbook 斜杠命令 /vigil runbook <name> <id>：在 IM 内触发/展示 Runbook 执行入口。
+	// 复用 runbook 执行引擎两档安全：只读诊断自动执行，写操作 require_approval 不在 IM 内绕过审批。
+	ActionRunbook = "runbook"
+	// ActionOncall 斜杠命令 /vigil oncall [service|team]：查当前值班人（复用 schedule engine）。
+	// 无 incident 关联，权限点为 schedule.view（只读查询）。
+	ActionOncall = "oncall"
 )
 
 // PermissionMap 把按钮 action 映射到所需权限点（字符串形式，与 auth.Permission 对齐）。
@@ -58,6 +64,10 @@ var PermissionMap = map[string]string{
 	ActionResolve:      "incident.resolve",
 	ActionAddResponder: "incident.add_responder",
 	ActionDetail:       "incident.view",
+	// runbook 触发走 runbook.execute（与 Web 触发同权限点，IM 不成权限后门）。
+	ActionRunbook: "runbook.execute",
+	// oncall 查询走 schedule.view（只读）。
+	ActionOncall: "schedule.view",
 }
 
 // Renderer 按权限渲染卡片按钮。

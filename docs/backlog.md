@@ -64,7 +64,7 @@
 | 首次部署向导（first-run wizard） | 待讨论 | 📋 无（保留） | 当前靠环境变量 + 种子超管（Phase 2 E 项） |
 | **用户禁用自动交接提示** | 能力域 13 M13.1 | 🟡 部分（保留） | 鉴权侧已即时失效（T0.3）+ oncall 解算跳过禁用用户（T2.3），但仍不主动提示待交接的排班/Action Item（Phase 2 E 项）。详见 user-journeys.md B.14 |
 | **migrate-down / 回滚** | H1.4 | ❌ 无（保留） | 无；回滚靠备份恢复（Phase 2 E 项）。详见 user-journeys.md D.1 |
-| **webhook 出站动态订阅 CRUD** | 能力域 14 / personas P1-3 | 📋 无（保留） | 当前出站 URL 靠 `VIGIL_WEBHOOK_OUT_URLS` 环境变量（全局静态），缺 per-订阅动态管理端点（Phase 2 D 项）。注：出站签名 + 死信 + 重放已由 T5.2 落地 |
+| ~~webhook 出站动态订阅 CRUD~~ | 能力域 14 / personas P1-3 | ✅ 已完成（N2.2） | 新增 `WebhookSubscription` 实体 + `internal/webhook/subscription_handler.go`：`GET/POST/GET:id/PATCH/DELETE /webhook-subscriptions`（权限 `webhook_subscription.{view,create,update,delete}`，团队软隔离）。dispatcher 出站时合并 env 静态订阅（`VIGIL_WEBHOOK_OUT_URLS`）+ DB 动态订阅（`EntSubscriptionResolver`，按 `event_types` 过滤、每订阅独立 `signing_secret` 加密存储/出站前解密、同 URL 去重）。向后兼容 env（无解析器时退化为仅 env）。出站签名 + 死信 + 重放仍由 T5.2 复用 |
 | ~~复盘 resolve 自动触发起草（critical 强制）~~ | PRD M12.7 | ✅ 已完成（`9f49f77`，T4.1） | `postmortem/engine.go` `OnIncidentResolved` 订阅 IncidentResolved：critical 强制自动起草、warning 可配、info 不起草；不再需手动调 draft |
 | ~~未路由事件重路由端点~~ | 能力域 4 M4.3 | ✅ 已完成（`91143d5`，T2.4） | 新增 `POST /events/:id/reroute`（`triage/handler.go` + `Engine.Reroute`，权限 `service.route_override` 团队软隔离），可对已 unrouted Event 改派/重路由 |
 | ~~排班/升级引擎解算 oncall 不查 User.status~~ | 能力域 5/6 · 审计 B21/C4 | ✅ 已完成（T2.3/T2.4） | `schedule/engine.go:105/170/241` 与 `escalation/engine.go:304` 均已加 `user.StatusEQ(user.StatusActive)` 过滤，禁用用户不再被解算为 oncall；空班检测记 metric+Warn+告警 |
