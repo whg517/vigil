@@ -6,6 +6,7 @@ import { Incidents } from "@/pages/incidents";
 import { IncidentDetail } from "@/pages/incident-detail";
 import { Oncall } from "@/pages/oncall";
 import { Services } from "@/pages/services";
+import { Maintenance } from "@/pages/maintenance";
 import { Integrations } from "@/pages/integrations";
 import { WebhookSubscriptions } from "@/pages/webhook-subscriptions";
 import { TicketIntegrations } from "@/pages/ticket-integrations";
@@ -67,6 +68,7 @@ function App() {
         <Route path="incidents/:id" element={<IncidentDetail />} />
         <Route path="oncall" element={<Oncall />} />
         <Route path="services" element={<Services />} />
+        <Route path="maintenance" element={<Maintenance />} />
         <Route path="integrations" element={<Integrations />} />
         <Route path="webhook-subscriptions" element={<WebhookSubscriptions />} />
         <Route path="ticket-integrations" element={<TicketIntegrations />} />

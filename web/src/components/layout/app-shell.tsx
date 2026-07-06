@@ -12,6 +12,7 @@ const navItems = [
   { to: "/incidents", label: "事件" },
   { to: "/oncall", label: "值班排班" },
   { to: "/services", label: "服务" },
+  { to: "/maintenance", label: "维护窗口" },
   { to: "/integrations", label: "接入管理" },
   { to: "/webhook-subscriptions", label: "出站订阅" },
   { to: "/ticket-integrations", label: "工单集成" },

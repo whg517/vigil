@@ -35,9 +35,19 @@ export function useDeleteNotificationRule() {
 }
 
 // —— 抑制规则 ——
-export const suppressionQk = { suppressionRules: () => ["suppression-rules"] as const };
-export function useSuppressionRules() {
-  return useQuery({ queryKey: suppressionQk.suppressionRules(), queryFn: () => api.listSuppressionRules() });
+// queryKey 按 kind 区分，避免日常抑制列表与维护窗口列表缓存串味。
+export const suppressionQk = {
+  suppressionRules: (kind?: "adhoc" | "maintenance") => ["suppression-rules", kind ?? "all"] as const,
+};
+export function useSuppressionRules(kind?: "adhoc" | "maintenance") {
+  return useQuery({
+    queryKey: suppressionQk.suppressionRules(kind),
+    queryFn: () => api.listSuppressionRules(kind ? { kind } : undefined),
+  });
+}
+/** useMaintenanceWindows 维护窗口列表（kind=maintenance）。独立缓存键，与日常抑制隔离。 */
+export function useMaintenanceWindows() {
+  return useSuppressionRules("maintenance");
 }
 export function useCreateSuppressionRule() {
   const qc = useQueryClient();

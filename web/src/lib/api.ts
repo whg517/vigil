@@ -420,8 +420,12 @@ export const api = {
   },
 
   // —— 抑制规则（能力域 3 M3.2）——
-  listSuppressionRules() {
-    return http.get<SuppressionRule[]>("/suppression-rules").then((r) => r.data);
+  // params.kind 可选：不传=全部；"adhoc"=日常抑制；"maintenance"=维护窗口。
+  // 向后兼容：无参调用维持原语义（notification-tab 现有调用不受影响）。
+  listSuppressionRules(params?: { kind?: "adhoc" | "maintenance" }) {
+    return http
+      .get<SuppressionRule[]>("/suppression-rules", { params })
+      .then((r) => r.data);
   },
   createSuppressionRule(body: Partial<SuppressionRule> & { name: string }) {
     return http.post<SuppressionRule>("/suppression-rules", body).then((r) => r.data);
