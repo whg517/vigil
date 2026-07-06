@@ -7,6 +7,8 @@ import { IncidentDetail } from "@/pages/incident-detail";
 import { Oncall } from "@/pages/oncall";
 import { Services } from "@/pages/services";
 import { Integrations } from "@/pages/integrations";
+import { TicketIntegrations } from "@/pages/ticket-integrations";
+import { Credentials } from "@/pages/credentials";
 import { EscalationPolicies } from "@/pages/escalation-policies";
 import { UsersTeams } from "@/pages/users-teams";
 import { Runbooks } from "@/pages/runbooks";
@@ -55,6 +57,8 @@ function App() {
         <Route path="oncall" element={<Oncall />} />
         <Route path="services" element={<Services />} />
         <Route path="integrations" element={<Integrations />} />
+        <Route path="ticket-integrations" element={<TicketIntegrations />} />
+        <Route path="credentials" element={<Credentials />} />
         <Route path="escalation-policies" element={<EscalationPolicies />} />
         <Route path="users-teams" element={<UsersTeams />} />
         <Route path="runbooks" element={<Runbooks />} />

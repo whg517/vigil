@@ -13,6 +13,8 @@ const navItems = [
   { to: "/oncall", label: "值班排班" },
   { to: "/services", label: "服务" },
   { to: "/integrations", label: "接入管理" },
+  { to: "/ticket-integrations", label: "工单集成" },
+  { to: "/credentials", label: "凭据托管" },
   { to: "/escalation-policies", label: "升级策略" },
   { to: "/users-teams", label: "用户与团队" },
   { to: "/runbooks", label: "Runbook" },

@@ -14,6 +14,7 @@ import { APIKeyTab } from "./apikey-tab";
 import { AuditTab } from "./audit-tab";
 import { NotificationTab } from "./notification-tab";
 import { IMTab } from "./im-tab";
+import { SubscriptionTab } from "./subscription-tab";
 
 export function Settings() {
   const [tab, setTab] = useState("rbac");
@@ -31,6 +32,7 @@ export function Settings() {
           { value: "apikey", label: "API Key" },
           { value: "audit", label: "审计日志" },
           { value: "notification", label: "通知配置" },
+          { value: "subscription", label: "我的订阅" },
           { value: "im", label: "IM 平台" },
         ]}
       />
@@ -38,6 +40,7 @@ export function Settings() {
       {tab === "apikey" && <APIKeyTab />}
       {tab === "audit" && <AuditTab />}
       {tab === "notification" && <NotificationTab />}
+      {tab === "subscription" && <SubscriptionTab />}
       {tab === "im" && <IMTab />}
     </div>
   );

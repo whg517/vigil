@@ -267,6 +267,39 @@ export interface AuditLogListResponse {
   offset: number;
 }
 
+// —— Credential 凭据托管（ent/schema/credential.go，能力域 6 Runbook/工单执行器凭据）——
+// 密文经 Sensitive 恒不回显（list/get 只返元数据），故派生类型无 secret 字段。
+export type CredentialType = Schemas["credential.Type"];
+export type Credential = Required<
+  Omit<Schemas["ent.Credential"], "edges" | "config">
+> & {
+  config?: Record<string, unknown>;
+  // team 是 edge（WithTeam 后形如 { id, name, ... }）；后端 list 未 eager-load，通常缺省。
+  team?: { id: number; [k: string]: unknown };
+};
+
+// —— Subscription 个人订阅（ent/schema/subscription.go，能力域 4/7 T4.4）——
+// 当前登录用户的自助订阅：scope 二选一（team 或 service edge）+ min_severity + channels。
+export type SubscriptionSeverity = Schemas["subscription.MinSeverity"];
+export type Subscription = Required<
+  Omit<Schemas["ent.Subscription"], "edges" | "channels">
+> & {
+  channels?: string[];
+  // team/service 是 edge（list 时 WithTeam/WithService 回带），形如 { id, name, ... }。
+  team?: { id: number; [k: string]: unknown };
+  service?: { id: number; [k: string]: unknown };
+};
+
+// —— TicketIntegration 工单集成（ent/schema/ticket_integration.go，能力域 4 T4.3）——
+// 凭据经 Sensitive 恒不回显（list/get 不返 credential/callback_secret），故派生类型无这两个字段。
+export type TicketIntegrationType = Schemas["ticketintegration.Type"];
+export type TicketIntegration = Required<
+  Omit<Schemas["ent.TicketIntegration"], "edges" | "config">
+> & {
+  config?: Record<string, unknown>;
+  team?: { id: number; [k: string]: unknown };
+};
+
 // —— AI 诊断（能力域 11）——
 // DiagnoseResult 字段为 snake_case json tag，与后端 ai.DiagnoseResult 一致。
 export type DiagnoseResult = Required<

@@ -20,6 +20,7 @@ import type {
   APIKey,
   APIKeyCreated,
   AuditLogListResponse,
+  Credential,
   DashboardMetrics,
   DiagnoseResult,
   EscalationPolicy,
@@ -40,7 +41,9 @@ import type {
   RunbookExecuteResult,
   Schedule,
   Service,
+  Subscription,
   SuppressionRule,
+  TicketIntegration,
   TimelineItem,
 } from "@/lib/types";
 
@@ -184,6 +187,59 @@ export const api = {
   },
   deleteEscalationPolicy(id: number) {
     return http.delete(`/escalation-policies/${id}`).then((r) => r.data);
+  },
+  // ===== Credential 凭据托管（能力域 6，Runbook/工单执行器凭据）=====
+  // list/get 只返元数据（密文经 Sensitive 恒不回显）；create/update 收明文 secret 加密落库。
+  listCredentials() {
+    return http.get<Credential[]>("/credentials").then((r) => r.data);
+  },
+  createCredential(body: { name: string; type?: string; secret: string; config?: Record<string, unknown>; team_id?: number }) {
+    return http.post<Credential>("/credentials", body).then((r) => r.data);
+  },
+  updateCredential(id: number, body: { name?: string; type?: string; secret?: string; config?: Record<string, unknown> }) {
+    return http.patch<Credential>(`/credentials/${id}`, body).then((r) => r.data);
+  },
+  deleteCredential(id: number) {
+    return http.delete(`/credentials/${id}`).then((r) => r.data);
+  },
+  // ===== Subscription 个人订阅（能力域 4/7 T4.4，管理自己的）=====
+  listSubscriptions() {
+    return http.get<Subscription[]>("/subscriptions").then((r) => r.data);
+  },
+  createSubscription(body: { team_id?: number; service_id?: number; channels?: string[]; min_severity?: string }) {
+    return http.post<Subscription>("/subscriptions", body).then((r) => r.data);
+  },
+  deleteSubscription(id: number) {
+    return http.delete(`/subscriptions/${id}`).then((r) => r.data);
+  },
+  // ===== TicketIntegration 工单集成（能力域 4 T4.3）=====
+  // 凭据/回调密钥经 Sensitive 不回显；create/update 收明文加密落库。
+  listTicketIntegrations() {
+    return http.get<TicketIntegration[]>("/ticket-integrations").then((r) => r.data);
+  },
+  createTicketIntegration(body: {
+    name: string;
+    type?: string;
+    endpoint: string;
+    credential?: string;
+    config?: Record<string, unknown>;
+    team_id?: number;
+    callback_secret?: string;
+  }) {
+    return http.post<TicketIntegration>("/ticket-integrations", body).then((r) => r.data);
+  },
+  updateTicketIntegration(id: number, body: {
+    name?: string;
+    endpoint?: string;
+    credential?: string;
+    config?: Record<string, unknown>;
+    enabled?: boolean;
+    callback_secret?: string;
+  }) {
+    return http.patch<TicketIntegration>(`/ticket-integrations/${id}`, body).then((r) => r.data);
+  },
+  deleteTicketIntegration(id: number) {
+    return http.delete(`/ticket-integrations/${id}`).then((r) => r.data);
   },
   // ===== User / Team（能力域 13）=====
   listUsers() {
