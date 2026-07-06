@@ -29,7 +29,20 @@
 - **替代方案**：M8.1 交互卡片发到工作群 + M8.4 状态实时刷新。
 - **重启前置**：IM 建群/群成员/消息回写 API 的 PoC 完成；M8.2 编排设计评审通过；与复盘（域 12）的 M8.9 归档、M10.5 回写联动方案确定。
 
-### 1.2 首次部署向导 / 企微完整 bot / 工单 SDK
+### 1.2 IaC / Terraform 声明式资源管理
+
+**影响范围**：平台化（personas P1-3 平台工程师）。已评估并明确推迟（2026-07-06）。
+
+| 项 | 出处 |
+|----|------|
+| **IaC / Terraform Provider** | personas P1-3 |
+
+- **推迟原因**：平台工程师用 Terraform/IaC 声明式管理 Vigil 资源（Integration/Service/Schedule 等）需实现完整 Terraform Provider（资源 CRUD 映射 + state 协调 + 幂等 + import），体量大、需长期维护契约稳定；当前 REST API + Web 已能全量管理资源，IaC 属"锦上添花"的规模化运维能力，ROI 不足以进当前迭代。
+- **现状（代码保留物）**：所有资源均有稳定 REST API（`internal/server/`），Terraform Provider 可在其上构建，无需后端改造即可后续接入。
+- **替代方案**：REST API 脚本化（curl/SDK）+ Web 手动管理；配置模板（`config-template`）辅助批量接入。
+- **重启前置**：稳定 API 版本化契约（避免 Provider 频繁破坏性升级）；资源 import/state 映射方案；目标用户规模验证 IaC 需求真实存在。
+
+### 1.3 首次部署向导 / 企微完整 bot / 工单 SDK
 
 **影响范围**：H1（部署 onboarding）、能力域 8（企微适配器）、能力域 14（Jira/禅道 SDK）。三项已评估并明确推迟（2026-07-06）。
 
@@ -83,15 +96,12 @@
 
 | 项 | 出处 | 说明 |
 |----|------|------|
-| 值班大屏 / PWA / WS 实时看板 | 域 15 §B3 | 报表 CSV 导出 + 定时聚合快照已落地（T6.1）；实时看板需新增 dashboard 广播 topic + 前端大屏页（`?display=wall`）/ PWA 壳，属前端大件 |
 | audit-logs 导出 | M13.5 | analytics 各维度 CSV 导出已有（T6.1）；审计日志导出端点仍未做 |
 
 ### 2.6 平台化 / 运维
 
 | 项 | 出处 | 说明 |
 |----|------|------|
-| migrate-down / 回滚 | H1.4 | ent auto-migrate 不易支持逆向迁移，现设计是**备份恢复**回滚。若做需谨慎避免误导（可先提供 `migrate status` / 生成可 review 的 down SQL） |
-| IaC / Terraform 支持 | personas P1-3 | 平台工程师用 Terraform/IaC 声明式管理 Vigil 资源（Integration/Service/Schedule 等），当前仅 REST API |
 | 吃自己狗粮·自监控闭环 | H2.4 | `/metrics` 已暴露（队列深度/通知失败率/dedup 降级等）；队列积压 / 通知失败率超阈值时 **Vigil 对接自身触发告警** 的闭环未接（建议独立通道防自触发循环） |
 | i18n 国际化 | NFR | 前端文案硬编码中文，无 i18n 框架、结构未预留 |
 
@@ -120,3 +130,4 @@
 | webhook 出站动态订阅 CRUD | N2.2 `5849755` | Incident 人工合并端点 | N1.1 `efdad8d` |
 | 通知送达持久化（Notification 实体） | T2.2 `3907aac` | NotificationRule 精确匹配 | T2.2 `3907aac` |
 | 执行器凭据加密托管 | T6.3 `aad6a9c` | 出站签名 + 死信 + 重放 | T5.2 `14b663c` |
+| 值班大屏 / PWA / WS 实时看板 | P4·B `4c10e38` | migrate status/down 版本化回滚 | P4·C `564ef26` |
