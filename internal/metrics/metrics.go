@@ -168,6 +168,14 @@ var (
 		Name: "vigil_llm_tokens_total",
 		Help: "Total LLM tokens consumed by provider.",
 	}, []string{"provider"})
+
+	// SelfMonitorAlerts 自监控自告警触发次数（按 kind：queue_depth|notif_failure）。
+	// 自监控闭环（H2.4）超阈触发自告警时 +1，使「系统自己发现自己出故障」可观测；
+	// 也便于运维区分是队列积压还是通知失败率异常。
+	SelfMonitorAlerts = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "vigil_self_monitor_alerts_total",
+		Help: "Total self-monitoring alerts triggered by kind.",
+	}, []string{"kind"})
 )
 
 // HTTP 指标

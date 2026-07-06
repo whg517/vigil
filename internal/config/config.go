@@ -58,6 +58,102 @@ type Config struct {
 
 	// Retention Event/RawEvent 保留清理配置（平台化长尾，T6.2/M15）
 	Retention Retention `envconfig:"retention"`
+
+	// SelfMonitor 自监控闭环配置（平台化 H2.4，backlog §2.6）
+	SelfMonitor SelfMonitor `envconfig:"self_monitor"`
+}
+
+// SelfMonitor 自监控闭环配置（backlog §2.6，H2.4）。
+//
+// 背景：Vigil 是告警处置平台，但它自身也可能出故障（队列积压、通知发不出去）。
+// 若这类故障发生时无人告警，系统就是「哑巴」——事故堆着却没人知道。自监控闭环周期
+// 巡检关键内部信号，超阈值时经「独立通道」自告警，补上「守夜人也需要有人守夜」这一环。
+//
+// ★ 诚实与防自触发循环是第一要务：
+//   - 自告警必须绕开被监控的链路（escalation/IM），否则「链路坏了→告警也走坏链路→告警也失败」；
+//     甚至「自告警失败→抬高失败率→再触发→循环」。故 AlertChannels 刻意排除 im，并直接经
+//     NotifyUnrouted 独立通道发给 org_admin，不进 escalation 流水线。
+//   - 默认关（Enabled=false）：未配独立通道时贸然开启只会空转/误告，故需显式开启。
+//
+// env 前缀：VIGIL_SELF_MONITOR_*（如 VIGIL_SELF_MONITOR_ENABLED=true）。
+type SelfMonitor struct {
+	// Enabled 是否启用自监控。默认 false——避免未配独立通道时空转/误告，需显式开启。
+	Enabled bool `envconfig:"enabled" default:"false"`
+	// CheckInterval 巡检间隔。<=0 用默认 1m。
+	CheckInterval time.Duration `envconfig:"check_interval" default:"1m"`
+	// QueueDepthThreshold 队列积压阈值：各 queue 的 pending+active 之和超过此值 → 触发告警。
+	// <=0 用默认 10000（与 Ingestion.BackpressureDepth 同量级）。
+	QueueDepthThreshold int `envconfig:"queue_depth_threshold" default:"10000"`
+	// NotificationFailureRateThreshold 通知失败率阈值（0~1）：窗口内 failed/total 超过此值 → 触发。
+	// <=0 用默认 0.5（50%）。
+	NotificationFailureRateThreshold float64 `envconfig:"notification_failure_rate_threshold" default:"0.5"`
+	// FailureRateWindow 失败率统计窗口。<=0 用默认 15m。
+	FailureRateWindow time.Duration `envconfig:"failure_rate_window" default:"15m"`
+	// FailureRateMinSample 窗口内最小样本数：不足此数不判失败率，避免小样本误报。<=0 用默认 20。
+	FailureRateMinSample int `envconfig:"failure_rate_min_sample" default:"20"`
+	// Cooldown 同类告警冷却：同一 kind（queue/notif_failure）在此时长内不重复发，防每个 interval 刷屏。
+	// <=0 用默认 30m。
+	Cooldown time.Duration `envconfig:"cooldown" default:"30m"`
+	// AlertChannels 自告警走的独立通道（★ 刻意排除 im）。
+	// 默认 ["webhook","email"]——IM 挂了正是常见触发因素，自告警不能走可能同样失败的 IM。
+	// 逗号分隔（env：VIGIL_SELF_MONITOR_ALERT_CHANNELS=webhook,email）。
+	AlertChannels []string `envconfig:"alert_channels" default:"webhook,email"`
+}
+
+// EffectiveCheckInterval 返回巡检间隔，零值回退 1m。
+func (s SelfMonitor) EffectiveCheckInterval() time.Duration {
+	if s.CheckInterval <= 0 {
+		return time.Minute
+	}
+	return s.CheckInterval
+}
+
+// EffectiveQueueDepthThreshold 返回队列积压阈值，零值回退 10000。
+func (s SelfMonitor) EffectiveQueueDepthThreshold() int {
+	if s.QueueDepthThreshold <= 0 {
+		return 10000
+	}
+	return s.QueueDepthThreshold
+}
+
+// EffectiveFailureRateThreshold 返回失败率阈值，非法值（<=0 或 >1）回退 0.5。
+func (s SelfMonitor) EffectiveFailureRateThreshold() float64 {
+	if s.NotificationFailureRateThreshold <= 0 || s.NotificationFailureRateThreshold > 1 {
+		return 0.5
+	}
+	return s.NotificationFailureRateThreshold
+}
+
+// EffectiveFailureRateWindow 返回失败率统计窗口，零值回退 15m。
+func (s SelfMonitor) EffectiveFailureRateWindow() time.Duration {
+	if s.FailureRateWindow <= 0 {
+		return 15 * time.Minute
+	}
+	return s.FailureRateWindow
+}
+
+// EffectiveFailureRateMinSample 返回最小样本数，零值回退 20。
+func (s SelfMonitor) EffectiveFailureRateMinSample() int {
+	if s.FailureRateMinSample <= 0 {
+		return 20
+	}
+	return s.FailureRateMinSample
+}
+
+// EffectiveCooldown 返回同类告警冷却，零值回退 30m。
+func (s SelfMonitor) EffectiveCooldown() time.Duration {
+	if s.Cooldown <= 0 {
+		return 30 * time.Minute
+	}
+	return s.Cooldown
+}
+
+// EffectiveAlertChannels 返回自告警独立通道，空值回退 [webhook,email]（★ 不含 im）。
+func (s SelfMonitor) EffectiveAlertChannels() []string {
+	if len(s.AlertChannels) == 0 {
+		return []string{"webhook", "email"}
+	}
+	return s.AlertChannels
 }
 
 // Retention Event/RawEvent 保留清理配置（T6.2，能力域 15 平台化长尾）。

@@ -52,6 +52,7 @@ import (
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/runbook"
 	"github.com/kevin/vigil/internal/schedule"
+	"github.com/kevin/vigil/internal/selfmon"
 	"github.com/kevin/vigil/internal/service"
 	"github.com/kevin/vigil/internal/store"
 	"github.com/kevin/vigil/internal/subscription"
@@ -644,7 +645,83 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		log.Info("event retention sweeper disabled (no retention period configured)")
 	}
 
+	// H2.4 自监控闭环：周期巡检队列积压 / 通知失败率，超阈经独立通道自告警 org_admin。
+	// ★ 默认关（VIGIL_SELF_MONITOR_ENABLED=true 显式开启）——避免未配独立通道时空转/误告。
+	// ★ 自告警绕开 escalation 流水线（NotifyUnrouted 独立通道，刻意排除 im），防「链路坏了
+	//   告警也走坏链路」；失败率统计只算业务通知（HasIncident），防自告警失败→再触发的循环。
+	if cfg.SelfMonitor.Enabled {
+		smInsp := asynq.NewInspector(*escRedisOpt) // 复用 escalation 的 Redis 连接信息
+		smCfg := selfmon.Config{
+			CheckInterval:        cfg.SelfMonitor.EffectiveCheckInterval(),
+			QueueDepthThreshold:  cfg.SelfMonitor.EffectiveQueueDepthThreshold(),
+			FailureRateThreshold: cfg.SelfMonitor.EffectiveFailureRateThreshold(),
+			FailureRateWindow:    cfg.SelfMonitor.EffectiveFailureRateWindow(),
+			FailureRateMinSample: cfg.SelfMonitor.EffectiveFailureRateMinSample(),
+			Cooldown:             cfg.SelfMonitor.EffectiveCooldown(),
+			AlertChannels:        cfg.SelfMonitor.EffectiveAlertChannels(),
+		}
+		smResolver := &unroutedFallbackNotifier{db: st.DB, notifier: notifier, log: log}
+		smEngine := selfmon.NewEngine(
+			smCfg,
+			selfmon.NewInspectorQueueSource(smInsp),
+			selfmon.NewEntFailureRate(st.DB),
+			selfMonAlertNotifier{notifier: notifier},
+			selfMonAdminResolver{resolver: smResolver},
+			log,
+		)
+		// 诚实边界：开启了却没配任一独立通道，告警可能无法送达——启动即 warn 明说，不假装闭环成功。
+		// 注：webhook/email 通道恒注册于 registry（Send 时才按配置降级），故不能只看「是否注册」，
+		// 必须看真实配置（webhook 出口 URL / SMTP Host / 语音 webhook）才是诚实判断。
+		if !selfMonHasDeliverableChannel(cfg, notifWebhookURLs, smCfg.AlertChannels) {
+			log.Warn("self-monitor enabled but no configured independent alert channel; alerts may not be delivered",
+				zap.Strings("alert_channels", smCfg.AlertChannels))
+		}
+		smCtx, smCancel := context.WithCancel(ctx)
+		go smEngine.Run(smCtx)
+		wired.Closers = append(wired.Closers, smCancel)
+		log.Info("self-monitor engine wired",
+			zap.Duration("interval", smCfg.CheckInterval),
+			zap.Int("queue_depth_threshold", smCfg.QueueDepthThreshold),
+			zap.Float64("failure_rate_threshold", smCfg.FailureRateThreshold))
+	} else {
+		log.Info("self-monitor disabled (VIGIL_SELF_MONITOR_ENABLED=false)")
+	}
+
 	return wired, nil
+}
+
+// selfMonHasDeliverableChannel 诚实判断自监控告警是否至少有一个「真实可送达」的独立通道。
+//
+// 为什么不用 registry.Get：webhook/email 等通道恒注册（Send 时才按配置降级），只看注册
+// 会永远返回 true、warn 永不触发，等于自欺。故此处对每个候选通道查其真实配置来源：
+//   - webhook：出口 URL 非空（notifWebhookURLs 来自 VIGIL_WEBHOOK_OUT_URLS）
+//   - email  ：SMTP Host 非空
+//   - phone/sms：对应语音 webhook URL 非空
+//   - im     ：不参与（自监控刻意排除 im，即便配了也不算「独立通道」）
+//
+// 任一候选通道真实可用即返回 true。
+func selfMonHasDeliverableChannel(cfg *config.Config, notifWebhookURLs []string, channels []string) bool {
+	for _, ch := range channels {
+		switch ch {
+		case "webhook":
+			if len(notifWebhookURLs) > 0 {
+				return true
+			}
+		case "email":
+			if cfg.Notification.SMTP.Host != "" {
+				return true
+			}
+		case "phone":
+			if cfg.Notification.Phone.WebhookURL != "" {
+				return true
+			}
+		case "sms":
+			if cfg.Notification.SMS.WebhookURL != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // runDashboardTicker 周期向 /ws/dashboard 订阅者推送看板心跳（P4·B3）。
@@ -1059,6 +1136,38 @@ func buildAllFailedHook(_ context.Context, db *ent.Client, notifier *notificatio
 				zap.Int("incident", inc.ID), zap.Error(err))
 		}
 	}
+}
+
+// selfMonAlertNotifier 实现 selfmon.AlertNotifier（H2.4 自监控闭环）。
+//
+// ★ 直接经 NotifyUnrouted 独立通道发自告警，不进 escalation 流水线——被监控的正是这条
+// 流水线，自告警必须绕开它（否则「链路坏了→告警也走坏链路→告警也失败」）。channels 由
+// selfmon 引擎传入（cfg.SelfMonitor.AlertChannels，刻意排除 im）。
+type selfMonAlertNotifier struct {
+	notifier *notification.Notifier
+}
+
+// Alert 经指定独立通道把自监控告警送给收件人（无 Incident 上下文，走 unrouted 路径）。
+func (s selfMonAlertNotifier) Alert(ctx context.Context, targets []notification.Target, title, summary string, channels []string) error {
+	return s.notifier.NotifyUnrouted(ctx, targets, title, summary, channels)
+}
+
+// selfMonAdminResolver 实现 selfmon.AdminResolver，复用 org_admin 解算逻辑（与全败兜底同源）。
+type selfMonAdminResolver struct {
+	resolver *unroutedFallbackNotifier
+}
+
+// Resolve 解算 org_admin 收件人（在职、去重）为 notification.Target。
+func (s selfMonAdminResolver) Resolve(ctx context.Context) ([]notification.Target, error) {
+	admins, err := s.resolver.resolveOrgAdmins(ctx)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]notification.Target, 0, len(admins))
+	for _, a := range admins {
+		targets = append(targets, notification.Target{UserID: a.ID, Name: a.Name, Source: "user"})
+	}
+	return targets, nil
 }
 
 // emptyShiftAlerter 实现 schedule.EmptyShiftAlerter（C4）。
