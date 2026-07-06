@@ -491,6 +491,29 @@ export const api = {
   listAuditLogs(params?: { actor_user_id?: number; action?: string; resource_type?: string; limit?: number; offset?: number }) {
     return http.get<AuditLogListResponse>("/audit-logs", { params }).then((r) => r.data);
   },
+  // exportAuditLogs 导出审计日志为 CSV。
+  // 走 http 客户端（而非裸 <a href>）以携带 Authorization 头——端点需鉴权。
+  // responseType=blob 拿到二进制流；从响应头 x-vigil-truncated 读截断标记（达 5 万行上限时后端置 true）。
+  // 返回 { blob, truncated, filename }，filename 优先从 Content-Disposition 解析。
+  exportAuditLogs(params?: {
+    actor_user_id?: number;
+    action?: string;
+    resource_type?: string;
+    resource_id?: string;
+    from?: string;
+    to?: string;
+  }) {
+    return http
+      .get("/audit-logs/export", { params, responseType: "blob" })
+      .then((r) => {
+        const truncated = String(r.headers["x-vigil-truncated"]).toLowerCase() === "true";
+        // Content-Disposition: attachment; filename="audit-logs.csv"
+        const disposition = String(r.headers["content-disposition"] ?? "");
+        const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+        const filename = match ? decodeURIComponent(match[1]) : "audit-logs.csv";
+        return { blob: r.data as Blob, truncated, filename };
+      });
+  },
   // ===== 出站 webhook 订阅（能力域 1，N2.2）=====
   // signing_secret 经 Sensitive 恒不回显；create/update 收明文加密落库（updateReq 传空串=清空签名）。
   listWebhookSubscriptions() {

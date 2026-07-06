@@ -1,21 +1,52 @@
 /** 审计日志（能力域 13 §审计日志，只读 + 筛选）。 */
 import { useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuditLogs } from "@/hooks/settings";
+import { api } from "@/lib/api";
 import { formatTime } from "@/lib/format";
 
 /** AuditTab：审计日志列表（倒序），按操作类型筛选。只读，无写操作。 */
 export function AuditTab() {
   const [action, setAction] = useState("");
+  const [exporting, setExporting] = useState(false);
   const { data, isLoading } = useAuditLogs(action ? { action, limit: 100 } : { limit: 100 });
 
   const resultBadge = (r: string) => {
     if (r === "success") return <Badge variant="default">{r}</Badge>;
     return <Badge variant="destructive">{r}</Badge>;
+  };
+
+  // handleExport 导出当前筛选下的审计日志为 CSV。
+  // 经 http 客户端取 blob（自动带 JWT），再用 objectURL + 隐藏 <a download> 触发下载；
+  // 用完 revokeObjectURL 释放。失败由 http 响应拦截器统一 toast.error，此处不重复提示。
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const { blob, truncated, filename } = await api.exportAuditLogs(action ? { action } : undefined);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      if (truncated) {
+        toast.warning("仅导出前 5 万行，请缩小时间范围");
+      } else {
+        toast.success("已导出审计日志");
+      }
+    } catch {
+      // 错误提示由 http 响应拦截器统一处理
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -36,6 +67,9 @@ export function AuditTab() {
             <option value="apikey.delete">API Key 撤销</option>
             <option value="auth.login">登录</option>
           </Select>
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
+            {exporting ? "导出中…" : "导出 CSV"}
+          </Button>
         </div>
       </div>
       <Card>
