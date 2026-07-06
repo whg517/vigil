@@ -1,110 +1,122 @@
 # Backlog（暂不做 / 待规划）
 
-> 本文件记录**已评估并明确推迟**的需求项。每条注明：出处（PRD 需求 ID）、推迟原因、
-> 现状（代码层面的保留物）、未来重启时的前置条件。
+> 本文件是 Vigil 的**单一待办信源**：记录**已评估、明确不在当前迭代做**的需求项。
+> 每条注明出处（PRD 需求 ID / 能力域），🚧 项另附推迟依据与重启前置条件。
 >
-> 与各文档"开放问题"的区别：开放问题是**待讨论的决定**；本文件是**已决定推迟**的事项。
+> - 与各文档「开放问题」的区别：开放问题是**待讨论的决定**；本文件是**已决定推迟/待规划**的事项。
+> - 与 `roadmap-completeness.md` 的区别：roadmap 是**已排期/已完成**任务的执行视图；本文件是**未排期**事项。
 >
-> 状态约定：🚧 暂不做（明确推迟） · 📋 待规划（纳入后续版本考虑）
+> **状态约定**：🚧 暂不做（明确推迟，有推迟依据）· 📋 待规划（已确认要做、未排期）
+>
+> **维护约定**：正文只列**未做**的事项。项一旦完成，从下方表格移除，并在文末「附录·已完成移出」追加一行索引（供追溯），保持正文精简。
 
 ---
 
-## 🚧 作战室（War Room）相关 —— 现阶段不做
+## 一、🚧 暂不做（明确推迟）
 
-**影响范围**：PRD 能力域 8（IM 协同）的 M8.2 / M8.9，以及能力域 10（时间线）依赖作战室的 M10.5。
+### 1.1 作战室（War Room）—— M8.2 / M8.9 / M10.5
 
-| PRD 需求 ID | 描述 | 状态 |
-|-------------|------|------|
-| **M8.2** | 一键作战室：Incident 触发时自动建临时 IM 群、拉相关人、置顶事件信息；升级到新层级自动把新 oncall 拉入群 | 🚧 暂不做 |
-| **M8.9** | 作战室归档：事件关闭后保留作战室聊天记录，关联到复盘 | 🚧 暂不做（依赖 M8.2） |
-| **M10.5** | IM 消息可选捕获：作战室关键消息回写时间线 | 🚧 暂不做（依赖 M8.2） |
+**影响范围**：能力域 8（IM 协同）的 M8.2 / M8.9，及能力域 10（时间线）依赖作战室的 M10.5。
 
-### 推迟原因
+| PRD 需求 ID | 描述 |
+|-------------|------|
+| **M8.2** | 一键作战室：Incident 触发时自动建临时 IM 群、拉相关人、置顶事件信息；升级到新层级自动把新 oncall 拉入群 |
+| **M8.9** | 作战室归档：事件关闭后保留作战室聊天记录，关联到复盘（需 `war_room` 实体落库） |
+| **M10.5** | IM 消息回写时间线：捕获含关键词 / @机器人的作战室关键消息写入时间线 |
 
-1. **编排复杂度高，收益对当前阶段非必需**：自动建群 / 自动邀人 / 升级联动入群 / 关闭归档是一整套跨 IM 平台与业务事件的编排，落地成本高；当前阶段的协同诉求用「现有工作群 + 交互卡片（M8.1）+ 卡片实时刷新（M8.4）」已能满足。
-2. **平台能力差异大**：飞书 / 钉钉 / 企微在「自动建群、群成员 API、消息回写」上能力参差，需先做技术 PoC 才能定边界（PRD §4.8 已标此项为风险点）。
+- **推迟原因**：① 自动建群 / 邀人 / 升级联动入群 / 关闭归档是跨 IM 平台与业务事件的整套编排，落地成本高，当前用「工作群 + 交互卡片（M8.1）+ 卡片实时刷新（M8.4）」已满足协同诉求；② 飞书/钉钉/企微在建群、群成员 API、消息回写上能力参差，需先做 PoC 定边界（PRD §4.8 风险点）。
+- **现状（代码保留物）**：飞书/钉钉 `CreateChat` 建群原语已实现（`internal/im/{feishu,dingtalk}/adapter.go`），企微为 `NoopBot` 占位；live path 未接（Incident 事件链不调 `CreateWarRoom`）；`Incident.war_room` 字段无写入。
+- **替代方案**：M8.1 交互卡片发到工作群 + M8.4 状态实时刷新。
+- **重启前置**：IM 建群/群成员/消息回写 API 的 PoC 完成；M8.2 编排设计评审通过；与复盘（域 12）的 M8.9 归档、M10.5 回写联动方案确定。
 
-### 现状（代码层面的保留物）
+### 1.2 首次部署向导 / 企微完整 bot / 工单 SDK
 
-- ✅ adapter 层原语**保留**：飞书（`internal/im/feishu/adapter.go` `CreateChat`）、钉钉（`internal/im/dingtalk/adapter.go` `CreateChat`）的建群 API 调用已实现，企微为 `NoopBot` 占位。
-- ❌ live path **未接**：Incident 触发 / 升级 / 关闭的事件链路均不调用 `CreateWarRoom`；没有自动建群、自动邀人、归档的编排代码。
-- ❌ 数据模型字段 `Incident.war_room`（见 data-model §3.3）当前无写入。
+**影响范围**：H1（部署 onboarding）、能力域 8（企微适配器）、能力域 14（Jira/禅道 SDK）。三项已评估并明确推迟（2026-07-06）。
 
-### 当前替代方案（重启前用什么）
+| 项 | 出处 |
+|----|------|
+| **首次部署向导（first-run wizard）** | 待讨论 / H1 |
+| **企微完整 bot 适配器** | 能力域 8 / PRD §4.8 |
+| **Jira / 禅道具体 SDK 适配器** | 能力域 14 M14.2 |
 
-告警协同走 **M8.1 交互卡片 + M8.4 状态实时刷新**：卡片发到团队已有工作群，ack / 升级 / 解决都在卡片按钮完成，状态变更原地刷新卡片，群内所有人看到一致状态。
-
-### 重启前置条件
-
-- IM 平台建群 / 群成员 / 消息回写 API 的技术 PoC 完成，能力边界明确。
-- M8.2 自动建群编排设计评审通过。
-- 复盘（能力域 12）与 M8.9 归档、M10.5 消息回写的联动方案确定。
+- **推迟原因**：① 首次部署向导——env + 种子超管 `admin/changeme` + 强制首登改密已够初始化，分步 web 向导是纯 onboarding UX 大件、与 first-run 状态判定耦合，需产品评审；② 企微 bot——飞书/钉钉已完整支持，企微能力/授权模型差异大，需应用注册 + 能力 PoC（同作战室 PoC 风险）；③ Jira/禅道 SDK——通用 webhook 工单已覆盖主要场景，完整 REST SDK（认证/字段映射/双向回写）体量大、需真实实例联调，ROI 不足。
+- **现状（代码保留物）**：① `SeedBuiltinRoles`/`SeedDefaultAdmin` 幂等种子 + `must_change_password` 链路完整，无向导页；② 企微 `NoopBot` 占位，`Available()==false` 被通知链排除、**不静默丢告警**（走邮件/电话/短信兜底），adapter 接口已留；③ `internal/ticket/adapter.go` 有 `Adapter` 接口 + 通用 webhook 适配器 + `NewJiraAdapter`/`NewZentaoAdapter` 占位（返回 `ErrAdapterNotImplemented`），替换占位即接入、触发链路不变。
+- **替代方案**：① env + 种子超管 + Web 手动建组织结构；② 邮件/电话/短信/webhook 兜底 + 飞书/钉钉卡片；③ 通用 webhook 工单（可配 URL、SSRF 防护）+ 手填/回写 tracker_url。
+- **重启前置**：① onboarding UX 评审 + first-run 状态判定方案；② 企微应用注册 + 卡片/群 API PoC；③ 目标工单实例可联调 + 认证/字段映射方案。
 
 ---
 
-## 🚧 首次部署向导 / 企微完整 bot / 工单 SDK —— 现阶段不做
+## 二、📋 待规划（已确认要做、未排期）
 
-**影响范围**：H1（部署 onboarding）、能力域 8（IM 协同 · 企微适配器）、能力域 14（工单集成 · Jira/禅道 SDK）。三项均已评估并明确推迟（2026-07-06）。
+> 按能力域归组。含 2026-06-22 `TODO.md` 合并入的长期增强项（非阻塞生产）。
 
-| 项 | 出处 | 状态 |
+### 2.1 接入与归一化（能力域 1）
+
+| 项 | 出处 | 说明 |
 |----|------|------|
-| **首次部署向导（first-run wizard）** | 待讨论 / H1 | 🚧 暂不做 |
-| **企微完整 bot 适配器** | 能力域 8 / PRD §4.8 | 🚧 暂不做 |
-| **Jira / 禅道具体 SDK 适配器** | 能力域 14 M14.2 | 🚧 暂不做 |
+| Zabbix 适配器 | M1.2 | 解析 Zabbix action script payload（trigger/priority/eventid）。当前 `config-template` 列了 zabbix 类型但无适配器，推送落 `parse_failed` |
+| 云监控适配器 | M1.2 | 阿里云 / 腾讯云 / AWS SNS 各自消息结构适配 |
+| 邮件接入 SMTP→Event | M1.3 | SMTP 收信地址收告警，主题解析 severity、正文解析 detail。**注**：与「邮件**通知**通道」（已实现，对外发邮件）是两件事——前者入向告警源、后者出向通知 |
+| 严重度映射表可配置 | M2.3 | `mapPromSeverity`（`ingestion/adapters_builtin.go`）当前硬编码，待支持 `Integration.config` 覆盖映射表 |
 
-### 推迟原因
+### 2.2 通知（能力域 7）
 
-1. **首次部署向导**：当前「环境变量 + 种子超管 `admin/changeme` + 强制首登改密」已能完成初始化；分步 web 向导（建组织/团队/首个服务/引导接入源）是纯 onboarding UX 大件，与 first-run 状态判定耦合，收益对当前阶段非必需，需产品设计评审。
-2. **企微完整 bot**：飞书/钉钉已完整支持（卡片/mention/更新降级）；企微在应用配置、消息卡片、群成员 API 与授权模型上能力差异大，需先做企微应用注册 + 能力 PoC 才能定边界（与作战室同一 PoC 风险点，PRD §4.8）。
-3. **Jira/禅道 SDK**：通用 webhook 工单适配器已能覆盖「自研工单系统 / 能收 webhook 的 Jira-禅道自动化」；完整 REST SDK（认证/字段映射/项目发现/双向回写）体量大、需真实实例联调，当前 ROI 不足。
+| 项 | 出处 | 说明 |
+|----|------|------|
+| 电话 / SMS 真实云厂商语音 API 对接 | M7.2 | 当前 PhoneChannel/SMSChannel 为抽象层 + webhook 占位转发（已纳入降级链、可触发），待对接阿里云/腾讯云语音 API 做真实呼叫/短信 |
 
-### 现状（代码层面的保留物）
+### 2.3 处置执行（能力域 9）
 
-- 首次部署：`internal/server/wire.go` `SeedBuiltinRoles`/`SeedDefaultAdmin` 幂等种子 + `must_change_password` 强制改密链路完整；无 web 向导页。
-- 企微：`NoopBot` 占位，`Available()==false` 被通知链排除、**不静默丢告警**（走邮件/电话/短信兜底）；adapter 接口已定义，补实现即可接入。
-- 工单：`internal/ticket/adapter.go` 已有 `Adapter` 接口 + 通用 webhook 适配器 + `NewJiraAdapter`/`NewZentaoAdapter` 占位（返回 `ErrAdapterNotImplemented`，建单降级不阻断）；替换占位适配器即可，Engine 装配与建单触发链路不变。
+| 项 | 出处 | 说明 |
+|----|------|------|
+| InternalExecutor 只读诊断扩展 | 域 9 | 当前支持 check_http 探活 + info，待加 query_metrics（查 Prometheus）/ query_logs（查 Loki）等更多只读诊断类型 |
 
-### 当前替代方案（重启前用什么）
+### 2.4 AI 智能（能力域 11）
 
-- 首次部署：文档化的 env + 种子超管 + Swagger/Web 手动建组织结构。
-- 企微：邮件/电话/短信/webhook 兜底通道 + 飞书/钉钉 IM 卡片。
-- 工单：通用 webhook 工单（POST 可配 URL、payload 含 ActionItem、SSRF 防护）+ 手填/回写 tracker_url。
+| 项 | 出处 | 说明 |
+|----|------|------|
+| 本地模型 Ollama Provider | M11.10 | 隐私场景数据不出境，当前仅接智谱 GLM。`Provider` 接口 + `CostController` 已抽象，补 Ollama 实现即可 |
+| 智能降噪**自动学习 / 回训** | M11.5 | 「AI 建议 → 规则沉淀」已落地（N1.4：`noise_suggestion` accept → SuppressionRule）；**无监督自学习 / 模型回训**未做（当前需人工确认沉淀，不自动改变模型行为） |
+| AI 置信度阈值配置化 | Q2 | 分诊 AI 已有 `SetConfidenceThreshold`（默认 0.6，代码级）；待**暴露到 config** 并应用到诊断链的「低于阈值不展示」过滤 |
 
-### 重启前置条件
+### 2.5 报表与看板（能力域 15）
 
-- 首次部署向导：onboarding 流程 UX 设计评审通过；first-run 状态判定（是否已初始化）方案确定。
-- 企微 bot：企微应用注册 + 消息卡片/群 API 能力 PoC 完成。
-- Jira/禅道 SDK：目标实例可联调，认证/字段映射方案确定。
+| 项 | 出处 | 说明 |
+|----|------|------|
+| 值班大屏 / PWA / WS 实时看板 | 域 15 §B3 | 报表 CSV 导出 + 定时聚合快照已落地（T6.1）；实时看板需新增 dashboard 广播 topic + 前端大屏页（`?display=wall`）/ PWA 壳，属前端大件 |
+| audit-logs 导出 | M13.5 | analytics 各维度 CSV 导出已有（T6.1）；审计日志导出端点仍未做 |
+
+### 2.6 平台化 / 运维
+
+| 项 | 出处 | 说明 |
+|----|------|------|
+| migrate-down / 回滚 | H1.4 | ent auto-migrate 不易支持逆向迁移，现设计是**备份恢复**回滚。若做需谨慎避免误导（可先提供 `migrate status` / 生成可 review 的 down SQL） |
+| IaC / Terraform 支持 | personas P1-3 | 平台工程师用 Terraform/IaC 声明式管理 Vigil 资源（Integration/Service/Schedule 等），当前仅 REST API |
+| 吃自己狗粮·自监控闭环 | H2.4 | `/metrics` 已暴露（队列深度/通知失败率/dedup 降级等）；队列积压 / 通知失败率超阈值时 **Vigil 对接自身触发告警** 的闭环未接（建议独立通道防自触发循环） |
+| i18n 国际化 | NFR | 前端文案硬编码中文，无 i18n 框架、结构未预留 |
+
+### 2.7 旅程 / UX 缺口
+
+| 项 | 出处 | 说明 |
+|----|------|------|
+| 维护窗口独立操作流 | M3.2 | SuppressionRule `expires_at` 可设/清除并生效（T2.4）；缺「为计划内变更立维护窗 → 自动到期」的独立操作流叙述与专属入口 |
+| 前端管理页 UX 目视复核 | Phase 2/3 | N3/P3 新增页面（凭据/订阅/工单/出站订阅/通知规则/换班 Override/合并/集成向导）已通过类型+构建+浏览器基础验证；换班时区、quiet_hours 默认、通知模板 name 引用等交互细节待产品目视复核 |
 
 ---
 
-## 📋 待规划（后续版本考虑）
+## 附录 · 已完成、从 backlog 移出（可追溯）
 
-> 以下为 PRD 设计目标但当前未排期的事项，列入以备规划。详细说明见各能力域文档的"开放问题"。
+> 下列项曾列入待办，现已实现并合入 main。仅保留一行索引供追溯，不占正文。
 
-### 来自用户旅程完整性评估（2026-07-03）
-
-| 项 | 出处 | 当前状态 | 说明 |
-|----|------|----------|------|
-| **subscriber / 团队 Leader 独立旅程** | personas.md P1-4 | 后端已覆盖，缺 UI | 订阅 Incident 后端已落地（T4.4，`f3cae2a`，`GET\|POST\|DELETE /subscriptions` 自管 + min_severity + 定向通知复用 T2.2）；团队看板/复盘质量跟进的前端页面待补（Phase 2 B 项） |
-| **平台工程师 / API 消费者旅程** | personas.md P1-3 | 部分覆盖 | APIKey 创建已覆盖（B.1）+ 开放 API `POST /api/v1/events` 投递已落地（T5.1）；webhook 出站**动态订阅 CRUD** 已落地（N2.2，`5849755`）、出站签名/死信/重放（T5.2）；集成向导 M14.6 后端 `config-template`（T6.2）+ **分步 wizard UI 已落地**（P3.1，`5ae441a`，4 步向导：选类型→配置→生成接入信息→验证）；仍缺 IaC/Terraform |
-| **维护窗口 / 抑制操作流（独立旅程）** | 能力域 3 M3.2 | 配置在 B.7 | 抑制规则 `expires_at` 可设/清除并生效已落地（T2.4）；缺"为计划内变更立维护窗 → 自动到期"的独立操作流叙述 |
-| **AI 反馈改进闭环** | 能力域 11 M11.5 | 大部覆盖 | accept/reject + 相似检索修复 + 反馈指标可查（T3.4，`adc8385`）；**噪声学习「建议→规则沉淀」已落地**（N1.4，`e96c966`：`noise_suggestion` 建议 accept → 沉淀为 `source=ai` 的 SuppressionRule，下次自动抑制，team_admin 可撤）。仍未做：**模型自动回训**（当前是「AI 建议 + 人工确认沉淀规则」，非无监督学习） |
-
-### 既有项（前轮已记录）
-
-| 项 | 出处 | 当前状态 | 说明 |
-|----|------|----------|------|
-| ~~跨团队 @人 → 事件级临时授权 + 关闭自动失效~~ | PRD M8.3 / data-model §5.6 | ✅ 已完成（`bde581c`，N1.2） | `AddResponder` 拉人时经 `ResponderGranter`：被拉人对该 incident team 无 `incident.ack` 权限则自动发 team scope 的 responder 临时 RoleBinding（`expires_at` 默认 24h 兜底 + `source_incident_id` 标记来源）；`IncidentClosed/Resolved/Merged` 时按来源精确撤销，过期作兜底；team scope 不放宽软隔离、authz 实时失效；发放/撤销落审计 |
-| ~~IM 斜杠命令全量~~ | PRD M8.5 | ✅ 已完成（`5849755`，N2.1） | `/vigil ack\|escalate\|resolve\|status\|add`（已有）+ 本轮补 `/vigil runbook <rb> <inc>`（两档安全，写操作 IM 内不放行只提示 Web 审批）与 `/vigil oncall [service\|team]`（查值班）；命令全量覆盖 |
-| 首次部署向导（first-run wizard） | 待讨论 / H1 | 🚧 暂不做 | 已明确推迟，见上「🚧 首次部署向导 / 企微完整 bot / 工单 SDK」节 |
-| ~~用户禁用自动交接提示~~ | 能力域 13 M13.1 | ✅ 已完成（`b4749e9`，N2.3） | 鉴权侧即时失效（T0.3）+ oncall 解算跳过禁用用户（T2.3）；本轮补 `GET /users/:id/handover-preview` 返回待交接四类（参与排班/owner 未完成 ActionItem/未过期 RoleBinding/IM 绑定），`PATCH` 禁用时有待交接项则响应附 `handover` 提示（不阻断）。详见 user-journeys.md B.14 |
-| **migrate-down / 回滚** | H1.4 | ❌ 无（保留） | 无；回滚靠备份恢复（Phase 2 E 项）。详见 user-journeys.md D.1 |
-| ~~webhook 出站动态订阅 CRUD~~ | 能力域 14 / personas P1-3 | ✅ 已完成（N2.2） | 新增 `WebhookSubscription` 实体 + `internal/webhook/subscription_handler.go`：`GET/POST/GET:id/PATCH/DELETE /webhook-subscriptions`（权限 `webhook_subscription.{view,create,update,delete}`，团队软隔离）。dispatcher 出站时合并 env 静态订阅（`VIGIL_WEBHOOK_OUT_URLS`）+ DB 动态订阅（`EntSubscriptionResolver`，按 `event_types` 过滤、每订阅独立 `signing_secret` 加密存储/出站前解密、同 URL 去重）。向后兼容 env（无解析器时退化为仅 env）。出站签名 + 死信 + 重放仍由 T5.2 复用 |
-| ~~复盘 resolve 自动触发起草（critical 强制）~~ | PRD M12.7 | ✅ 已完成（`9f49f77`，T4.1） | `postmortem/engine.go` `OnIncidentResolved` 订阅 IncidentResolved：critical 强制自动起草、warning 可配、info 不起草；不再需手动调 draft |
-| ~~未路由事件重路由端点~~ | 能力域 4 M4.3 | ✅ 已完成（`91143d5`，T2.4） | 新增 `POST /events/:id/reroute`（`triage/handler.go` + `Engine.Reroute`，权限 `service.route_override` 团队软隔离），可对已 unrouted Event 改派/重路由 |
-| ~~排班/升级引擎解算 oncall 不查 User.status~~ | 能力域 5/6 · 审计 B21/C4 | ✅ 已完成（T2.3/T2.4） | `schedule/engine.go:105/170/241` 与 `escalation/engine.go:304` 均已加 `user.StatusEQ(user.StatusActive)` 过滤，禁用用户不再被解算为 oncall；空班检测记 metric+Warn+告警 |
-| ~~报表/审计导出端点~~ | 能力域 15 / 13 M13.5 | ✅ 已完成（`2fbea67`，T6.1） | 新增 `GET /analytics/{alerts\|incidents\|team-load\|postmortems}/export` CSV 导出（`analytics/export.go`，复用 `analytics.view` + team 软隔离）。注：audit-logs 导出仍未做（如需可后续补） |
-| ~~多副本 WebSocket pub/sub~~ | architecture §7 | ✅ 已完成（`014a0d0`，T6.4） | `internal/ws/pubsub.go` + `hub.go`：多副本 Redis pub/sub 跨副本广播，单副本退化 + 跨副本去重 |
-| ~~Action Item 自动建工单 + 状态回写（M14.2）~~ | 能力域 12 §5 / 能力域 14 | ✅ 已完成（`466a01f`，T4.3） | 新增 `TicketIntegration` 实体 + `internal/ticket` 包：复盘发布经 `OnPostmortemPublished` 为未建单 ActionItem 建外部工单回写 tracker_url（通用 webhook + Jira/禅道预留适配器）、ActionItem→done 单向同步；`due_date` API 已暴露（T2.5）。**注**：工单侧反向回写已落地（N1.3，`e96c966`：`POST /webhooks/ticket/:id` HMAC 验签回调 → 更新 ActionItem 状态）；完整 Jira/禅道 SDK 已明确推迟（见「🚧 首次部署向导 / 企微完整 bot / 工单 SDK」节，通用 webhook 已可用） |
-| ~~analytics 报表团队 scope 隔离~~ | 能力域 11 / 审计 S14 | ✅ 已完成（T0.7，`4e0ba13`） | `analytics/engine.go` 已引入 `Scope` 结构（`OrgWide`/`TeamIDs`）按 team 过滤各维度查询（event→service→team、incident→team、postmortem→incident→team、aiinsight→incident→team），team scope 但无可见 team 时返空指标；6 个 `/analytics/*` 端点挂 `analytics.view` + team 软隔离 |
+| 项 | 完成 | 项 | 完成 |
+|----|------|----|------|
+| 未路由事件重路由端点 | T2.4 `91143d5` | 复盘 resolve 自动起草 | T4.1 `9f49f77` |
+| 报表 CSV 导出 + 定时聚合 | T6.1 `2fbea67` | 跨团队 @人事件级临时授权 | N1.2 `bde581c` |
+| 多副本 WebSocket pub/sub | T6.4 `014a0d0` | IM 斜杠命令全量（runbook/oncall） | N2.1 `5849755` |
+| Action Item 自动建工单 | T4.3 `466a01f` | 用户禁用自动交接提示 | N2.3 `b4749e9` |
+| 工单侧反向回写 | N1.3 `e96c966` | AI 噪声建议沉淀为抑制规则 | N1.4 `e96c966` |
+| analytics 团队 scope 隔离 | T0.7 `4e0ba13` | 集成向导 UI（4 步分步接入） | P3.1 `5ae441a` |
+| oncall 解算跳过禁用用户 | T2.3 / T2.4 | follow_the_sun 完整跨时区接力 | P3.2 `ddad166` |
+| webhook 出站动态订阅 CRUD | N2.2 `5849755` | Incident 人工合并端点 | N1.1 `efdad8d` |
+| 通知送达持久化（Notification 实体） | T2.2 `3907aac` | NotificationRule 精确匹配 | T2.2 `3907aac` |
+| 执行器凭据加密托管 | T6.3 `aad6a9c` | 出站签名 + 死信 + 重放 | T5.2 `14b663c` |

@@ -285,7 +285,7 @@ type SMTP struct {
 
 // Voice 电话/SMS 提供商配置（能力域 7 M7.2，本期占位）。
 // WebhookURL 非空时，通知 POST 到此 URL，用户在端侧对接云语音 API（阿里云/腾讯云）。
-// 真实云厂商对接留 TODO.md，避免本期绑定具体厂商。
+// 真实云厂商对接留 docs/backlog.md，避免本期绑定具体厂商。
 type Voice struct {
 	WebhookURL string `envconfig:"webhook_url"` // 语音/SMS 接收端点，空=禁用
 	From       string `envconfig:"from"`        // 主叫/发件标识（可选）

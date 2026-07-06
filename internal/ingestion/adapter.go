@@ -57,7 +57,7 @@ func (r *AdapterRegistry) RegisterBuiltins() {
 	r.Register(&PrometheusAdapter{})
 	r.Register(&GrafanaAdapter{})
 	r.Register(&GenericJSONAdapter{})
-	// 云监控/邮件接入见 TODO.md（本期不实现，Integration.type 枚举已预留）
+	// 云监控/邮件接入见 docs/backlog.md（本期不实现，Integration.type 枚举已预留）
 }
 
 // Get 按 Integration.Type 取适配器。

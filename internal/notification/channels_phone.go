@@ -4,7 +4,7 @@
 //   - 占位实现：把通知 POST 到配置的 webhook URL（用户可自行对接阿里云/腾讯云语音 API）
 //   - 无配置时降级为不发送
 //
-// 真实云厂商对接（阿里云/腾讯云语音 API）留 TODO.md，本期不绑定具体厂商。
+// 真实云厂商对接（阿里云/腾讯云语音 API）留 docs/backlog.md，本期不绑定具体厂商。
 // 这样既让通道注册表完整（升级兜底链可用 phone/sms），又不引入云厂商 SDK 依赖。
 package notification
 
