@@ -71,6 +71,8 @@ func NewHandler(hub *Hub, authz *auth.Authorizer, resolver *auth.IdentityResolve
 // 而组级 RouteGuard 中间件只认 Authorization 头 / 读不到 query token，无法复用。
 func (h *Handler) Register(g *echo.Group) {
 	g.GET("/ws/incidents/:id", h.handleIncident)
+	// 看板订阅（值班大屏/仪表盘实时化）：org 级只读，握手要求 org 级 analytics.view。
+	g.GET("/ws/dashboard", h.handleDashboard)
 }
 
 // handleIncident 处理 incident 订阅连接。
@@ -114,7 +116,51 @@ func (h *Handler) handleIncident(c *echo.Context) error {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden"})
 	}
 
-	// —— 鉴权通过，升级为 WebSocket ——
+	// —— 鉴权通过，升级为 WebSocket 并订阅该 incident ——
+	return h.serve(c, func(cli *client) func() { return h.hub.Subscribe(incidentID, cli) })
+}
+
+// handleDashboard 处理看板订阅连接（值班大屏/仪表盘实时化）。
+//
+// 大屏定位为 org 级只读 NOC 看板：握手要求 org 级 analytics.view（TeamScope=nil），
+// 通过后订阅 hub 的看板 topic，持续收到任一 incident 生命周期事件的轻量增量推送。
+// 不针对具体 incident，故无 team 软隔离资源判定——org 级 analytics.view 即全局可见。
+func (h *Handler) handleDashboard(c *echo.Context) error {
+	// —— 握手鉴权（Upgrade 前，标准 HTTP 状态码）；依赖缺失即拒（fail-closed）——
+	if h.resolver == nil || h.authz == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+	}
+	token := c.QueryParam("token")
+	if token == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing token"})
+	}
+	header := http.Header{}
+	header.Set("Authorization", "Bearer "+token)
+	uid, ok := h.resolver.Resolve(c.Request().Context(), header)
+	if !ok || uid <= 0 {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token"})
+	}
+
+	// org 级 analytics.view：TeamScope=nil 只查 org 级 binding。看板是全组织只读视图，
+	// 仅 org 级角色可订阅（team 级 Leader 走各自 Web 仪表盘的拉取式 team scope 数据）。
+	allowed, err := h.authz.Check(c.Request().Context(), auth.AuthzRequest{
+		UserID:     uid,
+		Permission: auth.PermAnalyticsView,
+		TeamScope:  nil,
+	})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "authz failed"})
+	}
+	if !allowed {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "forbidden"})
+	}
+
+	return h.serve(c, func(cli *client) func() { return h.hub.SubscribeDashboard(cli) })
+}
+
+// serve 升级为 WebSocket、按 subscribe 订阅、跑读/写循环，连接关闭时退订清理。
+// subscribe 由调用方决定订阅什么（per-incident 或看板 topic），其余生命周期逻辑统一。
+func (h *Handler) serve(c *echo.Context, subscribe func(*client) func()) error {
 	conn, err := h.upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
 		// Upgrade 失败已由 upgrader 写了 HTTP 错误响应，此处返回 nil 避免重复写
@@ -124,7 +170,7 @@ func (h *Handler) handleIncident(c *echo.Context) error {
 
 	// 订阅 + 注册客户端
 	cli := newClient()
-	unsubscribe := h.hub.Subscribe(incidentID, cli)
+	unsubscribe := subscribe(cli)
 	defer unsubscribe()
 
 	// 写循环：把 hub 广播的消息写给客户端。

@@ -28,7 +28,18 @@ type MessageType string
 const (
 	MsgIncidentChanged MessageType = "incident_changed" // incident 状态变更（ack/resolve/escalate）
 	MsgTimelineAdded   MessageType = "timeline_added"   // 时间线新增条目
+	// MsgDashboardUpdate 看板更新（值班大屏/仪表盘用）。任一 incident 生命周期事件发生时
+	// 向 /ws/dashboard 订阅者广播一条轻量增量，使大屏免轮询实时刷新。
+	MsgDashboardUpdate MessageType = "dashboard_update"
 )
+
+// dashboardTopic 看板订阅在 hub.clients 内的伪 incident_id 键。
+//
+// hub 原以 incident_id 分组订阅；看板订阅不针对具体 incident（关注全局增量），
+// 故复用同一 clients map，用一个不会与真实 incident id 冲突的负数键归组所有看板订阅者。
+// 这样广播/退订/跨副本转发全部复用现有 per-incident 通路，无需再造一套并行结构。
+// 真实 incident id 恒为正（ent 自增主键），负键天然隔离。
+const dashboardTopic = -1
 
 // Message 推送给客户端的消息体。
 type Message struct {
@@ -165,6 +176,73 @@ func (h *Hub) OnIncidentEvent(ctx context.Context, e domainevent.Event) error {
 	}
 	h.BroadcastIncident(e.Incident.ID, string(e.Action), e.Incident)
 	return nil
+}
+
+// SubscribeDashboard 订阅看板增量（值班大屏/仪表盘用）。返回退订函数。
+// 复用 per-incident 订阅通路，只是键固定为 dashboardTopic（全局单组）。
+func (h *Hub) SubscribeDashboard(c *client) func() {
+	return h.Subscribe(dashboardTopic, c)
+}
+
+// BroadcastDashboard 向所有看板订阅者广播一条看板更新增量。
+// 复用 Broadcast → deliverLocal + relay（跨副本）通路：看板订阅者可能连在任意副本，
+// 故同样走 Redis pub/sub 转发，多副本下大屏都能实时刷新。
+//
+// 载荷保持轻量：只带触发本次更新的 incident 摘要 + 动作，前端据此增量刷新
+// （或作为「有变更」信号去 invalidate 拉一次最新 KPI），不在推送里塞全量指标。
+func (h *Hub) BroadcastDashboard(action string, summary any) {
+	h.Broadcast(dashboardTopic, Message{
+		Type:       MsgDashboardUpdate,
+		IncidentID: dashboardTopic,
+		Action:     action,
+		Data:       summary,
+	})
+}
+
+// OnDashboardEvent 领域事件适配：任一 incident 生命周期事件发生时，向看板订阅者
+// 广播一条轻量看板增量（不针对具体订阅，只发「全局有变更」信号 + 触发单摘要）。
+// 实现 event.Handler，装配时对所有 incident 事件 bus.Subscribe 挂载。
+//
+// team scope 说明：大屏定位为 org 级只读 NOC 看板（握手要求 org 级 analytics.view），
+// 故此处不按 team 过滤——所有看板订阅者都是有权看全组织的角色。
+func (h *Hub) OnDashboardEvent(ctx context.Context, e domainevent.Event) error {
+	if e.Incident == nil {
+		return nil
+	}
+	h.BroadcastDashboard(string(e.Action), newDashboardSummary(e))
+	return nil
+}
+
+// BroadcastDashboardTick 广播一条无 incident 的看板心跳（可选定时刷新）。
+// 装配层可挂一个周期 ticker（如每 30s）调用此方法，让大屏即便无事件也定期重拉 KPI
+// （兜底聚合类指标随时间推移的变化：MTTA/MTTR/近 N 分钟告警量）。action="tick"。
+func (h *Hub) BroadcastDashboardTick() {
+	h.BroadcastDashboard("tick", nil)
+}
+
+// dashboardSummary 看板增量载荷（轻量：仅触发单的关键字段 + 动作）。
+// 不下发全量 incident（大屏无需详情），只给前端「哪个单、什么状态、什么动作」，
+// 前端据此增量更新活跃列表 / 触发一次 KPI 重拉。
+type dashboardSummary struct {
+	IncidentID int    `json:"incident_id"`
+	Number     string `json:"number,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Severity   string `json:"severity,omitempty"`
+	Status     string `json:"status,omitempty"`
+	Action     string `json:"action,omitempty"`
+}
+
+// newDashboardSummary 从领域事件构造看板增量摘要。
+func newDashboardSummary(e domainevent.Event) dashboardSummary {
+	s := dashboardSummary{Action: string(e.Action)}
+	if inc := e.Incident; inc != nil {
+		s.IncidentID = inc.ID
+		s.Number = inc.Number
+		s.Title = inc.Title
+		s.Severity = string(inc.Severity)
+		s.Status = string(inc.Status)
+	}
+	return s
 }
 
 // newClient 创建客户端（send 带缓冲避免阻塞广播）。

@@ -1,8 +1,12 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
+
+	"github.com/kevin/vigil/ent"
+	domainevent "github.com/kevin/vigil/internal/event"
 )
 
 // TestHub_SubscribeAndBroadcast 订阅后能收到广播。
@@ -137,6 +141,142 @@ func TestHub_UnsubscribeCleansUpMap(t *testing.T) {
 	h.mu.RUnlock()
 	if exists {
 		t.Error("incident 1 still in clients map after unsubscribe (memory leak)")
+	}
+}
+
+// TestHub_DashboardSubscribeAndBroadcast 看板订阅者收到 dashboard_update 广播。
+func TestHub_DashboardSubscribeAndBroadcast(t *testing.T) {
+	h := NewHub()
+	c := newClient()
+	defer h.SubscribeDashboard(c)()
+
+	h.BroadcastDashboard("resolve", dashboardSummary{IncidentID: 42, Status: "resolved"})
+
+	select {
+	case raw := <-c.send:
+		var m Message
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if m.Type != MsgDashboardUpdate {
+			t.Errorf("type: got %q, want %q", m.Type, MsgDashboardUpdate)
+		}
+		if m.Action != "resolve" {
+			t.Errorf("action: got %q, want resolve", m.Action)
+		}
+	default:
+		t.Error("no dashboard_update received after broadcast")
+	}
+}
+
+// TestHub_DashboardIsolatedFromIncident 看板订阅者不收 per-incident 广播，反之亦然
+// （负键 topic 与真实正数 incident id 天然隔离，防两类订阅串台）。
+func TestHub_DashboardIsolatedFromIncident(t *testing.T) {
+	h := NewHub()
+	dash := newClient()
+	inc := newClient()
+	defer h.SubscribeDashboard(dash)()
+	defer h.Subscribe(1, inc)()
+
+	// 只广播 incident 1 变更：incident 订阅者收到，看板订阅者不应收到。
+	h.BroadcastIncident(1, "ack", nil)
+	select {
+	case <-inc.send: // 预期：incident 订阅者收到自己的广播
+	default:
+		t.Error("incident subscriber missed its own broadcast")
+	}
+	select {
+	case msg := <-dash.send:
+		t.Errorf("dashboard subscriber wrongly received incident broadcast: %s", msg)
+	default:
+	}
+	// 只广播看板增量：看板订阅者收到，incident 订阅者不应收到。
+	h.BroadcastDashboard("ack", nil)
+	select {
+	case <-dash.send: // 预期：看板订阅者收到看板增量
+	default:
+		t.Error("dashboard subscriber missed its own broadcast")
+	}
+	select {
+	case msg := <-inc.send:
+		t.Errorf("incident subscriber wrongly received dashboard broadcast: %s", msg)
+	default:
+	}
+}
+
+// TestHub_OnDashboardEvent 领域事件驱动看板广播：incident 事件 → dashboard_update 携带摘要。
+func TestHub_OnDashboardEvent(t *testing.T) {
+	h := NewHub()
+	c := newClient()
+	defer h.SubscribeDashboard(c)()
+
+	e := domainevent.Event{
+		Type:     domainevent.IncidentResolved,
+		Action:   domainevent.Action("resolve"),
+		Incident: &ent.Incident{ID: 7, Number: "INC-7", Title: "db down"},
+	}
+	if err := h.OnDashboardEvent(context.Background(), e); err != nil {
+		t.Fatalf("OnDashboardEvent: %v", err)
+	}
+
+	select {
+	case raw := <-c.send:
+		var m Message
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if m.Type != MsgDashboardUpdate || m.Action != "resolve" {
+			t.Errorf("unexpected: %+v", m)
+		}
+		// Data 应含触发单摘要。
+		b, _ := json.Marshal(m.Data)
+		if !json.Valid(b) || len(b) == 0 {
+			t.Error("dashboard_update should carry summary Data")
+		}
+		var s dashboardSummary
+		_ = json.Unmarshal(b, &s)
+		if s.IncidentID != 7 || s.Number != "INC-7" {
+			t.Errorf("summary mismatch: %+v", s)
+		}
+	default:
+		t.Error("no dashboard_update after OnDashboardEvent")
+	}
+}
+
+// TestHub_OnDashboardEventNilIncident 事件无 incident 时 no-op（不 panic、不广播）。
+func TestHub_OnDashboardEventNilIncident(t *testing.T) {
+	h := NewHub()
+	c := newClient()
+	defer h.SubscribeDashboard(c)()
+
+	if err := h.OnDashboardEvent(context.Background(), domainevent.Event{}); err != nil {
+		t.Fatalf("OnDashboardEvent nil incident: %v", err)
+	}
+	select {
+	case <-c.send:
+		t.Error("should not broadcast when event has no incident")
+	default:
+	}
+}
+
+// TestHub_BroadcastDashboardTick 心跳广播 action=tick、Data=nil 给看板订阅者。
+func TestHub_BroadcastDashboardTick(t *testing.T) {
+	h := NewHub()
+	c := newClient()
+	defer h.SubscribeDashboard(c)()
+
+	h.BroadcastDashboardTick()
+	select {
+	case raw := <-c.send:
+		var m Message
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if m.Type != MsgDashboardUpdate || m.Action != "tick" {
+			t.Errorf("tick unexpected: %+v", m)
+		}
+	default:
+		t.Error("no tick received")
 	}
 }
 

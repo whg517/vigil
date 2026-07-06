@@ -7,7 +7,7 @@
  * 连接管理：自动重连（指数退避，上限 30s），组件卸载时关闭。
  */
 export interface WSMessage {
-  type: "incident_changed" | "timeline_added";
+  type: "incident_changed" | "timeline_added" | "dashboard_update";
   incident_id: number;
   action?: string;
   data?: unknown;
@@ -16,14 +16,14 @@ export interface WSMessage {
 type MessageHandler = (msg: WSMessage) => void;
 
 /**
- * subscribeIncident 订阅某 incident 的实时变更。
- * 返回 cleanup 函数（关闭连接，组件卸载时调用）。
+ * subscribePath 通用 WS 订阅：连到 /api/v1 下某端点路径，收到消息回调，断线自动重连。
+ * subscribeIncident / subscribeDashboard 都基于它，只是路径不同（避免重连逻辑重复两份）。
  *
- * @param incidentId 订阅的 incident ID
+ * @param path WS 端点相对路径（如 `/ws/incidents/1`、`/ws/dashboard`）
  * @param onMessage 收到消息的回调
- * @returns cleanup 函数
+ * @returns cleanup 函数（关闭连接，组件卸载时调用）
  */
-export function subscribeIncident(incidentId: number, onMessage: MessageHandler): () => void {
+function subscribePath(path: string, onMessage: MessageHandler): () => void {
   let ws: WebSocket | null = null;
   let closed = false; // 主动关闭标志（避免重连）
   let reconnectDelay = 1000;
@@ -46,8 +46,13 @@ export function subscribeIncident(incidentId: number, onMessage: MessageHandler)
     // 本处无需改动；如需刷新后立即重连，可在刷新成功事件里主动关连接触发 onclose→connect。
     const token = localStorage.getItem("vigil_token") ?? "";
     const query = token ? `?token=${encodeURIComponent(token)}` : "";
-    const url = `${proto}//${window.location.host}/api/v1/ws/incidents/${incidentId}${query}`;
+    const url = `${proto}//${window.location.host}/api/v1${path}${query}`;
     ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      // 握手成功即重置退避（下次断线从 1s 起步，避免长连偶断后仍以大延迟重连）。
+      reconnectDelay = 1000;
+    };
 
     ws.onmessage = (event) => {
       try {
@@ -82,4 +87,30 @@ export function subscribeIncident(incidentId: number, onMessage: MessageHandler)
       ws.close();
     }
   };
+}
+
+/**
+ * subscribeIncident 订阅某 incident 的实时变更。
+ * 返回 cleanup 函数（关闭连接，组件卸载时调用）。
+ *
+ * @param incidentId 订阅的 incident ID
+ * @param onMessage 收到消息的回调
+ * @returns cleanup 函数
+ */
+export function subscribeIncident(incidentId: number, onMessage: MessageHandler): () => void {
+  return subscribePath(`/ws/incidents/${incidentId}`, onMessage);
+}
+
+/**
+ * subscribeDashboard 订阅看板实时增量（值班大屏/仪表盘实时化，P4·B3）。
+ * 任一 incident 生命周期事件发生时，后端向 /ws/dashboard 订阅者广播 dashboard_update；
+ * 另有定时心跳（action=tick）兜底聚合类 KPI 的周期刷新。
+ *
+ * 需要 org 级 analytics.view（后端握手校验），无权则 403 拒握手 → 退避重试。
+ *
+ * @param onMessage 收到消息的回调
+ * @returns cleanup 函数
+ */
+export function subscribeDashboard(onMessage: MessageHandler): () => void {
+  return subscribePath(`/ws/dashboard`, onMessage);
 }

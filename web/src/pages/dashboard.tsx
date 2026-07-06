@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Bell, Clock, Activity } from "lucide-react";
+import { AlertTriangle, Bell, Clock, Activity, Radio } from "lucide-react";
 import { useDashboard } from "@/hooks/incidents";
+import { useDashboardWS } from "@/hooks/use-dashboard-ws";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,6 +22,9 @@ import { formatDuration } from "@/lib/format";
 export function Dashboard() {
   const navigate = useNavigate();
   const { data, isLoading, isError } = useDashboard(7);
+  // 实时化（P4·B3）：订阅 /ws/dashboard，任一 incident 变更即 invalidate 重拉 KPI，免轮询。
+  // 无 analytics.view 时握手被拒、退避重试，仪表盘仍靠常规拉取兜底（不白屏）。
+  useDashboardWS();
 
   const alert = data?.alert;
   const inc = data?.incident;
@@ -38,9 +42,17 @@ export function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">仪表盘</h1>
-          <p className="text-sm text-muted-foreground">近 7 天概览</p>
+          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Radio className="h-3.5 w-3.5 text-severity-info" />
+            近 7 天概览 · 实时刷新
+          </p>
         </div>
-        <Button onClick={() => navigate("/incidents")}>查看事件</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => navigate("/wall")}>
+            值班大屏
+          </Button>
+          <Button onClick={() => navigate("/incidents")}>查看事件</Button>
+        </div>
       </div>
 
       {/* KPI 卡片 */}

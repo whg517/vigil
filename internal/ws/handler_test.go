@@ -115,6 +115,49 @@ func (env *wsTestEnv) seedUserWithView(t *testing.T, username string, teamID *in
 	return u.ID, tok
 }
 
+// seedUserWithPerm 建用户 + 授予指定权限点（scope 由 teamID 决定：nil=org 级，否则 team 级）。
+// 返回该用户的 access token。用于看板握手（analytics.view）等非 incident.view 场景。
+func (env *wsTestEnv) seedUserWithPerm(t *testing.T, username string, perm auth.Permission, teamID *int) (uid int, token string) {
+	t.Helper()
+	ctx := context.Background()
+	u, err := env.db.User.Create().SetUsername(username).SetEmail(username + "@x.com").Save(ctx)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	scope := entrole.ScopeLevelOrg
+	bindScope := rolebinding.ScopeLevelOrg
+	teamStr := ""
+	if teamID != nil {
+		scope = entrole.ScopeLevelTeam
+		bindScope = rolebinding.ScopeLevelTeam
+		teamStr = strconv.Itoa(*teamID)
+	}
+	rl, err := env.db.Role.Create().
+		SetName(username + "-role").
+		SetScopeLevel(scope).
+		SetPermissions([]string{string(perm)}).
+		Save(ctx)
+	if err != nil {
+		t.Fatalf("create role: %v", err)
+	}
+	rb := env.db.RoleBinding.Create().
+		SetUserID(u.ID).
+		SetRoleID(rl.ID).
+		SetScopeLevel(bindScope).
+		SetGrantedAt(time.Now())
+	if teamStr != "" {
+		rb.SetTeamID(teamStr)
+	}
+	if _, err := rb.Save(ctx); err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+	tok, err := env.signer.GenerateAccessToken(u.ID, username, 0)
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+	return u.ID, tok
+}
+
 // seedBareUser 建一个无任何角色绑定的用户，返回其 access token（用于"有身份无权限"用例）。
 func (env *wsTestEnv) seedBareUser(t *testing.T, username string) string {
 	t.Helper()
@@ -361,5 +404,106 @@ func TestHandleIncident_FailClosedWithoutDeps(t *testing.T) {
 	}
 	if status != http.StatusUnauthorized {
 		t.Errorf("fail-closed 状态码 = %d, want 401", status)
+	}
+}
+
+// —— 看板订阅握手 + 广播（P4·B3 值班大屏/实时看板）——
+
+// TestHandleDashboard_NoToken 无 token → 401，不 Upgrade。
+func TestHandleDashboard_NoToken(t *testing.T) {
+	env := newWSTestEnv(t)
+	e := echo.New()
+	env.newHandler().Register(e.Group(""))
+	srv := httptest.NewServer(e)
+	defer srv.Close()
+
+	conn, status, err := dialWS(t, srv.URL, "/ws/dashboard", "")
+	if conn != nil {
+		_ = conn.Close()
+		t.Fatal("无 token 不应握手成功")
+	}
+	if err == nil || status != http.StatusUnauthorized {
+		t.Errorf("无 token 应 401，got status=%d err=%v", status, err)
+	}
+}
+
+// TestHandleDashboard_NoAnalyticsPerm 有身份但无 analytics.view → 403（org 级只读看板要求 org 级权限）。
+func TestHandleDashboard_NoAnalyticsPerm(t *testing.T) {
+	env := newWSTestEnv(t)
+	token := env.seedBareUser(t, "nobody")
+
+	e := echo.New()
+	env.newHandler().Register(e.Group(""))
+	srv := httptest.NewServer(e)
+	defer srv.Close()
+
+	conn, status, err := dialWS(t, srv.URL, "/ws/dashboard", token)
+	if conn != nil {
+		_ = conn.Close()
+		t.Fatal("无 analytics.view 不应握手成功")
+	}
+	if err == nil || status != http.StatusForbidden {
+		t.Errorf("无权应 403，got status=%d err=%v", status, err)
+	}
+}
+
+// TestHandleDashboard_TeamScopeForbidden 仅 team 级 analytics.view → 403
+// （看板是 org 级视图，team 级权限不足以订阅全组织看板）。
+func TestHandleDashboard_TeamScopeForbidden(t *testing.T) {
+	env := newWSTestEnv(t)
+	teamID, _ := env.seedTeamIncident(t, "pay")
+	_, token := env.seedUserWithPerm(t, "team-lead", auth.PermAnalyticsView, &teamID)
+
+	e := echo.New()
+	env.newHandler().Register(e.Group(""))
+	srv := httptest.NewServer(e)
+	defer srv.Close()
+
+	conn, status, err := dialWS(t, srv.URL, "/ws/dashboard", token)
+	if conn != nil {
+		_ = conn.Close()
+		t.Fatal("仅 team 级 analytics.view 不应订阅 org 级看板")
+	}
+	if err == nil || status != http.StatusForbidden {
+		t.Errorf("team 级权限应 403，got status=%d err=%v", status, err)
+	}
+}
+
+// TestHandleDashboard_OrgScopeReceivesBroadcast org 级 analytics.view 握手成功且收到看板增量推送。
+func TestHandleDashboard_OrgScopeReceivesBroadcast(t *testing.T) {
+	env := newWSTestEnv(t)
+	_, token := env.seedUserWithPerm(t, "noc", auth.PermAnalyticsView, nil) // org 级
+
+	hub := NewHub()
+	wsHandler := NewHandler(hub, env.authz, env.resolver, env.scope)
+	e := echo.New()
+	wsHandler.Register(e.Group(""))
+	srv := httptest.NewServer(e)
+	defer srv.Close()
+
+	conn, status, err := dialWS(t, srv.URL, "/ws/dashboard", token)
+	if err != nil {
+		t.Fatalf("org 级看板握手失败: %v [status=%d]", err, status)
+	}
+	defer conn.Close()
+	if status != http.StatusSwitchingProtocols {
+		t.Errorf("握手状态码 = %d, want 101", status)
+	}
+
+	// 探测订阅就绪：反复广播 + 读，读到即订阅已注册。
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var got string
+	for i := 0; i < 20; i++ {
+		hub.BroadcastDashboard("resolve", map[string]any{"incident_id": 1})
+		if _, msg, rerr := conn.ReadMessage(); rerr == nil {
+			got = string(msg)
+			break
+		}
+	}
+	if got == "" {
+		t.Fatal("3s 内未收到看板广播（订阅未就绪或写循环失效）")
+	}
+	if !strings.Contains(got, "dashboard_update") {
+		t.Errorf("收到的消息不含 dashboard_update: %s", got)
 	}
 }

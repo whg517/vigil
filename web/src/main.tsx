@@ -29,3 +29,13 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// PWA service worker 注册（P4·B3）：仅生产构建注册，使 Vigil 可安装 + 大屏离线壳可用。
+// 开发态（import.meta.env.DEV）不注册——SW 的静态资源缓存会与 Vite HMR 冲突（返回旧模块）。
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // 注册失败静默降级（PWA 是增强，不影响主功能）。
+    });
+  });
+}

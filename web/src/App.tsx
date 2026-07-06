@@ -15,6 +15,7 @@ import { UsersTeams } from "@/pages/users-teams";
 import { Runbooks } from "@/pages/runbooks";
 import { Postmortems } from "@/pages/postmortems";
 import { Settings } from "@/pages/settings";
+import { Wall } from "@/pages/wall";
 import { Login } from "@/pages/login";
 import { ChangePassword } from "@/pages/change-password";
 import { isAuthenticated, mustChangePassword } from "@/lib/auth";
@@ -45,6 +46,15 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/change-password" element={<ChangePassword />} />
+      {/* 值班大屏（P4·B3）：全屏 NOC 挂墙只读视图，独立于 AppShell（无侧边栏），仍需登录。 */}
+      <Route
+        path="/wall"
+        element={
+          <RequireAuth>
+            <Wall />
+          </RequireAuth>
+        }
+      />
       <Route
         element={
           <RequireAuth>

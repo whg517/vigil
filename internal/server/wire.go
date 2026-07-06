@@ -295,6 +295,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		bus.Subscribe(typ, cardRefresher.OnIncidentEvent)
 		bus.Subscribe(typ, webhookDisp.OnIncidentEvent)
 		bus.Subscribe(typ, wsHub.OnIncidentEvent)
+		// P4·B3 值班大屏/实时看板：同一批 incident 事件也向 /ws/dashboard 订阅者广播
+		// 轻量看板增量（免轮询实时刷新 KPI/活跃列表）。看板是 org 级只读，不按 team 过滤。
+		bus.Subscribe(typ, wsHub.OnDashboardEvent)
 	}
 
 	// —— 定向订阅通知（T4.4）——
@@ -337,7 +340,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// T0.5：WS 端点握手鉴权（?token= JWT + incident.view 团队软隔离）。
 	// 仍挂 public 组——鉴权在 handler 内按 query token 完成，RouteGuard 中间件读不到 query，无法复用。
 	ws.NewHandler(wsHub, authz, identityResolver, scopeResolver).Register(public)
-	log.Info("websocket ready (/ws/incidents/:id)")
+	log.Info("websocket ready (/ws/incidents/:id, /ws/dashboard)")
 	authHandler := auth.NewAuthHandler(st.DB, jwtSigner)
 	authHandler.SetAuditRecorder(auditRecorder)
 	// SEC-04：登录限流/锁定（无 Redis 时降级跳过，依赖审计日志事后追溯）。
@@ -578,6 +581,12 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	if wsPubSubStop != nil {
 		wired.Closers = append(wired.Closers, wsPubSubStop)
 	}
+	// P4·B3 值班大屏定时刷新：每 30s 向 /ws/dashboard 订阅者推一条心跳（无 incident 的 tick），
+	// 让大屏即便无事件也定期重拉 KPI（MTTA/MTTR/近 N 分钟告警量随时间推移的变化）。
+	// 事件驱动（OnDashboardEvent）负责即时增量；此 ticker 兜底聚合类指标的周期刷新。纳入优雅关闭。
+	dashTickCtx, dashTickCancel := context.WithCancel(ctx)
+	go runDashboardTicker(dashTickCtx, wsHub, 30*time.Second)
+	wired.Closers = append(wired.Closers, dashTickCancel)
 	if notifAggregator != nil && st.Redis != nil {
 		interval := notifAggregator.Window() / 2
 		if interval <= 0 {
@@ -632,6 +641,22 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	}
 
 	return wired, nil
+}
+
+// runDashboardTicker 周期向 /ws/dashboard 订阅者推送看板心跳（P4·B3）。
+// 每 interval 广播一条 tick，让大屏兜底重拉聚合类 KPI（免轮询但不漏时间推移的变化）。
+// 无订阅者时 hub 广播静默跳过（零成本）。ctx 取消时退出（纳入优雅关闭）。
+func runDashboardTicker(ctx context.Context, hub *ws.Hub, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			hub.BroadcastDashboardTick()
+		}
+	}
 }
 
 // runAggregationFlusher 周期扫描 pending 聚合队列并 flush 合并发送。
