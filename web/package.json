@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "postbuild": "mkdir -p ../internal/web/dist && find ../internal/web/dist -mindepth 1 ! -name .gitkeep -delete && cp -R dist/. ../internal/web/dist/",
     "lint": "eslint .",
     "preview": "vite preview",
     "gen:types": "openapi-typescript ../internal/server/gen/swagger.json -o src/lib/api/types.gen.ts",

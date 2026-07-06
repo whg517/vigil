@@ -83,10 +83,10 @@ build: ## 后端构建
 	go build ./...
 
 build-frontend: ## 前端构建（含 tsc 类型检查）+ 同步到 internal/web/dist 供 embed
+	@# pnpm build 的 postbuild 钩子（web/package.json）会自动清空旧产物并同步到
+	@# internal/web/dist（保留 .gitkeep 占位）。故单独跑 `pnpm build` 即 embed-ready，
+	@# `go build`/`go run` 前无需再手动 cp。
 	pnpm --dir web build
-	@# 将前端产物同步到 embed 目录（保留 .gitkeep 占位）。先清空旧产物避免残留。
-	@find internal/web/dist -mindepth 1 ! -name '.gitkeep' -delete
-	@cp -R web/dist/. internal/web/dist/
 	@echo "✅ frontend synced to internal/web/dist (embed ready)"
 
 ##@ Testing
