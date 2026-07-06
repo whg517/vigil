@@ -59,18 +59,8 @@ func Run(ctx context.Context, sqlDB *sql.DB, entDB *ent.Client) error {
 		return fmt.Errorf("get applied versions: %w", err)
 	}
 
-	// 3. 读取并排序迁移文件
-	entries, err := migrationFS.ReadDir("migrations")
-	if err != nil {
-		entries = nil // 无迁移文件目录则跳过
-	}
-	files := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
-			files = append(files, e.Name())
-		}
-	}
-	sort.Strings(files)
+	// 3. 读取并排序前向迁移文件（排除 .down.sql 逆向脚本）
+	files := forwardMigrationFiles()
 
 	// 4. 分离 pre-migrate 和 post-migrate
 	var preFiles, postFiles []string
@@ -102,6 +92,25 @@ func Run(ctx context.Context, sqlDB *sql.DB, entDB *ent.Client) error {
 	}
 
 	return nil
+}
+
+// forwardMigrationFiles 返回 migrations/ 下所有【前向】迁移文件名（升序）。
+// 关键：排除 .down.sql 逆向脚本——它们只供 migrate down 使用，绝不能被前向 Run
+// 当成独立迁移执行（否则 pre_0001_pgvector.down.sql 的 DROP EXTENSION 会在 up 时误跑，
+// 导致 migrate 失败）。抽成独立函数以便回归测试锁定该排除规则。
+func forwardMigrationFiles() []string {
+	entries, err := migrationFS.ReadDir("migrations")
+	if err != nil {
+		return nil // 无迁移目录则视为空
+	}
+	files := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") && !strings.HasSuffix(e.Name(), downSuffix) {
+			files = append(files, e.Name())
+		}
+	}
+	sort.Strings(files)
+	return files
 }
 
 // applyFiles 按序执行迁移文件。
