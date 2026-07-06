@@ -27,6 +27,8 @@ type TicketIntegration struct {
 	Endpoint string `json:"endpoint,omitempty"`
 	// 建单凭据（token/密码），加密存储不回显
 	Credential string `json:"-"`
+	// 工单状态回调验签密钥（HMAC），加密存储不回显
+	CallbackSecret string `json:"-"`
 	// 目标项目/字段映射等类型相关配置
 	Config map[string]interface{} `json:"config,omitempty"`
 	// Enabled holds the value of the "enabled" field.
@@ -73,7 +75,7 @@ func (*TicketIntegration) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case ticketintegration.FieldID:
 			values[i] = new(sql.NullInt64)
-		case ticketintegration.FieldName, ticketintegration.FieldType, ticketintegration.FieldEndpoint, ticketintegration.FieldCredential:
+		case ticketintegration.FieldName, ticketintegration.FieldType, ticketintegration.FieldEndpoint, ticketintegration.FieldCredential, ticketintegration.FieldCallbackSecret:
 			values[i] = new(sql.NullString)
 		case ticketintegration.FieldCreatedAt, ticketintegration.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -123,6 +125,12 @@ func (_m *TicketIntegration) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field credential", values[i])
 			} else if value.Valid {
 				_m.Credential = value.String
+			}
+		case ticketintegration.FieldCallbackSecret:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field callback_secret", values[i])
+			} else if value.Valid {
+				_m.CallbackSecret = value.String
 			}
 		case ticketintegration.FieldConfig:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -208,6 +216,8 @@ func (_m *TicketIntegration) String() string {
 	builder.WriteString(_m.Endpoint)
 	builder.WriteString(", ")
 	builder.WriteString("credential=<sensitive>")
+	builder.WriteString(", ")
+	builder.WriteString("callback_secret=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("config=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Config))

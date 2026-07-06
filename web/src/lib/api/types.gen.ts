@@ -8136,6 +8136,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/webhooks/ticket/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ticket status callback
+         * @description 外部工单系统状态变更回调；HMAC 验签后据 external_id/tracker_url 匹配 ActionItem 更新状态（N1.3）。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description hex(HMAC-SHA256(callback_secret, timestamp + \ */
+                    "X-Vigil-Signature": string;
+                    /** @description Unix 秒时间戳（防重放） */
+                    "X-Vigil-Timestamp": string;
+                };
+                path: {
+                    /** @description 工单集成 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -8174,7 +8254,7 @@ export interface components {
          * @description Type holds the value of the "type" field.
          * @enum {string}
          */
-        "aiinsight.Type": "dedup_suggestion" | "severity_adjustment" | "root_cause_hint" | "similar_incident" | "draft_summary" | "postmortem_draft" | "runbook_suggestion";
+        "aiinsight.Type": "dedup_suggestion" | "severity_adjustment" | "root_cause_hint" | "similar_incident" | "draft_summary" | "postmortem_draft" | "runbook_suggestion" | "noise_suggestion";
         "analytics.AIFeedbackByType": {
             accepted?: number;
             pending?: number;
@@ -8480,6 +8560,8 @@ export interface components {
             /** @description DueDate holds the value of the "due_date" field. */
             due_date?: string;
             edges?: components["schemas"]["ent.ActionItemEdges"];
+            /** @description 外部工单 id（回调按此精确匹配） */
+            external_id?: string;
             /** @description ID of the ent. */
             id?: number;
             /** @description OwnerID holds the value of the "owner_id" field. */
@@ -9197,6 +9279,9 @@ export interface components {
             reduce_to?: string;
             /** @description 命中的严重度，空=所有 */
             severity_filter?: string[];
+            source?: components["schemas"]["suppressionrule.Source"];
+            /** @description 沉淀本规则的 AIInsight id（幂等键，source=ai 时有值） */
+            source_insight_id?: number;
             /** @description 时间窗口，空=无限制 */
             time_window?: {
                 [key: string]: unknown;
@@ -10086,7 +10171,17 @@ export interface components {
          * @enum {string}
          */
         "suppressionrule.Action": "suppress" | "reduce_severity";
+        /**
+         * @description 规则来源：manual 人工 / ai 由采纳的降噪建议沉淀
+         * @enum {string}
+         */
+        "suppressionrule.Source": "manual" | "ai";
         "ticket.createReq": {
+            /**
+             * @description CallbackSecret 工单侧状态回调（N1.3）的 HMAC 验签密钥，仅入不出（Sensitive）。
+             *     配了才接受该集成的回调（/webhooks/ticket/:id）；空则不接受回调。
+             */
+            callback_secret?: string;
             /** @description 目标项目/字段映射 */
             config?: {
                 [key: string]: unknown;
@@ -10102,6 +10197,8 @@ export interface components {
             type?: string;
         };
         "ticket.updateReq": {
+            /** @description CallbackSecret 传则更新回调验签密钥（不回显）。空字符串视为「清空密钥」（停用回调）。 */
+            callback_secret?: string;
             config?: {
                 [key: string]: unknown;
             };

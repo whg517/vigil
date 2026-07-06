@@ -12,7 +12,7 @@ var (
 	AiInsightsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "stage", Type: field.TypeEnum, Enums: []string{"triage", "diagnose", "postmortem", "copilot"}},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"dedup_suggestion", "severity_adjustment", "root_cause_hint", "similar_incident", "draft_summary", "postmortem_draft", "runbook_suggestion"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"dedup_suggestion", "severity_adjustment", "root_cause_hint", "similar_incident", "draft_summary", "postmortem_draft", "runbook_suggestion", "noise_suggestion"}},
 		{Name: "content", Type: field.TypeJSON},
 		{Name: "confidence", Type: field.TypeFloat32, Default: 0},
 		{Name: "evidence", Type: field.TypeJSON, Nullable: true},
@@ -101,6 +101,7 @@ var (
 		{Name: "due_date", Type: field.TypeTime, Nullable: true},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"open", "in_progress", "done"}, Default: "open"},
 		{Name: "tracker_url", Type: field.TypeString, Nullable: true},
+		{Name: "external_id", Type: field.TypeString, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "postmortem_action_items", Type: field.TypeInt, Nullable: true},
@@ -113,7 +114,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "action_items_postmortems_action_items",
-				Columns:    []*schema.Column{ActionItemsColumns[8]},
+				Columns:    []*schema.Column{ActionItemsColumns[9]},
 				RefColumns: []*schema.Column{PostmortemsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -128,6 +129,11 @@ var (
 				Name:    "actionitem_due_date",
 				Unique:  false,
 				Columns: []*schema.Column{ActionItemsColumns[3]},
+			},
+			{
+				Name:    "actionitem_external_id",
+				Unique:  false,
+				Columns: []*schema.Column{ActionItemsColumns[6]},
 			},
 		},
 	}
@@ -962,6 +968,8 @@ var (
 		{Name: "reduce_to", Type: field.TypeString, Nullable: true},
 		{Name: "preserve_critical", Type: field.TypeBool, Default: true},
 		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "source", Type: field.TypeEnum, Enums: []string{"manual", "ai"}, Default: "manual"},
+		{Name: "source_insight_id", Type: field.TypeInt, Nullable: true},
 		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -975,7 +983,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "suppression_rules_teams_suppression_rules",
-				Columns:    []*schema.Column{SuppressionRulesColumns[12]},
+				Columns:    []*schema.Column{SuppressionRulesColumns[14]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1011,6 +1019,7 @@ var (
 		{Name: "type", Type: field.TypeEnum, Enums: []string{"webhook", "jira", "zentao"}, Default: "webhook"},
 		{Name: "endpoint", Type: field.TypeString},
 		{Name: "credential", Type: field.TypeString, Nullable: true},
+		{Name: "callback_secret", Type: field.TypeString, Nullable: true},
 		{Name: "config", Type: field.TypeJSON, Nullable: true},
 		{Name: "enabled", Type: field.TypeBool, Default: true},
 		{Name: "created_at", Type: field.TypeTime},
@@ -1025,7 +1034,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "ticket_integrations_teams_ticket_integrations",
-				Columns:    []*schema.Column{TicketIntegrationsColumns[9]},
+				Columns:    []*schema.Column{TicketIntegrationsColumns[10]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1034,7 +1043,7 @@ var (
 			{
 				Name:    "ticketintegration_enabled",
 				Unique:  false,
-				Columns: []*schema.Column{TicketIntegrationsColumns[6]},
+				Columns: []*schema.Column{TicketIntegrationsColumns[7]},
 			},
 		},
 	}

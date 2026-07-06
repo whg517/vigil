@@ -83,10 +83,11 @@ func (e *TriageAIEngine) available() bool {
 	return e.provider != nil && e.provider.Available()
 }
 
-// TriageResult 分诊 AI 一次运行的产出（可能同时含 severity 与 dedup 两类建议，均可能为 nil）。
+// TriageResult 分诊 AI 一次运行的产出（severity / dedup / noise 三类建议，均可能为 nil）。
 type TriageResult struct {
 	Severity *ent.AIInsight `json:"severity,omitempty"` // severity_adjustment 建议（未产出为 nil）
 	Dedup    *ent.AIInsight `json:"dedup,omitempty"`    // dedup_suggestion 建议（未产出为 nil）
+	Noise    *ent.AIInsight `json:"noise,omitempty"`    // noise_suggestion 降噪建议（未产出为 nil，N1.4）
 }
 
 // AnalyzeIncident 对一个 Incident 跑分诊 AI 全流程：severity 建议 + dedup 建议。
@@ -118,6 +119,13 @@ func (e *TriageAIEngine) AnalyzeIncident(ctx context.Context, incID int) (*Triag
 		slog.Warn("triage ai: dedup suggestion failed, skip", "incident_id", incID, "error", derr)
 	} else {
 		res.Dedup = dd
+	}
+
+	// noise 建议（单类失败不影响返回，N1.4）
+	if nz, nerr := e.suggestNoise(ctx, inc); nerr != nil {
+		slog.Warn("triage ai: noise suggestion failed, skip", "incident_id", incID, "error", nerr)
+	} else {
+		res.Noise = nz
 	}
 
 	return res, nil
@@ -259,6 +267,84 @@ func (e *TriageAIEngine) suggestDedup(ctx context.Context, inc *ent.Incident) (*
 	return insight, nil
 }
 
+// suggestNoise 产出 noise_suggestion 降噪建议（N1.4）：让 LLM 判断本告警是否疑似噪声，
+// 并给出「据哪些 label 可复用地识别这类噪声」——accept 时沉淀为一条 SuppressionRule（source=ai）。
+//
+// 语义边界（务实，不夸大）：这是「AI 建议→规则沉淀」闭环，非机器学习回训。
+// 产出的 content.match_labels 是 LLM 从本 Event 的 labels 里挑出的「足以标识这类噪声」的子集，
+// accept 时据此建抑制规则，使下次同类 Event 自动抑制（is_noise）。reject 仍只记录供分析（T3.4）。
+//
+// evidence = 关联 Event（labels + summary），使响应者可核对「据什么判定为噪声」。
+// 无 Event / LLM 判断非噪声 / 挑不出可复用 label / 置信度不足时不产出（避免误抑真告警）。
+// 安全守卫：critical 级 Incident 一律不产出降噪建议（不给「把真故障学成噪声」的口子）。
+func (e *TriageAIEngine) suggestNoise(ctx context.Context, inc *ent.Incident) (*ent.AIInsight, error) {
+	// 安全红线：critical 不降噪（即使 LLM 认为是噪声也不产出，避免误抑真故障）。
+	if string(inc.Severity) == string(incident.SeverityCritical) {
+		return nil, nil
+	}
+	// 取关联 Event（labels 是规则化的原料，也是 evidence 来源）。无 Event 无依据 → 不产出。
+	events, err := e.db.Event.Query().
+		Where(event.HasIncidentWith(incident.IDEQ(inc.ID))).
+		Order(ent.Asc(event.FieldCreatedAt)).
+		Limit(20).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query events: %w", err)
+	}
+	if len(events) == 0 {
+		return nil, nil // 无 evidence，不产出
+	}
+	// 汇总候选 labels（供 LLM 从中挑「可复用识别这类噪声」的子集，也防 LLM 幻觉编造不存在的 label）。
+	candidateLabels := collectLabels(events)
+	if len(candidateLabels) == 0 {
+		return nil, nil // 无 label 可规则化 → 建不出抑制规则 → 不产出（避免产生无法沉淀的建议）
+	}
+
+	prompt := buildNoisePrompt(inc, events, candidateLabels)
+	raw, err := e.provider.Complete(ctx, prompt)
+	if err != nil {
+		metrics.LLMCalls.WithLabelValues("triage", "error").Inc()
+		slog.Warn("triage ai noise: llm call failed, degrading to no-suggestion",
+			"incident_id", inc.ID, "error", err)
+		return nil, nil
+	}
+	metrics.LLMCalls.WithLabelValues("triage", "ok").Inc()
+
+	isNoise, conf, matchLabels, reason := parseNoiseOutput(raw, candidateLabels)
+	if !isNoise || conf < e.confidenceThreshold || len(matchLabels) == 0 {
+		// LLM 判断非噪声 / 置信度不足 / 挑不出可复用 label → 不产出（无从沉淀成规则）。
+		return nil, nil
+	}
+
+	evidence := noiseEvidence(events)
+	if len(evidence) == 0 {
+		return nil, nil // 双保险：无 evidence 不产出
+	}
+
+	insight, err := e.db.AIInsight.Create().
+		SetIncidentID(inc.ID).
+		SetStage(aiinsight.StageTriage).
+		SetType(aiinsight.TypeNoiseSuggestion).
+		// content.match_labels —— accept 时 applyNoiseSuggestion 据此建 SuppressionRule（source=ai）。
+		SetContent(map[string]any{
+			"match_labels": matchLabels,
+			"reason":       reason,
+			"note":         "accept 将据 match_labels 生成一条抑制规则（source=ai），下次同类 Event 自动抑制",
+		}).
+		SetConfidence(conf).
+		SetEvidence(evidence).
+		SetStatus(aiinsight.StatusSuggested).
+		Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("save noise insight: %w", err)
+	}
+
+	e.recordInsightTimeline(ctx, inc.ID, insight.ID,
+		fmt.Sprintf("AI 降噪建议（置信度 %.2f）：疑似噪声，可据 %d 个 label 沉淀抑制规则", conf, len(matchLabels)),
+		map[string]any{"insight_id": insight.ID, "confidence": conf, "match_labels": matchLabels})
+	return insight, nil
+}
+
 // recordInsightTimeline 写 ai_insight 时间线（best-effort）。actor.kind=ai、source=ai，
 // 与诊断链一致，供时间线区分 AI 动作。recorder 为 nil 时跳过（降级/测试）。
 func (e *TriageAIEngine) recordInsightTimeline(ctx context.Context, incID, insightID int, content string, detail map[string]any) {
@@ -303,6 +389,30 @@ func buildDedupPrompt(inc *ent.Incident, candidates []*ent.Incident) string {
 	sb.WriteString("候选事件：\n")
 	for _, c := range candidates {
 		fmt.Fprintf(&sb, "- id=%d [%s] %s —— %s\n", c.ID, string(c.Severity), c.Title, c.Summary)
+	}
+	return sb.String()
+}
+
+// buildNoisePrompt 构造降噪建议 prompt（N1.4）。列出候选 labels 让 LLM 判断是否噪声、
+// 并从候选 labels 里挑「足以复用识别这类噪声」的子集（规则化原料）。
+func buildNoisePrompt(inc *ent.Incident, events []*ent.Event, candidateLabels map[string]string) string {
+	var sb strings.Builder
+	sb.WriteString("你是运维分诊助手。判断下面这个告警是否是「噪声」（无需响应的重复/演练/已知无害告警），\n")
+	sb.WriteString("若是，请从「候选标签」里挑出足以复用地识别这类噪声的最小标签子集（用于生成抑制规则）。\n")
+	sb.WriteString("要求：\n")
+	sb.WriteString("1. 只在确有噪声迹象时才判为噪声，把握不大时 is_noise=false（宁可漏抑，不可误抑真告警）\n")
+	sb.WriteString("2. match_labels 只能从「候选标签」里选（键值原样照抄），不要编造标签\n")
+	sb.WriteString("3. 输出必须是 JSON：{\"is_noise\":true|false,\"match_labels\":{\"k\":\"v\"},\"confidence\":0.0-1.0,\"reason\":\"...\"}\n\n")
+	fmt.Fprintf(&sb, "当前严重度：%s\n", string(inc.Severity))
+	fmt.Fprintf(&sb, "标题：%s\n", inc.Title)
+	fmt.Fprintf(&sb, "概要：%s\n\n", inc.Summary)
+	sb.WriteString("候选标签（match_labels 只能从这里选）：\n")
+	for k, v := range candidateLabels {
+		fmt.Fprintf(&sb, "- %s=%s\n", k, v)
+	}
+	sb.WriteString("\n关联告警：\n")
+	for _, ev := range events {
+		fmt.Fprintf(&sb, "- [%s] %s\n", string(ev.Severity), ev.Summary)
 	}
 	return sb.String()
 }
@@ -352,6 +462,31 @@ func parseDedupOutput(raw string, candidates []*ent.Incident) (shouldMerge bool,
 	return out.ShouldMerge, out.Confidence, mergeIDs, strings.TrimSpace(out.Reason)
 }
 
+// parseNoiseOutput 解析降噪建议输出（JSON，N1.4）。
+// 只保留出现在候选集里的 label（键值都须与候选完全一致，防 LLM 幻觉编造标签/篡改值）。
+func parseNoiseOutput(raw string, candidate map[string]string) (isNoise bool, conf float32, matchLabels map[string]string, reason string) {
+	var out struct {
+		IsNoise     bool              `json:"is_noise"`
+		MatchLabels map[string]string `json:"match_labels"`
+		Confidence  float32           `json:"confidence"`
+		Reason      string            `json:"reason"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &out); err != nil {
+		return false, 0, nil, "" // 非 JSON → 不产出（无结构化 match_labels 无法沉淀规则）
+	}
+	if out.Confidence > 1 {
+		out.Confidence = 1
+	}
+	// 只保留键值与候选完全一致的 label（LLM 可能编造键或改值，过滤防幻觉/防误抑）。
+	matchLabels = make(map[string]string, len(out.MatchLabels))
+	for k, v := range out.MatchLabels {
+		if cv, ok := candidate[k]; ok && cv == v {
+			matchLabels[k] = v
+		}
+	}
+	return out.IsNoise, out.Confidence, matchLabels, strings.TrimSpace(out.Reason)
+}
+
 // --- evidence 构造 ---
 
 // severityEvidence 用关联 Event 摘要作 severity 建议的 evidence（可溯源事实依据）。
@@ -389,6 +524,36 @@ func dedupEvidence(candidates []*ent.Incident, mergeIDs []int) []map[string]any 
 		})
 	}
 	return ev
+}
+
+// noiseEvidence 用关联 Event（labels + summary）作降噪建议的 evidence（可溯源，N1.4）。
+// 使响应者可核对「据什么把它判为噪声」，也是 accept 沉淀规则前的人工复核依据。
+func noiseEvidence(events []*ent.Event) []map[string]any {
+	ev := make([]map[string]any, 0, len(events))
+	for _, e := range events {
+		ev = append(ev, map[string]any{
+			"kind":     "event",
+			"event_id": e.ID,
+			"severity": string(e.Severity),
+			"summary":  e.Summary,
+			"labels":   e.Labels,
+		})
+	}
+	return ev
+}
+
+// collectLabels 汇总一批 Event 的 labels 为候选集（供 LLM 挑选可复用识别噪声的子集）。
+// 冲突（同 key 不同 value）时保留首次出现的值——降噪规则用「稳定不变」的标签更合适。
+func collectLabels(events []*ent.Event) map[string]string {
+	out := map[string]string{}
+	for _, e := range events {
+		for k, v := range e.Labels {
+			if _, ok := out[k]; !ok {
+				out[k] = v
+			}
+		}
+	}
+	return out
 }
 
 // --- helpers ---

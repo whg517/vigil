@@ -34,6 +34,10 @@ var ErrAdapterNotImplemented = errors.New("ticket adapter not implemented for th
 // ErrTicketBlocked endpoint 未通过 SSRF/URL 校验（建单目标被拦）。
 var ErrTicketBlocked = errors.New("ticket endpoint blocked")
 
+// ErrCallbackUnknownStatus 工单侧回调携带的状态无法归一到 ActionItem 三态（N1.3）。
+// handler 据此返 400（明确告知回调方状态无效），而非静默忽略（避免掩盖对接口径错误）。
+var ErrCallbackUnknownStatus = errors.New("ticket callback status not recognized")
+
 // TicketRequest 建单请求（适配器无关的中立结构）。
 // 各适配器把它翻译成目标系统的建单 payload。
 type TicketRequest struct {

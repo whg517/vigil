@@ -23,6 +23,8 @@ const (
 	FieldEndpoint = "endpoint"
 	// FieldCredential holds the string denoting the credential field in the database.
 	FieldCredential = "credential"
+	// FieldCallbackSecret holds the string denoting the callback_secret field in the database.
+	FieldCallbackSecret = "callback_secret"
 	// FieldConfig holds the string denoting the config field in the database.
 	FieldConfig = "config"
 	// FieldEnabled holds the string denoting the enabled field in the database.
@@ -51,6 +53,7 @@ var Columns = []string{
 	FieldType,
 	FieldEndpoint,
 	FieldCredential,
+	FieldCallbackSecret,
 	FieldConfig,
 	FieldEnabled,
 	FieldCreatedAt,
@@ -146,6 +149,11 @@ func ByEndpoint(opts ...sql.OrderTermOption) OrderOption {
 // ByCredential orders the results by the credential field.
 func ByCredential(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCredential, opts...).ToFunc()
+}
+
+// ByCallbackSecret orders the results by the callback_secret field.
+func ByCallbackSecret(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCallbackSecret, opts...).ToFunc()
 }
 
 // ByEnabled orders the results by the enabled field.

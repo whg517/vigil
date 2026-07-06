@@ -61,6 +61,20 @@ func (_c *TicketIntegrationCreate) SetNillableCredential(v *string) *TicketInteg
 	return _c
 }
 
+// SetCallbackSecret sets the "callback_secret" field.
+func (_c *TicketIntegrationCreate) SetCallbackSecret(v string) *TicketIntegrationCreate {
+	_c.mutation.SetCallbackSecret(v)
+	return _c
+}
+
+// SetNillableCallbackSecret sets the "callback_secret" field if the given value is not nil.
+func (_c *TicketIntegrationCreate) SetNillableCallbackSecret(v *string) *TicketIntegrationCreate {
+	if v != nil {
+		_c.SetCallbackSecret(*v)
+	}
+	return _c
+}
+
 // SetConfig sets the "config" field.
 func (_c *TicketIntegrationCreate) SetConfig(v map[string]interface{}) *TicketIntegrationCreate {
 	_c.mutation.SetConfig(v)
@@ -257,6 +271,10 @@ func (_c *TicketIntegrationCreate) createSpec() (*TicketIntegration, *sqlgraph.C
 	if value, ok := _c.mutation.Credential(); ok {
 		_spec.SetField(ticketintegration.FieldCredential, field.TypeString, value)
 		_node.Credential = value
+	}
+	if value, ok := _c.mutation.CallbackSecret(); ok {
+		_spec.SetField(ticketintegration.FieldCallbackSecret, field.TypeString, value)
+		_node.CallbackSecret = value
 	}
 	if value, ok := _c.mutation.Config(); ok {
 		_spec.SetField(ticketintegration.FieldConfig, field.TypeJSON, value)

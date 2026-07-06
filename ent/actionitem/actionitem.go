@@ -25,6 +25,8 @@ const (
 	FieldStatus = "status"
 	// FieldTrackerURL holds the string denoting the tracker_url field in the database.
 	FieldTrackerURL = "tracker_url"
+	// FieldExternalID holds the string denoting the external_id field in the database.
+	FieldExternalID = "external_id"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -50,6 +52,7 @@ var Columns = []string{
 	FieldDueDate,
 	FieldStatus,
 	FieldTrackerURL,
+	FieldExternalID,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -144,6 +147,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByTrackerURL orders the results by the tracker_url field.
 func ByTrackerURL(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTrackerURL, opts...).ToFunc()
+}
+
+// ByExternalID orders the results by the external_id field.
+func ByExternalID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldExternalID, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

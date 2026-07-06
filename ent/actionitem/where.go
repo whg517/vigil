@@ -75,6 +75,11 @@ func TrackerURL(v string) predicate.ActionItem {
 	return predicate.ActionItem(sql.FieldEQ(FieldTrackerURL, v))
 }
 
+// ExternalID applies equality check predicate on the "external_id" field. It's identical to ExternalIDEQ.
+func ExternalID(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldEQ(FieldExternalID, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.ActionItem {
 	return predicate.ActionItem(sql.FieldEQ(FieldCreatedAt, v))
@@ -368,6 +373,81 @@ func TrackerURLEqualFold(v string) predicate.ActionItem {
 // TrackerURLContainsFold applies the ContainsFold predicate on the "tracker_url" field.
 func TrackerURLContainsFold(v string) predicate.ActionItem {
 	return predicate.ActionItem(sql.FieldContainsFold(FieldTrackerURL, v))
+}
+
+// ExternalIDEQ applies the EQ predicate on the "external_id" field.
+func ExternalIDEQ(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldEQ(FieldExternalID, v))
+}
+
+// ExternalIDNEQ applies the NEQ predicate on the "external_id" field.
+func ExternalIDNEQ(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldNEQ(FieldExternalID, v))
+}
+
+// ExternalIDIn applies the In predicate on the "external_id" field.
+func ExternalIDIn(vs ...string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldIn(FieldExternalID, vs...))
+}
+
+// ExternalIDNotIn applies the NotIn predicate on the "external_id" field.
+func ExternalIDNotIn(vs ...string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldNotIn(FieldExternalID, vs...))
+}
+
+// ExternalIDGT applies the GT predicate on the "external_id" field.
+func ExternalIDGT(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldGT(FieldExternalID, v))
+}
+
+// ExternalIDGTE applies the GTE predicate on the "external_id" field.
+func ExternalIDGTE(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldGTE(FieldExternalID, v))
+}
+
+// ExternalIDLT applies the LT predicate on the "external_id" field.
+func ExternalIDLT(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldLT(FieldExternalID, v))
+}
+
+// ExternalIDLTE applies the LTE predicate on the "external_id" field.
+func ExternalIDLTE(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldLTE(FieldExternalID, v))
+}
+
+// ExternalIDContains applies the Contains predicate on the "external_id" field.
+func ExternalIDContains(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldContains(FieldExternalID, v))
+}
+
+// ExternalIDHasPrefix applies the HasPrefix predicate on the "external_id" field.
+func ExternalIDHasPrefix(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldHasPrefix(FieldExternalID, v))
+}
+
+// ExternalIDHasSuffix applies the HasSuffix predicate on the "external_id" field.
+func ExternalIDHasSuffix(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldHasSuffix(FieldExternalID, v))
+}
+
+// ExternalIDIsNil applies the IsNil predicate on the "external_id" field.
+func ExternalIDIsNil() predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldIsNull(FieldExternalID))
+}
+
+// ExternalIDNotNil applies the NotNil predicate on the "external_id" field.
+func ExternalIDNotNil() predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldNotNull(FieldExternalID))
+}
+
+// ExternalIDEqualFold applies the EqualFold predicate on the "external_id" field.
+func ExternalIDEqualFold(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldEqualFold(FieldExternalID, v))
+}
+
+// ExternalIDContainsFold applies the ContainsFold predicate on the "external_id" field.
+func ExternalIDContainsFold(v string) predicate.ActionItem {
+	return predicate.ActionItem(sql.FieldContainsFold(FieldExternalID, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

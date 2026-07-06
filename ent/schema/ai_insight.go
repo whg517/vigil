@@ -28,6 +28,10 @@ func (AIInsight) Fields() []ent.Field {
 			"dedup_suggestion", "severity_adjustment", "root_cause_hint",
 			"similar_incident", "draft_summary", "postmortem_draft",
 			"runbook_suggestion",
+			// noise_suggestion：分诊阶段 AI 降噪建议（N1.4）——识别疑似噪声的 Event（labels/pattern），
+			// accept 时沉淀为一条 SuppressionRule（source=ai）使「AI 学到的噪声」下次自动抑制。
+			// 这是「AI 建议→规则沉淀」闭环，非机器学习回训；reject 仍只记录供分析（T3.4）。
+			"noise_suggestion",
 		),
 		// content AI 产出（文本/结构化）
 		field.JSON("content", map[string]any{}).Comment("AI 产出内容"),

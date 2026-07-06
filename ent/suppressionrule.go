@@ -35,6 +35,10 @@ type SuppressionRule struct {
 	PreserveCritical bool `json:"preserve_critical,omitempty"`
 	// Enabled holds the value of the "enabled" field.
 	Enabled bool `json:"enabled,omitempty"`
+	// 规则来源：manual 人工 / ai 由采纳的降噪建议沉淀
+	Source suppressionrule.Source `json:"source,omitempty"`
+	// 沉淀本规则的 AIInsight id（幂等键，source=ai 时有值）
+	SourceInsightID int `json:"source_insight_id,omitempty"`
 	// 规则过期时间
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -77,9 +81,9 @@ func (*SuppressionRule) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case suppressionrule.FieldPreserveCritical, suppressionrule.FieldEnabled:
 			values[i] = new(sql.NullBool)
-		case suppressionrule.FieldID:
+		case suppressionrule.FieldID, suppressionrule.FieldSourceInsightID:
 			values[i] = new(sql.NullInt64)
-		case suppressionrule.FieldName, suppressionrule.FieldAction, suppressionrule.FieldReduceTo:
+		case suppressionrule.FieldName, suppressionrule.FieldAction, suppressionrule.FieldReduceTo, suppressionrule.FieldSource:
 			values[i] = new(sql.NullString)
 		case suppressionrule.FieldExpiresAt, suppressionrule.FieldCreatedAt, suppressionrule.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -159,6 +163,18 @@ func (_m *SuppressionRule) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field enabled", values[i])
 			} else if value.Valid {
 				_m.Enabled = value.Bool
+			}
+		case suppressionrule.FieldSource:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field source", values[i])
+			} else if value.Valid {
+				_m.Source = suppressionrule.Source(value.String)
+			}
+		case suppressionrule.FieldSourceInsightID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field source_insight_id", values[i])
+			} else if value.Valid {
+				_m.SourceInsightID = int(value.Int64)
 			}
 		case suppressionrule.FieldExpiresAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -250,6 +266,12 @@ func (_m *SuppressionRule) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Enabled))
+	builder.WriteString(", ")
+	builder.WriteString("source=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Source))
+	builder.WriteString(", ")
+	builder.WriteString("source_insight_id=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SourceInsightID))
 	builder.WriteString(", ")
 	if v := _m.ExpiresAt; v != nil {
 		builder.WriteString("expires_at=")

@@ -69,6 +69,9 @@ const (
 	ActionTicketIntegrationCreate = "ticket_integration.create"
 	ActionTicketIntegrationUpdate = "ticket_integration.update"
 	ActionTicketIntegrationDelete = "ticket_integration.delete"
+	// 工单侧状态回调改动 ActionItem（N1.3 双向回写）：外部工单关闭/推进回写 Vigil 改进项状态，
+	// actor=0（外部系统调用，非登录用户），留痕来源集成 + 状态迁移，供追溯「谁把改进项改了状态」。
+	ActionTicketCallbackSync = "ticket_integration.callback_sync"
 	// 加密托管凭据配置变更（T6.3/S16）：凭据持外部平台鉴权 token，创建/改动/删除都留痕。
 	// ★ 审计只记元数据（名/类型/id），绝不含密文/明文（明文不进审计）。
 	ActionCredentialCreate = "credential.create" //nolint:gosec // G101 误报：审计 action 标识符，非密钥

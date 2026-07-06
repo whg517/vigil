@@ -98,7 +98,8 @@ const docTemplate = `{
                     "similar_incident",
                     "draft_summary",
                     "postmortem_draft",
-                    "runbook_suggestion"
+                    "runbook_suggestion",
+                    "noise_suggestion"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
@@ -108,7 +109,8 @@ const docTemplate = `{
                     "TypeSimilarIncident",
                     "TypeDraftSummary",
                     "TypePostmortemDraft",
-                    "TypeRunbookSuggestion"
+                    "TypeRunbookSuggestion",
+                    "TypeNoiseSuggestion"
                 ]
             },
             "analytics.AIFeedbackByType": {
@@ -842,6 +844,10 @@ const docTemplate = `{
                     },
                     "edges": {
                         "$ref": "#/components/schemas/ent.ActionItemEdges"
+                    },
+                    "external_id": {
+                        "description": "外部工单 id（回调按此精确匹配）",
+                        "type": "string"
                     },
                     "id": {
                         "description": "ID of the ent.",
@@ -2359,6 +2365,13 @@ const docTemplate = `{
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "source": {
+                        "$ref": "#/components/schemas/suppressionrule.Source"
+                    },
+                    "source_insight_id": {
+                        "description": "沉淀本规则的 AIInsight id（幂等键，source=ai 时有值）",
+                        "type": "integer"
                     },
                     "time_window": {
                         "additionalProperties": {},
@@ -4600,8 +4613,25 @@ const docTemplate = `{
                     "ActionReduceSeverity"
                 ]
             },
+            "suppressionrule.Source": {
+                "description": "规则来源：manual 人工 / ai 由采纳的降噪建议沉淀",
+                "enum": [
+                    "manual",
+                    "ai"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultSource",
+                    "SourceManual",
+                    "SourceAi"
+                ]
+            },
             "ticket.createReq": {
                 "properties": {
+                    "callback_secret": {
+                        "description": "CallbackSecret 工单侧状态回调（N1.3）的 HMAC 验签密钥，仅入不出（Sensitive）。\n配了才接受该集成的回调（/webhooks/ticket/:id）；空则不接受回调。",
+                        "type": "string"
+                    },
                     "config": {
                         "additionalProperties": {},
                         "description": "目标项目/字段映射",
@@ -4631,6 +4661,10 @@ const docTemplate = `{
             },
             "ticket.updateReq": {
                 "properties": {
+                    "callback_secret": {
+                        "description": "CallbackSecret 传则更新回调验签密钥（不回显）。空字符串视为「清空密钥」（停用回调）。",
+                        "type": "string"
+                    },
                     "config": {
                         "additionalProperties": {},
                         "type": "object"
@@ -13932,6 +13966,96 @@ const docTemplate = `{
                 "summary": "接收告警 webhook",
                 "tags": [
                     "ingestion"
+                ]
+            }
+        },
+        "/webhooks/ticket/{id}": {
+            "post": {
+                "description": "外部工单系统状态变更回调；HMAC 验签后据 external_id/tracker_url 匹配 ActionItem 更新状态（N1.3）。",
+                "parameters": [
+                    {
+                        "description": "工单集成 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "hex(HMAC-SHA256(callback_secret, timestamp + \\",
+                        "in": "header",
+                        "name": "X-Vigil-Signature",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Unix 秒时间戳（防重放）",
+                        "in": "header",
+                        "name": "X-Vigil-Timestamp",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "summary": "Ticket status callback",
+                "tags": [
+                    "ticket-integration"
                 ]
             }
         }

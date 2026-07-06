@@ -36,6 +36,15 @@ func (SuppressionRule) Fields() []ent.Field {
 		// preserve_critical critical 告警不被抑制（即使命中条件），避免误杀真故障
 		field.Bool("preserve_critical").Default(true).Comment("critical 不被抑制"),
 		field.Bool("enabled").Default(true),
+		// source 规则来源（N1.4 AI 噪声学习闭环）：
+		//   - manual：人工在通知配置里手建（默认，与既有行为一致）。
+		//   - ai    ：由被采纳的 AI 降噪建议沉淀而来（accept noise_suggestion → 生成本规则）。
+		// 语义边界：这是「AI 建议→规则沉淀」，非机器学习模型回训；规则一旦生成即普通抑制规则，
+		// team_admin 可见、可撤（禁用/删除）。标 source=ai 只为可溯源、可审计、可与人工规则区分。
+		field.Enum("source").Values("manual", "ai").Default("manual").Comment("规则来源：manual 人工 / ai 由采纳的降噪建议沉淀"),
+		// source_insight_id 沉淀本规则的那条 AIInsight id（source=ai 时有值，N1.4）。
+		// 幂等键：同一条降噪建议重复 accept 不重复建规则（据此查重）。0/未设=非 AI 来源。
+		field.Int("source_insight_id").Optional().Comment("沉淀本规则的 AIInsight id（幂等键，source=ai 时有值）"),
 		// expires_at 规则过期时间（自动失效，可选）
 		field.Time("expires_at").Optional().Nillable().Comment("规则过期时间"),
 		field.Time("created_at").Default(time.Now).Immutable(),

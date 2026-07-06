@@ -142,6 +142,47 @@ func (_u *SuppressionRuleUpdate) SetNillableEnabled(v *bool) *SuppressionRuleUpd
 	return _u
 }
 
+// SetSource sets the "source" field.
+func (_u *SuppressionRuleUpdate) SetSource(v suppressionrule.Source) *SuppressionRuleUpdate {
+	_u.mutation.SetSource(v)
+	return _u
+}
+
+// SetNillableSource sets the "source" field if the given value is not nil.
+func (_u *SuppressionRuleUpdate) SetNillableSource(v *suppressionrule.Source) *SuppressionRuleUpdate {
+	if v != nil {
+		_u.SetSource(*v)
+	}
+	return _u
+}
+
+// SetSourceInsightID sets the "source_insight_id" field.
+func (_u *SuppressionRuleUpdate) SetSourceInsightID(v int) *SuppressionRuleUpdate {
+	_u.mutation.ResetSourceInsightID()
+	_u.mutation.SetSourceInsightID(v)
+	return _u
+}
+
+// SetNillableSourceInsightID sets the "source_insight_id" field if the given value is not nil.
+func (_u *SuppressionRuleUpdate) SetNillableSourceInsightID(v *int) *SuppressionRuleUpdate {
+	if v != nil {
+		_u.SetSourceInsightID(*v)
+	}
+	return _u
+}
+
+// AddSourceInsightID adds value to the "source_insight_id" field.
+func (_u *SuppressionRuleUpdate) AddSourceInsightID(v int) *SuppressionRuleUpdate {
+	_u.mutation.AddSourceInsightID(v)
+	return _u
+}
+
+// ClearSourceInsightID clears the value of the "source_insight_id" field.
+func (_u *SuppressionRuleUpdate) ClearSourceInsightID() *SuppressionRuleUpdate {
+	_u.mutation.ClearSourceInsightID()
+	return _u
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (_u *SuppressionRuleUpdate) SetExpiresAt(v time.Time) *SuppressionRuleUpdate {
 	_u.mutation.SetExpiresAt(v)
@@ -246,6 +287,11 @@ func (_u *SuppressionRuleUpdate) check() error {
 			return &ValidationError{Name: "action", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.action": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Source(); ok {
+		if err := suppressionrule.SourceValidator(v); err != nil {
+			return &ValidationError{Name: "source", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.source": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -298,6 +344,18 @@ func (_u *SuppressionRuleUpdate) sqlSave(ctx context.Context) (_node int, err er
 	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(suppressionrule.FieldEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Source(); ok {
+		_spec.SetField(suppressionrule.FieldSource, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.SourceInsightID(); ok {
+		_spec.SetField(suppressionrule.FieldSourceInsightID, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSourceInsightID(); ok {
+		_spec.AddField(suppressionrule.FieldSourceInsightID, field.TypeInt, value)
+	}
+	if _u.mutation.SourceInsightIDCleared() {
+		_spec.ClearField(suppressionrule.FieldSourceInsightID, field.TypeInt)
 	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(suppressionrule.FieldExpiresAt, field.TypeTime, value)
@@ -469,6 +527,47 @@ func (_u *SuppressionRuleUpdateOne) SetNillableEnabled(v *bool) *SuppressionRule
 	return _u
 }
 
+// SetSource sets the "source" field.
+func (_u *SuppressionRuleUpdateOne) SetSource(v suppressionrule.Source) *SuppressionRuleUpdateOne {
+	_u.mutation.SetSource(v)
+	return _u
+}
+
+// SetNillableSource sets the "source" field if the given value is not nil.
+func (_u *SuppressionRuleUpdateOne) SetNillableSource(v *suppressionrule.Source) *SuppressionRuleUpdateOne {
+	if v != nil {
+		_u.SetSource(*v)
+	}
+	return _u
+}
+
+// SetSourceInsightID sets the "source_insight_id" field.
+func (_u *SuppressionRuleUpdateOne) SetSourceInsightID(v int) *SuppressionRuleUpdateOne {
+	_u.mutation.ResetSourceInsightID()
+	_u.mutation.SetSourceInsightID(v)
+	return _u
+}
+
+// SetNillableSourceInsightID sets the "source_insight_id" field if the given value is not nil.
+func (_u *SuppressionRuleUpdateOne) SetNillableSourceInsightID(v *int) *SuppressionRuleUpdateOne {
+	if v != nil {
+		_u.SetSourceInsightID(*v)
+	}
+	return _u
+}
+
+// AddSourceInsightID adds value to the "source_insight_id" field.
+func (_u *SuppressionRuleUpdateOne) AddSourceInsightID(v int) *SuppressionRuleUpdateOne {
+	_u.mutation.AddSourceInsightID(v)
+	return _u
+}
+
+// ClearSourceInsightID clears the value of the "source_insight_id" field.
+func (_u *SuppressionRuleUpdateOne) ClearSourceInsightID() *SuppressionRuleUpdateOne {
+	_u.mutation.ClearSourceInsightID()
+	return _u
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (_u *SuppressionRuleUpdateOne) SetExpiresAt(v time.Time) *SuppressionRuleUpdateOne {
 	_u.mutation.SetExpiresAt(v)
@@ -586,6 +685,11 @@ func (_u *SuppressionRuleUpdateOne) check() error {
 			return &ValidationError{Name: "action", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.action": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Source(); ok {
+		if err := suppressionrule.SourceValidator(v); err != nil {
+			return &ValidationError{Name: "source", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.source": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -655,6 +759,18 @@ func (_u *SuppressionRuleUpdateOne) sqlSave(ctx context.Context) (_node *Suppres
 	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(suppressionrule.FieldEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Source(); ok {
+		_spec.SetField(suppressionrule.FieldSource, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.SourceInsightID(); ok {
+		_spec.SetField(suppressionrule.FieldSourceInsightID, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSourceInsightID(); ok {
+		_spec.AddField(suppressionrule.FieldSourceInsightID, field.TypeInt, value)
+	}
+	if _u.mutation.SourceInsightIDCleared() {
+		_spec.ClearField(suppressionrule.FieldSourceInsightID, field.TypeInt)
 	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(suppressionrule.FieldExpiresAt, field.TypeTime, value)

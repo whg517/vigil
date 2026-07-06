@@ -112,6 +112,9 @@ type createReq struct {
 	Credential string         `json:"credential"` // 凭据（token/密码），仅入不出（Sensitive）
 	Config     map[string]any `json:"config"`     // 目标项目/字段映射
 	TeamID     int            `json:"team_id"`    // 归属团队，0=org 级
+	// CallbackSecret 工单侧状态回调（N1.3）的 HMAC 验签密钥，仅入不出（Sensitive）。
+	// 配了才接受该集成的回调（/webhooks/ticket/:id）；空则不接受回调。
+	CallbackSecret string `json:"callback_secret"`
 }
 
 // updateReq 更新工单集成请求（全指针，部分更新）。
@@ -121,6 +124,8 @@ type updateReq struct {
 	Credential *string         `json:"credential"` // 传则更新凭据（不回显）
 	Config     *map[string]any `json:"config"`
 	Enabled    *bool           `json:"enabled"`
+	// CallbackSecret 传则更新回调验签密钥（不回显）。空字符串视为「清空密钥」（停用回调）。
+	CallbackSecret *string `json:"callback_secret"`
 }
 
 // list 工单集成列表（凭据不回显，Sensitive 字段序列化时忽略）。
@@ -199,6 +204,14 @@ func (h *Handler) create(c *echo.Context) error {
 			return errs.Internal(c, nil, err)
 		}
 		b.SetCredential(enc)
+	}
+	if req.CallbackSecret != "" {
+		// N1.3：回调验签密钥与凭据同款加密存储（T6.3），CallbackHandler 验签前解密比对。
+		enc, err := h.encryptCredential(req.CallbackSecret)
+		if err != nil {
+			return errs.Internal(c, nil, err)
+		}
+		b.SetCallbackSecret(enc)
 	}
 	if req.Config != nil {
 		b.SetConfig(req.Config)
@@ -309,6 +322,18 @@ func (h *Handler) update(c *echo.Context) error {
 			return errs.Internal(c, nil, err)
 		}
 		u.SetCredential(enc)
+	}
+	if req.CallbackSecret != nil {
+		// N1.3：更新回调密钥。空字符串=清空（停用回调）；非空则加密后落库。
+		if *req.CallbackSecret == "" {
+			u.ClearCallbackSecret()
+		} else {
+			enc, err := h.encryptCredential(*req.CallbackSecret)
+			if err != nil {
+				return errs.Internal(c, nil, err)
+			}
+			u.SetCallbackSecret(enc)
+		}
 	}
 	if req.Config != nil {
 		u.SetConfig(*req.Config)

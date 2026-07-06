@@ -28,6 +28,8 @@ type ActionItem struct {
 	Status actionitem.Status `json:"status,omitempty"`
 	// 对接外部工单
 	TrackerURL string `json:"tracker_url,omitempty"`
+	// 外部工单 id（回调按此精确匹配）
+	ExternalID string `json:"external_id,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -66,7 +68,7 @@ func (*ActionItem) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case actionitem.FieldID:
 			values[i] = new(sql.NullInt64)
-		case actionitem.FieldDescription, actionitem.FieldOwnerID, actionitem.FieldStatus, actionitem.FieldTrackerURL:
+		case actionitem.FieldDescription, actionitem.FieldOwnerID, actionitem.FieldStatus, actionitem.FieldTrackerURL, actionitem.FieldExternalID:
 			values[i] = new(sql.NullString)
 		case actionitem.FieldDueDate, actionitem.FieldCreatedAt, actionitem.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -123,6 +125,12 @@ func (_m *ActionItem) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field tracker_url", values[i])
 			} else if value.Valid {
 				_m.TrackerURL = value.String
+			}
+		case actionitem.FieldExternalID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field external_id", values[i])
+			} else if value.Valid {
+				_m.ExternalID = value.String
 			}
 		case actionitem.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -200,6 +208,9 @@ func (_m *ActionItem) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("tracker_url=")
 	builder.WriteString(_m.TrackerURL)
+	builder.WriteString(", ")
+	builder.WriteString("external_id=")
+	builder.WriteString(_m.ExternalID)
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

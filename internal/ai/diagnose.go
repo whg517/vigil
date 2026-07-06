@@ -23,6 +23,7 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/postmortem"
 	"github.com/kevin/vigil/ent/schema"
+	"github.com/kevin/vigil/ent/suppressionrule"
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/internal/timeline"
 	"github.com/pgvector/pgvector-go"
@@ -518,6 +519,7 @@ func (e *DiagnoseEngine) ResolveInsight(ctx context.Context, insightID, actorID 
 // 有实际动作的类型：
 //   - severity_adjustment：把关联 incident 的 severity 改成建议值（content.target_severity）。
 //   - dedup_suggestion：把 content.merge_candidate_ids 指向的候选单真正合并进本 incident（M3.5/M3.6）。
+//   - noise_suggestion：据 content.match_labels 沉淀一条 SuppressionRule（source=ai），使 AI 学到的噪声下次自动抑制（N1.4）。
 //
 // 其余类型（root_cause_hint/similar_incident/draft_summary/runbook_suggestion/...）无自动副作用，
 // 返回 false，accept 即终态——这些是只读线索/展示建议，采纳与否由人后续手动落地。
@@ -531,9 +533,73 @@ func (e *DiagnoseEngine) applyInsight(ctx context.Context, ins *ent.AIInsight, a
 		return e.applySeverityAdjustment(ctx, ins)
 	case aiinsight.TypeDedupSuggestion:
 		return e.applyDedupMerge(ctx, ins, actorID)
+	case aiinsight.TypeNoiseSuggestion:
+		return e.applyNoiseSuggestion(ctx, ins)
 	default:
 		return false // 无实际应用动作的类型（含 runbook_suggestion）：accept=终态，不产生副作用
 	}
+}
+
+// applyNoiseSuggestion 采纳降噪建议：据 content.match_labels 沉淀一条 SuppressionRule（source=ai），
+// 使「AI 学到的噪声」下次自动抑制（N1.4 AI 噪声学习闭环）。
+//
+// 语义边界（务实，不夸大）：这是「AI 建议→规则沉淀」，非机器学习模型回训。生成的规则
+// action=suppress、preserve_critical=true（critical 不误抑）、归属 incident 所属 team（软隔离），
+// team_admin 可见、可撤（禁用/删除）。reject 不走此路径（只记录供分析，见 ResolveInsight）。
+//
+// 幂等：以 source_insight_id 为幂等键——同一条建议重复 accept 不重复建规则（虽 ResolveInsight
+// 已用 status 前置校验挡住重复改判，此处再查重作双保险，防并发/重放）。
+//
+// 返回 true（升级 applied）当且仅当规则真正生成。以下情形返回 false（保持 accepted，不建规则）：
+//   - content.match_labels 缺失/为空/解析不出（无规则化原料）。
+//   - 该 insight 已生成过规则（幂等命中）。
+//   - 建库失败。
+func (e *DiagnoseEngine) applyNoiseSuggestion(ctx context.Context, ins *ent.AIInsight) bool {
+	matchLabels := parseNoiseMatchLabels(ins.Content["match_labels"])
+	if len(matchLabels) == 0 {
+		slog.Warn("ai insight apply: noise suggestion has no valid match_labels, skip",
+			"insight_id", ins.ID)
+		return false
+	}
+	// 幂等：该 insight 已沉淀过规则则不重复建（双保险，防并发/重放）。
+	if exists, err := e.db.SuppressionRule.Query().
+		Where(suppressionrule.SourceInsightIDEQ(ins.ID)).Exist(ctx); err == nil && exists {
+		return false
+	}
+	// 归属 team：经 insight→incident→team 反查（软隔离；无 team 归属则建 org 级规则）。
+	inc, err := ins.QueryIncident().Only(ctx)
+	if err != nil {
+		slog.Warn("ai insight apply: query incident failed, skip noise rule",
+			"insight_id", ins.ID, "error", err)
+		return false
+	}
+	b := e.db.SuppressionRule.Create().
+		SetName(fmt.Sprintf("AI 降噪-%s#%d", incidentShortRef(inc), ins.ID)).
+		SetMatchLabels(matchLabels).
+		SetAction(suppressionrule.ActionSuppress).
+		SetPreserveCritical(true). // critical 不被 AI 沉淀的规则误抑（安全守卫）
+		SetEnabled(true).
+		SetSource(suppressionrule.SourceAi).
+		SetSourceInsightID(ins.ID)
+	if tm, terr := inc.QueryTeam().Only(ctx); terr == nil && tm != nil {
+		b = b.SetTeamID(tm.ID) // 团队软隔离：规则归属 incident 所属 team
+	}
+	rule, err := b.Save(ctx)
+	if err != nil {
+		slog.Warn("ai insight apply: create suppression rule failed, keep accepted",
+			"insight_id", ins.ID, "error", err)
+		return false
+	}
+	// 沉淀成功写 ai_insight 时间线（AI 降噪建议被采纳并沉淀为抑制规则，全程留痕）。
+	if e.recorder != nil {
+		_ = e.recorder.Record(ctx, inc.ID, timelineitem.TypeAiInsight,
+			fmt.Sprintf("采纳 AI 降噪建议：已沉淀抑制规则 #%d（source=ai），下次同类告警自动抑制", rule.ID),
+			timeline.Actor{Kind: "ai"}, timelineitem.SourceAi,
+			map[string]any{"insight_id": ins.ID, "suppression_rule_id": rule.ID, "match_labels": matchLabels})
+	}
+	slog.Info("ai insight apply: noise suggestion accepted, suppression rule created",
+		"insight_id", ins.ID, "suppression_rule_id", rule.ID)
+	return true
 }
 
 // applySeverityAdjustment 采纳严重度建议：把关联 incident 的 severity 改成建议值。
@@ -655,6 +721,37 @@ func positiveInts(ids []int) []int {
 		}
 	}
 	return out
+}
+
+// parseNoiseMatchLabels 从 AIInsight.Content 的 match_labels 解出降噪规则的匹配标签（N1.4）。
+//
+// content 经 JSON round-trip 时 map value 是 any（string），同进程内直接写入时可能已是
+// map[string]string。这里兼容两种，只收非空 key/value（防脏数据建出恒不命中/误命中的规则）。
+func parseNoiseMatchLabels(raw any) map[string]string {
+	out := map[string]string{}
+	switch m := raw.(type) {
+	case map[string]string:
+		for k, v := range m {
+			if k != "" && v != "" {
+				out[k] = v
+			}
+		}
+	case map[string]any:
+		for k, v := range m {
+			if s, ok := v.(string); ok && k != "" && s != "" {
+				out[k] = s
+			}
+		}
+	}
+	return out
+}
+
+// incidentShortRef 取 incident 的简短引用（number 优先，缺失回退 id），用于生成规则名。
+func incidentShortRef(inc *ent.Incident) string {
+	if inc.Number != "" {
+		return inc.Number
+	}
+	return strconv.Itoa(inc.ID)
 }
 
 // buildDiagnosePrompt 构造根因诊断 prompt。

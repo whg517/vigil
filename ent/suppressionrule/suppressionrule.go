@@ -31,6 +31,10 @@ const (
 	FieldPreserveCritical = "preserve_critical"
 	// FieldEnabled holds the string denoting the enabled field in the database.
 	FieldEnabled = "enabled"
+	// FieldSource holds the string denoting the source field in the database.
+	FieldSource = "source"
+	// FieldSourceInsightID holds the string denoting the source_insight_id field in the database.
+	FieldSourceInsightID = "source_insight_id"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
 	FieldExpiresAt = "expires_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -61,6 +65,8 @@ var Columns = []string{
 	FieldReduceTo,
 	FieldPreserveCritical,
 	FieldEnabled,
+	FieldSource,
+	FieldSourceInsightID,
 	FieldExpiresAt,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -128,6 +134,32 @@ func ActionValidator(a Action) error {
 	}
 }
 
+// Source defines the type for the "source" enum field.
+type Source string
+
+// SourceManual is the default value of the Source enum.
+const DefaultSource = SourceManual
+
+// Source values.
+const (
+	SourceManual Source = "manual"
+	SourceAi     Source = "ai"
+)
+
+func (s Source) String() string {
+	return string(s)
+}
+
+// SourceValidator is a validator for the "source" field enum values. It is called by the builders before save.
+func SourceValidator(s Source) error {
+	switch s {
+	case SourceManual, SourceAi:
+		return nil
+	default:
+		return fmt.Errorf("suppressionrule: invalid enum value for source field: %q", s)
+	}
+}
+
 // OrderOption defines the ordering options for the SuppressionRule queries.
 type OrderOption func(*sql.Selector)
 
@@ -159,6 +191,16 @@ func ByPreserveCritical(opts ...sql.OrderTermOption) OrderOption {
 // ByEnabled orders the results by the enabled field.
 func ByEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEnabled, opts...).ToFunc()
+}
+
+// BySource orders the results by the source field.
+func BySource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSource, opts...).ToFunc()
+}
+
+// BySourceInsightID orders the results by the source_insight_id field.
+func BySourceInsightID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSourceInsightID, opts...).ToFunc()
 }
 
 // ByExpiresAt orders the results by the expires_at field.

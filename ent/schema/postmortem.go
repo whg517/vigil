@@ -65,6 +65,10 @@ func (ActionItem) Fields() []ent.Field {
 		field.Enum("status").Values("open", "in_progress", "done").Default("open"),
 		// tracker_url 对接外部工单（Jira/禅道）
 		field.String("tracker_url").Optional().Comment("对接外部工单"),
+		// external_id 外部工单系统的工单标识（如 JIRA-123 / T-9）。
+		// 建单时由适配器返回并回写（TicketResult.ExternalID），工单侧状态回调（N1.3）据此
+		// 精确匹配 ActionItem（比模糊解析 tracker_url 更稳，是回调匹配的主键）。
+		field.String("external_id").Optional().Comment("外部工单 id（回调按此精确匹配）"),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}
@@ -81,5 +85,7 @@ func (ActionItem) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("status"),
 		index.Fields("due_date"),
+		// external_id 上加索引：工单侧状态回调（N1.3）按外部 id 精确匹配 ActionItem。
+		index.Fields("external_id"),
 	}
 }

@@ -70,6 +70,11 @@ func Credential(v string) predicate.TicketIntegration {
 	return predicate.TicketIntegration(sql.FieldEQ(FieldCredential, v))
 }
 
+// CallbackSecret applies equality check predicate on the "callback_secret" field. It's identical to CallbackSecretEQ.
+func CallbackSecret(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldEQ(FieldCallbackSecret, v))
+}
+
 // Enabled applies equality check predicate on the "enabled" field. It's identical to EnabledEQ.
 func Enabled(v bool) predicate.TicketIntegration {
 	return predicate.TicketIntegration(sql.FieldEQ(FieldEnabled, v))
@@ -308,6 +313,81 @@ func CredentialEqualFold(v string) predicate.TicketIntegration {
 // CredentialContainsFold applies the ContainsFold predicate on the "credential" field.
 func CredentialContainsFold(v string) predicate.TicketIntegration {
 	return predicate.TicketIntegration(sql.FieldContainsFold(FieldCredential, v))
+}
+
+// CallbackSecretEQ applies the EQ predicate on the "callback_secret" field.
+func CallbackSecretEQ(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldEQ(FieldCallbackSecret, v))
+}
+
+// CallbackSecretNEQ applies the NEQ predicate on the "callback_secret" field.
+func CallbackSecretNEQ(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldNEQ(FieldCallbackSecret, v))
+}
+
+// CallbackSecretIn applies the In predicate on the "callback_secret" field.
+func CallbackSecretIn(vs ...string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldIn(FieldCallbackSecret, vs...))
+}
+
+// CallbackSecretNotIn applies the NotIn predicate on the "callback_secret" field.
+func CallbackSecretNotIn(vs ...string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldNotIn(FieldCallbackSecret, vs...))
+}
+
+// CallbackSecretGT applies the GT predicate on the "callback_secret" field.
+func CallbackSecretGT(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldGT(FieldCallbackSecret, v))
+}
+
+// CallbackSecretGTE applies the GTE predicate on the "callback_secret" field.
+func CallbackSecretGTE(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldGTE(FieldCallbackSecret, v))
+}
+
+// CallbackSecretLT applies the LT predicate on the "callback_secret" field.
+func CallbackSecretLT(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldLT(FieldCallbackSecret, v))
+}
+
+// CallbackSecretLTE applies the LTE predicate on the "callback_secret" field.
+func CallbackSecretLTE(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldLTE(FieldCallbackSecret, v))
+}
+
+// CallbackSecretContains applies the Contains predicate on the "callback_secret" field.
+func CallbackSecretContains(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldContains(FieldCallbackSecret, v))
+}
+
+// CallbackSecretHasPrefix applies the HasPrefix predicate on the "callback_secret" field.
+func CallbackSecretHasPrefix(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldHasPrefix(FieldCallbackSecret, v))
+}
+
+// CallbackSecretHasSuffix applies the HasSuffix predicate on the "callback_secret" field.
+func CallbackSecretHasSuffix(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldHasSuffix(FieldCallbackSecret, v))
+}
+
+// CallbackSecretIsNil applies the IsNil predicate on the "callback_secret" field.
+func CallbackSecretIsNil() predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldIsNull(FieldCallbackSecret))
+}
+
+// CallbackSecretNotNil applies the NotNil predicate on the "callback_secret" field.
+func CallbackSecretNotNil() predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldNotNull(FieldCallbackSecret))
+}
+
+// CallbackSecretEqualFold applies the EqualFold predicate on the "callback_secret" field.
+func CallbackSecretEqualFold(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldEqualFold(FieldCallbackSecret, v))
+}
+
+// CallbackSecretContainsFold applies the ContainsFold predicate on the "callback_secret" field.
+func CallbackSecretContainsFold(v string) predicate.TicketIntegration {
+	return predicate.TicketIntegration(sql.FieldContainsFold(FieldCallbackSecret, v))
 }
 
 // ConfigIsNil applies the IsNil predicate on the "config" field.

@@ -134,7 +134,12 @@ func (e *Engine) createForActionItem(ctx context.Context, integ *ent.TicketInteg
 			"type", integ.Type, "action_item_id", ai.ID)
 		return false
 	}
-	if err := e.db.ActionItem.UpdateOneID(ai.ID).SetTrackerURL(res.TrackerURL).Exec(ctx); err != nil {
+	upd := e.db.ActionItem.UpdateOneID(ai.ID).SetTrackerURL(res.TrackerURL)
+	// N1.3：一并回写 external_id（若适配器返回）——工单侧状态回调据此精确匹配本 ActionItem。
+	if xid := strings.TrimSpace(res.ExternalID); xid != "" {
+		upd = upd.SetExternalID(xid)
+	}
+	if err := upd.Exec(ctx); err != nil {
 		slog.Warn("ticket: backfill tracker_url failed", "action_item_id", ai.ID, "error", err)
 		return false
 	}
@@ -180,6 +185,137 @@ func (e *Engine) SyncStatus(ctx context.Context, ai *ent.ActionItem) bool {
 		return false
 	}
 	return true
+}
+
+// CallbackStatus 工单侧回调携带的外部工单状态（归一化后）。
+type CallbackStatus string
+
+const (
+	// CallbackStatusOpen 工单新建/待处理 → ActionItem open。
+	CallbackStatusOpen CallbackStatus = "open"
+	// CallbackStatusInProgress 工单处理中 → ActionItem in_progress。
+	CallbackStatusInProgress CallbackStatus = "in_progress"
+	// CallbackStatusDone 工单关闭/完成 → ActionItem done。
+	CallbackStatusDone CallbackStatus = "done"
+)
+
+// CallbackResult 一次回调处理结果（供 handler 组织响应/日志，不含敏感信息）。
+type CallbackResult struct {
+	// Matched 是否匹配到 ActionItem（未匹配时其余字段无意义）。
+	Matched bool
+	// ActionItemID 命中的 ActionItem id（Matched 时有值）。
+	ActionItemID int
+	// Changed 本次是否真正改变了状态（幂等：重复回调同状态时为 false）。
+	Changed bool
+	// FromStatus / ToStatus 状态迁移（供审计/日志）。
+	FromStatus string
+	ToStatus   string
+}
+
+// normalizeCallbackStatus 把外部工单系统五花八门的状态字符串归一到 ActionItem 三态。
+// 无法归一（未知状态）返回 ("", false)——调用方据此忽略该回调（不误改状态）。
+//
+// 归一规则（宽松匹配常见工单状态词，大小写不敏感）：
+//   - done   ：closed/resolved/done/complete(d)/fixed/finished
+//   - in_progress：in_progress/in progress/doing/started/wip/processing
+//   - open   ：open/new/todo/reopened/backlog
+func normalizeCallbackStatus(raw string) (CallbackStatus, bool) {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	s = strings.ReplaceAll(s, "-", "_")
+	s = strings.ReplaceAll(s, " ", "_")
+	switch s {
+	case "closed", "close", "resolved", "resolve", "done", "complete", "completed", "fixed", "finished":
+		return CallbackStatusDone, true
+	case "in_progress", "inprogress", "doing", "started", "start", "wip", "processing":
+		return CallbackStatusInProgress, true
+	case "open", "new", "todo", "reopened", "reopen", "backlog", "pending":
+		return CallbackStatusOpen, true
+	default:
+		return "", false // 未知状态：忽略（不猜测，避免误改）
+	}
+}
+
+// actionItemStatus 把归一后的回调状态映射到 ent ActionItem 枚举。
+func (s CallbackStatus) actionItemStatus() actionitem.Status {
+	switch s {
+	case CallbackStatusDone:
+		return actionitem.StatusDone
+	case CallbackStatusInProgress:
+		return actionitem.StatusInProgress
+	default:
+		return actionitem.StatusOpen
+	}
+}
+
+// HandleCallback 处理一条工单侧状态变更回调（N1.3 双向回写）：
+// 据 externalID / trackerURL 匹配对应 ActionItem，把其 status 更新为 status 归一后的值。
+//
+// 设计契约（与 T4.3 单向同步对称）：
+//   - 幂等：目标 ActionItem 已是该状态 → Changed=false，不重复写、不重复留痕。
+//   - best-effort：匹配不到（externalID/trackerURL 均无对应 ActionItem）→ Matched=false，
+//     调用方据此返回 200 ignored（回调常来自与本系统无关的工单，忽略是常态，非错误）。
+//   - 未知外部状态 → 归一失败，返回 (nil, ErrCallbackUnknownStatus)，handler 据此 400。
+//
+// 鉴权/验签由 handler 层完成（本方法只做匹配 + 落状态），保持引擎纯粹。
+func (e *Engine) HandleCallback(ctx context.Context, externalID, trackerURL, rawStatus string) (*CallbackResult, error) {
+	norm, ok := normalizeCallbackStatus(rawStatus)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrCallbackUnknownStatus, rawStatus)
+	}
+	ai, err := e.matchActionItem(ctx, externalID, trackerURL)
+	if err != nil {
+		return nil, err
+	}
+	if ai == nil {
+		return &CallbackResult{Matched: false}, nil // 未匹配：忽略（非错误）
+	}
+	target := norm.actionItemStatus()
+	res := &CallbackResult{
+		Matched:      true,
+		ActionItemID: ai.ID,
+		FromStatus:   string(ai.Status),
+		ToStatus:     string(target),
+	}
+	if ai.Status == target {
+		return res, nil // 幂等：已是目标状态，不重复写
+	}
+	if err := e.db.ActionItem.UpdateOneID(ai.ID).SetStatus(target).Exec(ctx); err != nil {
+		return nil, fmt.Errorf("update action item status: %w", err)
+	}
+	res.Changed = true
+	slog.Info("ticket: callback updated action item status",
+		"action_item_id", ai.ID, "from", res.FromStatus, "to", res.ToStatus)
+	return res, nil
+}
+
+// matchActionItem 据 externalID（优先，精确）/ trackerURL（兜底，精确）匹配 ActionItem。
+// externalID/trackerURL 均为空或都匹配不到时返回 (nil, nil)（未匹配，非错误）。
+// external_id 是回调匹配主键（建单时回写），trackerURL 兜底既有仅存 URL 的历史数据。
+func (e *Engine) matchActionItem(ctx context.Context, externalID, trackerURL string) (*ent.ActionItem, error) {
+	externalID = strings.TrimSpace(externalID)
+	trackerURL = strings.TrimSpace(trackerURL)
+	if externalID != "" {
+		ai, err := e.db.ActionItem.Query().
+			Where(actionitem.ExternalIDEQ(externalID)).First(ctx)
+		if err == nil {
+			return ai, nil
+		}
+		if !ent.IsNotFound(err) {
+			return nil, fmt.Errorf("query action item by external_id: %w", err)
+		}
+		// external_id 无命中：继续尝试 tracker_url 兜底（下面）。
+	}
+	if trackerURL != "" {
+		ai, err := e.db.ActionItem.Query().
+			Where(actionitem.TrackerURLEQ(trackerURL)).First(ctx)
+		if err == nil {
+			return ai, nil
+		}
+		if !ent.IsNotFound(err) {
+			return nil, fmt.Errorf("query action item by tracker_url: %w", err)
+		}
+	}
+	return nil, nil // 均未命中
 }
 
 // resolveIntegration 解析适用的工单集成：优先 team 级 enabled，其次 org 级（无 team 归属）。

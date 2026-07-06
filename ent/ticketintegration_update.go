@@ -91,6 +91,26 @@ func (_u *TicketIntegrationUpdate) ClearCredential() *TicketIntegrationUpdate {
 	return _u
 }
 
+// SetCallbackSecret sets the "callback_secret" field.
+func (_u *TicketIntegrationUpdate) SetCallbackSecret(v string) *TicketIntegrationUpdate {
+	_u.mutation.SetCallbackSecret(v)
+	return _u
+}
+
+// SetNillableCallbackSecret sets the "callback_secret" field if the given value is not nil.
+func (_u *TicketIntegrationUpdate) SetNillableCallbackSecret(v *string) *TicketIntegrationUpdate {
+	if v != nil {
+		_u.SetCallbackSecret(*v)
+	}
+	return _u
+}
+
+// ClearCallbackSecret clears the value of the "callback_secret" field.
+func (_u *TicketIntegrationUpdate) ClearCallbackSecret() *TicketIntegrationUpdate {
+	_u.mutation.ClearCallbackSecret()
+	return _u
+}
+
 // SetConfig sets the "config" field.
 func (_u *TicketIntegrationUpdate) SetConfig(v map[string]interface{}) *TicketIntegrationUpdate {
 	_u.mutation.SetConfig(v)
@@ -236,6 +256,12 @@ func (_u *TicketIntegrationUpdate) sqlSave(ctx context.Context) (_node int, err 
 	if _u.mutation.CredentialCleared() {
 		_spec.ClearField(ticketintegration.FieldCredential, field.TypeString)
 	}
+	if value, ok := _u.mutation.CallbackSecret(); ok {
+		_spec.SetField(ticketintegration.FieldCallbackSecret, field.TypeString, value)
+	}
+	if _u.mutation.CallbackSecretCleared() {
+		_spec.ClearField(ticketintegration.FieldCallbackSecret, field.TypeString)
+	}
 	if value, ok := _u.mutation.Config(); ok {
 		_spec.SetField(ticketintegration.FieldConfig, field.TypeJSON, value)
 	}
@@ -356,6 +382,26 @@ func (_u *TicketIntegrationUpdateOne) SetNillableCredential(v *string) *TicketIn
 // ClearCredential clears the value of the "credential" field.
 func (_u *TicketIntegrationUpdateOne) ClearCredential() *TicketIntegrationUpdateOne {
 	_u.mutation.ClearCredential()
+	return _u
+}
+
+// SetCallbackSecret sets the "callback_secret" field.
+func (_u *TicketIntegrationUpdateOne) SetCallbackSecret(v string) *TicketIntegrationUpdateOne {
+	_u.mutation.SetCallbackSecret(v)
+	return _u
+}
+
+// SetNillableCallbackSecret sets the "callback_secret" field if the given value is not nil.
+func (_u *TicketIntegrationUpdateOne) SetNillableCallbackSecret(v *string) *TicketIntegrationUpdateOne {
+	if v != nil {
+		_u.SetCallbackSecret(*v)
+	}
+	return _u
+}
+
+// ClearCallbackSecret clears the value of the "callback_secret" field.
+func (_u *TicketIntegrationUpdateOne) ClearCallbackSecret() *TicketIntegrationUpdateOne {
+	_u.mutation.ClearCallbackSecret()
 	return _u
 }
 
@@ -533,6 +579,12 @@ func (_u *TicketIntegrationUpdateOne) sqlSave(ctx context.Context) (_node *Ticke
 	}
 	if _u.mutation.CredentialCleared() {
 		_spec.ClearField(ticketintegration.FieldCredential, field.TypeString)
+	}
+	if value, ok := _u.mutation.CallbackSecret(); ok {
+		_spec.SetField(ticketintegration.FieldCallbackSecret, field.TypeString, value)
+	}
+	if _u.mutation.CallbackSecretCleared() {
+		_spec.ClearField(ticketintegration.FieldCallbackSecret, field.TypeString)
 	}
 	if value, ok := _u.mutation.Config(); ok {
 		_spec.SetField(ticketintegration.FieldConfig, field.TypeJSON, value)

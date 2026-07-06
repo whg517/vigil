@@ -101,6 +101,34 @@ func (_c *SuppressionRuleCreate) SetNillableEnabled(v *bool) *SuppressionRuleCre
 	return _c
 }
 
+// SetSource sets the "source" field.
+func (_c *SuppressionRuleCreate) SetSource(v suppressionrule.Source) *SuppressionRuleCreate {
+	_c.mutation.SetSource(v)
+	return _c
+}
+
+// SetNillableSource sets the "source" field if the given value is not nil.
+func (_c *SuppressionRuleCreate) SetNillableSource(v *suppressionrule.Source) *SuppressionRuleCreate {
+	if v != nil {
+		_c.SetSource(*v)
+	}
+	return _c
+}
+
+// SetSourceInsightID sets the "source_insight_id" field.
+func (_c *SuppressionRuleCreate) SetSourceInsightID(v int) *SuppressionRuleCreate {
+	_c.mutation.SetSourceInsightID(v)
+	return _c
+}
+
+// SetNillableSourceInsightID sets the "source_insight_id" field if the given value is not nil.
+func (_c *SuppressionRuleCreate) SetNillableSourceInsightID(v *int) *SuppressionRuleCreate {
+	if v != nil {
+		_c.SetSourceInsightID(*v)
+	}
+	return _c
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (_c *SuppressionRuleCreate) SetExpiresAt(v time.Time) *SuppressionRuleCreate {
 	_c.mutation.SetExpiresAt(v)
@@ -209,6 +237,10 @@ func (_c *SuppressionRuleCreate) defaults() {
 		v := suppressionrule.DefaultEnabled
 		_c.mutation.SetEnabled(v)
 	}
+	if _, ok := _c.mutation.Source(); !ok {
+		v := suppressionrule.DefaultSource
+		_c.mutation.SetSource(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := suppressionrule.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -245,6 +277,14 @@ func (_c *SuppressionRuleCreate) check() error {
 	}
 	if _, ok := _c.mutation.Enabled(); !ok {
 		return &ValidationError{Name: "enabled", err: errors.New(`ent: missing required field "SuppressionRule.enabled"`)}
+	}
+	if _, ok := _c.mutation.Source(); !ok {
+		return &ValidationError{Name: "source", err: errors.New(`ent: missing required field "SuppressionRule.source"`)}
+	}
+	if v, ok := _c.mutation.Source(); ok {
+		if err := suppressionrule.SourceValidator(v); err != nil {
+			return &ValidationError{Name: "source", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.source": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "SuppressionRule.created_at"`)}
@@ -309,6 +349,14 @@ func (_c *SuppressionRuleCreate) createSpec() (*SuppressionRule, *sqlgraph.Creat
 	if value, ok := _c.mutation.Enabled(); ok {
 		_spec.SetField(suppressionrule.FieldEnabled, field.TypeBool, value)
 		_node.Enabled = value
+	}
+	if value, ok := _c.mutation.Source(); ok {
+		_spec.SetField(suppressionrule.FieldSource, field.TypeEnum, value)
+		_node.Source = value
+	}
+	if value, ok := _c.mutation.SourceInsightID(); ok {
+		_spec.SetField(suppressionrule.FieldSourceInsightID, field.TypeInt, value)
+		_node.SourceInsightID = value
 	}
 	if value, ok := _c.mutation.ExpiresAt(); ok {
 		_spec.SetField(suppressionrule.FieldExpiresAt, field.TypeTime, value)

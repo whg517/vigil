@@ -144,6 +144,10 @@ func (h *Handler) triageAIAnalyze(c *echo.Context) error {
 	if res.Dedup != nil {
 		out["dedup_insight_id"] = res.Dedup.ID
 	}
+	if res.Noise != nil {
+		// N1.4：降噪建议 accept 会沉淀为 SuppressionRule（source=ai）。
+		out["noise_insight_id"] = res.Noise.ID
+	}
 	return c.JSON(http.StatusOK, out)
 }
 

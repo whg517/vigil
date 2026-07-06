@@ -76,11 +76,11 @@ func init() {
 	// actionitem.DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
 	actionitem.DescriptionValidator = actionitemDescDescription.Validators[0].(func(string) error)
 	// actionitemDescCreatedAt is the schema descriptor for created_at field.
-	actionitemDescCreatedAt := actionitemFields[5].Descriptor()
+	actionitemDescCreatedAt := actionitemFields[6].Descriptor()
 	// actionitem.DefaultCreatedAt holds the default value on creation for the created_at field.
 	actionitem.DefaultCreatedAt = actionitemDescCreatedAt.Default.(func() time.Time)
 	// actionitemDescUpdatedAt is the schema descriptor for updated_at field.
-	actionitemDescUpdatedAt := actionitemFields[6].Descriptor()
+	actionitemDescUpdatedAt := actionitemFields[7].Descriptor()
 	// actionitem.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	actionitem.DefaultUpdatedAt = actionitemDescUpdatedAt.Default.(func() time.Time)
 	// actionitem.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -506,11 +506,11 @@ func init() {
 	// suppressionrule.DefaultEnabled holds the default value on creation for the enabled field.
 	suppressionrule.DefaultEnabled = suppressionruleDescEnabled.Default.(bool)
 	// suppressionruleDescCreatedAt is the schema descriptor for created_at field.
-	suppressionruleDescCreatedAt := suppressionruleFields[9].Descriptor()
+	suppressionruleDescCreatedAt := suppressionruleFields[11].Descriptor()
 	// suppressionrule.DefaultCreatedAt holds the default value on creation for the created_at field.
 	suppressionrule.DefaultCreatedAt = suppressionruleDescCreatedAt.Default.(func() time.Time)
 	// suppressionruleDescUpdatedAt is the schema descriptor for updated_at field.
-	suppressionruleDescUpdatedAt := suppressionruleFields[10].Descriptor()
+	suppressionruleDescUpdatedAt := suppressionruleFields[12].Descriptor()
 	// suppressionrule.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	suppressionrule.DefaultUpdatedAt = suppressionruleDescUpdatedAt.Default.(func() time.Time)
 	// suppressionrule.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -542,15 +542,15 @@ func init() {
 	// ticketintegration.EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
 	ticketintegration.EndpointValidator = ticketintegrationDescEndpoint.Validators[0].(func(string) error)
 	// ticketintegrationDescEnabled is the schema descriptor for enabled field.
-	ticketintegrationDescEnabled := ticketintegrationFields[5].Descriptor()
+	ticketintegrationDescEnabled := ticketintegrationFields[6].Descriptor()
 	// ticketintegration.DefaultEnabled holds the default value on creation for the enabled field.
 	ticketintegration.DefaultEnabled = ticketintegrationDescEnabled.Default.(bool)
 	// ticketintegrationDescCreatedAt is the schema descriptor for created_at field.
-	ticketintegrationDescCreatedAt := ticketintegrationFields[6].Descriptor()
+	ticketintegrationDescCreatedAt := ticketintegrationFields[7].Descriptor()
 	// ticketintegration.DefaultCreatedAt holds the default value on creation for the created_at field.
 	ticketintegration.DefaultCreatedAt = ticketintegrationDescCreatedAt.Default.(func() time.Time)
 	// ticketintegrationDescUpdatedAt is the schema descriptor for updated_at field.
-	ticketintegrationDescUpdatedAt := ticketintegrationFields[7].Descriptor()
+	ticketintegrationDescUpdatedAt := ticketintegrationFields[8].Descriptor()
 	// ticketintegration.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	ticketintegration.DefaultUpdatedAt = ticketintegrationDescUpdatedAt.Default.(func() time.Time)
 	// ticketintegration.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

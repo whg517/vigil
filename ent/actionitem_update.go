@@ -117,6 +117,26 @@ func (_u *ActionItemUpdate) ClearTrackerURL() *ActionItemUpdate {
 	return _u
 }
 
+// SetExternalID sets the "external_id" field.
+func (_u *ActionItemUpdate) SetExternalID(v string) *ActionItemUpdate {
+	_u.mutation.SetExternalID(v)
+	return _u
+}
+
+// SetNillableExternalID sets the "external_id" field if the given value is not nil.
+func (_u *ActionItemUpdate) SetNillableExternalID(v *string) *ActionItemUpdate {
+	if v != nil {
+		_u.SetExternalID(*v)
+	}
+	return _u
+}
+
+// ClearExternalID clears the value of the "external_id" field.
+func (_u *ActionItemUpdate) ClearExternalID() *ActionItemUpdate {
+	_u.mutation.ClearExternalID()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *ActionItemUpdate) SetUpdatedAt(v time.Time) *ActionItemUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -239,6 +259,12 @@ func (_u *ActionItemUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	}
 	if _u.mutation.TrackerURLCleared() {
 		_spec.ClearField(actionitem.FieldTrackerURL, field.TypeString)
+	}
+	if value, ok := _u.mutation.ExternalID(); ok {
+		_spec.SetField(actionitem.FieldExternalID, field.TypeString, value)
+	}
+	if _u.mutation.ExternalIDCleared() {
+		_spec.ClearField(actionitem.FieldExternalID, field.TypeString)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(actionitem.FieldUpdatedAt, field.TypeTime, value)
@@ -377,6 +403,26 @@ func (_u *ActionItemUpdateOne) SetNillableTrackerURL(v *string) *ActionItemUpdat
 // ClearTrackerURL clears the value of the "tracker_url" field.
 func (_u *ActionItemUpdateOne) ClearTrackerURL() *ActionItemUpdateOne {
 	_u.mutation.ClearTrackerURL()
+	return _u
+}
+
+// SetExternalID sets the "external_id" field.
+func (_u *ActionItemUpdateOne) SetExternalID(v string) *ActionItemUpdateOne {
+	_u.mutation.SetExternalID(v)
+	return _u
+}
+
+// SetNillableExternalID sets the "external_id" field if the given value is not nil.
+func (_u *ActionItemUpdateOne) SetNillableExternalID(v *string) *ActionItemUpdateOne {
+	if v != nil {
+		_u.SetExternalID(*v)
+	}
+	return _u
+}
+
+// ClearExternalID clears the value of the "external_id" field.
+func (_u *ActionItemUpdateOne) ClearExternalID() *ActionItemUpdateOne {
+	_u.mutation.ClearExternalID()
 	return _u
 }
 
@@ -532,6 +578,12 @@ func (_u *ActionItemUpdateOne) sqlSave(ctx context.Context) (_node *ActionItem, 
 	}
 	if _u.mutation.TrackerURLCleared() {
 		_spec.ClearField(actionitem.FieldTrackerURL, field.TypeString)
+	}
+	if value, ok := _u.mutation.ExternalID(); ok {
+		_spec.SetField(actionitem.FieldExternalID, field.TypeString, value)
+	}
+	if _u.mutation.ExternalIDCleared() {
+		_spec.ClearField(actionitem.FieldExternalID, field.TypeString)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(actionitem.FieldUpdatedAt, field.TypeTime, value)

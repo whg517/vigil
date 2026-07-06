@@ -75,6 +75,11 @@ func Enabled(v bool) predicate.SuppressionRule {
 	return predicate.SuppressionRule(sql.FieldEQ(FieldEnabled, v))
 }
 
+// SourceInsightID applies equality check predicate on the "source_insight_id" field. It's identical to SourceInsightIDEQ.
+func SourceInsightID(v int) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldEQ(FieldSourceInsightID, v))
+}
+
 // ExpiresAt applies equality check predicate on the "expires_at" field. It's identical to ExpiresAtEQ.
 func ExpiresAt(v time.Time) predicate.SuppressionRule {
 	return predicate.SuppressionRule(sql.FieldEQ(FieldExpiresAt, v))
@@ -288,6 +293,76 @@ func EnabledEQ(v bool) predicate.SuppressionRule {
 // EnabledNEQ applies the NEQ predicate on the "enabled" field.
 func EnabledNEQ(v bool) predicate.SuppressionRule {
 	return predicate.SuppressionRule(sql.FieldNEQ(FieldEnabled, v))
+}
+
+// SourceEQ applies the EQ predicate on the "source" field.
+func SourceEQ(v Source) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldEQ(FieldSource, v))
+}
+
+// SourceNEQ applies the NEQ predicate on the "source" field.
+func SourceNEQ(v Source) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldNEQ(FieldSource, v))
+}
+
+// SourceIn applies the In predicate on the "source" field.
+func SourceIn(vs ...Source) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldIn(FieldSource, vs...))
+}
+
+// SourceNotIn applies the NotIn predicate on the "source" field.
+func SourceNotIn(vs ...Source) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldNotIn(FieldSource, vs...))
+}
+
+// SourceInsightIDEQ applies the EQ predicate on the "source_insight_id" field.
+func SourceInsightIDEQ(v int) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldEQ(FieldSourceInsightID, v))
+}
+
+// SourceInsightIDNEQ applies the NEQ predicate on the "source_insight_id" field.
+func SourceInsightIDNEQ(v int) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldNEQ(FieldSourceInsightID, v))
+}
+
+// SourceInsightIDIn applies the In predicate on the "source_insight_id" field.
+func SourceInsightIDIn(vs ...int) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldIn(FieldSourceInsightID, vs...))
+}
+
+// SourceInsightIDNotIn applies the NotIn predicate on the "source_insight_id" field.
+func SourceInsightIDNotIn(vs ...int) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldNotIn(FieldSourceInsightID, vs...))
+}
+
+// SourceInsightIDGT applies the GT predicate on the "source_insight_id" field.
+func SourceInsightIDGT(v int) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldGT(FieldSourceInsightID, v))
+}
+
+// SourceInsightIDGTE applies the GTE predicate on the "source_insight_id" field.
+func SourceInsightIDGTE(v int) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldGTE(FieldSourceInsightID, v))
+}
+
+// SourceInsightIDLT applies the LT predicate on the "source_insight_id" field.
+func SourceInsightIDLT(v int) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldLT(FieldSourceInsightID, v))
+}
+
+// SourceInsightIDLTE applies the LTE predicate on the "source_insight_id" field.
+func SourceInsightIDLTE(v int) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldLTE(FieldSourceInsightID, v))
+}
+
+// SourceInsightIDIsNil applies the IsNil predicate on the "source_insight_id" field.
+func SourceInsightIDIsNil() predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldIsNull(FieldSourceInsightID))
+}
+
+// SourceInsightIDNotNil applies the NotNil predicate on the "source_insight_id" field.
+func SourceInsightIDNotNil() predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldNotNull(FieldSourceInsightID))
 }
 
 // ExpiresAtEQ applies the EQ predicate on the "expires_at" field.

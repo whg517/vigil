@@ -486,6 +486,14 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	ticketH.SetScopeResolver(scopeResolver)
 	ticketH.SetAuditRecorder(auditRecorder) // 工单集成配置变更留痕
 	ticketH.Register(v1)
+	// N1.3 工单双向回写：工单侧状态回调端点（POST /webhooks/ticket/:id）。挂 public 组——
+	// 外部工单系统调用（非 JWT/RBAC），鉴权靠 per-integration callback_secret 的 HMAC 验签。
+	// 复用同一 ticketEngine 做匹配 + 状态落库；同一 credCipher 解密 callback_secret（T6.3）。
+	ticketCallbackH := ticket.NewCallbackHandler(st.DB, ticketEngine)
+	ticketCallbackH.SetCipher(credCipher)
+	ticketCallbackH.SetAuditRecorder(auditRecorder) // 回调改动改进项状态留痕
+	ticketCallbackH.Register(public)
+	log.Info("ticket status callback endpoint enabled (/webhooks/ticket/:id, hmac-verified)")
 	// 凭据加密托管配置 API（T6.3/S16）：CRUD 凭据，明文 secret 入站即加密落库、只返元数据。
 	// 复用同一 credCipher（与 Runbook 执行器解密同源密钥）。
 	credentialH := credential.NewHandler(st.DB, credCipher)

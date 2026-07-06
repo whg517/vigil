@@ -1973,6 +1973,7 @@ type ActionItemMutation struct {
 	due_date          *time.Time
 	status            *actionitem.Status
 	tracker_url       *string
+	external_id       *string
 	created_at        *time.Time
 	updated_at        *time.Time
 	clearedFields     map[string]struct{}
@@ -2300,6 +2301,55 @@ func (m *ActionItemMutation) ResetTrackerURL() {
 	delete(m.clearedFields, actionitem.FieldTrackerURL)
 }
 
+// SetExternalID sets the "external_id" field.
+func (m *ActionItemMutation) SetExternalID(s string) {
+	m.external_id = &s
+}
+
+// ExternalID returns the value of the "external_id" field in the mutation.
+func (m *ActionItemMutation) ExternalID() (r string, exists bool) {
+	v := m.external_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExternalID returns the old "external_id" field's value of the ActionItem entity.
+// If the ActionItem object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ActionItemMutation) OldExternalID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExternalID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExternalID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExternalID: %w", err)
+	}
+	return oldValue.ExternalID, nil
+}
+
+// ClearExternalID clears the value of the "external_id" field.
+func (m *ActionItemMutation) ClearExternalID() {
+	m.external_id = nil
+	m.clearedFields[actionitem.FieldExternalID] = struct{}{}
+}
+
+// ExternalIDCleared returns if the "external_id" field was cleared in this mutation.
+func (m *ActionItemMutation) ExternalIDCleared() bool {
+	_, ok := m.clearedFields[actionitem.FieldExternalID]
+	return ok
+}
+
+// ResetExternalID resets all changes to the "external_id" field.
+func (m *ActionItemMutation) ResetExternalID() {
+	m.external_id = nil
+	delete(m.clearedFields, actionitem.FieldExternalID)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ActionItemMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -2445,7 +2495,7 @@ func (m *ActionItemMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ActionItemMutation) Fields() []string {
-	fields := make([]string, 0, 7)
+	fields := make([]string, 0, 8)
 	if m.description != nil {
 		fields = append(fields, actionitem.FieldDescription)
 	}
@@ -2460,6 +2510,9 @@ func (m *ActionItemMutation) Fields() []string {
 	}
 	if m.tracker_url != nil {
 		fields = append(fields, actionitem.FieldTrackerURL)
+	}
+	if m.external_id != nil {
+		fields = append(fields, actionitem.FieldExternalID)
 	}
 	if m.created_at != nil {
 		fields = append(fields, actionitem.FieldCreatedAt)
@@ -2485,6 +2538,8 @@ func (m *ActionItemMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case actionitem.FieldTrackerURL:
 		return m.TrackerURL()
+	case actionitem.FieldExternalID:
+		return m.ExternalID()
 	case actionitem.FieldCreatedAt:
 		return m.CreatedAt()
 	case actionitem.FieldUpdatedAt:
@@ -2508,6 +2563,8 @@ func (m *ActionItemMutation) OldField(ctx context.Context, name string) (ent.Val
 		return m.OldStatus(ctx)
 	case actionitem.FieldTrackerURL:
 		return m.OldTrackerURL(ctx)
+	case actionitem.FieldExternalID:
+		return m.OldExternalID(ctx)
 	case actionitem.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case actionitem.FieldUpdatedAt:
@@ -2555,6 +2612,13 @@ func (m *ActionItemMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetTrackerURL(v)
+		return nil
+	case actionitem.FieldExternalID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExternalID(v)
 		return nil
 	case actionitem.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -2609,6 +2673,9 @@ func (m *ActionItemMutation) ClearedFields() []string {
 	if m.FieldCleared(actionitem.FieldTrackerURL) {
 		fields = append(fields, actionitem.FieldTrackerURL)
 	}
+	if m.FieldCleared(actionitem.FieldExternalID) {
+		fields = append(fields, actionitem.FieldExternalID)
+	}
 	return fields
 }
 
@@ -2632,6 +2699,9 @@ func (m *ActionItemMutation) ClearField(name string) error {
 	case actionitem.FieldTrackerURL:
 		m.ClearTrackerURL()
 		return nil
+	case actionitem.FieldExternalID:
+		m.ClearExternalID()
+		return nil
 	}
 	return fmt.Errorf("unknown ActionItem nullable field %s", name)
 }
@@ -2654,6 +2724,9 @@ func (m *ActionItemMutation) ResetField(name string) error {
 		return nil
 	case actionitem.FieldTrackerURL:
 		m.ResetTrackerURL()
+		return nil
+	case actionitem.FieldExternalID:
+		m.ResetExternalID()
 		return nil
 	case actionitem.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -24212,6 +24285,9 @@ type SuppressionRuleMutation struct {
 	reduce_to             *string
 	preserve_critical     *bool
 	enabled               *bool
+	source                *suppressionrule.Source
+	source_insight_id     *int
+	addsource_insight_id  *int
 	expires_at            *time.Time
 	created_at            *time.Time
 	updated_at            *time.Time
@@ -24664,6 +24740,112 @@ func (m *SuppressionRuleMutation) ResetEnabled() {
 	m.enabled = nil
 }
 
+// SetSource sets the "source" field.
+func (m *SuppressionRuleMutation) SetSource(s suppressionrule.Source) {
+	m.source = &s
+}
+
+// Source returns the value of the "source" field in the mutation.
+func (m *SuppressionRuleMutation) Source() (r suppressionrule.Source, exists bool) {
+	v := m.source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSource returns the old "source" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldSource(ctx context.Context) (v suppressionrule.Source, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSource: %w", err)
+	}
+	return oldValue.Source, nil
+}
+
+// ResetSource resets all changes to the "source" field.
+func (m *SuppressionRuleMutation) ResetSource() {
+	m.source = nil
+}
+
+// SetSourceInsightID sets the "source_insight_id" field.
+func (m *SuppressionRuleMutation) SetSourceInsightID(i int) {
+	m.source_insight_id = &i
+	m.addsource_insight_id = nil
+}
+
+// SourceInsightID returns the value of the "source_insight_id" field in the mutation.
+func (m *SuppressionRuleMutation) SourceInsightID() (r int, exists bool) {
+	v := m.source_insight_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSourceInsightID returns the old "source_insight_id" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldSourceInsightID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSourceInsightID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSourceInsightID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSourceInsightID: %w", err)
+	}
+	return oldValue.SourceInsightID, nil
+}
+
+// AddSourceInsightID adds i to the "source_insight_id" field.
+func (m *SuppressionRuleMutation) AddSourceInsightID(i int) {
+	if m.addsource_insight_id != nil {
+		*m.addsource_insight_id += i
+	} else {
+		m.addsource_insight_id = &i
+	}
+}
+
+// AddedSourceInsightID returns the value that was added to the "source_insight_id" field in this mutation.
+func (m *SuppressionRuleMutation) AddedSourceInsightID() (r int, exists bool) {
+	v := m.addsource_insight_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSourceInsightID clears the value of the "source_insight_id" field.
+func (m *SuppressionRuleMutation) ClearSourceInsightID() {
+	m.source_insight_id = nil
+	m.addsource_insight_id = nil
+	m.clearedFields[suppressionrule.FieldSourceInsightID] = struct{}{}
+}
+
+// SourceInsightIDCleared returns if the "source_insight_id" field was cleared in this mutation.
+func (m *SuppressionRuleMutation) SourceInsightIDCleared() bool {
+	_, ok := m.clearedFields[suppressionrule.FieldSourceInsightID]
+	return ok
+}
+
+// ResetSourceInsightID resets all changes to the "source_insight_id" field.
+func (m *SuppressionRuleMutation) ResetSourceInsightID() {
+	m.source_insight_id = nil
+	m.addsource_insight_id = nil
+	delete(m.clearedFields, suppressionrule.FieldSourceInsightID)
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (m *SuppressionRuleMutation) SetExpiresAt(t time.Time) {
 	m.expires_at = &t
@@ -24858,7 +25040,7 @@ func (m *SuppressionRuleMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SuppressionRuleMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 13)
 	if m.name != nil {
 		fields = append(fields, suppressionrule.FieldName)
 	}
@@ -24882,6 +25064,12 @@ func (m *SuppressionRuleMutation) Fields() []string {
 	}
 	if m.enabled != nil {
 		fields = append(fields, suppressionrule.FieldEnabled)
+	}
+	if m.source != nil {
+		fields = append(fields, suppressionrule.FieldSource)
+	}
+	if m.source_insight_id != nil {
+		fields = append(fields, suppressionrule.FieldSourceInsightID)
 	}
 	if m.expires_at != nil {
 		fields = append(fields, suppressionrule.FieldExpiresAt)
@@ -24916,6 +25104,10 @@ func (m *SuppressionRuleMutation) Field(name string) (ent.Value, bool) {
 		return m.PreserveCritical()
 	case suppressionrule.FieldEnabled:
 		return m.Enabled()
+	case suppressionrule.FieldSource:
+		return m.Source()
+	case suppressionrule.FieldSourceInsightID:
+		return m.SourceInsightID()
 	case suppressionrule.FieldExpiresAt:
 		return m.ExpiresAt()
 	case suppressionrule.FieldCreatedAt:
@@ -24947,6 +25139,10 @@ func (m *SuppressionRuleMutation) OldField(ctx context.Context, name string) (en
 		return m.OldPreserveCritical(ctx)
 	case suppressionrule.FieldEnabled:
 		return m.OldEnabled(ctx)
+	case suppressionrule.FieldSource:
+		return m.OldSource(ctx)
+	case suppressionrule.FieldSourceInsightID:
+		return m.OldSourceInsightID(ctx)
 	case suppressionrule.FieldExpiresAt:
 		return m.OldExpiresAt(ctx)
 	case suppressionrule.FieldCreatedAt:
@@ -25018,6 +25214,20 @@ func (m *SuppressionRuleMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetEnabled(v)
 		return nil
+	case suppressionrule.FieldSource:
+		v, ok := value.(suppressionrule.Source)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSource(v)
+		return nil
+	case suppressionrule.FieldSourceInsightID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSourceInsightID(v)
+		return nil
 	case suppressionrule.FieldExpiresAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -25046,13 +25256,21 @@ func (m *SuppressionRuleMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *SuppressionRuleMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addsource_insight_id != nil {
+		fields = append(fields, suppressionrule.FieldSourceInsightID)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *SuppressionRuleMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case suppressionrule.FieldSourceInsightID:
+		return m.AddedSourceInsightID()
+	}
 	return nil, false
 }
 
@@ -25061,6 +25279,13 @@ func (m *SuppressionRuleMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *SuppressionRuleMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case suppressionrule.FieldSourceInsightID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSourceInsightID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown SuppressionRule numeric field %s", name)
 }
@@ -25077,6 +25302,9 @@ func (m *SuppressionRuleMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(suppressionrule.FieldReduceTo) {
 		fields = append(fields, suppressionrule.FieldReduceTo)
+	}
+	if m.FieldCleared(suppressionrule.FieldSourceInsightID) {
+		fields = append(fields, suppressionrule.FieldSourceInsightID)
 	}
 	if m.FieldCleared(suppressionrule.FieldExpiresAt) {
 		fields = append(fields, suppressionrule.FieldExpiresAt)
@@ -25103,6 +25331,9 @@ func (m *SuppressionRuleMutation) ClearField(name string) error {
 		return nil
 	case suppressionrule.FieldReduceTo:
 		m.ClearReduceTo()
+		return nil
+	case suppressionrule.FieldSourceInsightID:
+		m.ClearSourceInsightID()
 		return nil
 	case suppressionrule.FieldExpiresAt:
 		m.ClearExpiresAt()
@@ -25138,6 +25369,12 @@ func (m *SuppressionRuleMutation) ResetField(name string) error {
 		return nil
 	case suppressionrule.FieldEnabled:
 		m.ResetEnabled()
+		return nil
+	case suppressionrule.FieldSource:
+		m.ResetSource()
+		return nil
+	case suppressionrule.FieldSourceInsightID:
+		m.ResetSourceInsightID()
 		return nil
 	case suppressionrule.FieldExpiresAt:
 		m.ResetExpiresAt()
@@ -27121,23 +27358,24 @@ func (m *TeamMutation) ResetEdge(name string) error {
 // TicketIntegrationMutation represents an operation that mutates the TicketIntegration nodes in the graph.
 type TicketIntegrationMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int
-	name          *string
-	_type         *ticketintegration.Type
-	endpoint      *string
-	credential    *string
-	_config       *map[string]interface{}
-	enabled       *bool
-	created_at    *time.Time
-	updated_at    *time.Time
-	clearedFields map[string]struct{}
-	team          *int
-	clearedteam   bool
-	done          bool
-	oldValue      func(context.Context) (*TicketIntegration, error)
-	predicates    []predicate.TicketIntegration
+	op              Op
+	typ             string
+	id              *int
+	name            *string
+	_type           *ticketintegration.Type
+	endpoint        *string
+	credential      *string
+	callback_secret *string
+	_config         *map[string]interface{}
+	enabled         *bool
+	created_at      *time.Time
+	updated_at      *time.Time
+	clearedFields   map[string]struct{}
+	team            *int
+	clearedteam     bool
+	done            bool
+	oldValue        func(context.Context) (*TicketIntegration, error)
+	predicates      []predicate.TicketIntegration
 }
 
 var _ ent.Mutation = (*TicketIntegrationMutation)(nil)
@@ -27395,6 +27633,55 @@ func (m *TicketIntegrationMutation) ResetCredential() {
 	delete(m.clearedFields, ticketintegration.FieldCredential)
 }
 
+// SetCallbackSecret sets the "callback_secret" field.
+func (m *TicketIntegrationMutation) SetCallbackSecret(s string) {
+	m.callback_secret = &s
+}
+
+// CallbackSecret returns the value of the "callback_secret" field in the mutation.
+func (m *TicketIntegrationMutation) CallbackSecret() (r string, exists bool) {
+	v := m.callback_secret
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCallbackSecret returns the old "callback_secret" field's value of the TicketIntegration entity.
+// If the TicketIntegration object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TicketIntegrationMutation) OldCallbackSecret(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCallbackSecret is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCallbackSecret requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCallbackSecret: %w", err)
+	}
+	return oldValue.CallbackSecret, nil
+}
+
+// ClearCallbackSecret clears the value of the "callback_secret" field.
+func (m *TicketIntegrationMutation) ClearCallbackSecret() {
+	m.callback_secret = nil
+	m.clearedFields[ticketintegration.FieldCallbackSecret] = struct{}{}
+}
+
+// CallbackSecretCleared returns if the "callback_secret" field was cleared in this mutation.
+func (m *TicketIntegrationMutation) CallbackSecretCleared() bool {
+	_, ok := m.clearedFields[ticketintegration.FieldCallbackSecret]
+	return ok
+}
+
+// ResetCallbackSecret resets all changes to the "callback_secret" field.
+func (m *TicketIntegrationMutation) ResetCallbackSecret() {
+	m.callback_secret = nil
+	delete(m.clearedFields, ticketintegration.FieldCallbackSecret)
+}
+
 // SetConfig sets the "config" field.
 func (m *TicketIntegrationMutation) SetConfig(value map[string]interface{}) {
 	m._config = &value
@@ -27625,7 +27912,7 @@ func (m *TicketIntegrationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TicketIntegrationMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 9)
 	if m.name != nil {
 		fields = append(fields, ticketintegration.FieldName)
 	}
@@ -27637,6 +27924,9 @@ func (m *TicketIntegrationMutation) Fields() []string {
 	}
 	if m.credential != nil {
 		fields = append(fields, ticketintegration.FieldCredential)
+	}
+	if m.callback_secret != nil {
+		fields = append(fields, ticketintegration.FieldCallbackSecret)
 	}
 	if m._config != nil {
 		fields = append(fields, ticketintegration.FieldConfig)
@@ -27666,6 +27956,8 @@ func (m *TicketIntegrationMutation) Field(name string) (ent.Value, bool) {
 		return m.Endpoint()
 	case ticketintegration.FieldCredential:
 		return m.Credential()
+	case ticketintegration.FieldCallbackSecret:
+		return m.CallbackSecret()
 	case ticketintegration.FieldConfig:
 		return m.Config()
 	case ticketintegration.FieldEnabled:
@@ -27691,6 +27983,8 @@ func (m *TicketIntegrationMutation) OldField(ctx context.Context, name string) (
 		return m.OldEndpoint(ctx)
 	case ticketintegration.FieldCredential:
 		return m.OldCredential(ctx)
+	case ticketintegration.FieldCallbackSecret:
+		return m.OldCallbackSecret(ctx)
 	case ticketintegration.FieldConfig:
 		return m.OldConfig(ctx)
 	case ticketintegration.FieldEnabled:
@@ -27735,6 +28029,13 @@ func (m *TicketIntegrationMutation) SetField(name string, value ent.Value) error
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCredential(v)
+		return nil
+	case ticketintegration.FieldCallbackSecret:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCallbackSecret(v)
 		return nil
 	case ticketintegration.FieldConfig:
 		v, ok := value.(map[string]interface{})
@@ -27797,6 +28098,9 @@ func (m *TicketIntegrationMutation) ClearedFields() []string {
 	if m.FieldCleared(ticketintegration.FieldCredential) {
 		fields = append(fields, ticketintegration.FieldCredential)
 	}
+	if m.FieldCleared(ticketintegration.FieldCallbackSecret) {
+		fields = append(fields, ticketintegration.FieldCallbackSecret)
+	}
 	if m.FieldCleared(ticketintegration.FieldConfig) {
 		fields = append(fields, ticketintegration.FieldConfig)
 	}
@@ -27816,6 +28120,9 @@ func (m *TicketIntegrationMutation) ClearField(name string) error {
 	switch name {
 	case ticketintegration.FieldCredential:
 		m.ClearCredential()
+		return nil
+	case ticketintegration.FieldCallbackSecret:
+		m.ClearCallbackSecret()
 		return nil
 	case ticketintegration.FieldConfig:
 		m.ClearConfig()
@@ -27839,6 +28146,9 @@ func (m *TicketIntegrationMutation) ResetField(name string) error {
 		return nil
 	case ticketintegration.FieldCredential:
 		m.ResetCredential()
+		return nil
+	case ticketintegration.FieldCallbackSecret:
+		m.ResetCallbackSecret()
 		return nil
 	case ticketintegration.FieldConfig:
 		m.ResetConfig()

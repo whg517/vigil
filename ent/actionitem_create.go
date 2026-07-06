@@ -83,6 +83,20 @@ func (_c *ActionItemCreate) SetNillableTrackerURL(v *string) *ActionItemCreate {
 	return _c
 }
 
+// SetExternalID sets the "external_id" field.
+func (_c *ActionItemCreate) SetExternalID(v string) *ActionItemCreate {
+	_c.mutation.SetExternalID(v)
+	return _c
+}
+
+// SetNillableExternalID sets the "external_id" field if the given value is not nil.
+func (_c *ActionItemCreate) SetNillableExternalID(v *string) *ActionItemCreate {
+	if v != nil {
+		_c.SetExternalID(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ActionItemCreate) SetCreatedAt(v time.Time) *ActionItemCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -248,6 +262,10 @@ func (_c *ActionItemCreate) createSpec() (*ActionItem, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TrackerURL(); ok {
 		_spec.SetField(actionitem.FieldTrackerURL, field.TypeString, value)
 		_node.TrackerURL = value
+	}
+	if value, ok := _c.mutation.ExternalID(); ok {
+		_spec.SetField(actionitem.FieldExternalID, field.TypeString, value)
+		_node.ExternalID = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(actionitem.FieldCreatedAt, field.TypeTime, value)

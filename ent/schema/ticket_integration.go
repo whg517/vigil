@@ -33,6 +33,10 @@ func (TicketIntegration) Fields() []ent.Field {
 		// credential 凭据（API token / 密码等），Sensitive 加密存储、list/get 不回显。
 		// 复用 Integration.token 的 Sensitive 模式（见 service.go Integration）。
 		field.String("credential").Sensitive().Optional().Comment("建单凭据（token/密码），加密存储不回显"),
+		// callback_secret 工单侧状态回调（N1.3）的共享密钥（HMAC-SHA256 验签）。
+		// 外部工单系统关闭/推进工单时回调 Vigil 端点，用此密钥对 body 签名，Vigil 验签防伪造。
+		// 与 credential 同为 Sensitive（加密存储、不回显）。空则该集成不接受回调（拒绝）。
+		field.String("callback_secret").Sensitive().Optional().Comment("工单状态回调验签密钥（HMAC），加密存储不回显"),
 		// config 类型相关配置：目标项目 key、issue type、字段映射（owner→assignee 等）。
 		field.JSON("config", map[string]any{}).Optional().Comment("目标项目/字段映射等类型相关配置"),
 		field.Bool("enabled").Default(true),
