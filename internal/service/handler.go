@@ -94,6 +94,8 @@ func (h *Handler) Register(g *echo.Group) {
 	g.DELETE("/services/:id", h.delete)
 	// T6.2 服务拓扑（M4.4）：一层依赖查询——本服务依赖谁（depends_on）+ 谁依赖本服务（dependents，影响面）。
 	g.GET("/services/:id/dependencies", h.dependencies)
+	// N2.4 服务拓扑完整影响面（M4.4）：传递闭包——递归展开上游影响面 + 下游依赖链，带环检测。
+	g.GET("/services/:id/impact", h.impact)
 }
 
 // list 服务目录列表。
@@ -430,7 +432,7 @@ type dependenciesResp struct {
 
 // dependencies 返回服务的一层依赖拓扑：depends_on（依赖谁）+ dependents（谁依赖它=影响面）。
 //
-// 仅做一层查询，不递归展开完整拓扑（完整拓扑算法/环检测是设计目标，见 docs/PRD.md M4.4）。
+// 仅做一层查询（轻量、供拓扑图直连边渲染）。递归展开完整传递闭包 + 环检测见 GET /services/:id/impact。
 //
 // @Summary      服务依赖拓扑（一层）
 // @Tags         service
@@ -479,6 +481,139 @@ func (h *Handler) dependencies(c *echo.Context) error {
 // toNode 把 ent.Service 精简为拓扑节点。
 func toNode(s *ent.Service) dependencyNode {
 	return dependencyNode{ID: s.ID, Name: s.Name, Slug: s.Slug, Status: s.Status.String()}
+}
+
+// maxTopologyDepth 传递闭包 BFS 的最大遍历深度（防超大依赖图拖垮请求）。
+// 一层邻接查询一次 DB，深度即最坏 DB 往返次数；到限即安全截断（truncated 标记）。
+const maxTopologyDepth = 20
+
+// impactNode 影响面节点：在拓扑节点基础上附带距起点的层级 depth（1=直接邻接，2=间接…）。
+type impactNode struct {
+	dependencyNode
+	Depth int `json:"depth"` // 距起点的最短跳数（BFS 层级），供前端按影响半径分层展示
+}
+
+// impactResp 传递影响面响应（N2.4/M4.4）。
+type impactResp struct {
+	ServiceID int `json:"service_id"`
+	// UpstreamImpact 本服务故障时递归受影响的上游（dependents 传递闭包）——核心影响面。
+	UpstreamImpact []impactNode `json:"upstream_impact"`
+	// DownstreamDeps 本服务递归依赖的下游（depends_on 传递闭包）——排障时的连带排查面。
+	DownstreamDeps []impactNode `json:"downstream_deps"`
+	// CycleDetected 依赖图存在环时置 true（BFS 靠 visited 集合安全终止，不死循环）。
+	CycleDetected bool `json:"cycle_detected"`
+	// Truncated 遍历触达 maxTopologyDepth 被截断时置 true（超大图保护，结果可能不完整）。
+	Truncated bool `json:"truncated"`
+}
+
+// impact 返回服务的完整传递影响面（N2.4/M4.4 服务拓扑）。
+//
+// 相比一层的 /dependencies，本端点做 BFS 传递闭包：
+//   - upstream_impact：递归展开 dependents（谁依赖本服务→本服务故障连带影响谁）。
+//   - downstream_deps：递归展开 depends_on（本服务依赖谁→排障时连带排查谁）。
+//
+// 环检测：依赖图可能有环（A→B→A，或配置错误引入的环），BFS 用 visited 集合去重，
+// 命中已访问节点即跳过（不死循环），并置 cycle_detected=true 提示图中存在环。
+// 深度限制：遍历超过 maxTopologyDepth 层即截断并置 truncated（超大图保护）。
+//
+// @Summary      服务传递影响面（完整拓扑）
+// @Description  BFS 传递闭包：upstream_impact=递归上游影响面，downstream_deps=递归下游依赖；带环检测与深度限制。
+// @Tags         service
+// @Produce      json
+// @Param        id   path     int  true  "服务 ID"
+// @Success      200  {object} impactResp
+// @Failure      400  {object} httputil.ErrorResponse
+// @Failure      404  {object} httputil.ErrorResponse
+// @Failure      500  {object} httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /services/{id}/impact [get]
+func (h *Handler) impact(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	if e := h.checkAccess(c, id, auth.PermServiceView); e != nil {
+		return e
+	}
+	ctx := c.Request().Context()
+	// 先确认起点服务存在（不存在返 404，与 dependencies 一致）。
+	if _, err := h.db.Service.Get(ctx, id); err != nil {
+		if ent.IsNotFound(err) {
+			return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
+		}
+		return errs.Internal(c, nil, err)
+	}
+	resp := impactResp{ServiceID: id, UpstreamImpact: []impactNode{}, DownstreamDeps: []impactNode{}}
+
+	// 上游影响面：沿 dependents 边（谁依赖本服务）递归。
+	up, upCycle, upTrunc, err := h.transitiveClosure(ctx, id, func(s *ent.Service) *ent.ServiceQuery {
+		return s.QueryDependents()
+	})
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	resp.UpstreamImpact = up
+
+	// 下游依赖链：沿 depends_on 边（本服务依赖谁）递归。
+	down, downCycle, downTrunc, err := h.transitiveClosure(ctx, id, func(s *ent.Service) *ent.ServiceQuery {
+		return s.QueryDependsOn()
+	})
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	resp.DownstreamDeps = down
+
+	resp.CycleDetected = upCycle || downCycle
+	resp.Truncated = upTrunc || downTrunc
+	return c.JSON(http.StatusOK, resp)
+}
+
+// transitiveClosure 从 startID 出发沿 neighbors 指定的边做 BFS 传递闭包。
+//
+// 返回：按 BFS 层级带 depth 的节点列表（不含起点自身）、是否检测到环、是否因深度限制被截断。
+// 环检测：visited 集合记录已入队节点（含起点）；再次遇到已访问节点即跳过并标记 cycle
+// （安全终止不死循环）。深度限制：超过 maxTopologyDepth 层即停止扩展并标记 truncated。
+func (h *Handler) transitiveClosure(
+	ctx context.Context,
+	startID int,
+	neighbors func(*ent.Service) *ent.ServiceQuery,
+) (nodes []impactNode, cycle bool, truncated bool, err error) {
+	nodes = []impactNode{}
+	visited := map[int]bool{startID: true} // 起点已访问，防自环把自己算进影响面
+	frontier := []int{startID}
+	for depth := 1; len(frontier) > 0; depth++ {
+		if depth > maxTopologyDepth {
+			// 仍有未展开的前沿却已达深度上限：结果不完整，安全截断。
+			truncated = true
+			break
+		}
+		var next []int
+		for _, cur := range frontier {
+			s, gerr := h.db.Service.Get(ctx, cur)
+			if gerr != nil {
+				if ent.IsNotFound(gerr) {
+					continue // 边指向的服务已被删（悬空），跳过
+				}
+				return nil, false, false, gerr
+			}
+			adj, qerr := neighbors(s).All(ctx)
+			if qerr != nil {
+				return nil, false, false, qerr
+			}
+			for _, n := range adj {
+				if visited[n.ID] {
+					// 已访问过（含回到起点）：图中存在环，跳过防死循环。
+					cycle = true
+					continue
+				}
+				visited[n.ID] = true
+				nodes = append(nodes, impactNode{dependencyNode: toNode(n), Depth: depth})
+				next = append(next, n.ID)
+			}
+		}
+		frontier = next
+	}
+	return nodes, cycle, truncated, nil
 }
 
 // delete 删除服务。

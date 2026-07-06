@@ -516,6 +516,121 @@
                 },
                 "type": "object"
             },
+            "auth.handoverActionItem": {
+                "properties": {
+                    "action_item_id": {
+                        "type": "integer"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.handoverIMBinding": {
+                "properties": {
+                    "account_id": {
+                        "type": "string"
+                    },
+                    "platform": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.handoverPreviewResp": {
+                "properties": {
+                    "action_items": {
+                        "items": {
+                            "$ref": "#/components/schemas/auth.handoverActionItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "has_items": {
+                        "description": "任一清单非空即 true，UI 据此在禁用前弹提示",
+                        "type": "boolean"
+                    },
+                    "im_bindings": {
+                        "items": {
+                            "$ref": "#/components/schemas/auth.handoverIMBinding"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "role_bindings": {
+                        "items": {
+                            "$ref": "#/components/schemas/auth.handoverRoleBinding"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "schedules": {
+                        "items": {
+                            "$ref": "#/components/schemas/auth.handoverScheduleItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "status": {
+                        "description": "当前用户状态（active/disabled），供 UI 判断是否已禁用",
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "integer"
+                    },
+                    "username": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.handoverRoleBinding": {
+                "properties": {
+                    "binding_id": {
+                        "type": "integer"
+                    },
+                    "expires_at": {
+                        "description": "RFC3339，临时授权时非空",
+                        "type": "string"
+                    },
+                    "role_name": {
+                        "type": "string"
+                    },
+                    "scope_level": {
+                        "type": "string"
+                    },
+                    "team_id": {
+                        "description": "team scope 时非空",
+                        "type": "string"
+                    },
+                    "temporary": {
+                        "description": "expires_at 非空 = 临时授权",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "auth.handoverScheduleItem": {
+                "properties": {
+                    "rotation_id": {
+                        "type": "integer"
+                    },
+                    "rotation_name": {
+                        "type": "string"
+                    },
+                    "schedule_id": {
+                        "type": "integer"
+                    },
+                    "schedule_name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "auth.loginReq": {
                 "properties": {
                     "password": {
@@ -4554,6 +4669,59 @@
                     },
                     "status": {
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "service.impactNode": {
+                "properties": {
+                    "depth": {
+                        "description": "距起点的最短跳数（BFS 层级），供前端按影响半径分层展示",
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "service.impactResp": {
+                "properties": {
+                    "cycle_detected": {
+                        "description": "CycleDetected 依赖图存在环时置 true（BFS 靠 visited 集合安全终止，不死循环）。",
+                        "type": "boolean"
+                    },
+                    "downstream_deps": {
+                        "description": "DownstreamDeps 本服务递归依赖的下游（depends_on 传递闭包）——排障时的连带排查面。",
+                        "items": {
+                            "$ref": "#/components/schemas/service.impactNode"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "service_id": {
+                        "type": "integer"
+                    },
+                    "truncated": {
+                        "description": "Truncated 遍历触达 maxTopologyDepth 被截断时置 true（超大图保护，结果可能不完整）。",
+                        "type": "boolean"
+                    },
+                    "upstream_impact": {
+                        "description": "UpstreamImpact 本服务故障时递归受影响的上游（dependents 传递闭包）——核心影响面。",
+                        "items": {
+                            "$ref": "#/components/schemas/service.impactNode"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -12271,6 +12439,73 @@
                 ]
             }
         },
+        "/services/{id}/impact": {
+            "get": {
+                "description": "BFS 传递闭包：upstream_impact=递归上游影响面，downstream_deps=递归下游依赖；带环检测与深度限制。",
+                "parameters": [
+                    {
+                        "description": "服务 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/service.impactResp"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "服务传递影响面（完整拓扑）",
+                "tags": [
+                    "service"
+                ]
+            }
+        },
         "/subscriptions": {
             "get": {
                 "responses": {
@@ -13553,6 +13788,73 @@
                     }
                 ],
                 "summary": "更新用户",
+                "tags": [
+                    "user"
+                ]
+            }
+        },
+        "/users/{id}/handover-preview": {
+            "get": {
+                "description": "禁用前一键查看待交接项：参与的排班/未完成 ActionItem/未过期角色绑定/IM 绑定。只读。",
+                "parameters": [
+                    {
+                        "description": "用户 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/auth.handoverPreviewResp"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "summary": "用户交接预览",
                 "tags": [
                     "user"
                 ]

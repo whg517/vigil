@@ -1303,6 +1303,8 @@ func registerSensitiveRoutePerms(g *auth.RouteGuard) {
 	g.RoutePerm(http.MethodPost, "/users", auth.PermUserCreate)
 	g.RoutePerm(http.MethodPatch, "/users/:id", auth.PermUserUpdate)
 	g.RoutePerm(http.MethodPost, "/users/:id/reset-password", auth.PermUserUpdate)
+	// N2.3/M13.1：禁用前查待交接项（只读预览）→ user.view（暴露该用户排班/角色/绑定归属）。
+	g.RoutePerm(http.MethodGet, "/users/:id/handover-preview", auth.PermUserView)
 	// API Key（M13.7）—— 审计点名：原不限 org_admin，任何人可签发。
 	g.RoutePerm(http.MethodPost, "/api-keys", auth.PermAdminAPIKeyManage)
 	g.RoutePerm(http.MethodDelete, "/api-keys/:id", auth.PermAdminAPIKeyManage)

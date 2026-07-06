@@ -11,8 +11,11 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/kevin/vigil/ent"
+	"github.com/kevin/vigil/ent/actionitem"
+	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/errs"
@@ -87,6 +90,9 @@ func (h *UserHandler) Register(g *echo.Group) {
 	g.PATCH("/users/:id", h.updateUser)
 	// T2.6/M1：管理员重置他人密码（权限 user.update）。重置后强制改密 + 吊销旧 token。
 	g.POST("/users/:id/reset-password", h.resetPassword)
+	// N2.3/M13.1：禁用前一键看待交接项（排班/未完成 ActionItem/角色绑定/IM 绑定）。
+	// 只读预览，权限 user.view（登记于 RouteGuard）；不改任何状态。
+	g.GET("/users/:id/handover-preview", h.handoverPreview)
 	// QA 审计 C6：IM 账号绑定 API（原 Mapper.BindAccount 全仓 0 调用方，
 	// 用户无法绑定 IM → ResolveUser 永远 ErrNotBound → 所有 IM 操作 403）。
 	g.POST("/users/:id/im-accounts", h.bindIMAccount)
@@ -325,7 +331,22 @@ func (h *UserHandler) updateUser(c *echo.Context) error {
 	if req.Status != nil && updated.Status != prevStatus {
 		h.auditStatusChange(c, updated, prevStatus)
 	}
+	// N2.3：禁用（active→disabled）且有待交接项时，响应体附 handover 提示（不阻断，仅提醒）。
+	// 让管理员即便未先看 preview，禁用动作本身也会回带「还有 N 项未交接」的信号。
+	if req.Status != nil && updated.Status == user.StatusDisabled && prevStatus != user.StatusDisabled {
+		if hv, herr := h.collectHandover(c.Request().Context(), updated); herr == nil && hv.HasItems {
+			return c.JSON(http.StatusOK, updateUserResp{User: updated, Handover: &hv})
+		}
+	}
 	return c.JSON(http.StatusOK, updated)
+}
+
+// updateUserResp 更新用户响应：内嵌 ent.User 全字段（向后兼容原裸 User 响应），
+// 仅在禁用且有待交接项时附 handover 提示（N2.3）。无提示时 updateUser 直接返回裸 User，
+// handover 字段不出现（omitempty），旧客户端不受影响。
+type updateUserResp struct {
+	*ent.User
+	Handover *handoverPreviewResp `json:"handover,omitempty"` // 禁用时的待交接提示（可选）
 }
 
 // auditStatusChange 记录用户启停审计（C21）。禁用/启用分别用不同 action 便于检索。
@@ -345,6 +366,184 @@ func (h *UserHandler) auditStatusChange(c *echo.Context, u *ent.User, prev user.
 	e.ResourceName = u.Username
 	e.Detail = map[string]any{"from": string(prev), "to": string(u.Status)}
 	h.audit.MustRecord(c.Request().Context(), e)
+}
+
+// === 交接预览（N2.3 / M13.1）===
+//
+// 禁用用户仅置 status=disabled，其历史归属（排班/未完成 ActionItem/角色/IM）仍在。
+// 排班/升级引擎虽已跳过 disabled 用户（T2.3），但这些归属不会自动转移，管理员须手动交接。
+// 本预览端点把「待交接项」一键汇总，让管理员禁用前看清需处理什么（只读，不改状态）。
+
+// handoverScheduleItem 待交接的排班项（该用户参与轮值的 Schedule）。
+type handoverScheduleItem struct {
+	ScheduleID   int    `json:"schedule_id"`
+	ScheduleName string `json:"schedule_name"`
+	RotationID   int    `json:"rotation_id"`
+	RotationName string `json:"rotation_name"`
+}
+
+// handoverActionItem 待交接的未完成改进项（该用户为 owner 的 open/in_progress ActionItem）。
+type handoverActionItem struct {
+	ActionItemID int    `json:"action_item_id"`
+	Description  string `json:"description"`
+	Status       string `json:"status"`
+}
+
+// handoverRoleBinding 待撤销的角色绑定（该用户未过期的常规/临时授权）。
+type handoverRoleBinding struct {
+	BindingID  int    `json:"binding_id"`
+	RoleName   string `json:"role_name"`
+	ScopeLevel string `json:"scope_level"`
+	TeamID     string `json:"team_id,omitempty"`    // team scope 时非空
+	Temporary  bool   `json:"temporary"`            // expires_at 非空 = 临时授权
+	ExpiresAt  string `json:"expires_at,omitempty"` // RFC3339，临时授权时非空
+}
+
+// handoverIMBinding 待清理的 IM 账号绑定。
+type handoverIMBinding struct {
+	Platform  string `json:"platform"`
+	AccountID string `json:"account_id"`
+}
+
+// handoverPreviewResp 交接预览响应（N2.3）。各清单为空数组表示该类无待交接项。
+type handoverPreviewResp struct {
+	UserID       int                    `json:"user_id"`
+	Username     string                 `json:"username"`
+	Status       string                 `json:"status"`    // 当前用户状态（active/disabled），供 UI 判断是否已禁用
+	HasItems     bool                   `json:"has_items"` // 任一清单非空即 true，UI 据此在禁用前弹提示
+	Schedules    []handoverScheduleItem `json:"schedules"`
+	ActionItems  []handoverActionItem   `json:"action_items"`
+	RoleBindings []handoverRoleBinding  `json:"role_bindings"`
+	IMBindings   []handoverIMBinding    `json:"im_bindings"`
+}
+
+// handoverPreview 返回用户的待交接清单（N2.3/M13.1）。
+//
+// 管理员禁用用户前调用，一键看到需手动交接的四类归属：
+//
+//	① 其参与轮值的 Schedule/Rotation（须从 participants 移除或换班）；
+//	② 其作为 owner 的未完成（open/in_progress）ActionItem（须改派 owner）；
+//	③ 其未过期的 team/org RoleBinding（常规+事件级临时授权，须显式撤销）；
+//	④ 其 IM 账号绑定（须清理防混淆）。
+//
+// 纯只读，不改任何状态；权限 user.view（RouteGuard 登记）。
+//
+// @Summary      用户交接预览
+// @Description  禁用前一键查看待交接项：参与的排班/未完成 ActionItem/未过期角色绑定/IM 绑定。只读。
+// @Tags         user
+// @Produce      json
+// @Param        id   path      int  true  "用户 ID"
+// @Success      200  {object}  handoverPreviewResp
+// @Failure      400  {object}  httputil.ErrorResponse
+// @Failure      404  {object}  httputil.ErrorResponse
+// @Failure      500  {object}  httputil.ErrorResponse
+// @Security     bearerAuth
+// @Router       /users/{id}/handover-preview [get]
+func (h *UserHandler) handoverPreview(c *echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return errs.BadRequest(c, "invalid id")
+	}
+	ctx := c.Request().Context()
+	u, err := h.db.User.Get(ctx, id)
+	if err != nil {
+		return errs.FailNotFound(c, nil, err, "user")
+	}
+	resp, err := h.collectHandover(ctx, u)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	return c.JSON(http.StatusOK, resp)
+}
+
+// collectHandover 汇总用户的四类待交接项（排班/未完成 ActionItem/未过期角色绑定/IM 绑定）。
+// 供 handoverPreview 端点与 updateUser 禁用时的 warning 复用（单一信源，避免两处口径分叉）。
+func (h *UserHandler) collectHandover(ctx context.Context, u *ent.User) (handoverPreviewResp, error) {
+	resp := handoverPreviewResp{
+		UserID:       u.ID,
+		Username:     u.Username,
+		Status:       string(u.Status),
+		Schedules:    []handoverScheduleItem{},
+		ActionItems:  []handoverActionItem{},
+		RoleBindings: []handoverRoleBinding{},
+		IMBindings:   []handoverIMBinding{},
+	}
+
+	// ① 排班：该用户参与的 Rotation → 其所属 Schedule（须移出 participants 或换班）。
+	rotations, err := u.QueryRotations().WithSchedule().All(ctx)
+	if err != nil {
+		return resp, err
+	}
+	for _, r := range rotations {
+		item := handoverScheduleItem{RotationID: r.ID, RotationName: r.Name}
+		if r.Edges.Schedule != nil {
+			item.ScheduleID = r.Edges.Schedule.ID
+			item.ScheduleName = r.Edges.Schedule.Name
+		}
+		resp.Schedules = append(resp.Schedules, item)
+	}
+
+	// ② ActionItem：owner_id 为该用户且未完成（status != done）。
+	// owner_id 是自由字符串（存 user id 的十进制），按字符串精确匹配。
+	items, err := h.db.ActionItem.Query().
+		Where(
+			actionitem.OwnerIDEQ(strconv.Itoa(u.ID)),
+			actionitem.StatusNEQ(actionitem.StatusDone),
+		).All(ctx)
+	if err != nil {
+		return resp, err
+	}
+	for _, it := range items {
+		resp.ActionItems = append(resp.ActionItems, handoverActionItem{
+			ActionItemID: it.ID,
+			Description:  it.Description,
+			Status:       string(it.Status),
+		})
+	}
+
+	// ③ RoleBinding：未过期的角色绑定（expires_at 为空=常规，或 > now=临时未过期）。
+	// 已过期的临时授权鉴权时本就失效，无需交接，故过滤掉。
+	now := time.Now()
+	bindings, err := u.QueryRoleBindings().
+		Where(rolebinding.Or(
+			rolebinding.ExpiresAtIsNil(),
+			rolebinding.ExpiresAtGT(now),
+		)).
+		WithRole().WithTeam().All(ctx)
+	if err != nil {
+		return resp, err
+	}
+	for _, rb := range bindings {
+		hb := handoverRoleBinding{
+			BindingID:  rb.ID,
+			ScopeLevel: string(rb.ScopeLevel),
+			TeamID:     rb.TeamID,
+		}
+		if rb.Edges.Role != nil {
+			hb.RoleName = rb.Edges.Role.Name
+		}
+		if rb.ExpiresAt != nil {
+			hb.Temporary = true
+			hb.ExpiresAt = rb.ExpiresAt.Format(time.RFC3339)
+		}
+		resp.RoleBindings = append(resp.RoleBindings, hb)
+	}
+
+	// ④ IM 绑定：独立索引表（新数据）。旧 JSON 字段兼容不重复列（迁移中，以独立表为准）。
+	imb, err := u.QueryImBindings().All(ctx)
+	if err != nil {
+		return resp, err
+	}
+	for _, b := range imb {
+		resp.IMBindings = append(resp.IMBindings, handoverIMBinding{
+			Platform:  string(b.Platform),
+			AccountID: b.AccountID,
+		})
+	}
+
+	resp.HasItems = len(resp.Schedules) > 0 || len(resp.ActionItems) > 0 ||
+		len(resp.RoleBindings) > 0 || len(resp.IMBindings) > 0
+	return resp, nil
 }
 
 // bindIMAccountReq 绑定 IM 账号请求。

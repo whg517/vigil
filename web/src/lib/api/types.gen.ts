@@ -6561,6 +6561,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/services/{id}/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 服务传递影响面（完整拓扑）
+         * @description BFS 传递闭包：upstream_impact=递归上游影响面，downstream_deps=递归下游依赖；带环检测与深度限制。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 服务 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["service.impactResp"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/subscriptions": {
         parameters: {
             query?: never;
@@ -7670,6 +7739,75 @@ export interface paths {
         };
         trace?: never;
     };
+    "/users/{id}/handover-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 用户交接预览
+         * @description 禁用前一键查看待交接项：参与的排班/未完成 ActionItem/未过期角色绑定/IM 绑定。只读。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 用户 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["auth.handoverPreviewResp"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/{id}/im-accounts": {
         parameters: {
             query?: never;
@@ -8621,6 +8759,44 @@ export interface components {
             timezone?: string;
             /** @description 登录名，必填，唯一 */
             username?: string;
+        };
+        "auth.handoverActionItem": {
+            action_item_id?: number;
+            description?: string;
+            status?: string;
+        };
+        "auth.handoverIMBinding": {
+            account_id?: string;
+            platform?: string;
+        };
+        "auth.handoverPreviewResp": {
+            action_items?: components["schemas"]["auth.handoverActionItem"][];
+            /** @description 任一清单非空即 true，UI 据此在禁用前弹提示 */
+            has_items?: boolean;
+            im_bindings?: components["schemas"]["auth.handoverIMBinding"][];
+            role_bindings?: components["schemas"]["auth.handoverRoleBinding"][];
+            schedules?: components["schemas"]["auth.handoverScheduleItem"][];
+            /** @description 当前用户状态（active/disabled），供 UI 判断是否已禁用 */
+            status?: string;
+            user_id?: number;
+            username?: string;
+        };
+        "auth.handoverRoleBinding": {
+            binding_id?: number;
+            /** @description RFC3339，临时授权时非空 */
+            expires_at?: string;
+            role_name?: string;
+            scope_level?: string;
+            /** @description team scope 时非空 */
+            team_id?: string;
+            /** @description expires_at 非空 = 临时授权 */
+            temporary?: boolean;
+        };
+        "auth.handoverScheduleItem": {
+            rotation_id?: number;
+            rotation_name?: string;
+            schedule_id?: number;
+            schedule_name?: string;
         };
         "auth.loginReq": {
             password?: string;
@@ -10355,6 +10531,25 @@ export interface components {
             name?: string;
             slug?: string;
             status?: string;
+        };
+        "service.impactNode": {
+            /** @description 距起点的最短跳数（BFS 层级），供前端按影响半径分层展示 */
+            depth?: number;
+            id?: number;
+            name?: string;
+            slug?: string;
+            status?: string;
+        };
+        "service.impactResp": {
+            /** @description CycleDetected 依赖图存在环时置 true（BFS 靠 visited 集合安全终止，不死循环）。 */
+            cycle_detected?: boolean;
+            /** @description DownstreamDeps 本服务递归依赖的下游（depends_on 传递闭包）——排障时的连带排查面。 */
+            downstream_deps?: components["schemas"]["service.impactNode"][];
+            service_id?: number;
+            /** @description Truncated 遍历触达 maxTopologyDepth 被截断时置 true（超大图保护，结果可能不完整）。 */
+            truncated?: boolean;
+            /** @description UpstreamImpact 本服务故障时递归受影响的上游（dependents 传递闭包）——核心影响面。 */
+            upstream_impact?: components["schemas"]["service.impactNode"][];
         };
         "service.updateReq": {
             auto_create_incident?: boolean;
