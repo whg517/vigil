@@ -111,6 +111,19 @@ var (
 		Help: "Total notifications sent by channel and result.",
 	}, []string{"channel", "result"})
 
+	// DedupDegraded 去重降级次数（B23）：分诊去重因 Redis 不可用而降级放行的计数。
+	// reason 维度区分降级来源：
+	//   - "redis_nil"：未注入 Redis（配置缺失/装配降级），去重整体失效，靠聚合窗口兜底防重复建单。
+	//   - 注：Redis 运行时故障（SetNX 报错）不计此指标——那条路径不放行，而是返回 error 让
+	//     Asynq 重试（见 triage.checkDedup 契约），故不属"降级放行"。
+	// 去重失效意味着窗口内重复告警可能不再被丢弃，但同 service+severity 会在聚合窗口内并入
+	// 同一 Incident（aggregate 兜底），不会因去重失效而爆量建单。此计数使该降级可观测，
+	// 供运维发现「Redis 未接入导致去重静默失效」的配置遗漏。
+	DedupDegraded = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "vigil_triage_dedup_degraded_total",
+		Help: "Total triage dedup checks that degraded (passed through without dedup) by reason.",
+	}, []string{"reason"})
+
 	// IMOncallChannelMissing IM 值班群未配置导致通知未送达的次数（B17）。
 	// 原实现 VIGIL_IM_ONCALL_CHANNEL 未配时静默 return（无 metric/无 log），
 	// 是可观测性盲区——值班人根本收不到 IM 卡片却无人知晓。此计数使盲区可观测，

@@ -299,15 +299,39 @@ func (e *Engine) Reroute(ctx context.Context, evtID, serviceID int) (*Result, er
 	return e.aggregate(ctx, evt, svc)
 }
 
-// checkDedup 检查去重。窗口内已见过该 dedup_key 则返回 true（跳过）。
+// checkDedup 检查去重：窗口内已见过该 dedup_key 则返回 true（跳过，标噪音）。
+//
+// 降级契约（B23，明确 Redis 不可用时的确定行为）：
+//
+//	┌────────────────────┬──────────────────────┬──────────────────────────────────────┐
+//	│ Redis 状态          │ checkDedup 行为        │ 后果与兜底                             │
+//	├────────────────────┼──────────────────────┼──────────────────────────────────────┤
+//	│ 未注入 (e.redis==nil)│ 放行(false,nil)+记降级 │ 去重整体失效：窗口内重复告警不再丢弃。   │
+//	│                     │ metric               │ 但同 service+severity 会在聚合窗口内并  │
+//	│                     │                      │ 入同一 Incident（aggregate 兜底），不   │
+//	│                     │                      │ 会爆量建单，仅 Event 层可能留重复信号。  │
+//	├────────────────────┼──────────────────────┼──────────────────────────────────────┤
+//	│ 运行时故障(SetNX err)│ 返回 error（不放行）   │ Process 上抛 → 分诊 Asynq 任务失败重试。 │
+//	│                     │                      │ 「重试放行」比「降级放行」更保守：Redis  │
+//	│                     │                      │ 抖动时不静默失去去重，等恢复后正常去重。  │
+//	└────────────────────┴──────────────────────┴──────────────────────────────────────┘
+//
+// 为什么 nil 与 err 两种降级方向相反：nil 是「明确没有 Redis」的稳态（一直不去重，靠聚合兜底，
+// 无重试意义）；err 是「本应有 Redis 但暂时不可用」的瞬态（重试能恢复去重，故走重试而非放行）。
+//
+// TTL 语义：SETNX 固定 dedupWindow 不续期——同 key 在窗口内首次落 key，窗口过后自然过期，
+// 下一次同 key 告警视为新一轮（去重是「窗口内抑制」而非「永久抑制」，符合告警抖动语义）。
 func (e *Engine) checkDedup(ctx context.Context, dedupKey string) (bool, error) {
 	if e.redis == nil {
-		return false, nil // 无 Redis 则不去重（测试友好）
+		// 无 Redis：去重失效降级放行。记 metric 使该盲区可观测（聚合窗口兜底防爆量，见契约表）。
+		metrics.DedupDegraded.WithLabelValues("redis_nil").Inc()
+		return false, nil
 	}
 	key := "vigil:dedup:" + dedupKey
 	// SETNX：首次设置成功（返回 1=未重复），已存在返回 0（重复）
 	ok, err := e.redis.SetNX(ctx, key, 1, e.dedupWindow).Result()
 	if err != nil {
+		// 运行时故障不降级放行：上抛让分诊任务失败重试（Asynq），避免 Redis 抖动时静默失去去重。
 		return false, err
 	}
 	return !ok, nil // ok=false 表示已存在 → 重复 → 跳过

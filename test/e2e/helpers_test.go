@@ -13,6 +13,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
+	entnotification "github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/role"
 	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/timelineitem"
@@ -328,6 +329,41 @@ func (e *envState) seedUserWithRole(username, roleName string) (*ent.User, strin
 	return u, tok
 }
 
+// seedActiveUser 直接建一个 active 用户（无角色绑定），返回实体。
+// 用于排班值班人/团队成员等只需「存在的活跃用户」而不需登录 token 的场景。
+func (e *envState) seedActiveUser(username string) *ent.User {
+	u, err := e.db().User.Create().
+		SetUsername(username).
+		SetName(username).
+		SetEmail(username + "@e2e.test").
+		SetPasswordHash(auth.HashPassword("e2e-pw-123")).
+		SetStatus(user.StatusActive).
+		Save(context.Background())
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "seed active user "+username)
+	return u
+}
+
+// bindUserToTeam 把用户加入团队（team_users 边），使 escalation 的 team 型 target 能解算到该成员。
+func (e *envState) bindUserToTeam(userID, teamID int) {
+	err := e.db().User.UpdateOneID(userID).AddTeamIDs(teamID).Exec(context.Background())
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "bind user to team")
+}
+
+// createAPIKey 通过 HTTP POST /api-keys 签发一个 API Key，返回一次性明文 token（vgl_ 前缀）。
+// API Key 继承签发者（token 对应用户）的角色——用 adminToken 签发即继承 org_admin 全权。
+func (e *envState) createAPIKey(token, name string) string {
+	body, _ := json.Marshal(map[string]any{"name": name})
+	req, _ := http.NewRequest(http.MethodPost, e.apiURL("/api-keys"), bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	var got struct {
+		Token string `json:"token"`
+	}
+	doJSON(req, &got)
+	gomega.Expect(got.Token).NotTo(gomega.BeEmpty(), "API Key 明文 token 应非空")
+	return got.Token
+}
+
 // ===== 异步轮询断言（基于 gomega Eventually）=====
 
 // waitForIncidentCount 轮询直到库中有 count 条 incident，返回它们。
@@ -390,6 +426,25 @@ func (e *envState) waitForEscalationLevelAtLeast(incID, wantLevel int) *ent.Inci
 	}, 15*time.Second, 200*time.Millisecond).
 		Should(gomega.BeNumerically(">=", wantLevel), "incident 升级到至少 level "+strconv.Itoa(wantLevel))
 	return got
+}
+
+// waitForNotificationRecords 轮询直到 incident 有至少 min 条通知送达记录（Notification），返回它们。
+// 通知是异步链路（升级触发 → notifier 落库），故用轮询等待，避免时序 flaky。
+func (e *envState) waitForNotificationRecords(incID, min int) []*ent.Notification {
+	var recs []*ent.Notification
+	gomega.Eventually(func() int {
+		list, err := e.db().Notification.Query().
+			Where(entnotification.HasIncidentWith(incident.IDEQ(incID))).
+			All(context.Background())
+		if err != nil {
+			return -1
+		}
+		recs = list
+		return len(list)
+	}, 15*time.Second, 200*time.Millisecond).
+		Should(gomega.BeNumerically(">=", min),
+			"等待 incident "+strconv.Itoa(incID)+" 的通知送达记录 >= "+strconv.Itoa(min))
+	return recs
 }
 
 // waitForTimelineEntry 轮询直到 incident 有至少一条时间线条目。
