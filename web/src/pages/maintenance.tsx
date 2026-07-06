@@ -210,7 +210,10 @@ function WindowRow({ win, onEdit }: { win: SuppressionRule; onEdit: () => void }
             variant="ghost"
             size="icon"
             title="删除"
-            onClick={() => del.mutate(win.id)}
+            onClick={() => {
+              // 破坏性操作二次确认，防误删维护窗口
+              if (window.confirm(`确认删除维护窗口「${win.name}」？`)) del.mutate(win.id);
+            }}
             disabled={del.isPending}
           >
             <Trash2 className="h-4 w-4" />
