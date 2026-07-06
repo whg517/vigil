@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Vigil commit-msg：强制 Conventional Commits（Vigil 调整版），显式拒绝 chore。
+# 依据 docs/development.md §4.1–4.3。
+#
+# 跳过：VIGIL_SKIP_HOOKS=1 git commit …    或    git commit --no-verify
+set -uo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=_lib.sh
+. "$DIR/_lib.sh"
+
+if hook_skip_enabled; then
+  hook_warn "VIGIL_SKIP_HOOKS 已设置，跳过 commit-msg 校验"
+  exit 0
+fi
+
+msg_file="$1"
+
+# 取首个非空、非注释行作为 subject（跳过 git 注入的 # 注释与前导空行）。
+# `|| [ -n "$line" ]`：处理最后一行无末尾换行的情形（如 git commit --cleanup=verbatim -F
+# 传入无尾换行的信息文件），否则 read 会丢弃该行导致合法 subject 被误判为空。
+subject=''
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in
+    '#'*) continue ;;
+    '') continue ;;
+    *) subject="$line"; break ;;
+  esac
+done < "$msg_file"
+
+# 放行 git 自动生成的 merge / revert / autosquash 信息（非人工书写，不套用规范）
+case "$subject" in
+  'Merge '*|'Revert '*|'fixup!'*|'squash!'*|'amend!'*) exit 0 ;;
+esac
+
+if [ -z "$subject" ]; then
+  hook_err "提交信息为空"
+  exit 1
+fi
+
+# 显式拦截 chore（docs §4.3 明确禁用，单独给出更清晰的引导）
+case "$subject" in
+  chore:*|'chore('*|'chore!'*)
+    hook_err "禁止使用 chore（docs/development.md §4.3）。"
+    hook_err "按语义改用：依赖/配置→build，CI→ci，重构→refactor，文档→docs，格式→style。"
+    exit 1 ;;
+esac
+
+# 校验 <type>(<scope>)?!?: <subject>
+allowed='feat|fix|docs|refactor|perf|test|style|build|ci|revert'
+if printf '%s' "$subject" | grep -Eq "^(${allowed})(\([a-z0-9,._/-]+\))?!?: .+"; then
+  hook_ok "commit-msg 通过：${subject}"
+else
+  hook_err "提交信息不符合规范：${subject}"
+  hook_err "格式：<type>(<scope>): <subject>"
+  hook_err "允许的 type：${allowed//|/, }"
+  hook_err "示例：feat(ingestion): 实现告警 webhook 接入"
+  exit 1
+fi
+
+# 注：subject ≤72 字符是 docs §4.1 面向人的书写建议，此处不做机器校验——
+# 本项目 subject 多为中文（多字节），POSIX shell 在默认/C locale 下 `wc -m`、awk length
+# 均退化为按字节计数，会把正常中文 subject 误判超长。与其给出每次提交都误报的噪声软告警，
+# 不如不查（长度不影响机器可解析性，交由 review 把关）。
+exit 0

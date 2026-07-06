@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Vigil pre-push：推送前跑完整三道门禁（docs/development.md §3.4），按改动范围裁剪。
+#
+# 为什么重活在这里：门禁（golangci-lint + 全量 go test + build + 前端 lint/build）是分钟级，
+# 放 pre-commit 会拖慢每次提交进而被绕过；放 pre-push 只在「代码离开本机」时跑一次，
+# 既守住 main 质量（§3.4 合入前验证 / 复验），又不干扰开发中频繁提交。
+#
+# 跳过：VIGIL_SKIP_HOOKS=1 git push …    或    git push --no-verify
+set -uo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=_lib.sh
+. "$DIR/_lib.sh"
+
+if hook_skip_enabled; then
+  hook_warn "VIGIL_SKIP_HOOKS 已设置，跳过 pre-push 门禁"
+  exit 0
+fi
+
+# git 通过 stdin 传入每条待推送引用：<local ref> <local sha> <remote ref> <remote sha>
+# 据此算出待推送改动涉及的文件，决定跑后端 / 前端 / 全部门禁。
+ZERO='0000000000000000000000000000000000000000'
+touch_go=0
+touch_web=0
+determined=0
+force_full=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "${local_sha:-$ZERO}" = "$ZERO" ] && continue   # 删除远端分支的推送，无内容
+  if [ "${remote_sha:-$ZERO}" = "$ZERO" ]; then
+    # 新分支（远端还没有）：用三点 origin/main...local（从分叉点起算本分支新增，
+    # 比两点更贴合「这条分支改了啥」）；拿不到 origin/main 则无从判定 → 保守全量
+    if git rev-parse --verify -q "origin/main^{commit}" >/dev/null 2>&1; then
+      range="origin/main...${local_sha}"
+    else
+      force_full=1; continue
+    fi
+  else
+    range="${remote_sha}..${local_sha}"
+  fi
+  # ★ fail-safe：diff 可能因 base 对象本地缺失而失败（他人 force-push 后本地未 fetch、
+  #   浅克隆边界、GC 掉旧对象），此时 rc≠0 且 stdout 为空。绝不能把「diff 失败」误当
+  #   「无改动」而静默漏跑门禁——一旦失败就强制全量（宁多跑，不漏一个含 .go 的推送）。
+  if ! files="$(git diff --name-only "$range" 2>/dev/null)"; then
+    force_full=1
+    continue
+  fi
+  determined=1
+  # 用 heredoc 喂内层循环，避免消费外层（git 传入的 refs）stdin
+  while IFS= read -r f; do
+    case "$f" in
+      *.go)   touch_go=1 ;;
+      web/*)  touch_web=1 ;;
+    esac
+  done <<EOF
+$files
+EOF
+done
+
+# 有 ref 无法判定范围，或整体无从判定（无 stdin）→ 保守跑全量门禁（宁多勿漏）
+if [ "$force_full" -eq 1 ] || [ "$determined" -eq 0 ]; then
+  touch_go=1; touch_web=1
+fi
+
+failed=0
+run() {  # run "<label>" <cmd...>
+  label="$1"; shift
+  hook_info "→ ${label}"
+  log="$(mktemp "${TMPDIR:-/tmp}/vigil-prepush.XXXXXX")" || log=/tmp/vigil-prepush.log
+  if "$@" >"$log" 2>&1; then
+    hook_ok "$label"
+  else
+    hook_err "${label} 失败："
+    tail -30 "$log" >&2
+    failed=1
+  fi
+  rm -f "$log" 2>/dev/null || true
+}
+
+if [ "$touch_go" -eq 1 ]; then
+  if hook_has golangci-lint; then run "golangci-lint run ./..." golangci-lint run ./...; else hook_warn "未装 golangci-lint，跳过后端 lint"; fi
+  if hook_has go; then
+    run "go test ./..." go test ./...
+    run "go build ./..." go build ./...
+  else
+    hook_warn "未找到 go，跳过后端 test/build"
+  fi
+fi
+
+if [ "$touch_web" -eq 1 ]; then
+  if hook_has pnpm; then
+    run "pnpm --dir web lint" pnpm --dir web lint
+    run "pnpm --dir web build" pnpm --dir web build
+  else
+    hook_warn "未装 pnpm，跳过前端 lint/build"
+  fi
+fi
+
+if [ "$failed" -ne 0 ]; then
+  hook_err "pre-push 门禁未通过。修复后重推，或临时跳过：git push --no-verify"
+  exit 1
+fi
+hook_ok "pre-push 门禁全绿"
+exit 0

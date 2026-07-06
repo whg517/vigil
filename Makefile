@@ -10,6 +10,12 @@ COMPOSE_PROJECT_NAME := vigil
 ENV_FILE := .env
 GO_LINT  := golangci-lint run ./...
 
+##@ Setup
+
+.PHONY: install-hooks
+install-hooks: ## 安装 git 钩子（pre-commit 快检 + commit-msg 规范 + pre-push 门禁，各 worktree 共享）
+	./scripts/install-hooks.sh
+
 ##@ Dependencies
 
 # 确保 .env 存在

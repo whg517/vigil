@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Vigil pre-commit：快检（Go 格式 + 编译），按暂存文件范围触发，目标秒级完成。
+#
+# 设计取舍（对应 docs/development.md §3.4 门禁）：
+#   - 每次提交都跑，故只放**快**检：gofmt（对暂存内容）+ go build（编译）。
+#   - 重活（golangci-lint / 全量 go test / 前端 lint+build）放 pre-push——推送不频繁，
+#     不该让每次 `git commit` 都等分钟级。开发中频繁小步提交不被拖慢，才不会被绕过。
+#   - 纯前端改动此处不检（tsc/lint 偏慢），交给 pre-push；保持 pre-commit 轻快。
+#
+# 跳过：VIGIL_SKIP_HOOKS=1 git commit …    或    git commit --no-verify
+set -uo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=_lib.sh
+. "$DIR/_lib.sh"
+
+if hook_skip_enabled; then
+  hook_warn "VIGIL_SKIP_HOOKS 已设置，跳过 pre-commit 快检"
+  exit 0
+fi
+
+# 枚举暂存的 .go 文件（NUL 分隔，兼容含空格路径）
+go_files=()
+while IFS= read -r -d '' f; do
+  case "$f" in
+    *.go) go_files+=("$f") ;;
+  esac
+done < <(hook_staged_files)
+
+# 无 Go 改动（纯文档/前端/配置提交）→ 无需快检，直接放行
+if [ "${#go_files[@]}" -eq 0 ]; then
+  exit 0
+fi
+
+failed=0
+
+# ① gofmt 格式检查——检的是**暂存内容**（git show :file），而非工作区，
+#    避免「部分暂存」时用工作区未暂存的改动误判。ent/ 生成代码跳过（生成器保证格式）。
+if hook_has gofmt; then
+  unformatted=''
+  for f in "${go_files[@]}"; do
+    case "$f" in ent/*) continue ;; esac
+    if [ -n "$(git show ":$f" 2>/dev/null | gofmt -l 2>/dev/null)" ]; then
+      unformatted="${unformatted}  ${f}"$'\n'
+    fi
+  done
+  if [ -n "$unformatted" ]; then
+    hook_err "以下暂存文件未 gofmt 格式化："
+    printf '%s' "$unformatted" >&2
+    hook_err "修复：gofmt -w <file> 后重新 git add"
+    failed=1
+  else
+    hook_ok "gofmt 格式检查通过（暂存 ${#go_files[@]} 个 .go）"
+  fi
+else
+  hook_warn "未找到 gofmt，跳过 Go 格式检查"
+fi
+
+# ② 编译检查：go build ./...（缓存命中时秒级），捕获破坏性改动早于 CI。
+#    注：build 的是工作区（Go 无法直接编译索引内容），与主流 pre-commit 一致。
+if hook_has go; then
+  build_log="$(mktemp "${TMPDIR:-/tmp}/vigil-precommit.XXXXXX")" || build_log=/tmp/vigil-precommit-build.log
+  if go build ./... >"$build_log" 2>&1; then
+    hook_ok "go build ./... 通过"
+  else
+    hook_err "go build ./... 失败："
+    tail -20 "$build_log" >&2
+    failed=1
+  fi
+  rm -f "$build_log" 2>/dev/null || true
+else
+  hook_warn "未找到 go，跳过编译检查"
+fi
+
+if [ "$failed" -ne 0 ]; then
+  hook_err "pre-commit 未通过。修复后重试，或临时跳过：git commit --no-verify"
+  exit 1
+fi
+exit 0

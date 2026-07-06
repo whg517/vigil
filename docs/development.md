@@ -369,7 +369,43 @@ golangci-lint run ./... && go test ./... && go build ./... && pnpm --dir web bui
 - **多 worktree 多编辑器窗口**：每个 `.worktree/<type>-<特性>` 单开一个 IDE 窗口，互不干扰。
 - **TS/Go Server 缓存**：worktree 间独立，无冲突。
 - **构建缓存**：各 worktree 独立的 `web/node_modules`（需各自 `pnpm install`）、Go 构建缓存共享（Go module cache 全局）。
-- **husky / pre-commit hook**（如后续引入）：在主仓库配置，各 worktree 共享 git hooks。
+- **git 钩子**（已内置于 `.githooks/`，见 §6.1）：在主仓库 `make install-hooks` 一次，各 worktree 共享。
+
+### 6.1 Git 钩子（本地质量门禁）
+
+仓库内置一套 git 钩子（`.githooks/`，入库随仓库分发），把 §3.4 的门禁前移到本地，
+在问题进入历史/CI 前挡下。**一次性安装**（在主仓库根执行，各 worktree 自动共享）：
+
+```bash
+make install-hooks      # 等价于 ./scripts/install-hooks.sh
+```
+
+原理：安装脚本把 `core.hooksPath` 指向仓库内的 `.githooks/`（写在共享的 `.git/config`，
+相对路径由 git 在「工作树根」下解析，故每个 worktree 用各自 checkout 的钩子副本）。
+
+三个钩子按「频繁操作放快检、重活放低频操作」分层，避免拖慢开发中频繁提交：
+
+| 钩子 | 触发 | 做什么 | 耗时 |
+|------|------|--------|------|
+| `pre-commit` | 每次 `git commit` | 按暂存范围：`gofmt` 校验（暂存内容）+ `go build ./...` 编译。无 Go 改动直接放行 | 秒级 |
+| `commit-msg` | 每次 `git commit` | 校验 Conventional Commits 格式（§4.1）、type 白名单（§4.2）、**拒绝 `chore`**（§4.3） | 毫秒 |
+| `pre-push` | 每次 `git push` | 完整三道门禁（§3.4）：`golangci-lint` + `go test ./...` + `go build` + 前端 `lint`/`build`，按待推送范围裁剪后端/前端 | 分钟级 |
+
+> 设计意图：`git test`/`lint` 全量是分钟级，放 pre-commit 会让人想绕过；放 pre-push
+> 只在代码离开本机时跑一次，既守住 §3.4「合入前验证 / 复验」，又不干扰频繁小步提交。
+
+**临时跳过**（应急、或已在别处验证过）：
+
+```bash
+git commit --no-verify          # 跳过 pre-commit + commit-msg
+git push --no-verify            # 跳过 pre-push
+export VIGIL_SKIP_HOOKS=1       # 全局跳过所有钩子（如 CI / 自动化脚本）
+```
+
+**卸载**：`git config --unset core.hooksPath`。
+
+> ⚠️ 钩子是**本地便利与早期反馈**，不是质量的唯一保证——真正的强制门禁在 CI（可被
+> `--no-verify` 绕过的东西不能当唯一防线）。CI 应独立复跑 §3.4 全量门禁与 chore 拦截。
 
 ---
 
