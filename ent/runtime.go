@@ -499,19 +499,19 @@ func init() {
 	// suppressionrule.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	suppressionrule.NameValidator = suppressionruleDescName.Validators[0].(func(string) error)
 	// suppressionruleDescPreserveCritical is the schema descriptor for preserve_critical field.
-	suppressionruleDescPreserveCritical := suppressionruleFields[6].Descriptor()
+	suppressionruleDescPreserveCritical := suppressionruleFields[7].Descriptor()
 	// suppressionrule.DefaultPreserveCritical holds the default value on creation for the preserve_critical field.
 	suppressionrule.DefaultPreserveCritical = suppressionruleDescPreserveCritical.Default.(bool)
 	// suppressionruleDescEnabled is the schema descriptor for enabled field.
-	suppressionruleDescEnabled := suppressionruleFields[7].Descriptor()
+	suppressionruleDescEnabled := suppressionruleFields[8].Descriptor()
 	// suppressionrule.DefaultEnabled holds the default value on creation for the enabled field.
 	suppressionrule.DefaultEnabled = suppressionruleDescEnabled.Default.(bool)
 	// suppressionruleDescCreatedAt is the schema descriptor for created_at field.
-	suppressionruleDescCreatedAt := suppressionruleFields[11].Descriptor()
+	suppressionruleDescCreatedAt := suppressionruleFields[12].Descriptor()
 	// suppressionrule.DefaultCreatedAt holds the default value on creation for the created_at field.
 	suppressionrule.DefaultCreatedAt = suppressionruleDescCreatedAt.Default.(func() time.Time)
 	// suppressionruleDescUpdatedAt is the schema descriptor for updated_at field.
-	suppressionruleDescUpdatedAt := suppressionruleFields[12].Descriptor()
+	suppressionruleDescUpdatedAt := suppressionruleFields[13].Descriptor()
 	// suppressionrule.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	suppressionrule.DefaultUpdatedAt = suppressionruleDescUpdatedAt.Default.(func() time.Time)
 	// suppressionrule.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

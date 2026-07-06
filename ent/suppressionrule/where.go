@@ -160,6 +160,26 @@ func NameContainsFold(v string) predicate.SuppressionRule {
 	return predicate.SuppressionRule(sql.FieldContainsFold(FieldName, v))
 }
 
+// KindEQ applies the EQ predicate on the "kind" field.
+func KindEQ(v Kind) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldEQ(FieldKind, v))
+}
+
+// KindNEQ applies the NEQ predicate on the "kind" field.
+func KindNEQ(v Kind) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldNEQ(FieldKind, v))
+}
+
+// KindIn applies the In predicate on the "kind" field.
+func KindIn(vs ...Kind) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldIn(FieldKind, vs...))
+}
+
+// KindNotIn applies the NotIn predicate on the "kind" field.
+func KindNotIn(vs ...Kind) predicate.SuppressionRule {
+	return predicate.SuppressionRule(sql.FieldNotIn(FieldKind, vs...))
+}
+
 // TimeWindowIsNil applies the IsNil predicate on the "time_window" field.
 func TimeWindowIsNil() predicate.SuppressionRule {
 	return predicate.SuppressionRule(sql.FieldIsNull(FieldTimeWindow))

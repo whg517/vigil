@@ -44,6 +44,20 @@ func (_u *SuppressionRuleUpdate) SetNillableName(v *string) *SuppressionRuleUpda
 	return _u
 }
 
+// SetKind sets the "kind" field.
+func (_u *SuppressionRuleUpdate) SetKind(v suppressionrule.Kind) *SuppressionRuleUpdate {
+	_u.mutation.SetKind(v)
+	return _u
+}
+
+// SetNillableKind sets the "kind" field if the given value is not nil.
+func (_u *SuppressionRuleUpdate) SetNillableKind(v *suppressionrule.Kind) *SuppressionRuleUpdate {
+	if v != nil {
+		_u.SetKind(*v)
+	}
+	return _u
+}
+
 // SetMatchLabels sets the "match_labels" field.
 func (_u *SuppressionRuleUpdate) SetMatchLabels(v map[string]string) *SuppressionRuleUpdate {
 	_u.mutation.SetMatchLabels(v)
@@ -282,6 +296,11 @@ func (_u *SuppressionRuleUpdate) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Kind(); ok {
+		if err := suppressionrule.KindValidator(v); err != nil {
+			return &ValidationError{Name: "kind", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.kind": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Action(); ok {
 		if err := suppressionrule.ActionValidator(v); err != nil {
 			return &ValidationError{Name: "action", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.action": %w`, err)}
@@ -309,6 +328,9 @@ func (_u *SuppressionRuleUpdate) sqlSave(ctx context.Context) (_node int, err er
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(suppressionrule.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Kind(); ok {
+		_spec.SetField(suppressionrule.FieldKind, field.TypeEnum, value)
 	}
 	if value, ok := _u.mutation.MatchLabels(); ok {
 		_spec.SetField(suppressionrule.FieldMatchLabels, field.TypeJSON, value)
@@ -425,6 +447,20 @@ func (_u *SuppressionRuleUpdateOne) SetName(v string) *SuppressionRuleUpdateOne 
 func (_u *SuppressionRuleUpdateOne) SetNillableName(v *string) *SuppressionRuleUpdateOne {
 	if v != nil {
 		_u.SetName(*v)
+	}
+	return _u
+}
+
+// SetKind sets the "kind" field.
+func (_u *SuppressionRuleUpdateOne) SetKind(v suppressionrule.Kind) *SuppressionRuleUpdateOne {
+	_u.mutation.SetKind(v)
+	return _u
+}
+
+// SetNillableKind sets the "kind" field if the given value is not nil.
+func (_u *SuppressionRuleUpdateOne) SetNillableKind(v *suppressionrule.Kind) *SuppressionRuleUpdateOne {
+	if v != nil {
+		_u.SetKind(*v)
 	}
 	return _u
 }
@@ -680,6 +716,11 @@ func (_u *SuppressionRuleUpdateOne) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Kind(); ok {
+		if err := suppressionrule.KindValidator(v); err != nil {
+			return &ValidationError{Name: "kind", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.kind": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Action(); ok {
 		if err := suppressionrule.ActionValidator(v); err != nil {
 			return &ValidationError{Name: "action", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.action": %w`, err)}
@@ -724,6 +765,9 @@ func (_u *SuppressionRuleUpdateOne) sqlSave(ctx context.Context) (_node *Suppres
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(suppressionrule.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Kind(); ok {
+		_spec.SetField(suppressionrule.FieldKind, field.TypeEnum, value)
 	}
 	if value, ok := _u.mutation.MatchLabels(); ok {
 		_spec.SetField(suppressionrule.FieldMatchLabels, field.TypeJSON, value)

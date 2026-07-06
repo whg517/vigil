@@ -430,16 +430,29 @@ func ParseQuietHoursPublic(m map[string]any) *QuietHours {
 // ListSuppressionRules 列出全部抑制规则。
 //
 // @Summary      List suppression rules
-// @Description  返回全部 SuppressionRule（无分页）。
+// @Description  返回全部 SuppressionRule（无分页）。可用 ?kind=maintenance|adhoc 过滤，便于前端维护窗口专属列表。
 // @Tags         suppression
 // @Produce      json
+// @Param        kind  query     string  false  "按类别过滤：adhoc（日常降噪）| maintenance（维护窗口）"
 // @Success      200  {array}  ent.SuppressionRule
+// @Failure      400  {object}  httputil.ErrorResponse
 // @Failure      500  {object}  httputil.ErrorResponse
 // @Router       /suppression-rules [get]
 // @Security     bearerAuth
 func (h *Handler) listSuppressions(c *echo.Context) error {
 	ctx := c.Request().Context()
 	q := h.db.SuppressionRule.Query()
+	// kind 过滤：前端维护窗口专属列表用 ?kind=maintenance。非法值返 400。
+	switch kind := c.QueryParam("kind"); kind {
+	case "":
+		// 不过滤
+	case "adhoc":
+		q = q.Where(suppressionrule.KindEQ(suppressionrule.KindAdhoc))
+	case "maintenance":
+		q = q.Where(suppressionrule.KindEQ(suppressionrule.KindMaintenance))
+	default:
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid kind (want adhoc|maintenance)"})
+	}
 	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
 	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
 	if h.authz != nil {
@@ -466,6 +479,7 @@ func (h *Handler) listSuppressions(c *echo.Context) error {
 
 type createSuppressionReq struct {
 	Name             string            `json:"name"`
+	Kind             string            `json:"kind"` // adhoc（默认）| maintenance
 	MatchLabels      map[string]string `json:"match_labels"`
 	TimeWindow       map[string]any    `json:"time_window"`
 	SeverityFilter   []string          `json:"severity_filter"`
@@ -475,6 +489,41 @@ type createSuppressionReq struct {
 	TeamID           int               `json:"team_id"`
 	Enabled          *bool             `json:"enabled"`
 	ExpiresAt        *string           `json:"expires_at"`
+}
+
+// validateTimeWindow 校验 time_window 的 {start,end}（维护窗口计划起止）：
+//   - 两者要么都提供、要么都省略；只给其一视为非法。
+//   - 均须 RFC3339 格式，且 start < end。
+//   - {expires_at} 等其它 key 不在此校验（expires_at 走独立字段）。
+//
+// 返回非空 string 为错误原因（供上层返 400）；空 string 表示合法。
+func validateTimeWindow(tw map[string]any) string {
+	if tw == nil {
+		return ""
+	}
+	startRaw, hasStart := tw["start"]
+	endRaw, hasEnd := tw["end"]
+	// 全空 → 合法（无窗口限制）。
+	startStr, _ := startRaw.(string)
+	endStr, _ := endRaw.(string)
+	if (!hasStart || startStr == "") && (!hasEnd || endStr == "") {
+		return ""
+	}
+	if startStr == "" || endStr == "" {
+		return "time_window requires both start and end (RFC3339)"
+	}
+	start, err1 := time.Parse(time.RFC3339, startStr)
+	if err1 != nil {
+		return "invalid time_window.start (want RFC3339)"
+	}
+	end, err2 := time.Parse(time.RFC3339, endStr)
+	if err2 != nil {
+		return "invalid time_window.end (want RFC3339)"
+	}
+	if !start.Before(end) {
+		return "time_window.start must be before end"
+	}
+	return ""
 }
 
 // CreateSuppressionRule 创建抑制规则。
@@ -502,8 +551,23 @@ func (h *Handler) createSuppression(c *echo.Context) error {
 	if req.Action == "reduce_severity" {
 		action = suppressionrule.ActionReduceSeverity
 	}
+	// kind：默认 adhoc；maintenance=计划内维护窗口。非法值返 400。
+	kind := suppressionrule.KindAdhoc
+	switch req.Kind {
+	case "", "adhoc":
+		kind = suppressionrule.KindAdhoc
+	case "maintenance":
+		kind = suppressionrule.KindMaintenance
+	default:
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid kind (want adhoc|maintenance)"})
+	}
+	// time_window 计划起止校验（维护窗口靠 {start,end} 表达；start<end、RFC3339）。
+	if msg := validateTimeWindow(req.TimeWindow); msg != "" {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: msg})
+	}
 	b := h.db.SuppressionRule.Create().
 		SetName(req.Name).
+		SetKind(kind).
 		SetMatchLabels(req.MatchLabels).
 		SetAction(action)
 	if req.TimeWindow != nil {
@@ -573,6 +637,7 @@ func (h *Handler) getSuppression(c *echo.Context) error {
 
 type updateSuppressionReq struct {
 	Name             *string            `json:"name"`
+	Kind             *string            `json:"kind"` // adhoc | maintenance
 	MatchLabels      *map[string]string `json:"match_labels"`
 	TimeWindow       *map[string]any    `json:"time_window"`
 	SeverityFilter   *[]string          `json:"severity_filter"`
@@ -610,9 +675,33 @@ func (h *Handler) updateSuppression(c *echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
+	// kind：可选切换 adhoc/maintenance；非法值返 400。
+	if req.Kind != nil {
+		switch *req.Kind {
+		case "adhoc":
+			// 由 upd 下方统一设置
+		case "maintenance":
+		default:
+			return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid kind (want adhoc|maintenance)"})
+		}
+	}
+	// time_window 计划起止校验（若本次带了 time_window）。
+	if req.TimeWindow != nil {
+		if msg := validateTimeWindow(*req.TimeWindow); msg != "" {
+			return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: msg})
+		}
+	}
 	upd := h.db.SuppressionRule.UpdateOneID(id)
 	if req.Name != nil {
 		upd.SetName(*req.Name)
+	}
+	if req.Kind != nil {
+		switch *req.Kind {
+		case "adhoc":
+			upd.SetKind(suppressionrule.KindAdhoc)
+		case "maintenance":
+			upd.SetKind(suppressionrule.KindMaintenance)
+		}
 	}
 	if req.MatchLabels != nil {
 		upd.SetMatchLabels(*req.MatchLabels)

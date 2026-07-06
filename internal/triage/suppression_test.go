@@ -314,6 +314,91 @@ func TestEvaluate_MostSpecificRuleWins(t *testing.T) {
 	}
 }
 
+// TestSuppressionRule_KindDefaultAdhoc kind 默认 adhoc（未显式设置时）。
+func TestSuppressionRule_KindDefaultAdhoc(t *testing.T) {
+	c := newTestClient(t)
+	r := makeRule(t, c, "默认", map[string]string{"env": "m"}, suppressionrule.ActionSuppress)
+	if r.Kind != suppressionrule.KindAdhoc {
+		t.Errorf("kind 默认应为 adhoc，got %s", r.Kind)
+	}
+}
+
+// TestSuppressionRule_KindMaintenanceReadWrite kind=maintenance 可写入并回读。
+func TestSuppressionRule_KindMaintenanceReadWrite(t *testing.T) {
+	c := newTestClient(t)
+	r := makeRule(t, c, "维护", map[string]string{"env": "m"}, suppressionrule.ActionSuppress,
+		func(b *ent.SuppressionRuleCreate) { b.SetKind(suppressionrule.KindMaintenance) })
+	reloaded, err := c.SuppressionRule.Get(context.Background(), r.ID)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.Kind != suppressionrule.KindMaintenance {
+		t.Errorf("kind 应为 maintenance，got %s", reloaded.Kind)
+	}
+}
+
+// TestMaintenance_WindowInsideSuppresses 维护窗口 kind：计划窗内命中抑制。
+func TestMaintenance_WindowInsideSuppresses(t *testing.T) {
+	c := newTestClient(t)
+	start := time.Now().Add(-30 * time.Minute).Format(time.RFC3339)
+	end := time.Now().Add(30 * time.Minute).Format(time.RFC3339)
+	makeRule(t, c, "维护窗口-窗内", map[string]string{"env": "m"}, suppressionrule.ActionSuppress,
+		func(b *ent.SuppressionRuleCreate) {
+			b.SetKind(suppressionrule.KindMaintenance).
+				SetTimeWindow(map[string]any{"start": start, "end": end})
+		})
+	se := NewSuppressionEngine(c)
+	evt := createSuppressEvent(t, c, event.SeverityWarning, "d1", map[string]string{"env": "m"})
+	out, err := se.Evaluate(context.Background(), evt)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if !out.Matched {
+		t.Error("维护窗口计划窗内应命中抑制")
+	}
+}
+
+// TestMaintenance_WindowOutsideNoSuppress 维护窗口 kind：计划窗外不抑制（正常告警）。
+func TestMaintenance_WindowOutsideNoSuppress(t *testing.T) {
+	c := newTestClient(t)
+	// 窗口在未来，当前时间在窗外。
+	start := time.Now().Add(time.Hour).Format(time.RFC3339)
+	end := time.Now().Add(2 * time.Hour).Format(time.RFC3339)
+	makeRule(t, c, "维护窗口-窗外", map[string]string{"env": "m"}, suppressionrule.ActionSuppress,
+		func(b *ent.SuppressionRuleCreate) {
+			b.SetKind(suppressionrule.KindMaintenance).
+				SetTimeWindow(map[string]any{"start": start, "end": end})
+		})
+	se := NewSuppressionEngine(c)
+	evt := createSuppressEvent(t, c, event.SeverityWarning, "d1", map[string]string{"env": "m"})
+	out, err := se.Evaluate(context.Background(), evt)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if out.Matched {
+		t.Error("维护窗口计划窗外不应抑制（正常告警）")
+	}
+}
+
+// TestMaintenance_ExpiresAtAutoExpires 维护窗口 kind：expires_at 到期后自动失效（不再抑制）。
+func TestMaintenance_ExpiresAtAutoExpires(t *testing.T) {
+	c := newTestClient(t)
+	past := time.Now().Add(-time.Minute)
+	makeRule(t, c, "维护窗口-已过期", map[string]string{"env": "m"}, suppressionrule.ActionSuppress,
+		func(b *ent.SuppressionRuleCreate) {
+			b.SetKind(suppressionrule.KindMaintenance).SetExpiresAt(past)
+		})
+	se := NewSuppressionEngine(c)
+	evt := createSuppressEvent(t, c, event.SeverityWarning, "d1", map[string]string{"env": "m"})
+	out, err := se.Evaluate(context.Background(), evt)
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if out.Matched {
+		t.Error("维护窗口 expires_at 到期后应自动失效，不再抑制")
+	}
+}
+
 // TestEngine_ProcessSuppressed 集成：Process 命中 suppress 返回 ActionSuppressed、不入 Incident。
 func TestEngine_ProcessSuppressed(t *testing.T) {
 	c := newTestClient(t)

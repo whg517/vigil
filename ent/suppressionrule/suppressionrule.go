@@ -17,6 +17,8 @@ const (
 	FieldID = "id"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
+	// FieldKind holds the string denoting the kind field in the database.
+	FieldKind = "kind"
 	// FieldMatchLabels holds the string denoting the match_labels field in the database.
 	FieldMatchLabels = "match_labels"
 	// FieldTimeWindow holds the string denoting the time_window field in the database.
@@ -58,6 +60,7 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldName,
+	FieldKind,
 	FieldMatchLabels,
 	FieldTimeWindow,
 	FieldSeverityFilter,
@@ -107,6 +110,32 @@ var (
 	// UpdateDefaultUpdatedAt holds the default value on update for the "updated_at" field.
 	UpdateDefaultUpdatedAt func() time.Time
 )
+
+// Kind defines the type for the "kind" enum field.
+type Kind string
+
+// KindAdhoc is the default value of the Kind enum.
+const DefaultKind = KindAdhoc
+
+// Kind values.
+const (
+	KindAdhoc       Kind = "adhoc"
+	KindMaintenance Kind = "maintenance"
+)
+
+func (k Kind) String() string {
+	return string(k)
+}
+
+// KindValidator is a validator for the "kind" field enum values. It is called by the builders before save.
+func KindValidator(k Kind) error {
+	switch k {
+	case KindAdhoc, KindMaintenance:
+		return nil
+	default:
+		return fmt.Errorf("suppressionrule: invalid enum value for kind field: %q", k)
+	}
+}
 
 // Action defines the type for the "action" enum field.
 type Action string
@@ -171,6 +200,11 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByName orders the results by the name field.
 func ByName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldName, opts...).ToFunc()
+}
+
+// ByKind orders the results by the kind field.
+func ByKind(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldKind, opts...).ToFunc()
 }
 
 // ByAction orders the results by the action field.

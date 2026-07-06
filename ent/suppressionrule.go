@@ -21,6 +21,8 @@ type SuppressionRule struct {
 	ID int `json:"id,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
+	// 规则类别：adhoc 日常降噪 / maintenance 计划内维护窗口（有起止时间窗、到期自动失效）
+	Kind suppressionrule.Kind `json:"kind,omitempty"`
 	// label 匹配条件，全等匹配
 	MatchLabels map[string]string `json:"match_labels,omitempty"`
 	// 时间窗口，空=无限制
@@ -83,7 +85,7 @@ func (*SuppressionRule) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case suppressionrule.FieldID, suppressionrule.FieldSourceInsightID:
 			values[i] = new(sql.NullInt64)
-		case suppressionrule.FieldName, suppressionrule.FieldAction, suppressionrule.FieldReduceTo, suppressionrule.FieldSource:
+		case suppressionrule.FieldName, suppressionrule.FieldKind, suppressionrule.FieldAction, suppressionrule.FieldReduceTo, suppressionrule.FieldSource:
 			values[i] = new(sql.NullString)
 		case suppressionrule.FieldExpiresAt, suppressionrule.FieldCreatedAt, suppressionrule.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -115,6 +117,12 @@ func (_m *SuppressionRule) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
 				_m.Name = value.String
+			}
+		case suppressionrule.FieldKind:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field kind", values[i])
+			} else if value.Valid {
+				_m.Kind = suppressionrule.Kind(value.String)
 			}
 		case suppressionrule.FieldMatchLabels:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -245,6 +253,9 @@ func (_m *SuppressionRule) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)
+	builder.WriteString(", ")
+	builder.WriteString("kind=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Kind))
 	builder.WriteString(", ")
 	builder.WriteString("match_labels=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MatchLabels))

@@ -961,6 +961,7 @@ var (
 	SuppressionRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "name", Type: field.TypeString},
+		{Name: "kind", Type: field.TypeEnum, Enums: []string{"adhoc", "maintenance"}, Default: "adhoc"},
 		{Name: "match_labels", Type: field.TypeJSON},
 		{Name: "time_window", Type: field.TypeJSON, Nullable: true},
 		{Name: "severity_filter", Type: field.TypeJSON, Nullable: true},
@@ -983,7 +984,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "suppression_rules_teams_suppression_rules",
-				Columns:    []*schema.Column{SuppressionRulesColumns[14]},
+				Columns:    []*schema.Column{SuppressionRulesColumns[15]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},

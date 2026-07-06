@@ -22,6 +22,15 @@ type SuppressionRule struct {
 func (SuppressionRule) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name").NotEmpty(),
+		// kind 规则类别，区分「日常降噪抑制」与「计划内维护窗口」，便于前端做专属入口/列表：
+		//   - adhoc      ：日常降噪抑制（默认）。长期生效，靠 enabled 启停；无固定起止，
+		//                  time_window 可空（永久）或用于「每天某时段」类粗粒度限制。
+		//   - maintenance：计划内维护窗口。有明确起止时间窗（time_window.{start,end} RFC3339），
+		//                  仅在窗内抑制、窗外正常告警；配 expires_at 后到期自动失效（软失效，无需人工清理）。
+		// 语义边界：kind 只是分类标签，不改变匹配逻辑本身——两类都走同一套 matchRule
+		//（label 全等 + time_window + severity_filter）。前端据此把维护窗口与日常规则分列展示。
+		field.Enum("kind").Values("adhoc", "maintenance").Default("adhoc").
+			Comment("规则类别：adhoc 日常降噪 / maintenance 计划内维护窗口（有起止时间窗、到期自动失效）"),
 		// match_labels Event.labels 匹配条件（全部 key 精确匹配才算命中），JSON
 		field.JSON("match_labels", map[string]string{}).Comment("label 匹配条件，全等匹配"),
 		// time_window 时间窗口（维护窗口场景），JSON：{start,end} 或 {expires_at}

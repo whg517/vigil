@@ -24279,6 +24279,7 @@ type SuppressionRuleMutation struct {
 	typ                   string
 	id                    *int
 	name                  *string
+	kind                  *suppressionrule.Kind
 	match_labels          *map[string]string
 	time_window           *map[string]interface{}
 	severity_filter       *[]string
@@ -24433,6 +24434,42 @@ func (m *SuppressionRuleMutation) OldName(ctx context.Context) (v string, err er
 // ResetName resets all changes to the "name" field.
 func (m *SuppressionRuleMutation) ResetName() {
 	m.name = nil
+}
+
+// SetKind sets the "kind" field.
+func (m *SuppressionRuleMutation) SetKind(s suppressionrule.Kind) {
+	m.kind = &s
+}
+
+// Kind returns the value of the "kind" field in the mutation.
+func (m *SuppressionRuleMutation) Kind() (r suppressionrule.Kind, exists bool) {
+	v := m.kind
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKind returns the old "kind" field's value of the SuppressionRule entity.
+// If the SuppressionRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SuppressionRuleMutation) OldKind(ctx context.Context) (v suppressionrule.Kind, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKind is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKind requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKind: %w", err)
+	}
+	return oldValue.Kind, nil
+}
+
+// ResetKind resets all changes to the "kind" field.
+func (m *SuppressionRuleMutation) ResetKind() {
+	m.kind = nil
 }
 
 // SetMatchLabels sets the "match_labels" field.
@@ -25042,9 +25079,12 @@ func (m *SuppressionRuleMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SuppressionRuleMutation) Fields() []string {
-	fields := make([]string, 0, 13)
+	fields := make([]string, 0, 14)
 	if m.name != nil {
 		fields = append(fields, suppressionrule.FieldName)
+	}
+	if m.kind != nil {
+		fields = append(fields, suppressionrule.FieldKind)
 	}
 	if m.match_labels != nil {
 		fields = append(fields, suppressionrule.FieldMatchLabels)
@@ -25092,6 +25132,8 @@ func (m *SuppressionRuleMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case suppressionrule.FieldName:
 		return m.Name()
+	case suppressionrule.FieldKind:
+		return m.Kind()
 	case suppressionrule.FieldMatchLabels:
 		return m.MatchLabels()
 	case suppressionrule.FieldTimeWindow:
@@ -25127,6 +25169,8 @@ func (m *SuppressionRuleMutation) OldField(ctx context.Context, name string) (en
 	switch name {
 	case suppressionrule.FieldName:
 		return m.OldName(ctx)
+	case suppressionrule.FieldKind:
+		return m.OldKind(ctx)
 	case suppressionrule.FieldMatchLabels:
 		return m.OldMatchLabels(ctx)
 	case suppressionrule.FieldTimeWindow:
@@ -25166,6 +25210,13 @@ func (m *SuppressionRuleMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetName(v)
+		return nil
+	case suppressionrule.FieldKind:
+		v, ok := value.(suppressionrule.Kind)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKind(v)
 		return nil
 	case suppressionrule.FieldMatchLabels:
 		v, ok := value.(map[string]string)
@@ -25350,6 +25401,9 @@ func (m *SuppressionRuleMutation) ResetField(name string) error {
 	switch name {
 	case suppressionrule.FieldName:
 		m.ResetName()
+		return nil
+	case suppressionrule.FieldKind:
+		m.ResetKind()
 		return nil
 	case suppressionrule.FieldMatchLabels:
 		m.ResetMatchLabels()

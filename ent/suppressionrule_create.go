@@ -27,6 +27,20 @@ func (_c *SuppressionRuleCreate) SetName(v string) *SuppressionRuleCreate {
 	return _c
 }
 
+// SetKind sets the "kind" field.
+func (_c *SuppressionRuleCreate) SetKind(v suppressionrule.Kind) *SuppressionRuleCreate {
+	_c.mutation.SetKind(v)
+	return _c
+}
+
+// SetNillableKind sets the "kind" field if the given value is not nil.
+func (_c *SuppressionRuleCreate) SetNillableKind(v *suppressionrule.Kind) *SuppressionRuleCreate {
+	if v != nil {
+		_c.SetKind(*v)
+	}
+	return _c
+}
+
 // SetMatchLabels sets the "match_labels" field.
 func (_c *SuppressionRuleCreate) SetMatchLabels(v map[string]string) *SuppressionRuleCreate {
 	_c.mutation.SetMatchLabels(v)
@@ -225,6 +239,10 @@ func (_c *SuppressionRuleCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *SuppressionRuleCreate) defaults() {
+	if _, ok := _c.mutation.Kind(); !ok {
+		v := suppressionrule.DefaultKind
+		_c.mutation.SetKind(v)
+	}
 	if _, ok := _c.mutation.Action(); !ok {
 		v := suppressionrule.DefaultAction
 		_c.mutation.SetAction(v)
@@ -259,6 +277,14 @@ func (_c *SuppressionRuleCreate) check() error {
 	if v, ok := _c.mutation.Name(); ok {
 		if err := suppressionrule.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.name": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.Kind(); !ok {
+		return &ValidationError{Name: "kind", err: errors.New(`ent: missing required field "SuppressionRule.kind"`)}
+	}
+	if v, ok := _c.mutation.Kind(); ok {
+		if err := suppressionrule.KindValidator(v); err != nil {
+			return &ValidationError{Name: "kind", err: fmt.Errorf(`ent: validator failed for field "SuppressionRule.kind": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.MatchLabels(); !ok {
@@ -321,6 +347,10 @@ func (_c *SuppressionRuleCreate) createSpec() (*SuppressionRule, *sqlgraph.Creat
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(suppressionrule.FieldName, field.TypeString, value)
 		_node.Name = value
+	}
+	if value, ok := _c.mutation.Kind(); ok {
+		_spec.SetField(suppressionrule.FieldKind, field.TypeEnum, value)
+		_node.Kind = value
 	}
 	if value, ok := _c.mutation.MatchLabels(); ok {
 		_spec.SetField(suppressionrule.FieldMatchLabels, field.TypeJSON, value)
