@@ -50,3 +50,6 @@ internal/web/dist/*
 *.log
 /genmigration
 cmd/genmigration/genmigration
+
+# Playwright MCP 浏览器评审临时快照（QA 用，不入库）
+.playwright-mcp/
