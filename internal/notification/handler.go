@@ -552,7 +552,7 @@ func (h *Handler) createSuppression(c *echo.Context) error {
 		action = suppressionrule.ActionReduceSeverity
 	}
 	// kind：默认 adhoc；maintenance=计划内维护窗口。非法值返 400。
-	kind := suppressionrule.KindAdhoc
+	var kind suppressionrule.Kind
 	switch req.Kind {
 	case "", "adhoc":
 		kind = suppressionrule.KindAdhoc
