@@ -4,7 +4,7 @@
  * 仿 services.tsx 模式。
  */
 import { useState } from "react";
-import { Cable, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { Cable, Copy, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateIntegration, useDeleteIntegration, useIntegrations, useUpdateIntegration } from "@/hooks/integrations";
+import { IntegrationWizard } from "@/pages/integration-wizard";
 import { formatTime } from "@/lib/format";
 import { toast } from "sonner";
 import type { Integration, IntegrationType } from "@/lib/types";
@@ -23,6 +24,7 @@ const TYPE_OPTIONS: IntegrationType[] = ["prometheus", "grafana", "webhook", "em
 export function Integrations() {
   const { data, isLoading } = useIntegrations();
   const [creating, setCreating] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [editing, setEditing] = useState<Integration | undefined>(undefined);
 
   return (
@@ -32,9 +34,16 @@ export function Integrations() {
           <h1 className="text-lg font-semibold">接入管理</h1>
           <p className="text-sm text-muted-foreground">告警源接入点 · webhook 鉴权 token</p>
         </div>
-        <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 创建接入点
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* 快速创建：保留原简单表单，供已熟悉配置的用户直接建点。 */}
+          <Button variant="outline" onClick={() => setCreating(true)}>
+            <Plus className="mr-1 h-4 w-4" /> 快速创建
+          </Button>
+          {/* 新建接入向导（M14.6）：分步引导选类型/配置/验证，降低 onboarding 门槛。 */}
+          <Button onClick={() => setWizardOpen(true)}>
+            <Wand2 className="mr-1 h-4 w-4" /> 新建接入向导
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -45,7 +54,12 @@ export function Integrations() {
             <EmptyState
               icon={<Cable className="h-8 w-8" />}
               title="暂无接入点"
-              description="创建接入点后，告警源向 webhook URL 推送即可接入。"
+              description="用「新建接入向导」分步接入告警源，或点「快速创建」直接建点。"
+              action={
+                <Button onClick={() => setWizardOpen(true)}>
+                  <Wand2 className="mr-1 h-4 w-4" /> 新建接入向导
+                </Button>
+              }
             />
           ) : (
             <table className="w-full text-sm">
@@ -69,6 +83,7 @@ export function Integrations() {
       </Card>
 
       {creating && <CreateIntegrationDialog onClose={() => setCreating(false)} />}
+      {wizardOpen && <IntegrationWizard onClose={() => setWizardOpen(false)} />}
       {editing && <EditIntegrationDialog integ={editing} onClose={() => setEditing(undefined)} />}
     </div>
   );

@@ -1,0 +1,67 @@
+- generic [ref=f7e2]:
+  - generic [ref=f7e3]:
+    - complementary [ref=f7e4]:
+      - generic [ref=f7e5]:
+        - img [ref=f7e6]
+        - generic [ref=f7e8]: Vigil
+      - navigation [ref=f7e9]:
+        - link "仪表盘" [ref=f7e10] [cursor=pointer]:
+          - /url: /
+        - link "事件" [ref=f7e11] [cursor=pointer]:
+          - /url: /incidents
+        - link "值班排班" [ref=f7e12] [cursor=pointer]:
+          - /url: /oncall
+        - link "服务" [ref=f7e13] [cursor=pointer]:
+          - /url: /services
+        - link "接入管理" [ref=f7e14] [cursor=pointer]:
+          - /url: /integrations
+        - link "出站订阅" [ref=f7e15] [cursor=pointer]:
+          - /url: /webhook-subscriptions
+        - link "工单集成" [ref=f7e16] [cursor=pointer]:
+          - /url: /ticket-integrations
+        - link "凭据托管" [ref=f7e17] [cursor=pointer]:
+          - /url: /credentials
+        - link "升级策略" [ref=f7e18] [cursor=pointer]:
+          - /url: /escalation-policies
+        - link "用户与团队" [ref=f7e19] [cursor=pointer]:
+          - /url: /users-teams
+        - link "Runbook" [ref=f7e20] [cursor=pointer]:
+          - /url: /runbooks
+        - link "复盘" [ref=f7e21] [cursor=pointer]:
+          - /url: /postmortems
+        - link "设置" [ref=f7e22] [cursor=pointer]:
+          - /url: /settings
+      - button "登出" [ref=f7e24]:
+        - img [ref=f7e25]
+        - text: 登出
+    - main [ref=f7e28]:
+      - generic [ref=f7e29]:
+        - generic [ref=f7e30]:
+          - generic [ref=f7e31]:
+            - heading "凭据托管" [level=1] [ref=f7e32]
+            - paragraph [ref=f7e33]: Runbook / 工单执行器凭据（加密存储，密文仅创建时可填、之后不可见）。
+          - button "创建凭据" [ref=f7e34]:
+            - img [ref=f7e35]
+            - text: 创建凭据
+        - table [ref=f7e38]:
+          - rowgroup [ref=f7e39]:
+            - row "名称 类型 归属团队 创建时间" [ref=f7e40]:
+              - columnheader "名称" [ref=f7e41]
+              - columnheader "类型" [ref=f7e42]
+              - columnheader "归属团队" [ref=f7e43]
+              - columnheader "创建时间" [ref=f7e44]
+              - columnheader [ref=f7e45]
+          - rowgroup [ref=f7e46]:
+            - row "qa-cred-1 bearer 组织级 2026-07-06 11:36" [ref=f7e47]:
+              - cell "qa-cred-1" [ref=f7e48]
+              - cell "bearer" [ref=f7e49]:
+                - generic [ref=f7e50]: bearer
+              - cell "组织级" [ref=f7e51]
+              - cell "2026-07-06 11:36" [ref=f7e52]
+              - cell [ref=f7e53]:
+                - generic [ref=f7e54]:
+                  - button "编辑" [ref=f7e55]:
+                    - img [ref=f7e56]
+                  - button "删除" [ref=f7e59]:
+                    - img [ref=f7e60]
+  - region "Notifications alt+T"

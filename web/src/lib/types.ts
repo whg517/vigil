@@ -105,6 +105,31 @@ export interface IntegrationCreated extends Integration {
   token: string;
 }
 
+// —— 集成配置模板/接线指引（config_template.go，M14.6 集成向导后端辅助）——
+// 向导据此渲染类型清单（step1）+ 配置字段表单（step2）+ 上游接线指引。
+export type IntegrationConfigField = Required<
+  Omit<Schemas["integration.configField"], "example" | "help">
+> & {
+  example?: string;
+  help?: string;
+};
+export type IntegrationConfigTemplate = Required<
+  Omit<Schemas["integration.configTemplate"], "fields" | "setup_hint">
+> & {
+  fields?: IntegrationConfigField[];
+  setup_hint?: string;
+};
+
+// —— 接入点干跑测试预览（testResp/testEventPreview，T5.1）——
+// 归一化预览：labels 命中 / severity / status，供上线前核对配置正确。
+export type IntegrationTestEventPreview = Schemas["integration.testEventPreview"];
+export type IntegrationTestResult = Required<
+  Omit<Schemas["integration.testResp"], "events" | "error">
+> & {
+  events?: IntegrationTestEventPreview[];
+  error?: string;
+};
+
 // —— EscalationPolicy（ent/schema/escalation_policy.go，能力域 6）——
 // target_id 为 string：后端存 schedule_id/user_id/team_id（schema.Target.target_id）。
 export interface EscalationLevel {

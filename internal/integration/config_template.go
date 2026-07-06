@@ -48,7 +48,7 @@ var configTemplates = map[string]configTemplate{
 			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
 		},
 		SetupHint: "在 Alertmanager 的 receivers 中配置 webhook_config：url 指向 " +
-			"`https://<vigil-host>/api/v1/integrations/webhook/<token>`（token 见创建接入点时返回）。" +
+			"`https://<vigil-host>/api/v1/webhook/<token>`（token 见创建接入点时返回）。" +
 			"Vigil 按告警 labels（env/service/tier 等）匹配 Service.labels 完成路由。",
 	},
 	"grafana": {
@@ -59,7 +59,7 @@ var configTemplates = map[string]configTemplate{
 			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
 		},
 		SetupHint: "在 Grafana → Alerting → Contact points 新建 Webhook 类型，URL 指向 " +
-			"`https://<vigil-host>/api/v1/integrations/webhook/<token>`，方法 POST。",
+			"`https://<vigil-host>/api/v1/webhook/<token>`，方法 POST。",
 	},
 	"zabbix": {
 		Type:        "zabbix",
@@ -69,7 +69,7 @@ var configTemplates = map[string]configTemplate{
 			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
 		},
 		SetupHint: "在 Zabbix → Alerts → Media types 新建 Webhook，脚本内 POST 到 " +
-			"`https://<vigil-host>/api/v1/integrations/webhook/<token>`，payload 含 host/severity/trigger 等宏。",
+			"`https://<vigil-host>/api/v1/webhook/<token>`，payload 含 host/severity/trigger 等宏。",
 	},
 	"webhook": {
 		Type:        "webhook",
@@ -78,7 +78,7 @@ var configTemplates = map[string]configTemplate{
 		Fields: []configField{
 			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
 		},
-		SetupHint: "POST JSON 到 `https://<vigil-host>/api/v1/integrations/webhook/<token>`；" +
+		SetupHint: "POST JSON 到 `https://<vigil-host>/api/v1/webhook/<token>`；" +
 			"或用开放 API `POST /api/v1/events`（带 X-Vigil-Key + integration_id）。" +
 			"payload 顶层含 source_event_id/severity/summary/labels 即可被通用适配器识别。",
 	},
@@ -107,7 +107,7 @@ var configTemplates = map[string]configTemplate{
 			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
 		},
 		SetupHint: "在云厂商监控告警动作中配置 webhook/回调，URL 指向 " +
-			"`https://<vigil-host>/api/v1/integrations/webhook/<token>`。具体 payload 因厂商而异，" +
+			"`https://<vigil-host>/api/v1/webhook/<token>`。具体 payload 因厂商而异，" +
 			"可先用接入点干跑测试端点（POST /integrations/:id/test）核对归一化结果。",
 	},
 }

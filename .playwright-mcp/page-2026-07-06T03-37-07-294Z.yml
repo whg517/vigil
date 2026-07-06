@@ -1,0 +1,123 @@
+- generic [ref=f6e2]:
+  - generic [ref=f6e3]:
+    - complementary [ref=f6e4]:
+      - generic [ref=f6e5]:
+        - img [ref=f6e6]
+        - generic [ref=f6e8]: Vigil
+      - navigation [ref=f6e9]:
+        - link "仪表盘" [ref=f6e10] [cursor=pointer]:
+          - /url: /
+        - link "事件" [ref=f6e11] [cursor=pointer]:
+          - /url: /incidents
+        - link "值班排班" [ref=f6e12] [cursor=pointer]:
+          - /url: /oncall
+        - link "服务" [ref=f6e13] [cursor=pointer]:
+          - /url: /services
+        - link "接入管理" [ref=f6e14] [cursor=pointer]:
+          - /url: /integrations
+        - link "出站订阅" [ref=f6e15] [cursor=pointer]:
+          - /url: /webhook-subscriptions
+        - link "工单集成" [ref=f6e16] [cursor=pointer]:
+          - /url: /ticket-integrations
+        - link "凭据托管" [ref=f6e17] [cursor=pointer]:
+          - /url: /credentials
+        - link "升级策略" [ref=f6e18] [cursor=pointer]:
+          - /url: /escalation-policies
+        - link "用户与团队" [ref=f6e19] [cursor=pointer]:
+          - /url: /users-teams
+        - link "Runbook" [ref=f6e20] [cursor=pointer]:
+          - /url: /runbooks
+        - link "复盘" [ref=f6e21] [cursor=pointer]:
+          - /url: /postmortems
+        - link "设置" [ref=f6e22] [cursor=pointer]:
+          - /url: /settings
+      - button "登出" [ref=f6e24]:
+        - img [ref=f6e25]
+        - text: 登出
+    - main [ref=f6e28]:
+      - generic [ref=f6e29]:
+        - generic [ref=f6e30]:
+          - heading "设置" [level=1] [ref=f6e31]
+          - paragraph [ref=f6e32]: 平台配置：IM 平台、权限、通知规则。
+        - generic [ref=f6e33]:
+          - button "权限（RBAC）" [ref=f6e34]
+          - button "API Key" [ref=f6e35]
+          - button "审计日志" [ref=f6e36]
+          - button "通知配置" [ref=f6e37]
+          - button "我的订阅" [ref=f6e38]
+          - button "IM 平台" [ref=f6e39]
+        - generic [ref=f6e40]:
+          - generic [ref=f6e41]:
+            - generic [ref=f6e42]:
+              - generic [ref=f6e43]: 角色
+              - button "创建" [ref=f6e44]:
+                - img [ref=f6e45]
+                - text: 创建
+            - generic [ref=f6e47]:
+              - generic [ref=f6e48]:
+                - generic [ref=f6e49]:
+                  - generic [ref=f6e50]:
+                    - generic [ref=f6e51]: org_admin
+                    - generic [ref=f6e52]: 内置
+                    - generic [ref=f6e53]: org
+                  - generic [ref=f6e54]: 93 个权限点 · 组织超管，拥有全部权限，仅谨慎授予
+                - button [disabled]:
+                  - img
+              - generic [ref=f6e55]:
+                - generic [ref=f6e56]:
+                  - generic [ref=f6e57]:
+                    - generic [ref=f6e58]: team_admin
+                    - generic [ref=f6e59]: 内置
+                    - generic [ref=f6e60]: team
+                  - generic [ref=f6e61]: 74 个权限点 · 团队管理员，管理团队的服务/排班/升级/runbook/集成与成员
+                - button [disabled]:
+                  - img
+              - generic [ref=f6e62]:
+                - generic [ref=f6e63]:
+                  - generic [ref=f6e64]:
+                    - generic [ref=f6e65]: responder
+                    - generic [ref=f6e66]: 内置
+                    - generic [ref=f6e67]: team
+                  - generic [ref=f6e68]: 15 个权限点 · 一线值班，处置事件
+                - button [disabled]:
+                  - img
+              - generic [ref=f6e69]:
+                - generic [ref=f6e70]:
+                  - generic [ref=f6e71]:
+                    - generic [ref=f6e72]: responder_lead
+                    - generic [ref=f6e73]: 内置
+                    - generic [ref=f6e74]: team
+                  - generic [ref=f6e75]: 25 个权限点 · 值班长/技术负责人， responder 权限 + 指派 + 复盘编辑
+                - button [disabled]:
+                  - img
+              - generic [ref=f6e76]:
+                - generic [ref=f6e77]:
+                  - generic [ref=f6e78]:
+                    - generic [ref=f6e79]: subscriber
+                    - generic [ref=f6e80]: 内置
+                    - generic [ref=f6e81]: team
+                  - generic [ref=f6e82]: 3 个权限点 · 只读干系人（如业务方），只看不能改
+                - button [disabled]:
+                  - img
+              - generic [ref=f6e83]:
+                - generic [ref=f6e84]:
+                  - generic [ref=f6e85]:
+                    - generic [ref=f6e86]: oncall
+                    - generic [ref=f6e87]: 内置
+                    - generic [ref=f6e88]: team
+                  - generic [ref=f6e89]: 9 个权限点 · 值班人， responder 权限 + 可为自己换班
+                - button [disabled]:
+                  - img
+          - generic [ref=f6e90]:
+            - generic [ref=f6e91]:
+              - generic [ref=f6e92]: 角色绑定（授权）
+              - button "授权" [ref=f6e93]:
+                - img [ref=f6e94]
+                - text: 授权
+            - generic [ref=f6e97]:
+              - generic [ref=f6e98]:
+                - text: "?→角色#?"
+                - generic [ref=f6e99]: org
+              - button [ref=f6e100]:
+                - img [ref=f6e101]
+  - region "Notifications alt+T"

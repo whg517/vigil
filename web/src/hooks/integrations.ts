@@ -9,10 +9,27 @@ import { toast } from "sonner";
 export const integrationQk = {
   integrations: () => ["integrations"] as const,
   integration: (id: number) => ["integration", id] as const,
+  configTemplates: () => ["integration-config-templates"] as const,
 };
 
 export function useIntegrations() {
   return useQuery({ queryKey: integrationQk.integrations(), queryFn: () => api.listIntegrations() });
+}
+
+/** useConfigTemplates 集成向导 step1：全部接入类型的配置模板/简介（列出可选源）。静态说明数据，长缓存。 */
+export function useConfigTemplates() {
+  return useQuery({
+    queryKey: integrationQk.configTemplates(),
+    queryFn: () => api.listConfigTemplates(),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** useTestIntegration 向导 step4：干跑测试接入点（归一化预览，不建单）。 */
+export function useTestIntegration() {
+  return useMutation({
+    mutationFn: (args: { id: number; payload: unknown }) => api.testIntegration(args.id, args.payload),
+  });
 }
 
 export function useCreateIntegration() {

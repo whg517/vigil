@@ -26,7 +26,9 @@ import type {
   EscalationPolicy,
   Incident,
   Integration,
+  IntegrationConfigTemplate,
   IntegrationCreated,
+  IntegrationTestResult,
   Team,
   User,
   ListResponse,
@@ -181,6 +183,24 @@ export const api = {
   },
   deleteIntegration(id: number) {
     return http.delete(`/integrations/${id}`).then((r) => r.data);
+  },
+  // 集成向导（M14.6）：配置模板/接线指引。无 type=全部类型（step1 列出可选源）；带 type=单类型模板（step2 驱动表单）。
+  listConfigTemplates() {
+    return http
+      .get<{ templates: IntegrationConfigTemplate[] }>("/integrations/config-template")
+      .then((r) => r.data.templates ?? []);
+  },
+  getConfigTemplate(type: string) {
+    return http
+      .get<IntegrationConfigTemplate>("/integrations/config-template", { params: { type } })
+      .then((r) => r.data);
+  },
+  // 干跑测试（T5.1）：样例 payload 走归一化适配器，返回预览（labels/severity），不建单不落库。
+  // payload 为原始 JSON（后端 json.RawMessage 透传给适配器），故用 unknown 而非 spec 的 number[]。
+  testIntegration(id: number, payload: unknown) {
+    return http
+      .post<IntegrationTestResult>(`/integrations/${id}/test`, { payload })
+      .then((r) => r.data);
   },
   // ===== EscalationPolicy 升级策略（能力域 6）=====
   listEscalationPolicies() {

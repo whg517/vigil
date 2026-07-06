@@ -1,0 +1,16 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - heading "Vigil 登录" [level=1] [ref=e9]
+      - paragraph [ref=e10]: 告警处置平台 · 守夜人
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - text: 用户名
+        - textbox "admin" [active] [ref=e13]
+      - generic [ref=e14]:
+        - text: 密码
+        - textbox "••••••" [ref=e15]
+      - button "登录" [disabled]
+    - paragraph [ref=e16]: 默认管理员 admin / changeme，首次登录后请立即改密
+  - region "Notifications alt+T"
