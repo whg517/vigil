@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Bell, Clock, Activity, Radio } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useDashboard } from "@/hooks/incidents";
 import { useDashboardWS } from "@/hooks/use-dashboard-ws";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import { formatDuration } from "@/lib/format";
  */
 export function Dashboard() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { data, isLoading, isError } = useDashboard(7);
   // 实时化（P4·B3）：订阅 /ws/dashboard，任一 incident 变更即 invalidate 重拉 KPI，免轮询。
   // 无 analytics.view 时握手被拒、退避重试，仪表盘仍靠常规拉取兜底（不白屏）。
@@ -41,17 +43,17 @@ export function Dashboard() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">仪表盘</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("dashboard.title")}</h1>
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Radio className="h-3.5 w-3.5 text-severity-info" />
-            近 7 天概览 · 实时刷新
+            {t("dashboard.overview")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => navigate("/wall")}>
-            值班大屏
+            {t("dashboard.wall")}
           </Button>
-          <Button onClick={() => navigate("/incidents")}>查看事件</Button>
+          <Button onClick={() => navigate("/incidents")}>{t("dashboard.viewIncidents")}</Button>
         </div>
       </div>
 
@@ -59,28 +61,28 @@ export function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={<Bell className="h-4 w-4" />}
-          label="活跃事件"
+          label={t("dashboard.kpiActive")}
           value={isLoading ? null : activeCount}
         />
         <KpiCard
           icon={<AlertTriangle className="h-4 w-4" />}
-          label="近 7 天告警"
+          label={t("dashboard.kpiAlerts7d")}
           value={isLoading ? null : alert?.total}
           sub={
             alert && alert.total > 0
-              ? `降噪率 ${Math.round(alert.noiseRate * 100)}%`
+              ? t("dashboard.noiseRate", { rate: Math.round(alert.noiseRate * 100) })
               : undefined
           }
         />
         <KpiCard
           icon={<Clock className="h-4 w-4" />}
-          label="MTTA 平均确认"
+          label={t("dashboard.kpiMtta")}
           value={isLoading ? null : inc?.mttaratio}
           renderValue={(v) => formatDuration(v as number)}
         />
         <KpiCard
           icon={<Clock className="h-4 w-4" />}
-          label="MTTR 平均解决"
+          label={t("dashboard.kpiMttr")}
           value={isLoading ? null : inc?.mttratio}
           renderValue={(v) => formatDuration(v as number)}
         />
@@ -90,13 +92,13 @@ export function Dashboard() {
         {/* 事件严重度分布 */}
         <Card>
           <CardHeader>
-            <CardTitle>事件严重度分布（近 7 天）</CardTitle>
+            <CardTitle>{t("dashboard.severityDist")}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-20 w-full" />
             ) : isError ? null : !inc || inc.total === 0 ? (
-              <EmptyState title="暂无事件数据" />
+              <EmptyState title={t("dashboard.noIncidentData")} />
             ) : (
               <SeverityDistribution bySeverity={inc.bySeverity} total={inc.total} />
             )}
@@ -106,7 +108,7 @@ export function Dashboard() {
         {/* 团队负载 */}
         <Card>
           <CardHeader>
-            <CardTitle>团队负载（事件数）</CardTitle>
+            <CardTitle>{t("dashboard.teamLoad")}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -114,7 +116,7 @@ export function Dashboard() {
             ) : load.length === 0 ? (
               <EmptyState
                 icon={<Activity className="h-8 w-8" />}
-                title="暂无团队数据"
+                title={t("dashboard.noTeamData")}
               />
             ) : (
               <TeamLoadBars load={load} />
@@ -173,10 +175,11 @@ function SeverityDistribution({
   bySeverity: Record<string, number>;
   total: number;
 }) {
-  const rows: { key: "critical" | "warning" | "info"; label: string }[] = [
-    { key: "critical", label: "严重" },
-    { key: "warning", label: "警告" },
-    { key: "info", label: "信息" },
+  // 严重度标签由 SeverityBadge 内部 i18n 渲染，这里仅需 key 与色板。
+  const rows: { key: "critical" | "warning" | "info" }[] = [
+    { key: "critical" },
+    { key: "warning" },
+    { key: "info" },
   ];
   return (
     <div className="space-y-3">
@@ -215,19 +218,20 @@ function TeamLoadBars({
 }: {
   load: { teamID: number; teamName: string; incidents: number }[];
 }) {
-  const max = Math.max(1, ...load.map((t) => t.incidents));
+  const { t } = useTranslation();
+  const max = Math.max(1, ...load.map((item) => item.incidents));
   return (
     <div className="space-y-2.5">
-      {load.map((t) => (
-        <div key={t.teamID} className="space-y-1">
+      {load.map((item) => (
+        <div key={item.teamID} className="space-y-1">
           <div className="flex items-center justify-between text-sm">
-            <span>{t.teamName || `团队 ${t.teamID}`}</span>
-            <span className="text-muted-foreground">{t.incidents}</span>
+            <span>{item.teamName || t("dashboard.teamFallback", { id: item.teamID })}</span>
+            <span className="text-muted-foreground">{item.incidents}</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full bg-primary"
-              style={{ width: `${(t.incidents / max) * 100}%` }}
+              style={{ width: `${(item.incidents / max) * 100}%` }}
             />
           </div>
         </div>

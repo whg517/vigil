@@ -4,6 +4,8 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import "./index.css";
+// i18n：副作用导入，在渲染前完成 i18next init（语言从 localStorage 读，默认 zh）。
+import "@/lib/i18n";
 import App from "./App.tsx";
 
 // QueryClient：全局数据获取/缓存。

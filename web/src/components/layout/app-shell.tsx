@@ -1,31 +1,34 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LogOut, Shield } from "lucide-react";
+import { LogOut, Shield, Languages } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth";
+import { SUPPORTED_LANGS, setLanguage, type Lang } from "@/lib/i18n";
 
 /**
  * AppShell —— 应用主布局：左侧导航 + 右侧内容区（Outlet）。
- * 导航项对应 Vigil 主要功能区，业务页面待实现。
+ * 导航项对应 Vigil 主要功能区。标签走 i18n（nav.*），随语言切换。
  */
 const navItems = [
-  { to: "/", label: "仪表盘", end: true },
-  { to: "/incidents", label: "事件" },
-  { to: "/oncall", label: "值班排班" },
-  { to: "/services", label: "服务" },
-  { to: "/maintenance", label: "维护窗口" },
-  { to: "/integrations", label: "接入管理" },
-  { to: "/webhook-subscriptions", label: "出站订阅" },
-  { to: "/ticket-integrations", label: "工单集成" },
-  { to: "/credentials", label: "凭据托管" },
-  { to: "/escalation-policies", label: "升级策略" },
-  { to: "/users-teams", label: "用户与团队" },
-  { to: "/runbooks", label: "Runbook" },
-  { to: "/postmortems", label: "复盘" },
-  { to: "/settings", label: "设置" },
+  { to: "/", labelKey: "nav.dashboard", end: true },
+  { to: "/incidents", labelKey: "nav.incidents" },
+  { to: "/oncall", labelKey: "nav.oncall" },
+  { to: "/services", labelKey: "nav.services" },
+  { to: "/maintenance", labelKey: "nav.maintenance" },
+  { to: "/integrations", labelKey: "nav.integrations" },
+  { to: "/webhook-subscriptions", labelKey: "nav.webhookSubscriptions" },
+  { to: "/ticket-integrations", labelKey: "nav.ticketIntegrations" },
+  { to: "/credentials", labelKey: "nav.credentials" },
+  { to: "/escalation-policies", labelKey: "nav.escalationPolicies" },
+  { to: "/users-teams", labelKey: "nav.usersTeams" },
+  { to: "/runbooks", labelKey: "nav.runbooks" },
+  { to: "/postmortems", labelKey: "nav.postmortems" },
+  { to: "/settings", labelKey: "nav.settings" },
 ];
 
 export function AppShell() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const onLogout = () => {
     logout();
     navigate("/login", { replace: true });
@@ -54,19 +57,36 @@ export function AppShell() {
                 )
               }
             >
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
-        {/* 登出（闭环登录态）：清 token 跳登录页 */}
-        <div className="border-t p-2">
+        {/* 语言切换 + 登出 */}
+        <div className="space-y-1 border-t p-2">
+          {/* 语言切换：中文 / English，changeLanguage + 写 localStorage 持久化 */}
+          <div className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground">
+            <Languages className="h-4 w-4 shrink-0" />
+            <select
+              aria-label={t("nav.language")}
+              value={i18n.language.startsWith("en") ? "en" : "zh"}
+              onChange={(e) => setLanguage(e.target.value as Lang)}
+              className="flex-1 cursor-pointer rounded-md border bg-transparent px-1.5 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
+            >
+              {SUPPORTED_LANGS.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* 登出（闭环登录态）：清 token 跳登录页 */}
           <button
             type="button"
             onClick={onLogout}
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             <LogOut className="h-4 w-4" />
-            登出
+            {t("nav.logout")}
           </button>
         </div>
       </aside>

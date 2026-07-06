@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useChangePassword } from "@/hooks/auth";
 import { isAuthenticated, logout } from "@/lib/auth";
 import { extractError } from "@/lib/http";
@@ -21,6 +22,7 @@ import { Shield } from "lucide-react";
 
 export function ChangePassword() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const change = useChangePassword();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -37,15 +39,15 @@ export function ChangePassword() {
     setLocalError("");
     // 前端先做一致性与基础强度校验（强度最终以后端为准）。
     if (newPassword !== confirm) {
-      setLocalError("两次输入的新密码不一致");
+      setLocalError(t("changePassword.errMismatch"));
       return;
     }
     if (newPassword === oldPassword) {
-      setLocalError("新密码不能与旧密码相同");
+      setLocalError(t("changePassword.errSameAsOld"));
       return;
     }
     if (newPassword.length < 8) {
-      setLocalError("新密码至少 8 位");
+      setLocalError(t("changePassword.errTooShort"));
       return;
     }
     change.mutate(
@@ -53,7 +55,7 @@ export function ChangePassword() {
       {
         onSuccess: () => {
           // 改密后旧 token 已被吊销：登出并跳登录页，用新密码重新登录。
-          toast.success("密码已修改，请用新密码重新登录");
+          toast.success(t("changePassword.successToast"));
           logout();
           navigate("/login", { replace: true });
         },
@@ -72,13 +74,13 @@ export function ChangePassword() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-slate-900 text-white">
             <Shield className="h-6 w-6" />
           </div>
-          <h1 className="text-xl font-semibold">修改密码</h1>
-          <p className="text-sm text-slate-500">为保障账号安全，请设置新密码</p>
+          <h1 className="text-xl font-semibold">{t("changePassword.title")}</h1>
+          <p className="text-sm text-slate-500">{t("changePassword.subtitle")}</p>
         </div>
 
         <form className="space-y-3" onSubmit={onSubmit}>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">当前密码</label>
+            <label className="text-sm font-medium text-slate-700">{t("changePassword.current")}</label>
             <Input
               type="password"
               value={oldPassword}
@@ -89,22 +91,22 @@ export function ChangePassword() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">新密码</label>
+            <label className="text-sm font-medium text-slate-700">{t("changePassword.new")}</label>
             <Input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="至少 8 位，含字母与数字/符号"
+              placeholder={t("changePassword.newPlaceholder")}
               required
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">确认新密码</label>
+            <label className="text-sm font-medium text-slate-700">{t("changePassword.confirm")}</label>
             <Input
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              placeholder="再次输入新密码"
+              placeholder={t("changePassword.confirmPlaceholder")}
               required
             />
           </div>
@@ -116,12 +118,12 @@ export function ChangePassword() {
             className="w-full"
             disabled={change.isPending || !oldPassword || !newPassword || !confirm}
           >
-            {change.isPending ? "提交中..." : "修改密码"}
+            {change.isPending ? t("changePassword.submitting") : t("changePassword.submit")}
           </Button>
         </form>
 
         <p className="text-center text-xs text-slate-400">
-          修改成功后将退出登录，请用新密码重新登录
+          {t("changePassword.hint")}
         </p>
       </div>
     </div>

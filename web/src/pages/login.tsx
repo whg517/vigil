@@ -5,6 +5,7 @@
  */
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useLogin } from "@/hooks/auth";
 import { isAuthenticated } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { Shield } from "lucide-react";
 
 export function Login() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const login = useLogin();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -47,13 +49,13 @@ export function Login() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-slate-900 text-white">
             <Shield className="h-6 w-6" />
           </div>
-          <h1 className="text-xl font-semibold">Vigil 登录</h1>
-          <p className="text-sm text-slate-500">告警处置平台 · 守夜人</p>
+          <h1 className="text-xl font-semibold">{t("login.title")}</h1>
+          <p className="text-sm text-slate-500">{t("login.subtitle")}</p>
         </div>
 
         <form className="space-y-3" onSubmit={onSubmit}>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">用户名</label>
+            <label className="text-sm font-medium text-slate-700">{t("login.username")}</label>
             <Input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -63,7 +65,7 @@ export function Login() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">密码</label>
+            <label className="text-sm font-medium text-slate-700">{t("login.password")}</label>
             <Input
               type="password"
               value={password}
@@ -73,12 +75,12 @@ export function Login() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={login.isPending || !username || !password}>
-            {login.isPending ? "登录中..." : "登录"}
+            {login.isPending ? t("login.submitting") : t("login.submit")}
           </Button>
         </form>
 
         <p className="text-center text-xs text-slate-400">
-          默认管理员 admin / changeme，首次登录后请立即改密
+          {t("login.hint")}
         </p>
       </div>
     </div>

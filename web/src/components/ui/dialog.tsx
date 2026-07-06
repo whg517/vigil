@@ -1,5 +1,6 @@
 import * as React from "react";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 /**
@@ -21,6 +22,7 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onClose, title, description, children, className }: DialogProps) {
+  const { t } = useTranslation();
   // Esc 关闭
   React.useEffect(() => {
     if (!open) return;
@@ -55,7 +57,7 @@ export function Dialog({ open, onClose, title, description, children, className 
           <button
             className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             onClick={onClose}
-            aria-label="关闭"
+            aria-label={t("common.close")}
           >
             <X className="h-4 w-4" />
           </button>
