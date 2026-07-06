@@ -20,4 +20,10 @@
 --   1. 在 schema_migrations 记录 baseline 版本，使版本链可追溯
 --   2. 作为未来「纯 SQL 增量迁移」的挂载点（如需 hand-tuned SQL 调优时追加 0003_*.sql）
 --   3. SELECT 1 保证幂等可重放（任何 PG 版本都能执行）
+--
+-- 为什么本版本【不提供 .down.sql】（migrate down 会显式拒绝逆向 0002_baseline）：
+--   baseline 代表「全部 ent 实体表已由 auto-migrate 建好」这个锚点。逆向它意味着
+--   drop 掉所有业务表 = 灾难性数据丢失，且这不是 ent 声明式 diff 能安全表达的操作。
+--   ent 实体结构的回退【只能靠备份恢复】（scripts/restore.sh）——这正是 migrate down
+--   诚实拒绝无 down 脚本的版本、而非静默跳过的原因。
 SELECT 1;

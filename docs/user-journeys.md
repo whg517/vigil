@@ -87,7 +87,8 @@
 | Helm 生产部署 | 🟡 | 仅 deployment/service/pdb 3 模板（ingress/subchart/asynqmon values 键为 no-op、无 migrate Job）；🚨 **不设 `VIGIL_APP_ENV`** → K8s 默认 development（`__test__/reset` 无鉴权可清库 + `X-Vigil-User-ID` 头鉴权旁路）（A.3） |
 | 备份脚本（`scripts/backup.sh`） | ✅ | PG pg_dump + Redis BGSAVE；脚本本身不轮转 |
 | 恢复脚本（`scripts/restore.sh`） | ✅ | 含 Redis 丢失场景的升级计时器处置 |
-| migrate-down / 回滚 | ❌ | 无；回滚靠备份恢复 |
+| migrate status | ✅ | 只读列出当前版本 / 已知版本（已应用/待应用 + 是否可逆 + 应用时间）/ 孤儿记录（D.1） |
+| migrate down / 回滚 | 🟡 | **仅逆向有 `.down.sql` 的版本化 SQL 迁移**（倒序 + 每步事务 + 破坏性须确认/`--force` + `--dry-run`）；无 down 脚本的版本**显式拒绝**；⚠️ **ent 实体结构变更（表/列）不可逆**——回退结构靠备份恢复（`restore.sh`）。命令每次强制打印此边界警告（D.1） |
 
 > 用作验收依据前，🚧/🟡/📋 项需在用例中显式标注前置条件或排除范围。
 > 各行「关键限制」的完整依据（代码文件/行为断言）见对应章节与 [`audit/journey-code-audit-2026-07-03.md`](./audit/journey-code-audit-2026-07-03.md)。
@@ -156,7 +157,7 @@
             └────────────────────────────────────────────────────────────┘
 
             ┌──────────── 旅程 D：运维保障（长期运行，低频高危）────────┐
-            │  升级/迁移（双轨 migrate，无 down，靠备份回滚）            │
+            │  升级/迁移（双轨 migrate；status/down 见 D.1，ent 结构靠备份） │
             │  备份（PG pg_dump + Redis BGSAVE，cron 定时）              │
             │  恢复/DR（含 Redis 丢失 = 升级计时器丢失的处置）           │
             └────────────────────────────────────────────────────────────┘
@@ -263,7 +264,7 @@
 4. 验证：/health、发测试告警走通 C 主链路（同 D.1 步骤 2e）
 ```
 
-> ⚠️ 顺序缺陷（如实）：新代码先跑起来、migrate 后补——若新版依赖新列，窗口期内相关 API 报错。ent auto-migrate 是加法型变更（加表加列）时窗口影响小；破坏性变更须停机升级。回滚同 D.1：**无 migrate-down，靠备份恢复**。
+> ⚠️ 顺序缺陷（如实）：新代码先跑起来、migrate 后补——若新版依赖新列，窗口期内相关 API 报错。ent auto-migrate 是加法型变更（加表加列）时窗口影响小；破坏性变更须停机升级。回滚同 D.1：`migrate down` **只能逆向有 `.down.sql` 的版本化 SQL 迁移，ent 实体结构变更不可逆，回退结构靠备份恢复**。
 
 **生产安全加固（chart 已内置，SEC-05，`deployment.yaml` 核实）**：`runAsNonRoot`、UID/GID 65532、`readOnlyRootFilesystem: true`（仅挂 emptyDir `/tmp`）、drop 全部 capabilities、`allowPrivilegeEscalation: false`、seccomp `RuntimeDefault`；liveness/readiness 均打 `/health`（3s 超时探活 PG+Redis，任一挂 → 503 → pod NotReady）。
 **多副本**：API 按 QPS 横扩、Worker 按队列深度横扩；多副本 WebSocket 广播需 Redis pub/sub（当前单实例优先，见 D.4）。
@@ -2770,10 +2771,31 @@ vigil migrate 执行顺序：
 3. 多副本（Helm）：逐 pod 滚动，确保至少 minAvailable 个就绪
 ```
 
+**查看迁移状态（只读）**：
+```
+vigil migrate status
+# 输出：当前版本 / 已知版本清单（已应用●/待应用○ + 是否可逆 + 应用时间）/ 待应用数
+# 「可逆 yes/no」= 该版本化 SQL 迁移是否提供了 .down.sql 逆向脚本
+# 「孤儿记录」= schema_migrations 有、但当前二进制嵌入目录已无对应文件的版本（提示降级/文件被删）
+```
+
+**回滚（migrate down，★ 边界诚实第一，勿被命令名误导）**：
+```
+vigil migrate down                    # 逆向【最近应用的一个】版本化 SQL 迁移
+vigil migrate down --to <version>     # 逆向所有晚于 <version> 的版本（保留该版本及更早）
+vigil migrate down --dry-run          # 只打印将执行什么，不落库
+vigil migrate down --force            # 跳过破坏性步骤的交互确认（自动化场景）
+```
+- 命令**每次都先打印固定警告**：ent auto-migrate 的实体结构变更（建表/加列/改类型）**不会被逆向**，回退实体结构**只能靠备份恢复**（`scripts/restore.sh`）。
+- 只逆向**提供了 `<version>.down.sql` 逆向脚本**的版本；**无 down 脚本的版本会显式拒绝**（报错停止，不静默跳过）——例如 `0002_baseline`（代表全部 ent 表已建好的锚点）无 down 脚本，尝试逆向它会被拒。
+- 破坏性步骤（脚本首部含 `-- vigil:destructive`，如 `DROP EXTENSION vector`）**要求交互输入 `yes` 或 `--force`** 才执行。
+- 执行时**每步一个事务**，失败即停（此前已提交的步骤不回滚，需人工核查）。
+- down 脚本约定：与 up 脚本同目录（`internal/migrate/migrations/`），命名 `<version>.down.sql`（如 up=`pre_0001_pgvector.sql` → down=`pre_0001_pgvector.down.sql`）。
+
 **关键限制**：
-- ❌ **无 migrate-down / 回滚**（`migrate.go` 只前进不后退）。回滚靠**备份恢复**（见 D.2），这是为什么 step 2a 必做。
+- ❌ **migrate down 只逆向「版本化 SQL 迁移」，绝不逆向 ent 实体结构变更**。这是 ent auto-migrate 声明式 diff 的固有约束（无法安全自动逆向），**不是缺陷而是设计边界**。回退实体结构（表/列）**必须用备份恢复**（见 D.2/D.3），这是为什么 step 2a 备份必做。
 - ⚠️ `ent/schema/*.go` 改动后须 `go generate ./ent/...`（开发者责任，见 AGENTS.md）。
-- ⚠️ ent auto-migrate 对**删列/改类型有限制**，破坏性变更须 hand-tuned SQL 挂到 `post_*.sql`。
+- ⚠️ ent auto-migrate 对**删列/改类型有限制**，破坏性变更须 hand-tuned SQL 挂到 `post_*.sql`（并可为其补 `.down.sql` 使其可 down）。
 - ✅ 升级期间服务可用性：API 无状态可滚动；Worker 升级时正在处理的任务由 Asynq 重试；升级计时器存 Redis 不受影响。
 
 ### D.2 备份（H1.5）

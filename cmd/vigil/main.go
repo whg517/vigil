@@ -26,12 +26,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -51,17 +54,42 @@ import (
 func main() {
 	// 子命令分发：migrate 把 ent schema 应用到 PG（生产可换 atlas 版本化迁移）
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		if err := runMigrate(); err != nil {
+		if err := runMigrateCmd(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "migrate failed:", err)
 			os.Exit(1)
 		}
-		fmt.Println("migrate: schema applied")
 		return
 	}
 	if err := run(); err != nil {
 		// 用 os.Exit 而非 panic：避免栈追踪泄露到 stderr，行为可预期
 		fmt.Fprintln(os.Stderr, "vigil run failed:", err)
 		os.Exit(1)
+	}
+}
+
+// runMigrateCmd 分发 migrate 子命令：
+//
+//	vigil migrate            应用未应用的版本化迁移 + ent auto-migrate（前进）
+//	vigil migrate status     展示迁移版本状态（已应用/当前/待应用），只读
+//	vigil migrate down ...   逆向【有 down 脚本的版本化 SQL 迁移】（不逆向 ent 结构变更）
+func runMigrateCmd(args []string) error {
+	sub := ""
+	if len(args) > 0 {
+		sub = args[0]
+	}
+	switch sub {
+	case "status":
+		return runMigrateStatus()
+	case "down":
+		return runMigrateDown(args[1:])
+	case "", "up":
+		if err := runMigrate(); err != nil {
+			return err
+		}
+		fmt.Println("migrate: schema applied")
+		return nil
+	default:
+		return fmt.Errorf("未知子命令 %q（可用: <空>|up|status|down）", sub)
 	}
 }
 
@@ -90,6 +118,73 @@ func runMigrate() error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil
+}
+
+// openSQLDB 打开原生 sql.DB（status/down 只需版本追踪表，无需 ent.Client）。
+func openSQLDB() (*sql.DB, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB, err := sql.Open("postgres", cfg.DB.DSN())
+	if err != nil {
+		return nil, fmt.Errorf("open sql db: %w", err)
+	}
+	return sqlDB, nil
+}
+
+// runMigrateStatus 打印迁移版本状态（只读）。
+func runMigrateStatus() error {
+	sqlDB, err := openSQLDB()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sqlDB.Close() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	report, err := migrate.Status(ctx, sqlDB)
+	if err != nil {
+		return err
+	}
+	return report.Render(os.Stdout)
+}
+
+// runMigrateDown 逆向【有 down 脚本的版本化 SQL 迁移】。
+//
+//	--to <version>  逆向所有晚于该版本的已应用版本（保留该版本）；缺省=只回滚最近 1 个
+//	--dry-run       只打印将执行什么，不落库
+//	--force         跳过破坏性步骤的交互确认（自动化）
+func runMigrateDown(args []string) error {
+	fs := flag.NewFlagSet("migrate down", flag.ContinueOnError)
+	to := fs.String("to", "", "逆向到指定版本（保留该版本及更早）；缺省只回滚最近一个已应用版本")
+	dryRun := fs.Bool("dry-run", false, "只打印将执行什么，不落库")
+	force := fs.Bool("force", false, "跳过破坏性步骤的交互确认")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	sqlDB, err := openSQLDB()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sqlDB.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// 交互确认：从 stdin 读一行，等于 "yes"（忽略大小写与空白）才放行。
+	confirm := func(prompt string) bool {
+		fmt.Print(prompt)
+		reader := bufio.NewReader(os.Stdin)
+		line, _ := reader.ReadString('\n')
+		return strings.EqualFold(strings.TrimSpace(line), "yes")
+	}
+
+	return migrate.Down(ctx, sqlDB, migrate.DownOptions{
+		To:     *to,
+		DryRun: *dryRun,
+		Force:  *force,
+	}, os.Stdout, confirm)
 }
 
 func run() error {
