@@ -324,6 +324,7 @@ const en: Resources = {
     rotationDaily: "Daily",
     rotationWeekly: "Weekly",
     rotationCustom: "Custom",
+    rotationTypeHelp: "Daily = rotate every 24h; Weekly = rotate every 7 days; Custom = set the shift length below.",
     shiftLength: "Shift length",
     handoffTime: "Handoff time",
     startDate: "Start date",

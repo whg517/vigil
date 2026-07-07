@@ -323,6 +323,7 @@ const zh = {
     rotationDaily: "每日（daily）",
     rotationWeekly: "每周（weekly）",
     rotationCustom: "自定义（custom）",
+    rotationTypeHelp: "每日=每 24h 轮换一班；每周=每 7 天轮换一班；自定义=自行设定下方班次时长。",
     shiftLength: "班次时长",
     handoffTime: "交接时刻",
     startDate: "开始日期",

@@ -371,7 +371,9 @@ function ScheduleFormInner({
     };
     if (showRotationFields) {
       req.rotation_type = l.rotation_type;
-      req.shift_length = l.shift_length;
+      // 轮换周期由 rotation_type 决定：daily/weekly 固定周期，后端不看 shift_length；
+      // 仅 custom 才带用户自定义的班次时长。
+      if (l.rotation_type === "custom") req.shift_length = l.shift_length;
       req.handoff_time = l.handoff_time;
       if (l.start_date) req.start_date = toRFC3339(l.start_date);
     }
@@ -532,9 +534,10 @@ function ScheduleFormInner({
                     )}
                   </div>
 
-                  {/* 轮值配置（calendar 隐藏） */}
+                  {/* 轮值配置（calendar 隐藏）。轮换周期由 rotation_type 决定：
+                      daily=24h / weekly=168h 固定；仅 custom 才读下方班次时长。 */}
                   {showRotationFields && (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">
                           {t("oncall.rotationType")}
@@ -547,36 +550,44 @@ function ScheduleFormInner({
                           <option value="weekly">{t("oncall.rotationWeekly")}</option>
                           <option value="custom">{t("oncall.rotationCustom")}</option>
                         </Select>
+                        <p className="text-xs text-muted-foreground">
+                          {t("oncall.rotationTypeHelp")}
+                        </p>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">
-                          {t("oncall.shiftLength")}
-                        </label>
-                        <Input
-                          value={l.shift_length}
-                          onChange={(e) => patchLayer(i, { shift_length: e.target.value })}
-                          placeholder="24h"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">
-                          {t("oncall.handoffTime")}
-                        </label>
-                        <Input
-                          value={l.handoff_time}
-                          onChange={(e) => patchLayer(i, { handoff_time: e.target.value })}
-                          placeholder="09:00"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">
-                          {t("oncall.startDate")}
-                        </label>
-                        <Input
-                          type="date"
-                          value={(l.start_date || "").slice(0, 10)}
-                          onChange={(e) => patchLayer(i, { start_date: e.target.value })}
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* 班次时长仅 custom 生效（daily/weekly 周期由类型隐含）→ 非 custom 隐藏 */}
+                        {l.rotation_type === "custom" && (
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">
+                              {t("oncall.shiftLength")}
+                            </label>
+                            <Input
+                              value={l.shift_length}
+                              onChange={(e) => patchLayer(i, { shift_length: e.target.value })}
+                              placeholder="24h"
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">
+                            {t("oncall.handoffTime")}
+                          </label>
+                          <Input
+                            value={l.handoff_time}
+                            onChange={(e) => patchLayer(i, { handoff_time: e.target.value })}
+                            placeholder="09:00"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">
+                            {t("oncall.startDate")}
+                          </label>
+                          <Input
+                            type="date"
+                            value={(l.start_date || "").slice(0, 10)}
+                            onChange={(e) => patchLayer(i, { start_date: e.target.value })}
+                          />
+                        </div>
                       </div>
                     </div>
                   )}

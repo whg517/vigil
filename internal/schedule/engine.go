@@ -338,7 +338,7 @@ func computeRotationUsers(rot *ent.Rotation, at time.Time) []OncallUser {
 	if len(participants) == 0 {
 		return nil
 	}
-	shiftDuration := parseShiftLength(rot.ShiftLength)
+	shiftDuration := shiftDurationFor(rot)
 	if shiftDuration <= 0 {
 		return nil
 	}
@@ -515,6 +515,25 @@ func userModels(us ent.Users, override bool) []OncallUser {
 
 // parseShiftLength 解析班次时长字符串（"24h"/"1week"/"168h"）。
 // 简化实现：支持 h 结尾的纯小时。完整支持需 time.ParseDuration 的扩展。
+// shiftDurationFor 由「轮值类型」决定一个班次的时长（周期）：
+//   - daily  → 固定 24h
+//   - weekly → 固定 7×24h
+//   - custom → 由 shift_length 自定义（支持 "12h"/"48h"/"1week" 等）
+//
+// 修复前引擎只看 shift_length、无视 rotation_type，导致下拉里的「每日/每周/自定义」
+// 对轮换周期毫无影响（选「每周」但 shift_length=24h 仍是每天轮换，标签骗人）。
+// 现让 rotation_type 作为周期主选择，仅 custom 时才取用 shift_length。
+func shiftDurationFor(rot *ent.Rotation) time.Duration {
+	switch rot.RotationType.String() {
+	case "daily":
+		return 24 * time.Hour
+	case "weekly":
+		return 7 * 24 * time.Hour
+	default: // custom（及未知值兜底）由 shift_length 决定
+		return parseShiftLength(rot.ShiftLength)
+	}
+}
+
 func parseShiftLength(s string) time.Duration {
 	if s == "" {
 		return 24 * time.Hour // 默认一天

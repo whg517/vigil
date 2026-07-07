@@ -44,14 +44,14 @@
 ```yaml
 rotation:
   participants: [user_a, user_b, user_c]   # 轮班人员
-  shift_length: "24h"                       # 每班时长
+  shift_length: "24h"                       # 每班时长（仅 rotation_type=custom 生效；daily/weekly 忽略）
   handoff_time: "09:00"                     # 交接时刻
-  rotation_type: daily | weekly | custom    # 轮换周期
+  rotation_type: daily | weekly | custom    # 轮换周期：daily=固定 24h、weekly=固定 168h、custom=取 shift_length
   start_date: "2026-06-01"
   end_date: null                            # null = 无限期
 ```
 
-- **算当前班次**：`班次序号 = floor((T - start_date) / shift_length)`，`当前值班 = participants[班次序号 mod 人数]`。
+- **算当前班次**：`班次序号 = floor((T - start_date) / 周期)`，`当前值班 = participants[班次序号 mod 人数]`；**周期由 `rotation_type` 决定**（daily=24h、weekly=168h、custom=`shift_length`）。
 - **handoff_time**：交接时刻（如每天 09:00 换班），保证换班发生在工作时间。
 - **跨时区**：每个 Schedule 独立 timezone，团队跨时区各自正确计算。
 
