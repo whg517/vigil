@@ -26,15 +26,12 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -69,9 +66,10 @@ func main() {
 
 // runMigrateCmd 分发 migrate 子命令：
 //
-//	vigil migrate            应用未应用的版本化迁移 + ent auto-migrate（前进）
+//	vigil migrate            应用未应用的版本化迁移 + ent auto-migrate（正向）
 //	vigil migrate status     展示迁移版本状态（已应用/当前/待应用），只读
-//	vigil migrate down ...   逆向【有 down 脚本的版本化 SQL 迁移】（不逆向 ent 结构变更）
+//
+// 本项目不提供 down 回滚子命令：升级迁移失败一律通过备份恢复（scripts/restore.sh）完成。
 func runMigrateCmd(args []string) error {
 	sub := ""
 	if len(args) > 0 {
@@ -80,8 +78,6 @@ func runMigrateCmd(args []string) error {
 	switch sub {
 	case "status":
 		return runMigrateStatus()
-	case "down":
-		return runMigrateDown(args[1:])
 	case "", "up":
 		if err := runMigrate(); err != nil {
 			return err
@@ -89,7 +85,7 @@ func runMigrateCmd(args []string) error {
 		fmt.Println("migrate: schema applied")
 		return nil
 	default:
-		return fmt.Errorf("未知子命令 %q（可用: <空>|up|status|down）", sub)
+		return fmt.Errorf("未知子命令 %q（可用: <空>|up|status）", sub)
 	}
 }
 
@@ -120,7 +116,7 @@ func runMigrate() error {
 	return nil
 }
 
-// openSQLDB 打开原生 sql.DB（status/down 只需版本追踪表，无需 ent.Client）。
+// openSQLDB 打开原生 sql.DB（status 只需版本追踪表，无需 ent.Client）。
 func openSQLDB() (*sql.DB, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -147,44 +143,6 @@ func runMigrateStatus() error {
 		return err
 	}
 	return report.Render(os.Stdout)
-}
-
-// runMigrateDown 逆向【有 down 脚本的版本化 SQL 迁移】。
-//
-//	--to <version>  逆向所有晚于该版本的已应用版本（保留该版本）；缺省=只回滚最近 1 个
-//	--dry-run       只打印将执行什么，不落库
-//	--force         跳过破坏性步骤的交互确认（自动化）
-func runMigrateDown(args []string) error {
-	fs := flag.NewFlagSet("migrate down", flag.ContinueOnError)
-	to := fs.String("to", "", "逆向到指定版本（保留该版本及更早）；缺省只回滚最近一个已应用版本")
-	dryRun := fs.Bool("dry-run", false, "只打印将执行什么，不落库")
-	force := fs.Bool("force", false, "跳过破坏性步骤的交互确认")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	sqlDB, err := openSQLDB()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = sqlDB.Close() }()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	// 交互确认：从 stdin 读一行，等于 "yes"（忽略大小写与空白）才放行。
-	confirm := func(prompt string) bool {
-		fmt.Print(prompt)
-		reader := bufio.NewReader(os.Stdin)
-		line, _ := reader.ReadString('\n')
-		return strings.EqualFold(strings.TrimSpace(line), "yes")
-	}
-
-	return migrate.Down(ctx, sqlDB, migrate.DownOptions{
-		To:     *to,
-		DryRun: *dryRun,
-		Force:  *force,
-	}, os.Stdout, confirm)
 }
 
 func run() error {

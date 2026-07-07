@@ -153,22 +153,16 @@ go run ./cmd/vigil migrate
 
 更多本地开发说明见 [`docs/local-dev.md`](local-dev.md)。
 
-### 4.1 查看状态 / 回滚（status / down）
+### 4.1 查看状态 / 回滚（status）
 
 ```bash
-vigil migrate status               # 只读：当前版本 / 已知版本（已应用●待应用○ + 是否可逆 + 时间）/ 孤儿记录
-vigil migrate down                 # 逆向【最近应用的一个】版本化 SQL 迁移
-vigil migrate down --to <version>  # 逆向所有晚于 <version> 的版本（保留该版本及更早）
-vigil migrate down --dry-run       # 只打印将执行什么，不落库
-vigil migrate down --force         # 跳过破坏性步骤（如 DROP EXTENSION）的交互确认
+vigil migrate status               # 只读：当前版本 / 已知版本（已应用●待应用○ + 应用时间）/ 孤儿记录
 ```
 
-**★ 回滚边界（诚实第一，勿被命令名误导）**：
+**★ 回滚只走备份恢复（不做逆向迁移）**：
 
-- `migrate down` **只逆向「版本化 SQL 迁移」**——即提供了 `<version>.down.sql` 逆向脚本的 pre/post SQL 步骤（倒序执行、每步一事务、失败即停）。
-- **ent auto-migrate 的实体结构变更（建表/加列/改类型）无法被逆向**：ent 是声明式 diff，不能安全自动 down。**回退实体结构只能靠备份恢复**（`scripts/restore.sh`）。命令**每次都会先打印此边界警告**。
-- **无 `.down.sql` 的版本会被显式拒绝**（报错停止，不静默跳过）。例如 `0002_baseline`（代表全部 ent 表已建好的锚点）无 down 脚本，尝试逆向它会被拒——这是刻意防呆。
-- **down 脚本约定**：与 up 脚本同目录（`internal/migrate/migrations/`），命名 `<version>.down.sql`（up=`pre_0001_pgvector.sql` → down=`pre_0001_pgvector.down.sql`）。脚本首部含注释 `-- vigil:destructive` 标记破坏性（删数据/结构），执行时要求交互输入 `yes` 或 `--force`。
+- 本项目**不提供 `migrate down`**。升级 / 迁移失败时的回滚**唯一手段是从备份恢复**：`stop vigil → scripts/restore.sh backups/<timestamp> → 部署回旧版本 → start vigil`（详见 §5 / §6 与 user-journeys D.2/D.3）。
+- 之所以不做逆向迁移：ent auto-migrate 是声明式 diff，实体结构变更（建表/加列/改类型）无法安全自动逆向。与其维护脆弱的半自动 down 脚本，不如统一走「升级前必备份、失败即恢复」这条可靠路径——因此升级前的备份是回滚能力的**唯一前提**。
 
 ## 5. 生产 checklist
 
@@ -193,8 +187,8 @@ docker compose exec vigil vigil migrate         # 应用新版本迁移
 docker compose up -d vigil                       # 滚动重启
 ```
 
-> 回滚：先备份（§5）。`migrate down` 只能逆向有 `.down.sql` 的版本化 SQL 迁移，
-> **ent 实体结构变更（表/列）不可逆，回退结构必须用 `scripts/restore.sh` 从备份恢复**（见 §4.1）。
+> 回滚：**升级前必先备份（§5）**。本项目不做逆向迁移，升级 / 迁移失败一律通过
+> **`scripts/restore.sh` 从备份恢复**（`stop → restore → 部署回旧版本 → start`，见 §4.1）。
 
 ## 7. Kubernetes（Helm，生产）
 

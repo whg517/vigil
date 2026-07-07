@@ -16,7 +16,6 @@ type VersionState struct {
 	Version   string     // 版本号（如 0002_baseline / pre_0001_pgvector）
 	Applied   bool       // 是否已应用
 	AppliedAt *time.Time // 应用时间（仅 Applied=true 时有值）
-	HasDown   bool       // 是否提供了 down 逆向脚本
 }
 
 // StatusReport migrate status 的完整结果。
@@ -34,7 +33,7 @@ type StatusReport struct {
 // Status 采集迁移状态。只读，不修改任何数据。
 //
 // 数据来源：
-//   - 嵌入的 migrations/ 目录 → 已知版本清单 + down 脚本存在性
+//   - 嵌入的 migrations/ 目录 → 已知版本清单
 //   - schema_migrations 表     → 已应用版本 + 应用时间
 func Status(ctx context.Context, sqlDB *sql.DB) (*StatusReport, error) {
 	if err := ensureVersionTable(ctx, sqlDB); err != nil {
@@ -55,8 +54,7 @@ func Status(ctx context.Context, sqlDB *sql.DB) (*StatusReport, error) {
 	report := &StatusReport{}
 	for _, v := range known {
 		knownSet[v] = true
-		_, has := downScriptFor(v)
-		st := VersionState{Version: v, HasDown: has}
+		st := VersionState{Version: v}
 		if t, ok := appliedAt[v]; ok {
 			st.Applied = true
 			at := t
@@ -113,7 +111,7 @@ func (r *StatusReport) Render(w io.Writer) error {
 	}
 	e.printf("已知版本: %d  待应用: %d\n\n", len(r.Versions), len(r.Pending))
 
-	e.printf("%-4s %-24s %-10s %-8s %s\n", "", "版本", "状态", "可逆", "应用时间")
+	e.printf("%-4s %-24s %-10s %s\n", "", "版本", "状态", "应用时间")
 	e.printf("------------------------------------------------\n")
 	for _, v := range r.Versions {
 		mark := "○"
@@ -126,11 +124,7 @@ func (r *StatusReport) Render(w io.Writer) error {
 				at = v.AppliedAt.Format("2006-01-02 15:04:05")
 			}
 		}
-		reversible := "no"
-		if v.HasDown {
-			reversible = "yes"
-		}
-		e.printf("%-4s %-24s %-10s %-8s %s\n", mark, v.Version, state, reversible, at)
+		e.printf("%-4s %-24s %-10s %s\n", mark, v.Version, state, at)
 	}
 
 	if len(r.Orphaned) > 0 {
@@ -140,8 +134,7 @@ func (r *StatusReport) Render(w io.Writer) error {
 		}
 	}
 
-	e.printf("\n注：「可逆」仅表示该版本化 SQL 迁移是否提供了 .down.sql 逆向脚本。\n")
-	e.printf("    ent auto-migrate 的实体结构变更（建表/加列）不在版本表里，也不可由 migrate down 逆向，\n")
-	e.printf("    如需回退实体结构变更请用备份恢复（scripts/restore.sh）。\n")
+	e.printf("\n注：本项目不做逆向迁移；回滚请用备份恢复（scripts/restore.sh），\n")
+	e.printf("    ent 结构变更（建表/加列）也一并靠备份恢复回退。\n")
 	return e.Err()
 }

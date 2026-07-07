@@ -26,21 +26,13 @@ var migrationFS embed.FS
 // （如安装 pgvector 扩展），其余在之后执行。
 const preMigratePrefix = "pre_"
 
-// downSuffix down 脚本文件名后缀。约定：版本 <version> 的逆向脚本文件名为
-// <version>.down.sql，与 up 脚本（<version>.sql）同目录（migrations/）。
-//   - up:   0002_baseline.sql        → version = 0002_baseline
-//   - up:   pre_0001_pgvector.sql    → version = pre_0001_pgvector
-//   - down: 0002_baseline.down.sql   ← 对应上面的 down（若提供）
+// downSuffix 历史遗留的 down 脚本文件名后缀（.down.sql）。
 //
-// 注意：并非所有版本都有 down 脚本。baseline / ent 相关的结构无法安全逆向
-// （ent auto-migrate 是声明式 diff，down 需 hand-tuned SQL 或备份恢复），
-// 这类版本不提供 down 脚本，`migrate down` 遇到会显式拒绝而非静默跳过。
+// 本项目【不支持 down 回滚迁移】：升级迁移失败一律通过备份恢复（scripts/restore.sh）完成，
+// 不做版本化逆向迁移。此常量仅用于【防御性排除】——若 migrations/ 目录里残留或误放了
+// 任何 *.down.sql 文件，前向 Run 必须忽略它，绝不能把它当成一个正向迁移执行
+// （历史上 pre_0001_pgvector.down.sql 的 DROP EXTENSION 曾被前向 Run 误跑而导致 migrate 失败）。
 const downSuffix = ".down.sql"
-
-// destructiveMarker down 脚本内的破坏性标记。脚本首部含此标记（注释行）表示
-// 逆向会删除数据/结构（如 DROP EXTENSION / DROP TABLE），`migrate down` 会要求
-// 交互确认或 --force。无此标记的 down 脚本视为安全（如 DROP INDEX）。
-const destructiveMarker = "-- vigil:destructive"
 
 // Run 执行版本化迁移：
 // 1. 确保 schema_migrations 表存在
@@ -59,7 +51,7 @@ func Run(ctx context.Context, sqlDB *sql.DB, entDB *ent.Client) error {
 		return fmt.Errorf("get applied versions: %w", err)
 	}
 
-	// 3. 读取并排序前向迁移文件（排除 .down.sql 逆向脚本）
+	// 3. 读取并排序正向迁移文件（防御性排除任何遗留的 .down.sql）
 	files := forwardMigrationFiles()
 
 	// 4. 分离 pre-migrate 和 post-migrate
@@ -94,10 +86,12 @@ func Run(ctx context.Context, sqlDB *sql.DB, entDB *ent.Client) error {
 	return nil
 }
 
-// forwardMigrationFiles 返回 migrations/ 下所有【前向】迁移文件名（升序）。
-// 关键：排除 .down.sql 逆向脚本——它们只供 migrate down 使用，绝不能被前向 Run
-// 当成独立迁移执行（否则 pre_0001_pgvector.down.sql 的 DROP EXTENSION 会在 up 时误跑，
-// 导致 migrate 失败）。抽成独立函数以便回归测试锁定该排除规则。
+// forwardMigrationFiles 返回 migrations/ 下所有【正向】迁移文件名（升序）。
+//
+// 本项目不支持 down 回滚迁移；回滚靠备份恢复。此处防御性忽略任何遗留/误放的
+// *.down.sql，避免被前向 Run 误当正向迁移执行（历史回归：pre_0001_pgvector.down.sql
+// 的 DROP EXTENSION 曾在 up 时被误跑而导致 migrate 失败）。抽成独立函数以便回归测试
+// 锁定该排除规则。
 func forwardMigrationFiles() []string {
 	entries, err := migrationFS.ReadDir("migrations")
 	if err != nil {
@@ -153,7 +147,7 @@ func getAppliedVersions(ctx context.Context, sqlDB *sql.DB) (map[string]bool, er
 	return applied, rows.Err()
 }
 
-// ensureVersionTable 确保 schema_migrations 表存在（status/down 与 Run 共用）。
+// ensureVersionTable 确保 schema_migrations 表存在（status 与 Run 共用）。
 // DDL 按驱动方言选择：生产 postgres 用 TIMESTAMPTZ/NOW()；测试 sqlite 用
 // TIMESTAMP/CURRENT_TIMESTAMP（sqlite 不识别 TIMESTAMPTZ/NOW()）。
 func ensureVersionTable(ctx context.Context, sqlDB *sql.DB) error {
@@ -176,12 +170,10 @@ func versionOf(fileName string) string {
 	return strings.TrimSuffix(fileName, ".sql")
 }
 
-// migrationVersions 返回 migrations/ 目录内所有 up 迁移文件对应的版本号，
+// migrationVersions 返回 migrations/ 目录内所有正向迁移文件对应的版本号，
 // 按【真实 apply 顺序】排列（与 Run 一致）：pre_* 先（组内文件名升序），
 // 然后非 pre_*（组内文件名升序）——因为 Run 是「pre → ent auto-migrate → post」。
-// 排除 .down.sql（那是逆向脚本，非独立版本）。
-//
-// down 逆向时按本序倒序执行（后应用的先逆向）。
+// 防御性排除任何遗留的 .down.sql（本项目不做逆向迁移，回滚靠备份恢复）。
 func migrationVersions() ([]string, error) {
 	entries, err := migrationFS.ReadDir("migrations")
 	if err != nil {
@@ -194,7 +186,7 @@ func migrationVersions() ([]string, error) {
 			continue
 		}
 		if strings.HasSuffix(name, downSuffix) {
-			continue // 逆向脚本不是独立版本
+			continue // 防御性排除遗留的 .down.sql（非独立版本）
 		}
 		if strings.HasPrefix(name, preMigratePrefix) {
 			preFiles = append(preFiles, name)
@@ -210,20 +202,6 @@ func migrationVersions() ([]string, error) {
 		versions[i] = versionOf(f)
 	}
 	return versions, nil
-}
-
-// downScriptFor 读取版本 version 的 down 脚本内容；不存在返回 (nil, false)。
-func downScriptFor(version string) ([]byte, bool) {
-	content, err := migrationFS.ReadFile("migrations/" + version + downSuffix)
-	if err != nil {
-		return nil, false
-	}
-	return content, true
-}
-
-// isDestructive 判断 down 脚本是否带破坏性标记（删数据/结构）。
-func isDestructive(script []byte) bool {
-	return strings.Contains(string(script), destructiveMarker)
 }
 
 // errWriter 包裹 io.Writer，累积首个写错误，避免每次 Fprint 都手动查错（errcheck）。
@@ -248,12 +226,4 @@ func (e *errWriter) Err() error { return e.err }
 // 仅用于测试期方言适配；生产运行时始终是 postgres。
 func isSQLite(sqlDB *sql.DB) bool {
 	return strings.Contains(fmt.Sprintf("%T", sqlDB.Driver()), "SQLite")
-}
-
-// placeholder 返回参数占位符。生产用 postgres（$1）；测试用 sqlite（?）。
-func placeholder(sqlDB *sql.DB) string {
-	if isSQLite(sqlDB) {
-		return "?"
-	}
-	return "$1"
 }

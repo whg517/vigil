@@ -1,7 +1,7 @@
 // status_test.go 覆盖 migrate status（版本状态采集与展示）。
 //
-// 用 sqlite 内存库承载 schema_migrations 表（status/down 的版本表操作是通用 SQL，
-// 只有占位符方言差异，已由 placeholder() 适配），保证测试无需 Postgres 依赖。
+// 用 sqlite 内存库承载 schema_migrations 表（status 的版本表操作是通用 SQL），
+// 保证测试无需 Postgres 依赖。
 package migrate
 
 import (
@@ -68,16 +68,16 @@ func TestStatus_ListsAppliedCurrentPending(t *testing.T) {
 	if rep.Versions[0].Version != "pre_0001_pgvector" || rep.Versions[1].Version != "0002_baseline" {
 		t.Errorf("apply order wrong: %s, %s", rep.Versions[0].Version, rep.Versions[1].Version)
 	}
-	// pre 已应用、有 down 脚本
-	if !rep.Versions[0].Applied || !rep.Versions[0].HasDown {
-		t.Errorf("pre_0001 should be applied+hasdown: %+v", rep.Versions[0])
+	// pre 已应用
+	if !rep.Versions[0].Applied {
+		t.Errorf("pre_0001 should be applied: %+v", rep.Versions[0])
 	}
 	if rep.Versions[0].AppliedAt == nil {
 		t.Error("applied version should have AppliedAt timestamp")
 	}
-	// baseline 待应用、无 down 脚本
-	if rep.Versions[1].Applied || rep.Versions[1].HasDown {
-		t.Errorf("0002_baseline should be pending+no-down: %+v", rep.Versions[1])
+	// baseline 待应用
+	if rep.Versions[1].Applied {
+		t.Errorf("0002_baseline should be pending: %+v", rep.Versions[1])
 	}
 	// 当前版本 = 最后一个已应用 = pre_0001_pgvector
 	if rep.Current != "pre_0001_pgvector" {
@@ -117,7 +117,7 @@ func TestStatus_Orphaned(t *testing.T) {
 	}
 }
 
-// TestStatus_WriteTo 验证文本输出含关键信息 + ent 边界提示（防误导）。
+// TestStatus_WriteTo 验证文本输出含关键信息 + 备份恢复提示（回滚靠备份，非逆向迁移）。
 func TestStatus_WriteTo(t *testing.T) {
 	db := newTestDB(t)
 	markApplied(t, db, "pre_0001_pgvector")
@@ -130,7 +130,7 @@ func TestStatus_WriteTo(t *testing.T) {
 		t.Fatalf("Render: %v", err)
 	}
 	out := sb.String()
-	for _, want := range []string{"当前版本", "pre_0001_pgvector", "0002_baseline", "备份恢复", "ent auto-migrate"} {
+	for _, want := range []string{"当前版本", "pre_0001_pgvector", "0002_baseline", "备份恢复", "ent 结构变更"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("status output missing %q\n---\n%s", want, out)
 		}
