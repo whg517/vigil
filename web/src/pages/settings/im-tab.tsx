@@ -1,32 +1,34 @@
 /** IM 平台状态（只读）—— IMTab 展示各 IM 平台适配器的实时就绪状态。 */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 
-/** 平台静态元数据（凭证提示 + 能力矩阵），与状态数据合并展示。 */
-const IM_PLATFORM_META: Record<string, { label: string; env: string; capabilities: string }> = {
+/** 平台静态元数据（凭证提示 + 能力矩阵），label/env/capabilities 走 i18n key 由组件内解析。 */
+const IM_PLATFORM_META: Record<string, { labelKey: string; env: string; capabilitiesKey: string }> = {
   feishu: {
-    label: "飞书（Feishu）",
+    labelKey: "settings.im.platformFeishu",
     env: "VIGIL_IM_FEISHU_APP_ID/APP_SECRET",
-    capabilities: "交互卡片✅ 卡片更新✅ 建群✅ @人✅ 命令机器人✅",
+    capabilitiesKey: "settings.im.capabilitiesFeishu",
   },
   dingtalk: {
-    label: "钉钉（DingTalk）",
+    labelKey: "settings.im.platformDingtalk",
     env: "VIGIL_IM_DINGTALK_APP_KEY/APP_SECRET",
-    capabilities: "交互卡片✅ 卡片更新⚠️（降级发新消息）建群✅ @人✅ 命令机器人✅",
+    capabilitiesKey: "settings.im.capabilitiesDingtalk",
   },
   wecom: {
-    label: "企业微信（WeCom）",
-    env: "（待 PoC）",
-    capabilities: "占位适配器（NoopBot），未接入真实 API",
+    labelKey: "settings.im.platformWecom",
+    env: "settings.im.envPending",
+    capabilitiesKey: "settings.im.capabilitiesWecom",
   },
 };
 
 /** IMTab 展示各 IM 平台适配器的实时就绪状态（GET /im/platforms）。凭证敏感，仅显示是否就绪。 */
 export function IMTab() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["im-platforms"],
@@ -45,13 +47,14 @@ export function IMTab() {
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div className="text-sm text-muted-foreground">
             {isLoading ? (
-              "加载平台状态…"
+              t("settings.im.loadingStatus")
             ) : isError ? (
-              <span className="text-destructive">平台状态查询失败，请检查后端 /im/platforms 接口。</span>
+              <span className="text-destructive">{t("settings.im.loadError")}</span>
             ) : (
               <>
-                共 {platforms.length} 个平台，<span className="font-medium text-foreground">{readyCount}</span> 个已就绪。
-                凭证经环境变量配置，此处只读展示状态。
+                {t("settings.im.overviewPrefix", { total: platforms.length })}
+                <span className="font-medium text-foreground">{readyCount}</span>
+                {t("settings.im.overviewSuffix")}
               </>
             )}
           </div>
@@ -60,31 +63,40 @@ export function IMTab() {
             variant="outline"
             onClick={() => qc.invalidateQueries({ queryKey: ["im-platforms"] })}
           >
-            刷新
+            {t("settings.im.refresh")}
           </Button>
         </CardContent>
       </Card>
 
       <div className="grid gap-3 md:grid-cols-2">
         {platforms.map((p) => {
-          const meta = IM_PLATFORM_META[p.platform] ?? { label: p.platform, env: "—", capabilities: "—" };
+          const metaEntry = IM_PLATFORM_META[p.platform];
+          const label = metaEntry ? t(metaEntry.labelKey) : p.platform;
+          const env = metaEntry ? t(metaEntry.env) : "—";
+          const capabilities = metaEntry ? t(metaEntry.capabilitiesKey) : "—";
           const ready = p.available;
           return (
             <Card key={p.platform}>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-base">{meta.label}</CardTitle>
+                <CardTitle className="text-base">{label}</CardTitle>
                 <Badge variant={ready ? "default" : "secondary"}>
-                  {ready ? "已就绪" : p.impl === "noop" ? "未接入" : "未配置"}
+                  {ready
+                    ? t("settings.im.statusReady")
+                    : p.impl === "noop"
+                      ? t("settings.im.statusNotIntegrated")
+                      : t("settings.im.statusNotConfigured")}
                 </Badge>
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
                 <p>
-                  配置环境变量 <code className="rounded bg-muted px-1">{meta.env}</code> 启用。
+                  {t("settings.im.envHintPrefix")}{" "}
+                  <code className="rounded bg-muted px-1">{env}</code>{" "}
+                  {t("settings.im.envHintSuffix")}
                 </p>
-                <p>能力：{meta.capabilities}</p>
+                <p>{t("settings.im.capabilitiesLabel", { capabilities })}</p>
                 {!ready && p.impl !== "noop" && (
                   <p className="text-xs text-muted-foreground">
-                    提示：修改 .env 后重启后端生效。
+                    {t("settings.im.restartHint")}
                   </p>
                 )}
               </CardContent>
@@ -94,7 +106,10 @@ export function IMTab() {
         {platforms.length === 0 && !isLoading && !isError && (
           <Card>
             <CardContent className="p-6">
-              <EmptyState title="无 IM 平台" description="后端未注册任何 IM 适配器。" />
+              <EmptyState
+                title={t("settings.im.emptyTitle")}
+                description={t("settings.im.emptyDescription")}
+              />
             </CardContent>
           </Card>
         )}

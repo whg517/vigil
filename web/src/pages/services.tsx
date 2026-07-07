@@ -5,6 +5,7 @@
  */
 import * as React from "react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pencil, Plus, Trash2, Boxes } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import { formatTime } from "@/lib/format";
 import type { Service } from "@/lib/types";
 
 export function Services() {
+  const { t } = useTranslation();
   const { data, isLoading, isError } = useServices();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Service | undefined>(undefined);
@@ -32,13 +34,11 @@ export function Services() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">服务</h1>
-          <p className="text-sm text-muted-foreground">
-            服务是路由的锚点与软隔离的载体，告警的 label 匹配 Service 命中路由。
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("services.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("services.subtitle")}</p>
         </div>
         <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 创建服务
+          <Plus className="mr-1 h-4 w-4" /> {t("services.create")}
         </Button>
       </div>
 
@@ -53,20 +53,20 @@ export function Services() {
           <div className="p-6">
             <EmptyState
               icon={<Boxes className="h-8 w-8" />}
-              title="还没有服务"
-              description="创建第一个服务，告警将按 label 路由到对应服务。"
+              title={t("services.emptyTitle")}
+              description={t("services.emptyDescription")}
             />
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-2.5 text-left font-medium">名称</th>
-                <th className="px-4 py-2.5 text-left font-medium">Slug</th>
-                <th className="px-4 py-2.5 text-left font-medium">标签</th>
-                <th className="px-4 py-2.5 text-left font-medium">状态</th>
-                <th className="px-4 py-2.5 text-left font-medium">自动建事件</th>
-                <th className="px-4 py-2.5 text-left font-medium">创建时间</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("services.colName")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("services.colSlug")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("services.colLabels")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("services.colStatus")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("services.colAutoCreate")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("services.colCreatedAt")}</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
@@ -87,6 +87,7 @@ export function Services() {
 
 /** ServiceRow 单行 + 编辑/删除。 */
 function ServiceRow({ svc, onEdit }: { svc: Service; onEdit: () => void }) {
+  const { t } = useTranslation();
   const del = useDeleteService();
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
@@ -107,22 +108,22 @@ function ServiceRow({ svc, onEdit }: { svc: Service; onEdit: () => void }) {
       </td>
       <td className="px-4 py-3">
         <Badge variant={svc.status === "active" ? "default" : "secondary"}>
-          {svc.status === "active" ? "启用" : "停用"}
+          {svc.status === "active" ? t("services.statusActive") : t("services.statusDisabled")}
         </Badge>
       </td>
       <td className="px-4 py-3 text-xs text-muted-foreground">
-        {svc.auto_create_incident ? "是" : "否"}
+        {svc.auto_create_incident ? t("services.yes") : t("services.no")}
       </td>
       <td className="px-4 py-3 text-xs text-muted-foreground">{formatTime(svc.created_at)}</td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="icon" title="编辑" onClick={onEdit}>
+          <Button variant="ghost" size="icon" title={t("common.edit")} onClick={onEdit}>
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            title="删除"
+            title={t("common.delete")}
             onClick={() => del.mutate(svc.id)}
             disabled={del.isPending}
           >
@@ -136,6 +137,7 @@ function ServiceRow({ svc, onEdit }: { svc: Service; onEdit: () => void }) {
 
 /** CreateServiceDialog 创建服务表单。 */
 function CreateServiceDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const create = useCreateService();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -154,7 +156,7 @@ function CreateServiceDialog({ onClose }: { onClose: () => void }) {
     }, {});
 
   return (
-    <Dialog open onClose={onClose} title="创建服务" description="服务的 label 用于告警路由匹配。">
+    <Dialog open onClose={onClose} title={t("services.createTitle")} description={t("services.createDescription")}>
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -165,38 +167,38 @@ function CreateServiceDialog({ onClose }: { onClose: () => void }) {
           );
         }}
       >
-        <Field label="名称">
+        <Field label={t("services.fieldName")}>
           <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="payment-api" />
         </Field>
-        <Field label="Slug（唯一标识）">
+        <Field label={t("services.fieldSlug")}>
           <Input value={slug} onChange={(e) => setSlug(e.target.value)} required placeholder="payment" />
         </Field>
-        <Field label="标签（逗号分隔 key=value）">
+        <Field label={t("services.fieldLabels")}>
           <Input value={labelsText} onChange={(e) => setLabelsText(e.target.value)} placeholder="env=prod,tier=1" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="状态">
+          <Field label={t("services.fieldStatus")}>
             <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="active">启用</option>
-              <option value="disabled">停用</option>
+              <option value="active">{t("services.statusActive")}</option>
+              <option value="disabled">{t("services.statusDisabled")}</option>
             </Select>
           </Field>
-          <Field label="自动建事件">
+          <Field label={t("services.fieldAutoCreate")}>
             <Select
               value={autoCreate ? "true" : "false"}
               onChange={(e) => setAutoCreate(e.target.value === "true")}
             >
-              <option value="true">是</option>
-              <option value="false">否</option>
+              <option value="true">{t("services.yes")}</option>
+              <option value="false">{t("services.no")}</option>
             </Select>
           </Field>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={create.isPending || !name || !slug}>
-            创建
+            {t("common.create")}
           </Button>
         </div>
       </form>
@@ -216,6 +218,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 /** EditServiceDialog 编辑服务（名称/标签/状态/自动建事件；slug 创建后不可改）。 */
 function EditServiceDialog({ svc, onClose }: { svc: Service; onClose: () => void }) {
+  const { t } = useTranslation();
   const update = useUpdateService(svc.id);
   const [name, setName] = useState(svc.name);
   const [status, setStatus] = useState(svc.status);
@@ -238,7 +241,12 @@ function EditServiceDialog({ svc, onClose }: { svc: Service; onClose: () => void
     }, {});
 
   return (
-    <Dialog open onClose={onClose} title={`编辑服务 · ${svc.slug}`} description="Slug 为唯一标识，创建后不可修改。">
+    <Dialog
+      open
+      onClose={onClose}
+      title={t("services.editTitle", { slug: svc.slug })}
+      description={t("services.editDescription")}
+    >
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -249,35 +257,35 @@ function EditServiceDialog({ svc, onClose }: { svc: Service; onClose: () => void
           );
         }}
       >
-        <Field label="名称">
+        <Field label={t("services.fieldName")}>
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         </Field>
-        <Field label="标签（逗号分隔 key=value）">
+        <Field label={t("services.fieldLabels")}>
           <Input value={labelsText} onChange={(e) => setLabelsText(e.target.value)} placeholder="env=prod,tier=1" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="状态">
+          <Field label={t("services.fieldStatus")}>
             <Select value={status} onChange={(e) => setStatus(e.target.value as Service["status"])}>
-              <option value="active">启用</option>
-              <option value="disabled">停用</option>
+              <option value="active">{t("services.statusActive")}</option>
+              <option value="disabled">{t("services.statusDisabled")}</option>
             </Select>
           </Field>
-          <Field label="自动建事件">
+          <Field label={t("services.fieldAutoCreate")}>
             <Select
               value={autoCreate ? "true" : "false"}
               onChange={(e) => setAutoCreate(e.target.value === "true")}
             >
-              <option value="true">是</option>
-              <option value="false">否</option>
+              <option value="true">{t("services.yes")}</option>
+              <option value="false">{t("services.no")}</option>
             </Select>
           </Field>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={update.isPending || !name}>
-            保存
+            {t("common.save")}
           </Button>
         </div>
       </form>

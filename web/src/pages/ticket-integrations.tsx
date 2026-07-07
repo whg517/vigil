@@ -5,6 +5,7 @@
  * 仿 integrations.tsx / escalation-policies.tsx 模式。
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pencil, Plus, Ticket, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import type { TicketIntegration, TicketIntegrationType } from "@/lib/types";
 const TYPE_OPTIONS: TicketIntegrationType[] = ["webhook", "jira", "zentao"];
 
 export function TicketIntegrations() {
+  const { t } = useTranslation();
   const { data, isLoading } = useTicketIntegrations();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<TicketIntegration | undefined>(undefined);
@@ -37,13 +39,13 @@ export function TicketIntegrations() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">工单集成</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("ticketIntegrations.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            出向工单集成配置（webhook / Jira / 禅道）。凭据加密存储、不回显。
+            {t("ticketIntegrations.subtitle")}
           </p>
         </div>
         <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 创建集成
+          <Plus className="mr-1 h-4 w-4" /> {t("ticketIntegrations.createButton")}
         </Button>
       </div>
 
@@ -54,19 +56,19 @@ export function TicketIntegrations() {
           ) : !data || data.length === 0 ? (
             <EmptyState
               icon={<Ticket className="h-8 w-8" />}
-              title="暂无工单集成"
-              description="创建工单集成后，可将事件同步建单到 Jira / 禅道 / 自定义 webhook。"
+              title={t("ticketIntegrations.emptyTitle")}
+              description={t("ticketIntegrations.emptyDescription")}
             />
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b text-left text-xs text-muted-foreground">
                 <tr>
-                  <th className="p-3">名称</th>
-                  <th className="p-3">类型</th>
-                  <th className="p-3">建单目标</th>
-                  <th className="p-3">归属团队</th>
-                  <th className="p-3">状态</th>
-                  <th className="p-3">创建时间</th>
+                  <th className="p-3">{t("ticketIntegrations.colName")}</th>
+                  <th className="p-3">{t("ticketIntegrations.colType")}</th>
+                  <th className="p-3">{t("ticketIntegrations.colEndpoint")}</th>
+                  <th className="p-3">{t("ticketIntegrations.colTeam")}</th>
+                  <th className="p-3">{t("ticketIntegrations.colStatus")}</th>
+                  <th className="p-3">{t("ticketIntegrations.colCreatedAt")}</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
@@ -88,6 +90,7 @@ export function TicketIntegrations() {
 
 /** TicketIntegrationRow 单行 + 启停/编辑/删除（凭据不显示）。 */
 function TicketIntegrationRow({ ti, onEdit }: { ti: TicketIntegration; onEdit: () => void }) {
+  const { t } = useTranslation();
   const del = useDeleteTicketIntegration();
   const update = useUpdateTicketIntegration();
   return (
@@ -100,10 +103,12 @@ function TicketIntegrationRow({ ti, onEdit }: { ti: TicketIntegration; onEdit: (
         {ti.endpoint}
       </td>
       <td className="p-3 text-muted-foreground">
-        {ti.team ? String(ti.team.name ?? `team #${ti.team.id}`) : "组织级"}
+        {ti.team ? String(ti.team.name ?? `team #${ti.team.id}`) : t("ticketIntegrations.orgLevel")}
       </td>
       <td className="p-3">
-        <Badge variant={ti.enabled ? "default" : "secondary"}>{ti.enabled ? "启用" : "停用"}</Badge>
+        <Badge variant={ti.enabled ? "default" : "secondary"}>
+          {ti.enabled ? t("ticketIntegrations.statusEnabled") : t("ticketIntegrations.statusDisabled")}
+        </Badge>
       </td>
       <td className="p-3 text-muted-foreground">{formatTime(ti.created_at)}</td>
       <td className="p-3 text-right">
@@ -111,19 +116,19 @@ function TicketIntegrationRow({ ti, onEdit }: { ti: TicketIntegration; onEdit: (
           <Button
             variant="ghost"
             size="sm"
-            title={ti.enabled ? "停用" : "启用"}
+            title={ti.enabled ? t("ticketIntegrations.disableAction") : t("ticketIntegrations.enableAction")}
             disabled={update.isPending}
             onClick={() => update.mutate({ id: ti.id, body: { enabled: !ti.enabled } })}
           >
-            {ti.enabled ? "停用" : "启用"}
+            {ti.enabled ? t("ticketIntegrations.disableAction") : t("ticketIntegrations.enableAction")}
           </Button>
-          <Button size="icon" variant="ghost" title="编辑" onClick={onEdit}>
+          <Button size="icon" variant="ghost" title={t("common.edit")} onClick={onEdit}>
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
             size="icon"
             variant="ghost"
-            title="删除"
+            title={t("common.delete")}
             disabled={del.isPending}
             onClick={() => del.mutate(ti.id)}
           >
@@ -136,18 +141,22 @@ function TicketIntegrationRow({ ti, onEdit }: { ti: TicketIntegration; onEdit: (
 }
 
 /** parseConfigJSON 解析 config JSON 文本；空=不传，非法 JSON=抛错（调用方 toast）。 */
-function parseConfigJSON(text: string): Record<string, unknown> | undefined {
+function parseConfigJSON(
+  text: string,
+  errMsg: string,
+): Record<string, unknown> | undefined {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
   const parsed = JSON.parse(trimmed);
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("config 必须是 JSON 对象");
+    throw new Error(errMsg);
   }
   return parsed as Record<string, unknown>;
 }
 
 /** CreateTicketIntegrationDialog 创建工单集成（凭据仅入不出，config 为项目/字段映射）。 */
 function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const create = useCreateTicketIntegration();
   const { data: teams } = useTeams();
   const [name, setName] = useState("");
@@ -161,9 +170,9 @@ function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     let config: Record<string, unknown> | undefined;
     try {
-      config = parseConfigJSON(configText);
+      config = parseConfigJSON(configText, t("ticketIntegrations.configMustBeObject"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "config 不是合法 JSON");
+      toast.error(err instanceof Error ? err.message : t("ticketIntegrations.configInvalidJson"));
       return;
     }
     create.mutate(
@@ -183,26 +192,26 @@ function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
     <Dialog
       open
       onClose={onClose}
-      title="创建工单集成"
-      description="配置出向建单目标。凭据加密存储、创建后不回显。"
+      title={t("ticketIntegrations.createTitle")}
+      description={t("ticketIntegrations.createDescription")}
     >
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">名称</label>
+            <label className="text-sm font-medium">{t("ticketIntegrations.fieldName")}</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="jira-ops" required autoFocus />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">类型</label>
+            <label className="text-sm font-medium">{t("ticketIntegrations.fieldType")}</label>
             <Select value={type} onChange={(e) => setType(e.target.value as TicketIntegrationType)}>
-              {TYPE_OPTIONS.map((t) => (
-                <option key={t} value={t}>{t}</option>
+              {TYPE_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
               ))}
             </Select>
           </div>
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">建单目标 URL（endpoint）</label>
+          <label className="text-sm font-medium">{t("ticketIntegrations.fieldEndpoint")}</label>
           <Input
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
@@ -211,16 +220,16 @@ function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">凭据（token / 密码，可选）</label>
+          <label className="text-sm font-medium">{t("ticketIntegrations.fieldCredential")}</label>
           <Input
             value={credential}
             onChange={(e) => setCredential(e.target.value)}
             type="password"
-            placeholder="加密存储，之后不回显"
+            placeholder={t("ticketIntegrations.credentialPlaceholder")}
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">config 项目/字段映射（JSON 对象，可选）</label>
+          <label className="text-sm font-medium">{t("ticketIntegrations.fieldConfig")}</label>
           <Textarea
             value={configText}
             onChange={(e) => setConfigText(e.target.value)}
@@ -230,21 +239,21 @@ function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">归属团队（留空=组织级）</label>
+          <label className="text-sm font-medium">{t("ticketIntegrations.fieldTeam")}</label>
           <Select
             value={teamId ? String(teamId) : ""}
             onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : undefined)}
           >
-            <option value="">组织级（无归属）</option>
-            {teams?.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+            <option value="">{t("ticketIntegrations.orgLevelOption")}</option>
+            {teams?.map((team) => (
+              <option key={team.id} value={team.id}>{team.name}</option>
             ))}
           </Select>
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           <Button type="submit" disabled={create.isPending || !name || !endpoint}>
-            {create.isPending ? "创建中..." : "创建"}
+            {create.isPending ? t("common.submitting") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -254,6 +263,7 @@ function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
 
 /** EditTicketIntegrationDialog 编辑工单集成（type 创建后不可改；凭据留空=不改）。 */
 function EditTicketIntegrationDialog({ ti, onClose }: { ti: TicketIntegration; onClose: () => void }) {
+  const { t } = useTranslation();
   const update = useUpdateTicketIntegration();
   const [name, setName] = useState(ti.name);
   const [endpoint, setEndpoint] = useState(ti.endpoint);
@@ -267,9 +277,9 @@ function EditTicketIntegrationDialog({ ti, onClose }: { ti: TicketIntegration; o
     e.preventDefault();
     let config: Record<string, unknown> | undefined;
     try {
-      config = parseConfigJSON(configText);
+      config = parseConfigJSON(configText, t("ticketIntegrations.configMustBeObject"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "config 不是合法 JSON");
+      toast.error(err instanceof Error ? err.message : t("ticketIntegrations.configInvalidJson"));
       return;
     }
     // credential 留空则不传（保留原凭据）；填了则重加密替换。
@@ -282,29 +292,29 @@ function EditTicketIntegrationDialog({ ti, onClose }: { ti: TicketIntegration; o
     <Dialog
       open
       onClose={onClose}
-      title={`编辑工单集成 · ${ti.type}`}
-      description="类型创建后不可修改。凭据留空表示保留原值；填写则重加密替换。"
+      title={t("ticketIntegrations.editTitle", { type: ti.type })}
+      description={t("ticketIntegrations.editDescription")}
     >
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称</label>
+          <label className="text-sm font-medium">{t("ticketIntegrations.fieldName")}</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">建单目标 URL（endpoint）</label>
+          <label className="text-sm font-medium">{t("ticketIntegrations.fieldEndpoint")}</label>
           <Input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} required />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">新凭据（留空=不修改）</label>
+          <label className="text-sm font-medium">{t("ticketIntegrations.fieldNewCredential")}</label>
           <Input
             value={credential}
             onChange={(e) => setCredential(e.target.value)}
             type="password"
-            placeholder="留空则保留原凭据"
+            placeholder={t("ticketIntegrations.newCredentialPlaceholder")}
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">config 项目/字段映射（JSON 对象，可选）</label>
+          <label className="text-sm font-medium">{t("ticketIntegrations.fieldConfig")}</label>
           <Textarea
             value={configText}
             onChange={(e) => setConfigText(e.target.value)}
@@ -320,12 +330,12 @@ function EditTicketIntegrationDialog({ ti, onClose }: { ti: TicketIntegration; o
             onChange={(e) => setEnabled(e.target.checked)}
             className="h-4 w-4"
           />
-          <span>启用（停用后不再向此目标建单）</span>
+          <span>{t("ticketIntegrations.enabledCheckbox")}</span>
         </label>
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           <Button type="submit" disabled={update.isPending || !name || !endpoint}>
-            {update.isPending ? "保存中..." : "保存"}
+            {update.isPending ? t("common.submitting") : t("common.save")}
           </Button>
         </div>
       </form>

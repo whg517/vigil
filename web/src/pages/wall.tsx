@@ -12,6 +12,7 @@
  * 数据全部复用现有 analytics / incidents / oncall 端点 + WS 增量，不新增后端。
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Radio, Clock, Bell, Users, X } from "lucide-react";
 import { useDashboard, useIncidents } from "@/hooks/incidents";
@@ -24,6 +25,7 @@ import type { Incident, Severity } from "@/lib/types";
 const ACTIVE_STATUSES = new Set(["triggered", "escalated", "acked"]);
 
 export function Wall() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [live, setLive] = useState(true);
   const [now, setNow] = useState(() => new Date());
@@ -37,8 +39,8 @@ export function Wall() {
 
   // 大屏时钟（每秒走针）。
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const inc = dash?.incident;
@@ -54,14 +56,14 @@ export function Wall() {
       {/* 顶栏：标题 + 时钟 + 实时指示 + 退出 */}
       <header className="flex items-center justify-between border-b border-zinc-800 px-8 py-5">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-wide">Vigil 值班大屏</h1>
+          <h1 className="text-3xl font-bold tracking-wide">{t("wall.title")}</h1>
           <span
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
               live ? "bg-emerald-500/15 text-emerald-400" : "bg-zinc-700/40 text-zinc-400"
             }`}
           >
             <Radio className={`h-4 w-4 ${live ? "animate-pulse" : ""}`} />
-            {live ? "实时" : "连接中"}
+            {live ? t("wall.live") : t("wall.connecting")}
           </span>
         </div>
         <div className="flex items-center gap-6">
@@ -71,8 +73,8 @@ export function Wall() {
           <button
             onClick={() => navigate("/")}
             className="rounded-md border border-zinc-700 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-            aria-label="退出大屏"
-            title="退出大屏"
+            aria-label={t("wall.exit")}
+            title={t("wall.exit")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -83,25 +85,29 @@ export function Wall() {
       <div className="grid grid-cols-2 gap-4 px-8 py-6 md:grid-cols-4">
         <WallKpi
           icon={<Bell className="h-6 w-6" />}
-          label="活跃事件"
+          label={t("wall.kpiActiveIncidents")}
           value={activeCount}
           danger={criticalCount > 0}
-          hint={criticalCount > 0 ? `${criticalCount} 个严重` : undefined}
+          hint={criticalCount > 0 ? t("wall.criticalCount", { n: criticalCount }) : undefined}
         />
         <WallKpi
           icon={<AlertTriangle className="h-6 w-6" />}
-          label="近 7 天告警"
+          label={t("wall.kpiAlerts7d")}
           value={alert?.total ?? 0}
-          hint={alert && alert.total > 0 ? `降噪 ${Math.round(alert.noiseRate * 100)}%` : undefined}
+          hint={
+            alert && alert.total > 0
+              ? t("wall.noiseRate", { pct: Math.round(alert.noiseRate * 100) })
+              : undefined
+          }
         />
         <WallKpi
           icon={<Clock className="h-6 w-6" />}
-          label="MTTA 平均确认"
+          label={t("wall.kpiMtta")}
           value={formatDuration(inc?.mttaratio)}
         />
         <WallKpi
           icon={<Clock className="h-6 w-6" />}
-          label="MTTR 平均解决"
+          label={t("wall.kpiMttr")}
           value={formatDuration(inc?.mttratio)}
         />
       </div>
@@ -110,13 +116,13 @@ export function Wall() {
       <div className="grid flex-1 grid-cols-1 gap-4 px-8 pb-8 lg:grid-cols-3">
         <section className="lg:col-span-2 flex flex-col rounded-xl border border-zinc-800 bg-zinc-900/60">
           <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
-            <h2 className="text-xl font-semibold">活跃事件</h2>
-            <span className="text-sm text-zinc-400">{activeCount} 个待处置</span>
+            <h2 className="text-xl font-semibold">{t("wall.activeIncidents")}</h2>
+            <span className="text-sm text-zinc-400">{t("wall.pendingCount", { n: activeCount })}</span>
           </div>
           <div className="flex-1 overflow-y-auto">
             {activeCount === 0 ? (
               <div className="flex h-full min-h-[200px] items-center justify-center text-2xl font-medium text-emerald-400">
-                全部平稳，无活跃事件
+                {t("wall.allClear")}
               </div>
             ) : (
               <ul className="divide-y divide-zinc-800">
@@ -131,7 +137,7 @@ export function Wall() {
         <aside className="flex flex-col rounded-xl border border-zinc-800 bg-zinc-900/60">
           <div className="flex items-center gap-2 border-b border-zinc-800 px-6 py-4">
             <Users className="h-5 w-5 text-zinc-400" />
-            <h2 className="text-xl font-semibold">当前值班</h2>
+            <h2 className="text-xl font-semibold">{t("wall.currentOncall")}</h2>
           </div>
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <OncallPanel />
@@ -211,7 +217,8 @@ function severityBar(sev: Severity): string {
 }
 
 function SeverityTag({ severity }: { severity: Severity }) {
-  const label = severity === "critical" ? "严重" : severity === "warning" ? "警告" : "信息";
+  const { t } = useTranslation();
+  const label = t(`enum.severity.${severity}`);
   const cls =
     severity === "critical"
       ? "bg-red-500/20 text-red-300"
@@ -224,14 +231,12 @@ function SeverityTag({ severity }: { severity: Severity }) {
 }
 
 function StatusTag({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    triggered: "已触发",
-    escalated: "已升级",
-    acked: "已确认",
-  };
+  const { t } = useTranslation();
+  const KNOWN = new Set(["triggered", "escalated", "acked"]);
+  const label = KNOWN.has(status) ? t(`enum.status.${status}`) : status;
   return (
     <span className="rounded bg-zinc-700/50 px-2 py-0.5 text-xs text-zinc-300">
-      {map[status] ?? status}
+      {label}
     </span>
   );
 }
@@ -241,10 +246,11 @@ function StatusTag({ status }: { status: string }) {
  * 无排班/未配置时给出提示，不报错。
  */
 function OncallPanel() {
+  const { t } = useTranslation();
   const { data: schedules } = useSchedules();
   const list = schedules ?? [];
   if (list.length === 0) {
-    return <div className="text-zinc-500">暂无排班</div>;
+    return <div className="text-zinc-500">{t("wall.noSchedules")}</div>;
   }
   return (
     <div className="space-y-4">
@@ -256,6 +262,7 @@ function OncallPanel() {
 }
 
 function OncallRow({ scheduleId, scheduleName }: { scheduleId: number; scheduleName: string }) {
+  const { t } = useTranslation();
   const { data } = useOncall(scheduleId);
   // OncallResult 按层组织（primary/secondary/override）；大屏扁平化为「当前在班人」集合。
   const users = (data?.layers ?? []).flatMap((l) => l.users ?? []);
@@ -263,7 +270,7 @@ function OncallRow({ scheduleId, scheduleName }: { scheduleId: number; scheduleN
     <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
       <div className="text-sm text-zinc-400">{scheduleName}</div>
       {users.length === 0 ? (
-        <div className="mt-1 text-lg font-medium text-amber-400">空班（无人值班）</div>
+        <div className="mt-1 text-lg font-medium text-amber-400">{t("wall.emptyShift")}</div>
       ) : (
         <div className="mt-1 flex flex-wrap gap-2">
           {users.map((u) => (

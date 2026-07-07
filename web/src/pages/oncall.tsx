@@ -5,6 +5,7 @@
  * 后端：GET /schedules，POST/PATCH/DELETE /schedules/:id，GET /schedules/:id/oncall，GET /schedules/:id/preview。
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeftRight, CalendarDays, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,13 +31,8 @@ import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Schedule, ScheduleLayer } from "@/lib/types";
 
-const TYPE_LABEL: Record<string, string> = {
-  calendar: "日历",
-  rotation: "轮班",
-  follow_the_sun: "跟随太阳",
-};
-
 export function Oncall() {
+  const { t } = useTranslation();
   const { data: schedules, isLoading: loadingSchedules } = useSchedules();
   const del = useDeleteSchedule();
   const [selected, setSelected] = useState<number | undefined>(undefined);
@@ -52,13 +48,13 @@ export function Oncall() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">值班排班</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("oncall.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            实时回答"此刻谁在班"。排班是蓝图，值班人由引擎实时计算（不存快照）。
+            {t("oncall.subtitle")}
           </p>
         </div>
         <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 创建排班
+          <Plus className="mr-1 h-4 w-4" /> {t("oncall.createSchedule")}
         </Button>
       </div>
 
@@ -69,8 +65,8 @@ export function Oncall() {
           <CardContent className="p-6">
             <EmptyState
               icon={<CalendarDays className="h-8 w-8" />}
-              title="还没有排班"
-              description="创建排班后，告警升级会按排班实时算出在班人。"
+              title={t("oncall.emptyTitle")}
+              description={t("oncall.emptyDesc")}
             />
           </CardContent>
         </Card>
@@ -83,11 +79,11 @@ export function Oncall() {
           >
             {schedules.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name}（{s.timezone}）
+                {t("oncall.scheduleOption", { name: s.name, tz: s.timezone })}
               </option>
             ))}
           </Select>
-          <span className="text-xs text-muted-foreground">预览天数</span>
+          <span className="text-xs text-muted-foreground">{t("oncall.previewDays")}</span>
           <Select
             value={String(days)}
             onChange={(e) => setDays(Number(e.target.value))}
@@ -95,7 +91,7 @@ export function Oncall() {
           >
             {[7, 14, 30, 60].map((d) => (
               <option key={d} value={d}>
-                {d} 天
+                {t("oncall.daysUnit", { n: d })}
               </option>
             ))}
           </Select>
@@ -108,21 +104,27 @@ export function Oncall() {
                   setEditing(schedules.find((s) => s.id === id))
                 }
               >
-                <Pencil className="mr-1 h-4 w-4" /> 编辑
+                <Pencil className="mr-1 h-4 w-4" /> {t("common.edit")}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 disabled={del.isPending}
                 onClick={() => {
-                  if (confirm(`确认删除排班「${schedules.find((s) => s.id === id)?.name}」？`)) {
+                  if (
+                    confirm(
+                      t("oncall.deleteScheduleConfirm", {
+                        name: schedules.find((s) => s.id === id)?.name,
+                      }),
+                    )
+                  ) {
                     del.mutate(id, {
                       onSuccess: () => setSelected(undefined),
                     });
                   }
                 }}
               >
-                <Trash2 className="mr-1 h-4 w-4" /> 删除
+                <Trash2 className="mr-1 h-4 w-4" /> {t("common.delete")}
               </Button>
             </>
           )}
@@ -135,14 +137,14 @@ export function Oncall() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Users className="h-4 w-4" /> 当前在班人
+                <Users className="h-4 w-4" /> {t("oncall.currentOncall")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {oncall.isLoading ? (
                 <Skeleton className="h-16 w-full" />
               ) : oncall.isError || !oncall.data?.layers?.length ? (
-                <p className="text-sm text-muted-foreground">无在班人或排班未配置。</p>
+                <p className="text-sm text-muted-foreground">{t("oncall.noOncall")}</p>
               ) : (
                 <div className="space-y-3">
                   {oncall.data.layers
@@ -151,7 +153,10 @@ export function Oncall() {
                     .map((layer) => (
                       <div key={layer.name}>
                         <div className="text-xs font-medium text-muted-foreground">
-                          {layer.name}（优先级 {layer.priority}）
+                          {t("oncall.layerWithPriority", {
+                            name: layer.name,
+                            priority: layer.priority,
+                          })}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2">
                           {(layer.users ?? []).length === 0 ? (
@@ -178,14 +183,14 @@ export function Oncall() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <CalendarDays className="h-4 w-4" /> 未来 {days} 天预览
+                <CalendarDays className="h-4 w-4" /> {t("oncall.previewTitle", { n: days })}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {preview.isLoading ? (
                 <Skeleton className="h-40 w-full" />
               ) : preview.isError || !preview.data?.days?.length ? (
-                <p className="text-sm text-muted-foreground">暂无预览数据。</p>
+                <p className="text-sm text-muted-foreground">{t("oncall.noPreview")}</p>
               ) : (
                 <div className="max-h-72 space-y-1 overflow-auto pr-1">
                   {preview.data.days.map((day) => {
@@ -203,7 +208,7 @@ export function Oncall() {
                       >
                         <span className="font-mono text-xs text-muted-foreground">{day.date}</span>
                         <span className="text-xs">
-                          {users.join("、") || "—"}
+                          {users.join(t("oncall.userSeparator")) || "—"}
                         </span>
                       </div>
                     );
@@ -234,6 +239,7 @@ function ScheduleFormDialog({
   schedule?: Schedule;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const create = useCreateSchedule();
   const update = useUpdateSchedule();
   const isEdit = !!schedule;
@@ -248,7 +254,7 @@ function ScheduleFormDialog({
       ...prev,
       {
         id: `l${Date.now()}`,
-        name: prev.length === 0 ? "一线" : `L${prev.length + 1}`,
+        name: prev.length === 0 ? t("oncall.firstLayerName") : `L${prev.length + 1}`,
         priority: prev.length + 1,
         rotation_id: "",
       },
@@ -281,31 +287,31 @@ function ScheduleFormDialog({
     <Dialog
       open
       onClose={onClose}
-      title={isEdit ? "编辑排班" : "创建排班"}
-      description="排班是蓝图，分层（primary/secondary/override）决定值班优先级。"
+      title={isEdit ? t("oncall.editSchedule") : t("oncall.createSchedule")}
+      description={t("oncall.formDesc")}
     >
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称</label>
+          <label className="text-sm font-medium">{t("oncall.nameLabel")}</label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="SRE 主排班"
+            placeholder={t("oncall.namePlaceholder")}
             required
             autoFocus
           />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">类型</label>
+            <label className="text-sm font-medium">{t("oncall.typeLabel")}</label>
             <Select value={type} onChange={(e) => setType(e.target.value)}>
-              <option value="rotation">轮班（rotation）</option>
-              <option value="calendar">日历（calendar）</option>
-              <option value="follow_the_sun">跟随太阳（follow_the_sun）</option>
+              <option value="rotation">{t("oncall.typeRotation")}</option>
+              <option value="calendar">{t("oncall.typeCalendar")}</option>
+              <option value="follow_the_sun">{t("oncall.typeFollowTheSun")}</option>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">时区</label>
+            <label className="text-sm font-medium">{t("oncall.timezoneLabel")}</label>
             <Input
               value={timezone}
               onChange={(e) => setTimezone(e.target.value)}
@@ -317,14 +323,14 @@ function ScheduleFormDialog({
         {/* 分层管理 */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">分层</label>
+            <label className="text-sm font-medium">{t("oncall.layersLabel")}</label>
             <Button type="button" size="sm" variant="outline" onClick={addLayer}>
-              <Plus className="mr-1 h-3.5 w-3.5" /> 添加层
+              <Plus className="mr-1 h-3.5 w-3.5" /> {t("oncall.addLayer")}
             </Button>
           </div>
           {layers.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              未配置分层。创建后可在「在班人」无数据时回来补充（关联轮班规则）。
+              {t("oncall.noLayersHint")}
             </p>
           ) : (
             <div className="space-y-2">
@@ -333,7 +339,7 @@ function ScheduleFormDialog({
                   <Input
                     value={l.name}
                     onChange={(e) => patchLayer(i, { name: e.target.value })}
-                    placeholder="一线"
+                    placeholder={t("oncall.firstLayerName")}
                     className="flex-1"
                   />
                   <Input
@@ -342,7 +348,7 @@ function ScheduleFormDialog({
                     value={l.priority}
                     onChange={(e) => patchLayer(i, { priority: Number(e.target.value) || 1 })}
                     className="w-20"
-                    title="优先级（数字越小越高）"
+                    title={t("oncall.priorityHint")}
                   />
                   <Input
                     value={l.rotation_id}
@@ -367,17 +373,17 @@ function ScheduleFormDialog({
         {/* 类型徽标预览 */}
         {isEdit && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Badge variant="outline">{TYPE_LABEL[type] ?? type}</Badge>
-            <span>· {layers.length} 个分层</span>
+            <Badge variant="outline">{t(`oncall.typeLabel_${type}`, { defaultValue: type })}</Badge>
+            <span>· {t("oncall.layerCount", { n: layers.length })}</span>
           </div>
         )}
 
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={pending || !name}>
-            {pending ? "保存中..." : isEdit ? "保存" : "创建"}
+            {pending ? t("common.submitting") : isEdit ? t("common.save") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -390,6 +396,7 @@ function ScheduleFormDialog({
  * 列出某排班的换班记录 + 新建/删除。本人可换自己班，admin 可指派他人（权限由后端 403 兜底）。
  */
 function OverrideSection({ scheduleId }: { scheduleId: number }) {
+  const { t } = useTranslation();
   const { data, isLoading } = useScheduleOverrides(scheduleId);
   const del = useDeleteScheduleOverride(scheduleId);
   const [creating, setCreating] = useState(false);
@@ -398,10 +405,10 @@ function OverrideSection({ scheduleId }: { scheduleId: number }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2 text-base">
-          <ArrowLeftRight className="h-4 w-4" /> 换班 / Override
+          <ArrowLeftRight className="h-4 w-4" /> {t("oncall.overrideSection")}
         </CardTitle>
         <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 新建换班
+          <Plus className="mr-1 h-4 w-4" /> {t("oncall.newOverride")}
         </Button>
       </CardHeader>
       <CardContent>
@@ -410,8 +417,8 @@ function OverrideSection({ scheduleId }: { scheduleId: number }) {
         ) : !data || data.length === 0 ? (
           <EmptyState
             icon={<ArrowLeftRight className="h-8 w-8" />}
-            title="暂无换班"
-            description="临时顶替某段值班，实时在班人会随之改变。"
+            title={t("oncall.overrideEmptyTitle")}
+            description={t("oncall.overrideEmptyDesc")}
           />
         ) : (
           <div className="space-y-2">
@@ -422,8 +429,10 @@ function OverrideSection({ scheduleId }: { scheduleId: number }) {
               >
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{o.user_name || `用户 ${o.user_id}`}</span>
-                    <Badge variant="secondary" className="text-xs">顶替</Badge>
+                    <span className="font-medium">
+                      {o.user_name || t("oncall.userFallback", { id: o.user_id })}
+                    </span>
+                    <Badge variant="secondary" className="text-xs">{t("oncall.overrideBadge")}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {formatTime(o.start_time)} → {formatTime(o.end_time)}
@@ -433,10 +442,10 @@ function OverrideSection({ scheduleId }: { scheduleId: number }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  title="删除换班"
+                  title={t("oncall.deleteOverride")}
                   disabled={del.isPending}
                   onClick={() => {
-                    if (confirm("确认删除此换班？删除后值班将恢复原排班。")) {
+                    if (confirm(t("oncall.deleteOverrideConfirm"))) {
                       del.mutate(o.id);
                     }
                   }}
@@ -463,6 +472,7 @@ function CreateOverrideDialog({
   scheduleId: number;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const create = useCreateScheduleOverride(scheduleId);
   const { data: users } = useUsers();
   const [userId, setUserId] = useState("");
@@ -490,15 +500,15 @@ function CreateOverrideDialog({
     <Dialog
       open
       onClose={onClose}
-      title="新建换班 / Override"
-      description="临时指定某段值班的顶替人。本人换自己班或 admin 指派他人（无权限时后端会拒绝）。"
+      title={t("oncall.newOverrideTitle")}
+      description={t("oncall.newOverrideDesc")}
     >
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">替班人</label>
+          <label className="text-sm font-medium">{t("oncall.substituteLabel")}</label>
           <Select value={userId} onChange={(e) => setUserId(e.target.value)} required>
             <option value="" disabled>
-              选择替班人…
+              {t("oncall.substitutePlaceholder")}
             </option>
             {(users ?? []).map((u) => (
               <option key={u.id} value={u.id}>
@@ -509,7 +519,7 @@ function CreateOverrideDialog({
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">开始时间</label>
+            <label className="text-sm font-medium">{t("oncall.startTimeLabel")}</label>
             <Input
               type="datetime-local"
               value={start}
@@ -518,7 +528,7 @@ function CreateOverrideDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">结束时间</label>
+            <label className="text-sm font-medium">{t("oncall.endTimeLabel")}</label>
             <Input
               type="datetime-local"
               value={end}
@@ -528,22 +538,22 @@ function CreateOverrideDialog({
           </div>
         </div>
         {!!start && !!end && end <= start && (
-          <p className="text-xs text-destructive">结束时间必须晚于开始时间。</p>
+          <p className="text-xs text-destructive">{t("oncall.endAfterStart")}</p>
         )}
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">原因（可选）</label>
+          <label className="text-sm font-medium">{t("oncall.reasonLabel")}</label>
           <Input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="临时调休 / 出差顶班"
+            placeholder={t("oncall.reasonPlaceholder")}
           />
         </div>
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={create.isPending || invalid}>
-            {create.isPending ? "创建中..." : "创建换班"}
+            {create.isPending ? t("oncall.creatingOverride") : t("oncall.createOverride")}
           </Button>
         </div>
       </form>

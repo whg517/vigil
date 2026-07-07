@@ -4,6 +4,7 @@
  * 后端：GET/POST /runbooks，GET/DELETE /runbooks/:id，POST /runbooks/:id/execute。
  */
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import {
   ArrowLeft,
@@ -38,6 +39,7 @@ import { formatTime } from "@/lib/format";
 import type { Runbook, RunbookExecuteResult, RunbookStepResult } from "@/lib/types";
 
 export function Runbooks() {
+  const { t } = useTranslation();
   const { data, isLoading, isError } = useRunbooks();
   const [selected, setSelected] = useState<number | undefined>(undefined);
   const [creating, setCreating] = useState(false);
@@ -50,13 +52,13 @@ export function Runbooks() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Runbook</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("runbooks.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            处置手册：诊断类（只读）Vigil 内置执行；处置类（写操作）须人确认或对接外部平台。
+            {t("runbooks.subtitle")}
           </p>
         </div>
         <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 创建 Runbook
+          <Plus className="mr-1 h-4 w-4" /> {t("runbooks.create")}
         </Button>
       </div>
 
@@ -71,8 +73,8 @@ export function Runbooks() {
           <CardContent className="p-6">
             <EmptyState
               icon={<BookOpen className="h-8 w-8" />}
-              title="还没有 Runbook"
-              description="创建处置手册，告警触发时自动展示处置步骤。"
+              title={t("runbooks.emptyTitle")}
+              description={t("runbooks.emptyDescription")}
             />
           </CardContent>
         </Card>
@@ -89,7 +91,7 @@ export function Runbooks() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{r.name}</span>
                     <Badge variant="outline" className="text-xs">
-                      {r.type === "executable" ? "可执行" : "文档"}
+                      {r.type === "executable" ? t("runbooks.typeExecutable") : t("runbooks.typeDocument")}
                     </Badge>
                   </div>
                   {r.content_markdown && (
@@ -114,6 +116,7 @@ export function Runbooks() {
 
 /** RunbookDetail 详情：markdown 渲染 + 执行（human-in-the-loop）+ 编辑 + 删除。 */
 function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
+  const { t } = useTranslation();
   const { data: rb, isLoading, isError } = useRunbook(id);
   const del = useDeleteRunbook();
   const exec = useExecuteRunbook();
@@ -133,8 +136,8 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
   if (isError || !rb) {
     return (
       <div className="p-6">
-        <Button variant="ghost" onClick={onBack}><ArrowLeft className="mr-1 h-4 w-4" />返回</Button>
-        <EmptyState title="Runbook 不存在" />
+        <Button variant="ghost" onClick={onBack}><ArrowLeft className="mr-1 h-4 w-4" />{t("runbooks.back")}</Button>
+        <EmptyState title={t("runbooks.notFound")} />
       </div>
     );
   }
@@ -143,14 +146,14 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={onBack}>
-          <ArrowLeft className="mr-1 h-4 w-4" />返回列表
+          <ArrowLeft className="mr-1 h-4 w-4" />{t("runbooks.backToList")}
         </Button>
         <div className="flex gap-2">
           <Button onClick={() => setExecuting(true)}>
-            <Play className="mr-1 h-4 w-4" /> 执行
+            <Play className="mr-1 h-4 w-4" /> {t("runbooks.execute")}
           </Button>
           <Button variant="outline" onClick={() => setEditing(true)}>
-            <Pencil className="mr-1 h-4 w-4" /> 编辑
+            <Pencil className="mr-1 h-4 w-4" /> {t("common.edit")}
           </Button>
           <Button
             variant="outline"
@@ -159,7 +162,7 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
             }}
             disabled={del.isPending}
           >
-            <Trash2 className="mr-1 h-4 w-4" /> 删除
+            <Trash2 className="mr-1 h-4 w-4" /> {t("common.delete")}
           </Button>
         </div>
       </div>
@@ -167,13 +170,13 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{rb.name}</h1>
-          <Badge variant="outline">{rb.type === "executable" ? "可执行" : "文档"}</Badge>
+          <Badge variant="outline">{rb.type === "executable" ? t("runbooks.typeExecutable") : t("runbooks.typeDocument")}</Badge>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">处置步骤</CardTitle>
+          <CardTitle className="text-base">{t("runbooks.steps")}</CardTitle>
         </CardHeader>
         <CardContent>
           {rb.content_markdown ? (
@@ -181,7 +184,7 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
               <ReactMarkdown>{rb.content_markdown}</ReactMarkdown>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">（无内容）</p>
+            <p className="text-sm text-muted-foreground">{t("runbooks.noContent")}</p>
           )}
         </CardContent>
       </Card>
@@ -189,7 +192,7 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
       {exec.data && <ExecutionResult result={exec.data} />}
 
       {executing && (
-        <Dialog open onClose={closeExecuting} title="执行 Runbook" description="可执行 Runbook 写操作需人确认（human-in-the-loop）。">
+        <Dialog open onClose={closeExecuting} title={t("runbooks.executeDialogTitle")} description={t("runbooks.executeDialogDescription")}>
           <form
             className="space-y-3"
             onSubmit={(e) => {
@@ -201,7 +204,7 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
             }}
           >
             <label className="block space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">事件 ID</span>
+              <span className="text-xs font-medium text-muted-foreground">{t("runbooks.incidentId")}</span>
               <Input
                 type="number"
                 value={incidentId}
@@ -218,14 +221,16 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 onChange={(e) => setApproveWrites(e.target.checked)}
               />
               <span className="text-amber-900 dark:text-amber-200">
-                <span className="font-medium">我确认执行写操作</span>
-                （回滚/扩容等）。不勾选则仅干跑：诊断类（readonly）步骤照常执行，写操作步骤将被跳过。
+                <Trans i18nKey="runbooks.approveWritesLabel">
+                  <span className="font-medium">我确认执行写操作</span>
+                  （回滚/扩容等）。不勾选则仅干跑：诊断类（readonly）步骤照常执行，写操作步骤将被跳过。
+                </Trans>
               </span>
             </label>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={closeExecuting}>取消</Button>
+              <Button type="button" variant="outline" onClick={closeExecuting}>{t("common.cancel")}</Button>
               <Button type="submit" disabled={exec.isPending || !incidentId}>
-                {approveWrites ? "确认并执行写操作" : "执行（仅干跑）"}
+                {approveWrites ? t("runbooks.confirmExecuteWrites") : t("runbooks.executeDryRun")}
               </Button>
             </div>
           </form>
@@ -245,37 +250,38 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
  * 呼应写审批闸门修复——让审批/阻断结果在 UI 可见（audit B20 / user-journeys C.5.2）。
  */
 function ExecutionResult({ result }: { result: RunbookExecuteResult }) {
+  const { t } = useTranslation();
   const steps = result.steps ?? [];
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          执行结果
+          {t("runbooks.executionResult")}
           {result.aborted ? (
-            <Badge variant="destructive" className="text-xs">已中止</Badge>
+            <Badge variant="destructive" className="text-xs">{t("runbooks.aborted")}</Badge>
           ) : result.pending_approval ? (
             <Badge variant="outline" className="border-amber-400 text-xs text-amber-700 dark:text-amber-300">
-              部分写步骤待审批
+              {t("runbooks.partialPendingApproval")}
             </Badge>
           ) : (
-            <Badge variant="outline" className="text-xs">已完成</Badge>
+            <Badge variant="outline" className="text-xs">{t("runbooks.completed")}</Badge>
           )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {result.aborted && result.reason && (
           <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
-            中止原因：{result.reason}
+            {t("runbooks.abortReason", { reason: result.reason })}
           </p>
         )}
         {result.pending_approval && (
           <p className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200">
             <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            存在写操作步骤因未获批准被阻断（human-in-the-loop 闸门）。如需执行，请重新执行并勾选“我确认执行写操作”。
+            {t("runbooks.pendingApprovalHint")}
           </p>
         )}
         {steps.length === 0 ? (
-          <p className="text-sm text-muted-foreground">该 Runbook 无可执行步骤（文档式或空步骤）。</p>
+          <p className="text-sm text-muted-foreground">{t("runbooks.noExecutableSteps")}</p>
         ) : (
           <ol className="space-y-2">
             {steps.map((s, i) => (
@@ -290,6 +296,7 @@ function ExecutionResult({ result }: { result: RunbookExecuteResult }) {
 
 /** StepResultRow 单步结果行：状态图标 + 名称/动作 + 输出/错误 + 耗时。 */
 function StepResultRow({ step, index }: { step: RunbookStepResult; index: number }) {
+  const { t } = useTranslation();
   // 三态：跳过（写步骤被阻断，未获批）> 失败 > 成功。
   const skipped = step.skipped;
   const failed = !skipped && !step.success;
@@ -306,14 +313,14 @@ function StepResultRow({ step, index }: { step: RunbookStepResult; index: number
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
         )}
         <span className="font-medium">
-          {index + 1}. {step.name || step.step_id || "（未命名步骤）"}
+          {index + 1}. {step.name || step.step_id || t("runbooks.unnamedStep")}
         </span>
         {step.action && (
           <Badge variant="outline" className="text-[10px]">{step.action}</Badge>
         )}
         {skipped && (
           <Badge variant="outline" className="border-amber-400 text-[10px] text-amber-700 dark:text-amber-300">
-            写步骤·待审批
+            {t("runbooks.writeStepPending")}
           </Badge>
         )}
         <span className="ml-auto text-[10px] text-muted-foreground">{formatDuration(step.duration)}</span>
@@ -357,6 +364,7 @@ function formatDuration(ns?: number): string {
  * 可编辑 name / type / content_markdown（后端 PATCH 支持这些字段）。
  */
 function RunbookFormDialog({ runbook, onClose }: { runbook?: Runbook; onClose: () => void }) {
+  const { t } = useTranslation();
   const isEdit = !!runbook;
   const create = useCreateRunbook();
   const update = useUpdateRunbook();
@@ -370,8 +378,8 @@ function RunbookFormDialog({ runbook, onClose }: { runbook?: Runbook; onClose: (
     <Dialog
       open
       onClose={onClose}
-      title={isEdit ? `编辑 Runbook · ${runbook?.name}` : "创建 Runbook"}
-      description="文档式（Markdown）或可执行式。"
+      title={isEdit ? t("runbooks.editTitle", { name: runbook?.name }) : t("runbooks.create")}
+      description={t("runbooks.formDescription")}
     >
       <form
         className="space-y-3"
@@ -385,29 +393,29 @@ function RunbookFormDialog({ runbook, onClose }: { runbook?: Runbook; onClose: (
         }}
       >
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">名称</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("runbooks.name")}</span>
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         </label>
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">类型</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("runbooks.type")}</span>
           <Select value={type} onChange={(e) => setType(e.target.value as Runbook["type"])}>
-            <option value="document">文档（Markdown）</option>
-            <option value="executable">可执行</option>
+            <option value="document">{t("runbooks.typeDocumentOption")}</option>
+            <option value="executable">{t("runbooks.typeExecutable")}</option>
           </Select>
         </label>
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">内容（Markdown）</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("runbooks.contentMarkdown")}</span>
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={8}
-            placeholder={"# 处置步骤\n1. ...\n2. ..."}
+            placeholder={t("runbooks.contentPlaceholder")}
           />
         </label>
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           <Button type="submit" disabled={pending || !name}>
-            {pending ? "保存中..." : isEdit ? "保存" : "创建"}
+            {pending ? t("common.submitting") : isEdit ? t("common.save") : t("common.create")}
           </Button>
         </div>
       </form>

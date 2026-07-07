@@ -6,6 +6,7 @@
  * 仿 integrations.tsx 模式。
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pencil, Plus, Trash2, Webhook } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ const EVENT_TYPES = [
 ];
 
 export function WebhookSubscriptions() {
+  const { t } = useTranslation();
   const { data, isLoading } = useWebhookSubscriptions();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<WebhookSubscription | undefined>(undefined);
@@ -43,13 +45,13 @@ export function WebhookSubscriptions() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">出站订阅</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("webhookSubscriptions.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            把事件（incident）变更推送到外部 URL。可按事件类型过滤、配置签名密钥防伪。
+            {t("webhookSubscriptions.subtitle")}
           </p>
         </div>
         <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 创建订阅
+          <Plus className="mr-1 h-4 w-4" /> {t("webhookSubscriptions.create")}
         </Button>
       </div>
 
@@ -57,25 +59,25 @@ export function WebhookSubscriptions() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">
-              <EmptyState icon={<Webhook className="h-8 w-8" />} title="加载中…" />
+              <EmptyState icon={<Webhook className="h-8 w-8" />} title={t("common.loading")} />
             </div>
           ) : !data || data.length === 0 ? (
             <div className="p-6">
               <EmptyState
                 icon={<Webhook className="h-8 w-8" />}
-                title="暂无出站订阅"
-                description="创建订阅后，事件变更会推送到你的外部 URL。"
+                title={t("webhookSubscriptions.emptyTitle")}
+                description={t("webhookSubscriptions.emptyDescription")}
               />
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-2.5 text-left font-medium">名称</th>
-                  <th className="px-4 py-2.5 text-left font-medium">URL</th>
-                  <th className="px-4 py-2.5 text-left font-medium">事件类型</th>
-                  <th className="px-4 py-2.5 text-left font-medium">状态</th>
-                  <th className="px-4 py-2.5 text-left font-medium">创建时间</th>
+                  <th className="px-4 py-2.5 text-left font-medium">{t("webhookSubscriptions.colName")}</th>
+                  <th className="px-4 py-2.5 text-left font-medium">{t("webhookSubscriptions.colUrl")}</th>
+                  <th className="px-4 py-2.5 text-left font-medium">{t("webhookSubscriptions.colEventTypes")}</th>
+                  <th className="px-4 py-2.5 text-left font-medium">{t("webhookSubscriptions.colStatus")}</th>
+                  <th className="px-4 py-2.5 text-left font-medium">{t("webhookSubscriptions.colCreatedAt")}</th>
                   <th className="px-4 py-2.5"></th>
                 </tr>
               </thead>
@@ -105,6 +107,7 @@ function SubscriptionRow({
   sub: WebhookSubscription;
   onEdit: () => void;
 }) {
+  const { t } = useTranslation();
   const del = useDeleteWebhookSubscription();
   const update = useUpdateWebhookSubscription();
   const types = sub.event_types ?? [];
@@ -119,13 +122,13 @@ function SubscriptionRow({
       <td className="px-4 py-3">
         {types.length === 0 ? (
           <Badge variant="outline" className="text-xs">
-            所有事件
+            {t("webhookSubscriptions.allEvents")}
           </Badge>
         ) : (
           <div className="flex flex-wrap gap-1">
-            {types.map((t) => (
-              <Badge key={t} variant="secondary" className="font-mono text-xs">
-                {t}
+            {types.map((type) => (
+              <Badge key={type} variant="secondary" className="font-mono text-xs">
+                {type}
               </Badge>
             ))}
           </div>
@@ -133,7 +136,7 @@ function SubscriptionRow({
       </td>
       <td className="px-4 py-3">
         <Badge variant={sub.enabled ? "default" : "secondary"}>
-          {sub.enabled ? "启用" : "停用"}
+          {sub.enabled ? t("webhookSubscriptions.enabled") : t("webhookSubscriptions.disabled")}
         </Badge>
       </td>
       <td className="px-4 py-3 text-xs text-muted-foreground">{formatTime(sub.created_at)}</td>
@@ -142,19 +145,19 @@ function SubscriptionRow({
           <Button
             variant="ghost"
             size="sm"
-            title={sub.enabled ? "停用" : "启用"}
+            title={sub.enabled ? t("webhookSubscriptions.disable") : t("webhookSubscriptions.enable")}
             disabled={update.isPending}
             onClick={() => update.mutate({ id: sub.id, body: { enabled: !sub.enabled } })}
           >
-            {sub.enabled ? "停用" : "启用"}
+            {sub.enabled ? t("webhookSubscriptions.disable") : t("webhookSubscriptions.enable")}
           </Button>
-          <Button variant="ghost" size="icon" title="编辑" onClick={onEdit}>
+          <Button variant="ghost" size="icon" title={t("common.edit")} onClick={onEdit}>
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            title="删除"
+            title={t("common.delete")}
             disabled={del.isPending}
             onClick={() => del.mutate(sub.id)}
           >
@@ -174,22 +177,23 @@ function EventTypeSelector({
   selected: string[];
   onToggle: (t: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-1.5">
-      <label className="text-sm font-medium">事件类型（多选，留空=订阅所有）</label>
+      <label className="text-sm font-medium">{t("webhookSubscriptions.eventTypesLabel")}</label>
       <div className="flex flex-wrap gap-2">
-        {EVENT_TYPES.map((t) => (
+        {EVENT_TYPES.map((type) => (
           <button
-            key={t}
+            key={type}
             type="button"
-            onClick={() => onToggle(t)}
+            onClick={() => onToggle(type)}
             className={`rounded-md border px-3 py-1 font-mono text-xs transition-colors ${
-              selected.includes(t)
+              selected.includes(type)
                 ? "border-primary bg-primary text-primary-foreground"
                 : "hover:bg-accent"
             }`}
           >
-            {t}
+            {type}
           </button>
         ))}
       </div>
@@ -199,6 +203,7 @@ function EventTypeSelector({
 
 /** CreateSubscriptionDialog 创建订阅。signing_secret 为明文，加密落库后不再回显。 */
 function CreateSubscriptionDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const create = useCreateWebhookSubscription();
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -227,16 +232,20 @@ function CreateSubscriptionDialog({ onClose }: { onClose: () => void }) {
     <Dialog
       open
       onClose={onClose}
-      title="创建出站订阅"
-      description="事件变更将推送到此 URL。签名密钥用于对方校验来源（可选）。"
+      title={t("webhookSubscriptions.createTitle")}
+      description={t("webhookSubscriptions.createDescription")}
     >
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称（管理识别用，可选）</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="外部告警中心" />
+          <label className="text-sm font-medium">{t("webhookSubscriptions.nameLabel")}</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("webhookSubscriptions.namePlaceholder")}
+          />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">出站 URL</label>
+          <label className="text-sm font-medium">{t("webhookSubscriptions.urlLabel")}</label>
           <Input
             type="url"
             value={url}
@@ -248,12 +257,12 @@ function CreateSubscriptionDialog({ onClose }: { onClose: () => void }) {
         </div>
         <EventTypeSelector selected={eventTypes} onToggle={toggleType} />
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">签名密钥（可选，加密存储、不回显）</label>
+          <label className="text-sm font-medium">{t("webhookSubscriptions.secretLabel")}</label>
           <Input
             type="password"
             value={signingSecret}
             onChange={(e) => setSigningSecret(e.target.value)}
-            placeholder="留空=不签名"
+            placeholder={t("webhookSubscriptions.secretPlaceholder")}
             autoComplete="new-password"
           />
         </div>
@@ -264,14 +273,14 @@ function CreateSubscriptionDialog({ onClose }: { onClose: () => void }) {
             onChange={(e) => setEnabled(e.target.checked)}
             className="h-4 w-4"
           />
-          <span>启用（停用后不推送）</span>
+          <span>{t("webhookSubscriptions.enabledLabel")}</span>
         </label>
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={create.isPending || !url}>
-            {create.isPending ? "创建中..." : "创建"}
+            {create.isPending ? t("common.submitting") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -287,6 +296,7 @@ function EditSubscriptionDialog({
   sub: WebhookSubscription;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const update = useUpdateWebhookSubscription();
   const [name, setName] = useState(sub.name ?? "");
   const [url, setUrl] = useState(sub.url);
@@ -317,16 +327,20 @@ function EditSubscriptionDialog({
     <Dialog
       open
       onClose={onClose}
-      title="编辑出站订阅"
-      description="签名密钥不回显；如需更换或清空，勾选下方选项。"
+      title={t("webhookSubscriptions.editTitle")}
+      description={t("webhookSubscriptions.editDescription")}
     >
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称（管理识别用，可选）</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="外部告警中心" />
+          <label className="text-sm font-medium">{t("webhookSubscriptions.nameLabel")}</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("webhookSubscriptions.namePlaceholder")}
+          />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">出站 URL</label>
+          <label className="text-sm font-medium">{t("webhookSubscriptions.urlLabel")}</label>
           <Input
             type="url"
             value={url}
@@ -343,16 +357,16 @@ function EditSubscriptionDialog({
             onChange={(e) => setRotateSecret(e.target.checked)}
             className="h-4 w-4"
           />
-          <span>更新签名密钥（不勾选=保持不变）</span>
+          <span>{t("webhookSubscriptions.rotateSecretLabel")}</span>
         </label>
         {rotateSecret && (
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">新签名密钥（留空=清空签名）</label>
+            <label className="text-sm font-medium">{t("webhookSubscriptions.newSecretLabel")}</label>
             <Input
               type="password"
               value={signingSecret}
               onChange={(e) => setSigningSecret(e.target.value)}
-              placeholder="留空=停用签名"
+              placeholder={t("webhookSubscriptions.newSecretPlaceholder")}
               autoComplete="new-password"
             />
           </div>
@@ -364,14 +378,14 @@ function EditSubscriptionDialog({
             onChange={(e) => setEnabled(e.target.checked)}
             className="h-4 w-4"
           />
-          <span>启用（停用后不推送）</span>
+          <span>{t("webhookSubscriptions.enabledLabel")}</span>
         </label>
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={update.isPending || !url}>
-            {update.isPending ? "保存中..." : "保存"}
+            {update.isPending ? t("common.submitting") : t("common.save")}
           </Button>
         </div>
       </form>

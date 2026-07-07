@@ -3,6 +3,7 @@
  * 列出升级策略，创建/编辑时配置 name + repeat_times + 多层级（延迟/通道/目标）。
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ interface FormLevel {
 }
 
 export function EscalationPolicies() {
+  const { t } = useTranslation();
   const { data, isLoading } = useEscalationPolicies();
   const del = useDeleteEscalationPolicy();
   const [creating, setCreating] = useState(false);
@@ -49,11 +51,11 @@ export function EscalationPolicies() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">升级策略</h1>
-          <p className="text-sm text-muted-foreground">未 ack 时按层级升级通知</p>
+          <h1 className="text-lg font-semibold">{t("escalationPolicies.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("escalationPolicies.subtitle")}</p>
         </div>
         <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 创建策略
+          <Plus className="mr-1 h-4 w-4" /> {t("escalationPolicies.createPolicy")}
         </Button>
       </div>
 
@@ -64,17 +66,17 @@ export function EscalationPolicies() {
           ) : !data || data.length === 0 ? (
             <EmptyState
               icon={<ChevronUp className="h-8 w-8" />}
-              title="暂无升级策略"
-              description="创建升级策略，配置未响应时的升级层级与延迟。"
+              title={t("escalationPolicies.emptyTitle")}
+              description={t("escalationPolicies.emptyDescription")}
             />
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b text-left text-xs text-muted-foreground">
                 <tr>
-                  <th className="p-3">名称</th>
-                  <th className="p-3">层级</th>
-                  <th className="p-3">重复</th>
-                  <th className="p-3">创建时间</th>
+                  <th className="p-3">{t("escalationPolicies.colName")}</th>
+                  <th className="p-3">{t("escalationPolicies.colLevels")}</th>
+                  <th className="p-3">{t("escalationPolicies.colRepeat")}</th>
+                  <th className="p-3">{t("escalationPolicies.colCreatedAt")}</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
@@ -87,7 +89,7 @@ export function EscalationPolicies() {
                     <td className="p-3 text-muted-foreground">{formatTime(p.created_at)}</td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="icon" variant="ghost" title="编辑" onClick={() => setEditing(p)}>
+                        <Button size="icon" variant="ghost" title={t("common.edit")} onClick={() => setEditing(p)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button size="icon" variant="ghost" disabled={del.isPending} onClick={() => del.mutate(p.id)}>
@@ -119,6 +121,7 @@ function LevelRow({
   onChange: (patch: Partial<FormLevel>) => void;
   onRemove: () => void;
 }) {
+  const { t } = useTranslation();
   const toggleChannel = (ch: Channel) => {
     const has = level.notify_channels.includes(ch);
     const next = has
@@ -132,13 +135,13 @@ function LevelRow({
       <div className="flex items-center gap-2">
         <Badge variant="outline">L{level.level}</Badge>
         <div className="flex-1" />
-        <Button type="button" size="icon" variant="ghost" title="删除该层" onClick={onRemove}>
+        <Button type="button" size="icon" variant="ghost" title={t("escalationPolicies.removeLevel")} onClick={onRemove}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">延迟（分钟）</label>
+          <label className="text-xs text-muted-foreground">{t("escalationPolicies.delayMinutes")}</label>
           <Input
             type="number"
             min={0}
@@ -149,7 +152,7 @@ function LevelRow({
         </div>
       </div>
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">通知通道（多选）</label>
+        <label className="text-xs text-muted-foreground">{t("escalationPolicies.notifyChannels")}</label>
         <div className="flex flex-wrap gap-1">
           {CHANNELS.map((ch) => {
             const on = level.notify_channels.includes(ch);
@@ -169,7 +172,7 @@ function LevelRow({
         </div>
       </div>
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">升级目标（可选，type:id 形式，逗号分隔）</label>
+        <label className="text-xs text-muted-foreground">{t("escalationPolicies.targetsLabel")}</label>
         <Input
           value={level.targets.map((t) => `${t.type}:${t.target_id}`).join(",")}
           onChange={(e) => onChange({ targets: parseTargets(e.target.value) })}
@@ -204,6 +207,7 @@ function EscalationPolicyFormDialog({
   policy?: EscalationPolicy;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const isEdit = !!policy;
   const create = useCreateEscalationPolicy();
   const update = useUpdateEscalationPolicy();
@@ -263,23 +267,27 @@ function EscalationPolicyFormDialog({
     <Dialog
       open
       onClose={onClose}
-      title={isEdit ? `编辑升级策略 · ${policy?.name}` : "创建升级策略"}
-      description="配置未响应时的升级层级（可多层，延迟与通道逐层配置）。"
+      title={
+        isEdit
+          ? t("escalationPolicies.editTitle", { name: policy?.name })
+          : t("escalationPolicies.createTitle")
+      }
+      description={t("escalationPolicies.formDescription")}
     >
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">名称</label>
+            <label className="text-sm font-medium">{t("escalationPolicies.nameLabel")}</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="默认升级（5min→IM）"
+              placeholder={t("escalationPolicies.namePlaceholder")}
               required
               autoFocus
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">重复次数</label>
+            <label className="text-sm font-medium">{t("escalationPolicies.repeatTimesLabel")}</label>
             <Input
               type="number"
               min={1}
@@ -291,9 +299,9 @@ function EscalationPolicyFormDialog({
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">升级层级</label>
+            <label className="text-sm font-medium">{t("escalationPolicies.levelsLabel")}</label>
             <Button type="button" size="sm" variant="outline" onClick={addLevel}>
-              <Plus className="mr-1 h-3.5 w-3.5" /> 添加层
+              <Plus className="mr-1 h-3.5 w-3.5" /> {t("escalationPolicies.addLevel")}
             </Button>
           </div>
           <div className="space-y-2">
@@ -306,15 +314,15 @@ function EscalationPolicyFormDialog({
               />
             ))}
             {levels.length === 0 && (
-              <p className="text-xs text-muted-foreground">未配置层级，点击"添加层"开始。</p>
+              <p className="text-xs text-muted-foreground">{t("escalationPolicies.noLevels")}</p>
             )}
           </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           <Button type="submit" disabled={pending || !name}>
-            {pending ? "保存中..." : isEdit ? "保存" : "创建"}
+            {pending ? t("common.submitting") : isEdit ? t("common.save") : t("common.create")}
           </Button>
         </div>
       </form>

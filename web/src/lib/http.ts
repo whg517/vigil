@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance } from "axios";
 import { toast } from "sonner";
+import i18n from "@/lib/i18n";
 
 /**
  * http —— 全局 axios 实例。
@@ -41,12 +42,12 @@ export function extractError(error: unknown): string {
     const data = error.response?.data as { error?: string } | undefined;
     if (data?.error) return data.error;
     if (error.response) {
-      return `请求失败（${error.response.status}）`;
+      return i18n.t("errors.requestFailed", { status: error.response.status });
     }
-    if (error.request) return "网络无响应，请检查后端是否启动";
+    if (error.request) return i18n.t("errors.networkNoResponse");
     return error.message;
   }
-  return "未知错误";
+  return i18n.t("errors.unknown");
 }
 
 // 响应拦截：统一错误提示（接 sonner toast）。

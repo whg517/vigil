@@ -1,5 +1,6 @@
 /** RBAC —— RBACTab：角色 + 角色绑定 CRUD。 */
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,20 +22,23 @@ import { formatTime } from "@/lib/format";
 import { useUsers } from "@/hooks/users-teams";
 import type { RoleBinding } from "@/lib/types";
 
+type TFunc = ReturnType<typeof useTranslation>["t"];
+
 /** userName 从 RoleBinding.user edge 提取可读名（edge 带 [k:string]:unknown 索引，需收敛为 string）。 */
-function userName(u: RoleBinding["user"]): string {
+function userName(u: RoleBinding["user"], t: TFunc): string {
   if (!u) return "?";
   const name = String(u.name ?? u.username ?? "");
-  return name || `用户#${u.id ?? "?"}`;
+  return name || t("settings.rbac.userFallback", { id: u.id ?? "?" });
 }
 
 /** roleName 从 RoleBinding.role edge 提取可读名。 */
-function roleName(r: RoleBinding["role"]): string {
-  if (!r) return "角色#?";
-  return String(r.name ?? "") || `角色#${r.id ?? "?"}`;
+function roleName(r: RoleBinding["role"], t: TFunc): string {
+  if (!r) return t("settings.rbac.roleFallback", { id: "?" });
+  return String(r.name ?? "") || t("settings.rbac.roleFallback", { id: r.id ?? "?" });
 }
 
 export function RBACTab() {
+  const { t } = useTranslation();
   const roles = useRoles();
   const bindings = useRoleBindings();
   const delRole = useDeleteRole();
@@ -46,16 +50,16 @@ export function RBACTab() {
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle className="text-base">角色</CardTitle>
+          <CardTitle className="text-base">{t("settings.rbac.rolesTitle")}</CardTitle>
           <Button size="sm" onClick={() => setCreatingRole(true)}>
-            <Plus className="mr-1 h-4 w-4" /> 创建
+            <Plus className="mr-1 h-4 w-4" /> {t("common.create")}
           </Button>
         </CardHeader>
         <CardContent>
           {roles.isLoading ? (
             <Skeleton className="h-20 w-full" />
           ) : !roles.data || roles.data.length === 0 ? (
-            <EmptyState title="无角色" description="创建自定义角色，组合权限点。" />
+            <EmptyState title={t("settings.rbac.emptyRolesTitle")} description={t("settings.rbac.emptyRolesDesc")} />
           ) : (
             <div className="space-y-2">
               {roles.data.map((r) => (
@@ -63,11 +67,11 @@ export function RBACTab() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{r.name}</span>
-                      {r.builtin && <Badge variant="secondary" className="text-xs">内置</Badge>}
+                      {r.builtin && <Badge variant="secondary" className="text-xs">{t("settings.rbac.builtin")}</Badge>}
                       <Badge variant="outline" className="text-xs">{r.scope_level}</Badge>
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {r.permissions.length} 个权限点
+                      {t("settings.rbac.permissionCount", { count: r.permissions.length })}
                       {r.description ? ` · ${r.description}` : ""}
                     </div>
                   </div>
@@ -88,28 +92,28 @@ export function RBACTab() {
 
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle className="text-base">角色绑定（授权）</CardTitle>
+          <CardTitle className="text-base">{t("settings.rbac.bindingsTitle")}</CardTitle>
           <Button size="sm" onClick={() => setCreatingBinding(true)}>
-            <Plus className="mr-1 h-4 w-4" /> 授权
+            <Plus className="mr-1 h-4 w-4" /> {t("settings.rbac.grant")}
           </Button>
         </CardHeader>
         <CardContent>
           {bindings.isLoading ? (
             <Skeleton className="h-20 w-full" />
           ) : !bindings.data || bindings.data.length === 0 ? (
-            <EmptyState title="无授权" description="给用户授予角色（含临时授权）。" />
+            <EmptyState title={t("settings.rbac.emptyBindingsTitle")} description={t("settings.rbac.emptyBindingsDesc")} />
           ) : (
             <div className="space-y-2">
               {bindings.data.map((b) => (
                 <div key={b.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
                   <div className="min-w-0">
-                    <span className="font-medium">{userName(b.user)}</span>
+                    <span className="font-medium">{userName(b.user, t)}</span>
                     <span className="mx-1 text-muted-foreground">→</span>
-                    <span className="font-medium">{roleName(b.role)}</span>
+                    <span className="font-medium">{roleName(b.role, t)}</span>
                     <Badge variant="outline" className="ml-2 text-xs">{b.scope_level}</Badge>
                     {b.team_id && <span className="ml-2 text-xs text-muted-foreground">team #{b.team_id}</span>}
                     {b.expires_at && (
-                      <Badge variant="secondary" className="ml-2 text-xs">临时 {formatTime(b.expires_at)}</Badge>
+                      <Badge variant="secondary" className="ml-2 text-xs">{t("settings.rbac.temporary", { time: formatTime(b.expires_at) })}</Badge>
                     )}
                   </div>
                   <Button
@@ -157,6 +161,7 @@ const ALL_PERMISSIONS = [
 
 /** CreateRoleDialog 创建自定义角色（权限点按 resource 分组多选）。 */
 function CreateRoleDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const create = useCreateRole();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -201,29 +206,29 @@ function CreateRoleDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Dialog open onClose={onClose} title="创建角色" description="自由组合权限点。权限点为系统枚举（见 permission.go）。">
+    <Dialog open onClose={onClose} title={t("settings.rbac.createRoleTitle")} description={t("settings.rbac.createRoleDesc")}>
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">名称</label>
+            <label className="text-sm font-medium">{t("settings.rbac.name")}</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="oncall-responder" required autoFocus />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">作用域</label>
+            <label className="text-sm font-medium">{t("settings.rbac.scope")}</label>
             <Select value={scope} onChange={(e) => setScope(e.target.value as "org" | "team")}>
-              <option value="team">团队（team）</option>
-              <option value="org">组织（org）</option>
+              <option value="team">{t("settings.rbac.scopeTeam")}</option>
+              <option value="org">{t("settings.rbac.scopeOrg")}</option>
             </Select>
           </div>
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">描述</label>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="（可选）" />
+          <label className="text-sm font-medium">{t("settings.rbac.description")}</label>
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("settings.rbac.optionalPlaceholder")} />
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium">
-              权限点 <span className="text-xs text-muted-foreground">（已选 {perms.size}）</span>
+              {t("settings.rbac.permissions")} <span className="text-xs text-muted-foreground">{t("settings.rbac.selectedCount", { count: perms.size })}</span>
             </label>
           </div>
           <div className="max-h-64 space-y-2 overflow-auto rounded-md border p-2">
@@ -238,7 +243,7 @@ function CreateRoleDialog({ onClose }: { onClose: () => void }) {
                   >
                     <span>{res}</span>
                     <span className="font-normal normal-case opacity-60">({members.length})</span>
-                    <span className="ml-auto">{allOn ? "取消全选" : "全选"}</span>
+                    <span className="ml-auto">{allOn ? t("settings.rbac.deselectAll") : t("settings.rbac.selectAll")}</span>
                   </button>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {members.map((p) => {
@@ -263,9 +268,9 @@ function CreateRoleDialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           <Button type="submit" disabled={create.isPending || !name}>
-            {create.isPending ? "创建中..." : "创建"}
+            {create.isPending ? t("common.submitting") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -275,6 +280,7 @@ function CreateRoleDialog({ onClose }: { onClose: () => void }) {
 
 /** CreateRoleBindingDialog 授权：选用户 → 选角色 → 作用域/有效期。 */
 function CreateRoleBindingDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const create = useCreateRoleBinding();
   const { data: users } = useUsers();
   const { data: roles } = useRoles();
@@ -293,23 +299,23 @@ function CreateRoleBindingDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Dialog open onClose={onClose} title="角色授权" description="把角色授予用户（可临时授权）。">
+    <Dialog open onClose={onClose} title={t("settings.rbac.grantTitle")} description={t("settings.rbac.grantDesc")}>
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">用户</label>
+          <label className="text-sm font-medium">{t("settings.rbac.user")}</label>
           <Select value={userId ? String(userId) : ""} onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : undefined)}>
-            <option value="">选择用户…</option>
+            <option value="">{t("settings.rbac.selectUser")}</option>
             {users?.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.username || u.name || `用户#${u.id}`}（{u.email || "—"}）
+                {u.username || u.name || t("settings.rbac.userFallback", { id: u.id })}（{u.email || "—"}）
               </option>
             ))}
           </Select>
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">角色</label>
+          <label className="text-sm font-medium">{t("settings.rbac.role")}</label>
           <Select value={roleId ? String(roleId) : ""} onChange={(e) => setRoleId(e.target.value ? Number(e.target.value) : undefined)}>
-            <option value="">选择角色…</option>
+            <option value="">{t("settings.rbac.selectRole")}</option>
             {roles?.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}（{r.scope_level}）
@@ -319,21 +325,21 @@ function CreateRoleBindingDialog({ onClose }: { onClose: () => void }) {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">作用域</label>
+            <label className="text-sm font-medium">{t("settings.rbac.scope")}</label>
             <Select value={scope} onChange={(e) => setScope(e.target.value as "org" | "team")}>
-              <option value="org">组织（org）</option>
-              <option value="team">团队（team）</option>
+              <option value="org">{t("settings.rbac.scopeOrg")}</option>
+              <option value="team">{t("settings.rbac.scopeTeam")}</option>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">有效期（小时，留空=永久）</label>
-            <Input type="number" min={1} value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)} placeholder="永久" />
+            <label className="text-sm font-medium">{t("settings.rbac.expiresLabel")}</label>
+            <Input type="number" min={1} value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)} placeholder={t("settings.rbac.permanent")} />
           </div>
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           <Button type="submit" disabled={create.isPending || !userId || !roleId}>
-            {create.isPending ? "授权中..." : "授权"}
+            {create.isPending ? t("settings.rbac.granting") : t("settings.rbac.grant")}
           </Button>
         </div>
       </form>

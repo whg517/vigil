@@ -6,6 +6,7 @@
  * 团队：列表 + 创建/编辑/删除。
  */
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Building2, Pencil, Plus, Trash2, UserCog, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,23 +36,27 @@ import { formatTime } from "@/lib/format";
 import type { RoleBinding, Team, User } from "@/lib/types";
 
 /** roleName 从 RoleBinding.role edge 提取可读名（edge 带 [k:string]:unknown 索引，需收敛为 string）。 */
-function roleName(r: RoleBinding["role"]): string {
-  if (!r) return "角色#?";
-  return String(r.name ?? "") || `角色#${r.id ?? "?"}`;
+function roleName(r: RoleBinding["role"], unknownLabel: string): string {
+  if (!r) return unknownLabel;
+  return String(r.name ?? "") || `${unknownLabel}#${r.id ?? "?"}`;
 }
 
 export function UsersTeams() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("users");
   return (
     <div className="space-y-4 p-6">
       <div>
-        <h1 className="text-lg font-semibold">用户与团队</h1>
-        <p className="text-sm text-muted-foreground">成员启停 · 角色分配 · 团队管理</p>
+        <h1 className="text-lg font-semibold">{t("usersTeams.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("usersTeams.subtitle")}</p>
       </div>
       <Tabs
         value={tab}
         onValueChange={setTab}
-        items={[{ value: "users", label: "用户" }, { value: "teams", label: "团队" }]}
+        items={[
+          { value: "users", label: t("usersTeams.tabUsers") },
+          { value: "teams", label: t("usersTeams.tabTeams") },
+        ]}
       />
       {tab === "users" && <UsersTab />}
       {tab === "teams" && <TeamsTab />}
@@ -61,6 +66,7 @@ export function UsersTeams() {
 
 /** UsersTab 用户列表 + 启停/编辑/角色分配。 */
 function UsersTab() {
+  const { t } = useTranslation();
   const { data, isLoading } = useUsers();
   const { data: bindings } = useRoleBindings();
   const update = useUpdateUser();
@@ -92,19 +98,19 @@ function UsersTab() {
         ) : !data || data.length === 0 ? (
           <EmptyState
             icon={<Users className="h-8 w-8" />}
-            title="暂无用户"
-            description="用户在首次登录后自动创建（设计基线：登录即建号）。"
+            title={t("usersTeams.usersEmpty")}
+            description={t("usersTeams.usersEmptyHint")}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b text-left text-xs text-muted-foreground">
                 <tr>
-                  <th className="p-3">用户名</th>
-                  <th className="p-3">邮箱</th>
-                  <th className="p-3">角色</th>
-                  <th className="p-3">状态</th>
-                  <th className="p-3">创建时间</th>
+                  <th className="p-3">{t("usersTeams.colUsername")}</th>
+                  <th className="p-3">{t("usersTeams.colEmail")}</th>
+                  <th className="p-3">{t("usersTeams.colRoles")}</th>
+                  <th className="p-3">{t("usersTeams.colStatus")}</th>
+                  <th className="p-3">{t("usersTeams.colCreatedAt")}</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
@@ -122,9 +128,13 @@ function UsersTab() {
                           ) : (
                             roles.map((b) => (
                               <Badge key={b.id} variant="secondary" className="text-xs">
-                                {roleName(b.role)}
-                                {b.team_id && <span className="ml-1 opacity-60">·team</span>}
-                                {b.expires_at && <span className="ml-1 opacity-60">·临时</span>}
+                                {roleName(b.role, t("usersTeams.roleUnknown"))}
+                                {b.team_id && (
+                                  <span className="ml-1 opacity-60">·{t("usersTeams.scopeTeam")}</span>
+                                )}
+                                {b.expires_at && (
+                                  <span className="ml-1 opacity-60">·{t("usersTeams.temporary")}</span>
+                                )}
                               </Badge>
                             ))
                           )}
@@ -132,7 +142,9 @@ function UsersTab() {
                       </td>
                       <td className="p-3">
                         <Badge variant={u.status === "active" ? "default" : "secondary"}>
-                          {u.status}
+                          {u.status === "active"
+                            ? t("usersTeams.statusActive")
+                            : t("usersTeams.statusDisabled")}
                         </Badge>
                       </td>
                       <td className="p-3 text-muted-foreground">{formatTime(u.created_at)}</td>
@@ -141,7 +153,7 @@ function UsersTab() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            title="分配角色"
+                            title={t("usersTeams.assignRole")}
                             onClick={() => setRoleUser(u)}
                           >
                             <UserCog className="h-4 w-4" />
@@ -149,7 +161,7 @@ function UsersTab() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            title="编辑"
+                            title={t("common.edit")}
                             onClick={() => setEditing(u)}
                           >
                             <Pencil className="h-4 w-4" />
@@ -160,7 +172,9 @@ function UsersTab() {
                             disabled={update.isPending}
                             onClick={() => toggleStatus(u)}
                           >
-                            {u.status === "active" ? "停用" : "启用"}
+                            {u.status === "active"
+                              ? t("usersTeams.disable")
+                              : t("usersTeams.enable")}
                           </Button>
                         </div>
                       </td>
@@ -180,12 +194,18 @@ function UsersTab() {
 
 /** EditUserDialog 编辑用户显示名/时区（不改密码，密码走独立流程）。 */
 function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) {
+  const { t } = useTranslation();
   const update = useUpdateUser();
   const [name, setName] = useState(user.name ?? "");
   const [timezone, setTimezone] = useState(user.timezone ?? "Asia/Shanghai");
 
   return (
-    <Dialog open onClose={onClose} title={`编辑用户 · ${user.username}`} description="修改显示名与时区。密码变更走独立流程。">
+    <Dialog
+      open
+      onClose={onClose}
+      title={t("usersTeams.editUserTitle", { name: user.username })}
+      description={t("usersTeams.editUserDesc")}
+    >
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -194,16 +214,21 @@ function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) 
         }}
       >
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">显示名</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="张三" autoFocus />
+          <label className="text-sm font-medium">{t("usersTeams.displayName")}</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("usersTeams.displayNamePlaceholder")}
+            autoFocus
+          />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">时区</label>
+          <label className="text-sm font-medium">{t("usersTeams.timezone")}</label>
           <Input value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="Asia/Shanghai" />
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
-          <Button type="submit" disabled={update.isPending}>保存</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="submit" disabled={update.isPending}>{t("common.save")}</Button>
         </div>
       </form>
     </Dialog>
@@ -212,6 +237,7 @@ function EditUserDialog({ user, onClose }: { user: User; onClose: () => void }) 
 
 /** RoleAssignDialog 给用户分配/撤销角色（POST/DELETE /role-bindings）。 */
 function RoleAssignDialog({ user, onClose }: { user: User; onClose: () => void }) {
+  const { t } = useTranslation();
   const { data: roles } = useRoles();
   const { data: bindings } = useRoleBindings();
   const create = useCreateRoleBinding();
@@ -241,23 +267,28 @@ function RoleAssignDialog({ user, onClose }: { user: User; onClose: () => void }
   };
 
   return (
-    <Dialog open onClose={onClose} title={`角色分配 · ${user.username}`} description="授予角色（含临时授权）。授权会立即生效。">
+    <Dialog
+      open
+      onClose={onClose}
+      title={t("usersTeams.roleAssignTitle", { name: user.username })}
+      description={t("usersTeams.roleAssignDesc")}
+    >
       <div className="space-y-4">
         {/* 当前授权 */}
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">当前角色</label>
+          <label className="text-sm font-medium">{t("usersTeams.currentRoles")}</label>
           {myBindings.length === 0 ? (
-            <p className="text-xs text-muted-foreground">暂无角色。</p>
+            <p className="text-xs text-muted-foreground">{t("usersTeams.noRoles")}</p>
           ) : (
             <div className="space-y-1.5">
               {myBindings.map((b) => (
                 <div key={b.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{roleName(b.role)}</span>
+                    <span className="font-medium">{roleName(b.role, t("usersTeams.roleUnknown"))}</span>
                     <Badge variant="outline" className="text-xs">{b.scope_level}</Badge>
                     {b.expires_at && (
                       <Badge variant="secondary" className="text-xs">
-                        至 {formatTime(b.expires_at)}
+                        {t("usersTeams.until", { time: formatTime(b.expires_at) })}
                       </Badge>
                     )}
                   </div>
@@ -277,34 +308,34 @@ function RoleAssignDialog({ user, onClose }: { user: User; onClose: () => void }
 
         {/* 新增授权 */}
         <form className="space-y-3 border-t pt-3" onSubmit={onSubmit}>
-          <label className="text-sm font-medium">新增授权</label>
+          <label className="text-sm font-medium">{t("usersTeams.addGrant")}</label>
           <Select
             value={roleId ? String(roleId) : ""}
             onChange={(e) => setRoleId(e.target.value ? Number(e.target.value) : undefined)}
           >
-            <option value="">选择角色…</option>
+            <option value="">{t("usersTeams.selectRole")}</option>
             {roles?.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}（{r.scope_level}）
+                {t("usersTeams.roleOption", { name: r.name, scope: r.scope_level })}
               </option>
             ))}
           </Select>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">作用域</label>
+              <label className="text-xs font-medium text-muted-foreground">{t("usersTeams.scope")}</label>
               <Select value={scope} onChange={(e) => setScope(e.target.value as "org" | "team")}>
-                <option value="org">组织（org）</option>
-                <option value="team">团队（team）</option>
+                <option value="org">{t("usersTeams.scopeOrgOption")}</option>
+                <option value="team">{t("usersTeams.scopeTeamOption")}</option>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">有效期（小时，留空=永久）</label>
+              <label className="text-xs font-medium text-muted-foreground">{t("usersTeams.expiresLabel")}</label>
               <Input
                 type="number"
                 min={1}
                 value={expiresIn}
                 onChange={(e) => setExpiresIn(e.target.value)}
-                placeholder="永久"
+                placeholder={t("usersTeams.permanent")}
               />
             </div>
           </div>
@@ -312,7 +343,7 @@ function RoleAssignDialog({ user, onClose }: { user: User; onClose: () => void }
             <p className="text-xs text-destructive">{extractError(create.error)}</p>
           )}
           <Button type="submit" className="w-full" disabled={create.isPending || !roleId}>
-            授权
+            {t("usersTeams.grant")}
           </Button>
         </form>
       </div>
@@ -322,6 +353,7 @@ function RoleAssignDialog({ user, onClose }: { user: User; onClose: () => void }
 
 /** TeamsTab 团队列表 + 创建/编辑/删除。 */
 function TeamsTab() {
+  const { t } = useTranslation();
   const { data, isLoading } = useTeams();
   const del = useDeleteTeam();
   const [creating, setCreating] = useState(false);
@@ -331,7 +363,7 @@ function TeamsTab() {
     <div className="space-y-3">
       <div className="flex justify-end">
         <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 创建团队
+          <Plus className="mr-1 h-4 w-4" /> {t("usersTeams.createTeam")}
         </Button>
       </div>
       <Card>
@@ -339,26 +371,30 @@ function TeamsTab() {
           {isLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : !data || data.length === 0 ? (
-            <EmptyState icon={<Building2 className="h-8 w-8" />} title="暂无团队" description="创建团队以组织成员与服务。" />
+            <EmptyState
+              icon={<Building2 className="h-8 w-8" />}
+              title={t("usersTeams.teamsEmpty")}
+              description={t("usersTeams.teamsEmptyHint")}
+            />
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b text-left text-xs text-muted-foreground">
                 <tr>
-                  <th className="p-3">名称</th>
-                  <th className="p-3">Slug</th>
-                  <th className="p-3">描述</th>
+                  <th className="p-3">{t("usersTeams.colName")}</th>
+                  <th className="p-3">{t("usersTeams.colSlug")}</th>
+                  <th className="p-3">{t("usersTeams.colDescription")}</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
               <tbody>
-                {data.map((t) => (
-                  <tr key={t.id} className="border-b last:border-0">
-                    <td className="p-3 font-medium">{t.name}</td>
-                    <td className="p-3 font-mono text-xs text-muted-foreground">{t.slug}</td>
-                    <td className="p-3 text-muted-foreground">{t.description || "—"}</td>
+                {data.map((team) => (
+                  <tr key={team.id} className="border-b last:border-0">
+                    <td className="p-3 font-medium">{team.name}</td>
+                    <td className="p-3 font-mono text-xs text-muted-foreground">{team.slug}</td>
+                    <td className="p-3 text-muted-foreground">{team.description || "—"}</td>
                     <td className="p-3">
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="icon" variant="ghost" title="编辑" onClick={() => setEditing(t)}>
+                        <Button size="icon" variant="ghost" title={t("common.edit")} onClick={() => setEditing(team)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
@@ -366,7 +402,7 @@ function TeamsTab() {
                           variant="ghost"
                           disabled={del.isPending}
                           onClick={() => {
-                            if (confirm(`确认删除团队「${t.name}」？`)) del.mutate(t.id);
+                            if (confirm(t("usersTeams.confirmDeleteTeam", { name: team.name }))) del.mutate(team.id);
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -388,6 +424,7 @@ function TeamsTab() {
 
 /** CreateTeamDialog 创建团队。 */
 function CreateTeamDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const create = useCreateTeam();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -399,24 +436,39 @@ function CreateTeamDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Dialog open onClose={onClose} title="创建团队" description="团队用于组织成员与服务，权限按团队作用域。">
+    <Dialog
+      open
+      onClose={onClose}
+      title={t("usersTeams.createTeamTitle")}
+      description={t("usersTeams.createTeamDesc")}
+    >
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="SRE 平台组" required autoFocus />
+          <label className="text-sm font-medium">{t("usersTeams.teamName")}</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("usersTeams.teamNamePlaceholder")}
+            required
+            autoFocus
+          />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">Slug（唯一标识）</label>
+          <label className="text-sm font-medium">{t("usersTeams.teamSlug")}</label>
           <Input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="sre-platform" required />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">描述</label>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="（可选）" />
+          <label className="text-sm font-medium">{t("usersTeams.teamDescription")}</label>
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={t("usersTeams.optional")}
+          />
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           <Button type="submit" disabled={create.isPending || !name || !slug}>
-            {create.isPending ? "创建中..." : "创建"}
+            {create.isPending ? t("usersTeams.creating") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -426,12 +478,18 @@ function CreateTeamDialog({ onClose }: { onClose: () => void }) {
 
 /** EditTeamDialog 编辑团队（名称/描述，slug 不可改）。 */
 function EditTeamDialog({ team, onClose }: { team: Team; onClose: () => void }) {
+  const { t } = useTranslation();
   const update = useUpdateTeam();
   const [name, setName] = useState(team.name);
   const [description, setDescription] = useState(team.description ?? "");
 
   return (
-    <Dialog open onClose={onClose} title={`编辑团队 · ${team.slug}`} description="Slug 为唯一标识，创建后不可修改。">
+    <Dialog
+      open
+      onClose={onClose}
+      title={t("usersTeams.editTeamTitle", { slug: team.slug })}
+      description={t("usersTeams.editTeamDesc")}
+    >
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -440,16 +498,16 @@ function EditTeamDialog({ team, onClose }: { team: Team; onClose: () => void }) 
         }}
       >
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称</label>
+          <label className="text-sm font-medium">{t("usersTeams.teamName")}</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">描述</label>
+          <label className="text-sm font-medium">{t("usersTeams.teamDescription")}</label>
           <Input value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
-          <Button type="submit" disabled={update.isPending}>保存</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="submit" disabled={update.isPending}>{t("common.save")}</Button>
         </div>
       </form>
     </Dialog>

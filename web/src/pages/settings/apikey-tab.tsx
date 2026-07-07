@@ -11,9 +11,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "@/hooks/settings";
 import { toast } from "sonner";
 import { formatTime } from "@/lib/format";
+import { Trans, useTranslation } from "react-i18next";
 
 /** APIKeyTab：列出/创建/撤销 API Key。创建时明文 token 仅展示一次，可复制。 */
 export function APIKeyTab() {
+  const { t } = useTranslation();
   const { data, isLoading } = useAPIKeys();
   const del = useDeleteAPIKey();
   const [creating, setCreating] = useState(false);
@@ -22,10 +24,13 @@ export function APIKeyTab() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          程序化接入凭证。请求带 <code className="rounded bg-muted px-1">X-Vigil-Key</code> 头即可鉴权。
+          <Trans
+            i18nKey="settings.apikey.intro"
+            components={{ code: <code className="rounded bg-muted px-1" /> }}
+          />
         </p>
         <Button size="sm" onClick={() => setCreating(true)}>
-          <KeyRound className="mr-1 h-4 w-4" /> 创建
+          <KeyRound className="mr-1 h-4 w-4" /> {t("common.create")}
         </Button>
       </div>
       <Card>
@@ -33,16 +38,16 @@ export function APIKeyTab() {
           {isLoading ? (
             <Skeleton className="h-20 w-full" />
           ) : !data || data.length === 0 ? (
-            <EmptyState title="暂无 API Key" description="创建后用于程序化接入开放 API。" />
+            <EmptyState title={t("settings.apikey.emptyTitle")} description={t("settings.apikey.emptyDesc")} />
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b text-left text-xs text-muted-foreground">
                 <tr>
-                  <th className="p-3">名称</th>
-                  <th className="p-3">前缀</th>
-                  <th className="p-3">状态</th>
-                  <th className="p-3">最后使用</th>
-                  <th className="p-3">创建时间</th>
+                  <th className="p-3">{t("settings.apikey.colName")}</th>
+                  <th className="p-3">{t("settings.apikey.colPrefix")}</th>
+                  <th className="p-3">{t("settings.apikey.colStatus")}</th>
+                  <th className="p-3">{t("settings.apikey.colLastUsed")}</th>
+                  <th className="p-3">{t("settings.apikey.colCreatedAt")}</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
@@ -53,7 +58,7 @@ export function APIKeyTab() {
                     <td className="p-3 font-mono text-xs text-muted-foreground">{k.prefix}…</td>
                     <td className="p-3">
                       <Badge variant={k.status === "active" ? "default" : "secondary"}>
-                        {k.status}
+                        {t(`settings.apikey.status.${k.status}`)}
                       </Badge>
                     </td>
                     <td className="p-3 text-muted-foreground">
@@ -84,6 +89,7 @@ export function APIKeyTab() {
 
 /** CreateAPIKeyDialog 创建表单。成功后展示一次性明文 token + 复制按钮。 */
 function CreateAPIKeyDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const create = useCreateAPIKey();
   const [name, setName] = useState("");
   const [expiresIn, setExpiresIn] = useState("");
@@ -102,38 +108,38 @@ function CreateAPIKeyDialog({ onClose }: { onClose: () => void }) {
     if (!plaintext) return;
     try {
       await navigator.clipboard.writeText(plaintext);
-      toast.success("已复制到剪贴板");
+      toast.success(t("settings.apikey.copySuccess"));
     } catch {
-      toast.error("复制失败，请手动选择复制");
+      toast.error(t("settings.apikey.copyError"));
     }
   };
 
   // 创建成功后：展示一次性明文 token，不再显示表单
   if (plaintext) {
     return (
-      <Dialog open onClose={onClose} title="API Key 已创建" description="⚠️ 明文 token 仅此一次展示，请立即复制保存，关闭后无法找回。">
+      <Dialog open onClose={onClose} title={t("settings.apikey.createdTitle")} description={t("settings.apikey.createdDesc")}>
         <div className="space-y-3">
           <div className="flex items-center gap-2 rounded-md border bg-muted p-3">
             <code className="flex-1 break-all text-xs">{plaintext}</code>
             <Button size="sm" variant="outline" onClick={copyToken}>
-              <Copy className="mr-1 h-4 w-4" /> 复制
+              <Copy className="mr-1 h-4 w-4" /> {t("settings.apikey.copy")}
             </Button>
           </div>
-          <Button className="w-full" onClick={onClose}>我已保存</Button>
+          <Button className="w-full" onClick={onClose}>{t("settings.apikey.saved")}</Button>
         </div>
       </Dialog>
     );
   }
 
   return (
-    <Dialog open onClose={onClose} title="创建 API Key" description="用于程序化接入（CI/CD、外部系统调 Vigil）。">
+    <Dialog open onClose={onClose} title={t("settings.apikey.createTitle")} description={t("settings.apikey.createDesc")}>
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称</label>
+          <label className="text-sm font-medium">{t("settings.apikey.nameLabel")}</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="ci-deploy-key" required autoFocus />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">有效期（小时，留空=永久）</label>
+          <label className="text-sm font-medium">{t("settings.apikey.expiresLabel")}</label>
           <Input
             value={expiresIn}
             onChange={(e) => setExpiresIn(e.target.value)}
@@ -143,7 +149,7 @@ function CreateAPIKeyDialog({ onClose }: { onClose: () => void }) {
           />
         </div>
         <Button type="submit" className="w-full" disabled={create.isPending || !name}>
-          {create.isPending ? "创建中..." : "创建"}
+          {create.isPending ? t("common.submitting") : t("common.create")}
         </Button>
       </form>
     </Dialog>

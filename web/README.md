@@ -48,8 +48,8 @@ function Foo() {
 
 ### 覆盖范围（诚实记录）
 
-> 本轮落地 **i18n 框架 + 语言切换 + 核心流程完整双语**。其余管理页仍为存量中文，
-> 属**待增量迁移**（框架已就绪，逐页替换 `t()` 即可，无需再改基建）。
+> 全部业务页面与设置子 tab 已完成 `t()` 外化，**zh + en 双语齐全**（key 一致性由
+> `en.ts: Resources` 类型在 `tsc` 构建期强制，缺/多 key 直接编译失败）。
 
 **已完整覆盖（zh + en，切到 English 全英文）：**
 
@@ -57,22 +57,31 @@ function Foo() {
 - `pages/login.tsx`（登录页全文案）
 - `pages/change-password.tsx`（改密页全文案，含前端校验错误提示与 toast）
 - `pages/dashboard.tsx`（标题、4 个 KPI、卡片标题、空态、团队负载回退名）
-- `pages/incidents.tsx`（标题、状态/严重度筛选、表头、分页、空态、升级次数）
-- `pages/settings/index.tsx`（页头 + 6 个 tab 标签）
+- `pages/incidents.tsx` / `pages/incident-detail.tsx`（列表 + 详情：筛选、表头、操作、
+  时间线、合并、AI 诊断、相似事件、洞察状态/类型枚举）
+- `pages/services.tsx` `pages/integrations.tsx` `pages/integration-wizard.tsx`
+  `pages/oncall.tsx` `pages/runbooks.tsx` `pages/postmortems.tsx`
+  `pages/credentials.tsx` `pages/maintenance.tsx` `pages/ticket-integrations.tsx`
+  `pages/webhook-subscriptions.tsx` `pages/escalation-policies.tsx`
+  `pages/users-teams.tsx` `pages/wall.tsx`
+  （标题、表头、按钮、表单 label/占位、下拉选项、空态、toast、确认文案、状态/类型枚举）
+- `pages/settings/index.tsx`（页头 + 6 个 tab 标签）及全部设置子 tab：
+  `settings/rbac-tab` `apikey-tab` `audit-tab` `notification-tab`
+  `subscription-tab` `im-tab`
 - `lib/badges.tsx`（`SeverityBadge` / `StatusBadge`，严重度与状态标签，多页复用）
+- `lib/http.ts`（请求错误兜底提示，走 `errors.*`，i18n 单例 `t()`）
+- `lib/format.ts`（`formatDuration` 时长单位随语言，走 `format.*`，i18n 单例 `t()`）
 - `components/ui/dialog.tsx`（关闭按钮 aria-label）
 
-**待迁移（本轮保留存量中文，后续增量替换）：**
+**待迁移：**
 
-- 页面：`services` `integrations` `integration-wizard` `oncall` `runbooks` `postmortems`
-  `credentials` `maintenance` `ticket-integrations` `webhook-subscriptions`
-  `escalation-policies` `users-teams` `wall` `incident-detail`
-- 设置子 tab：`settings/rbac-tab` `apikey-tab` `audit-tab` `notification-tab`
-  `im-tab` `subscription-tab`
-- 其余 `components/ui/*` 内如有零星固定中文（多数为组件注释/由调用方传参，不含渲染文案）
+- 无剩余业务页面/设置 tab。仅个别刻意保留为字面量的技术示例文本（非可翻译 UI 文案），如
+  通知模板占位符 `{{.Summary}}`（Go template 语法，与 i18next 插值定界符冲突，故不走
+  `t()`）、接入向导样例 payload 的 JSON 数据值；以及各文件内中文注释（不渲染，无需外化）。
 
-> QA 目视复核项：切到 English 后逐一核对上述“已覆盖”页面无残留中文；切回中文后一致；
-> 刷新页面语言保持。
+> QA 目视复核项：切到 English 后逐一核对各页无残留中文；切回中文后一致；刷新语言保持。
+> `runbooks` / `settings/apikey` 用 `<Trans>`（含 `<0>`/`<code>` 内联标记），需额外核对
+> 富文本渲染正确。
 
 ---
 

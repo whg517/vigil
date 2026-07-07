@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Brain, Check, ChevronUp, GitMerge, Hand, RotateCcw, Sparkles, X } from "lucide-react";
 import { useIncident, useIncidentAction, useIncidents, useMergeIncident, useTimeline } from "@/hooks/incidents";
 import { useIncidentWS } from "@/hooks/use-incident-ws";
@@ -31,6 +32,7 @@ import type {
  * 对应后端 GET /incidents/:id、GET /incidents/:id/timeline、POST .../ack|resolve|escalate。
  */
 export function IncidentDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 	const incId = Number(id);
@@ -49,8 +51,8 @@ export function IncidentDetail() {
       <div className="p-6">
         <BackButton onClick={() => navigate("/incidents")} />
         <EmptyState
-          title="事件不存在"
-          description={`未找到 ID 为 ${id} 的事件`}
+          title={t("incidentDetail.notFoundTitle")}
+          description={t("incidentDetail.notFoundDesc", { id })}
         />
       </div>
     );
@@ -78,12 +80,12 @@ export function IncidentDetail() {
           </div>
           <h1 className="text-xl font-semibold">{inc.title}</h1>
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
-            <span>优先级 {inc.priority.toUpperCase()}</span>
-            <span>当前升级层级 L{inc.current_level}</span>
-            <span>累计升级 {inc.escalated_count} 次</span>
-            <span>创建于 {formatTime(inc.created_at)}</span>
+            <span>{t("incidentDetail.priority", { value: inc.priority.toUpperCase() })}</span>
+            <span>{t("incidentDetail.currentLevel", { level: inc.current_level })}</span>
+            <span>{t("incidentDetail.escalatedCount", { count: inc.escalated_count })}</span>
+            <span>{t("incidentDetail.createdAt", { time: formatTime(inc.created_at) })}</span>
             {inc.resolved_at && (
-              <span>解决于 {formatTime(inc.resolved_at)}</span>
+              <span>{t("incidentDetail.resolvedAt", { time: formatTime(inc.resolved_at) })}</span>
             )}
           </div>
           {inc.summary && (
@@ -103,7 +105,7 @@ export function IncidentDetail() {
               disabled={action.isPending}
               onClick={() => action.mutate("reopen")}
             >
-              <RotateCcw className="h-4 w-4" /> 重新打开
+              <RotateCcw className="h-4 w-4" /> {t("incidentDetail.actionReopen")}
             </Button>
           ) : (
             <>
@@ -113,7 +115,7 @@ export function IncidentDetail() {
                 disabled={isAcked || action.isPending}
                 onClick={() => action.mutate("ack")}
               >
-                <Hand className="h-4 w-4" /> 确认
+                <Hand className="h-4 w-4" /> {t("incidentDetail.actionAck")}
               </Button>
               <Button
                 variant="outline"
@@ -121,7 +123,7 @@ export function IncidentDetail() {
                 disabled={action.isPending}
                 onClick={() => action.mutate("escalate")}
               >
-                <ChevronUp className="h-4 w-4" /> 升级
+                <ChevronUp className="h-4 w-4" /> {t("incidentDetail.actionEscalate")}
               </Button>
               <Button
                 variant="secondary"
@@ -129,7 +131,7 @@ export function IncidentDetail() {
                 disabled={action.isPending}
                 onClick={() => action.mutate("resolve")}
               >
-                <Check className="h-4 w-4" /> 解决
+                <Check className="h-4 w-4" /> {t("incidentDetail.actionResolve")}
               </Button>
               <Button
                 variant="outline"
@@ -137,7 +139,7 @@ export function IncidentDetail() {
                 disabled={action.isPending}
                 onClick={() => setMerging(true)}
               >
-                <GitMerge className="h-4 w-4" /> 合并
+                <GitMerge className="h-4 w-4" /> {t("incidentDetail.actionMerge")}
               </Button>
             </>
           )}
@@ -159,11 +161,11 @@ export function IncidentDetail() {
       {/* 时间线 */}
       <Card>
         <CardHeader>
-          <CardTitle>时间线</CardTitle>
+          <CardTitle>{t("incidentDetail.timelineTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
-            <EmptyState title="暂无时间线记录" />
+            <EmptyState title={t("incidentDetail.timelineEmpty")} />
           ) : (
             <ol className="relative space-y-4 border-l pl-6">
               {items.map((it) => (
@@ -184,7 +186,10 @@ export function IncidentDetail() {
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {actorLabel(it.actor)} · 来源 {it.source}
+                    {t("incidentDetail.timelineActorSource", {
+                      actor: actorLabel(t, it.actor),
+                      source: it.source,
+                    })}
                   </div>
                 </li>
               ))}
@@ -197,12 +202,13 @@ export function IncidentDetail() {
 }
 
 function BackButton({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={onClick}
       className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
     >
-      <ArrowLeft className="h-4 w-4" /> 返回列表
+      <ArrowLeft className="h-4 w-4" /> {t("incidentDetail.backToList")}
     </button>
   );
 }
@@ -221,6 +227,7 @@ function MergeDialog({
   targetNumber: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const merge = useMergeIncident(incidentId);
   // 拉取活跃事件作为候选（limit 从大取，前端再过滤本单/已关闭单）。
   const { data, isLoading } = useIncidents({ limit: 100 });
@@ -242,17 +249,20 @@ function MergeDialog({
     <Dialog
       open
       onClose={onClose}
-      title={`合并事件到 ${targetNumber}`}
-      description="选中的源事件将并入本单：源单被关闭，其 events/responders 转移到本单。此操作不可逆。"
+      title={t("incidentDetail.mergeTitle", { number: targetNumber })}
+      description={t("incidentDetail.mergeDesc")}
     >
       <div className="space-y-3">
         <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-          ⚠️ 合并不可逆。源单会被关闭并标记 merged_into 指向本单，请确认选择无误。
+          {t("incidentDetail.mergeWarning")}
         </div>
         {isLoading ? (
           <Skeleton className="h-32 w-full" />
         ) : candidates.length === 0 ? (
-          <EmptyState title="无可合并的事件" description="没有其他活跃事件可并入本单。" />
+          <EmptyState
+            title={t("incidentDetail.mergeEmptyTitle")}
+            description={t("incidentDetail.mergeEmptyDesc")}
+          />
         ) : (
           <div className="max-h-72 space-y-1 overflow-auto pr-1">
             {candidates.map((c) => (
@@ -276,11 +286,11 @@ function MergeDialog({
         )}
         <div className="flex items-center justify-between pt-1">
           <span className="text-xs text-muted-foreground">
-            已选 {selected.length} 个源事件
+            {t("incidentDetail.mergeSelectedCount", { count: selected.length })}
           </span>
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
-              取消
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -288,7 +298,9 @@ function MergeDialog({
               disabled={merge.isPending || selected.length === 0}
               onClick={onConfirm}
             >
-              {merge.isPending ? "合并中..." : `确认合并（${selected.length}）`}
+              {merge.isPending
+                ? t("incidentDetail.merging")
+                : t("incidentDetail.mergeConfirm", { count: selected.length })}
             </Button>
           </div>
         </div>
@@ -328,18 +340,21 @@ function timelineDotColor(type: TimelineType): string {
 }
 
 /** actorLabel 时间线 actor 文案。 */
-function actorLabel(actor?: { kind?: string; id?: string; name?: string }) {
-  if (!actor) return "系统";
+function actorLabel(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  actor?: { kind?: string; id?: string; name?: string },
+) {
+  if (!actor) return t("incidentDetail.actorSystem");
   if (actor.name) return actor.name;
   switch (actor.kind) {
     case "user":
-      return `用户 ${actor.id ?? "?"}`;
+      return t("incidentDetail.actorUser", { id: actor.id ?? "?" });
     case "ai":
       return "AI";
     case "integration":
-      return "集成";
+      return t("incidentDetail.actorIntegration");
     default:
-      return "系统";
+      return t("incidentDetail.actorSystem");
   }
 }
 
@@ -349,6 +364,7 @@ function actorLabel(actor?: { kind?: string; id?: string; name?: string }) {
  * 未启用 LLM 时后端返回 {status:"disabled"}，显示降级提示。
  */
 function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
+  const { t } = useTranslation();
   const diagnose = useDiagnoseIncident(incidentId);
   const resolve = useResolveInsight(incidentId);
   const insights = useIncidentInsights(incidentId);
@@ -361,7 +377,7 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
     diagnose.mutate(incidentId, {
       onSuccess: (data) => {
         if ("status" in data && data.status === "disabled") {
-          setDisabledMsg(data.message || "AI 诊断未启用（无 LLM）");
+          setDisabledMsg(data.message || t("incidentDetail.aiDisabledFallback"));
           setResult(null);
         } else {
           setResult(data as DiagnoseResult);
@@ -391,7 +407,7 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Brain className="h-4 w-4" /> AI 诊断
+          <Brain className="h-4 w-4" /> {t("incidentDetail.aiTitle")}
         </CardTitle>
         <div className="flex items-center gap-2">
           <Button
@@ -401,10 +417,14 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
             onClick={() => setShowSimilar((v) => !v)}
           >
             <Sparkles className="mr-1 h-3.5 w-3.5" />
-            {showSimilar ? "隐藏相似事件" : "相似事件"}
+            {showSimilar
+              ? t("incidentDetail.hideSimilar")
+              : t("incidentDetail.showSimilar")}
           </Button>
           <Button size="sm" onClick={onDiagnose} disabled={diagnose.isPending}>
-            {diagnose.isPending ? "诊断中…" : "诊断"}
+            {diagnose.isPending
+              ? t("incidentDetail.diagnosing")
+              : t("incidentDetail.diagnose")}
           </Button>
         </div>
       </CardHeader>
@@ -419,10 +439,14 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
           <div className="space-y-3">
             <div className="flex items-start gap-2">
               <Badge variant={confidenceVariant(result.confidence)}>
-                置信度 {Math.round(result.confidence * 100)}%
+                {t("incidentDetail.confidence", {
+                  value: Math.round(result.confidence * 100),
+                })}
               </Badge>
               <div className="flex-1">
-                <div className="text-xs font-medium text-muted-foreground">根因线索</div>
+                <div className="text-xs font-medium text-muted-foreground">
+                  {t("incidentDetail.rootCause")}
+                </div>
                 <p className="text-sm">{result.root_cause}</p>
               </div>
             </div>
@@ -430,7 +454,7 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
             {result.evidence && result.evidence.length > 0 && (
               <details className="rounded-md border p-2">
                 <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-                  依据（{result.evidence.length} 条）
+                  {t("incidentDetail.evidence", { count: result.evidence.length })}
                 </summary>
                 <ul className="mt-2 space-y-1">
                   {result.evidence.map((ev, i) => (
@@ -444,14 +468,14 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
 
             {/* human-in-the-loop：人确认/拒绝 */}
             <div className="flex items-center gap-2 border-t pt-2">
-              <span className="text-xs text-muted-foreground">这条诊断对你有帮助吗？</span>
+              <span className="text-xs text-muted-foreground">{t("incidentDetail.helpfulPrompt")}</span>
               <Button
                 size="sm"
                 variant="outline"
                 disabled={resolve.isPending}
                 onClick={() => onResolve(true)}
               >
-                <Check className="mr-1 h-3.5 w-3.5" /> 采纳
+                <Check className="mr-1 h-3.5 w-3.5" /> {t("incidentDetail.accept")}
               </Button>
               <Button
                 size="sm"
@@ -459,7 +483,7 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
                 disabled={resolve.isPending}
                 onClick={() => onResolve(false)}
               >
-                <X className="mr-1 h-3.5 w-3.5" /> 拒绝
+                <X className="mr-1 h-3.5 w-3.5" /> {t("incidentDetail.reject")}
               </Button>
             </div>
           </div>
@@ -469,7 +493,7 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
         {historyItems.length > 0 && (
           <div className="space-y-2 border-t pt-3">
             <div className="text-xs font-medium text-muted-foreground">
-              历史 AI 洞察（{historyItems.length} 条）
+              {t("incidentDetail.historyInsights", { count: historyItems.length })}
             </div>
             <ul className="space-y-2">
               {historyItems.map((ins) => (
@@ -489,11 +513,11 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
         {/* 相似历史事件 */}
         {showSimilar && (
           <div className="space-y-2 border-t pt-3">
-            <div className="text-xs font-medium text-muted-foreground">相似历史事件</div>
+            <div className="text-xs font-medium text-muted-foreground">{t("incidentDetail.similarTitle")}</div>
             {similar.isLoading ? (
               <Skeleton className="h-12 w-full" />
             ) : !similar.data || similar.data.length === 0 ? (
-              <p className="text-xs text-muted-foreground">未找到相似事件。</p>
+              <p className="text-xs text-muted-foreground">{t("incidentDetail.similarEmpty")}</p>
             ) : (
               <ul className="space-y-1">
                 {similar.data.map((s) => (
@@ -520,50 +544,59 @@ function AIDiagnoseCard({ incidentId }: { incidentId: number }) {
 }
 
 /** insightStatusMeta AI 洞察状态的文案与 Badge variant（human-in-the-loop 生命周期）。 */
-function insightStatusMeta(status: AIInsightStatus): {
+function insightStatusMeta(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  status: AIInsightStatus,
+): {
   label: string;
   variant: "default" | "warning" | "outline" | "destructive";
 } {
   switch (status) {
     case "applied":
-      return { label: "已应用", variant: "default" };
+      return { label: t("incidentDetail.insightStatus.applied"), variant: "default" };
     case "accepted":
-      return { label: "已采纳", variant: "default" };
+      return { label: t("incidentDetail.insightStatus.accepted"), variant: "default" };
     case "rejected":
-      return { label: "已拒绝", variant: "destructive" };
+      return { label: t("incidentDetail.insightStatus.rejected"), variant: "destructive" };
     default:
-      return { label: "待确认", variant: "warning" };
+      return { label: t("incidentDetail.insightStatus.suggested"), variant: "warning" };
   }
 }
 
 /** insightTypeLabel AI 洞察类型中文文案。 */
-function insightTypeLabel(type: string): string {
+function insightTypeLabel(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  type: string,
+): string {
   switch (type) {
     case "root_cause_hint":
-      return "根因线索";
+      return t("incidentDetail.insightType.rootCauseHint");
     case "severity_adjustment":
-      return "严重度建议";
+      return t("incidentDetail.insightType.severityAdjustment");
     case "dedup_suggestion":
-      return "去重建议";
+      return t("incidentDetail.insightType.dedupSuggestion");
     case "similar_incident":
-      return "相似事件";
+      return t("incidentDetail.insightType.similarIncident");
     case "draft_summary":
-      return "摘要起草";
+      return t("incidentDetail.insightType.draftSummary");
     case "postmortem_draft":
-      return "复盘起草";
+      return t("incidentDetail.insightType.postmortemDraft");
     default:
       return type;
   }
 }
 
 /** insightSummary 从 content 提取一句可读摘要（root_cause / target_severity / 兜底 JSON）。 */
-function insightSummary(ins: AIInsight): string {
+function insightSummary(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  ins: AIInsight,
+): string {
   const content = ins.content ?? {};
   if (typeof content.root_cause === "string") return content.root_cause;
   if (typeof content.target_severity === "string")
-    return `建议调整严重度为 ${content.target_severity}`;
+    return t("incidentDetail.severitySuggestion", { severity: content.target_severity });
   const keys = Object.keys(content);
-  return keys.length > 0 ? JSON.stringify(content) : "（无内容）";
+  return keys.length > 0 ? JSON.stringify(content) : t("incidentDetail.noContent");
 }
 
 /**
@@ -579,20 +612,23 @@ function InsightHistoryItem({
   onResolve: (accepted: boolean) => void;
   resolving: boolean;
 }) {
-  const meta = insightStatusMeta(insight.status);
+  const { t } = useTranslation();
+  const meta = insightStatusMeta(t, insight.status);
   const pending = insight.status === "suggested";
   return (
     <li className="rounded-md border p-2 text-sm">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Badge variant="outline">{insightTypeLabel(insight.type)}</Badge>
+          <Badge variant="outline">{insightTypeLabel(t, insight.type)}</Badge>
           <span className="text-xs text-muted-foreground">
-            置信度 {Math.round((insight.confidence ?? 0) * 100)}%
+            {t("incidentDetail.confidence", {
+              value: Math.round((insight.confidence ?? 0) * 100),
+            })}
           </span>
         </div>
         <Badge variant={meta.variant}>{meta.label}</Badge>
       </div>
-      <p className="mt-1 text-sm">{insightSummary(insight)}</p>
+      <p className="mt-1 text-sm">{insightSummary(t, insight)}</p>
       <div className="mt-1 flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">
           {formatTime(insight.created_at)}
@@ -605,7 +641,7 @@ function InsightHistoryItem({
               disabled={resolving}
               onClick={() => onResolve(true)}
             >
-              <Check className="mr-1 h-3.5 w-3.5" /> 采纳
+              <Check className="mr-1 h-3.5 w-3.5" /> {t("incidentDetail.accept")}
             </Button>
             <Button
               size="sm"
@@ -613,7 +649,7 @@ function InsightHistoryItem({
               disabled={resolving}
               onClick={() => onResolve(false)}
             >
-              <X className="mr-1 h-3.5 w-3.5" /> 拒绝
+              <X className="mr-1 h-3.5 w-3.5" /> {t("incidentDetail.reject")}
             </Button>
           </div>
         )}

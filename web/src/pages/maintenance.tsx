@@ -9,6 +9,7 @@
  */
 import * as React from "react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CalendarClock, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,27 +52,30 @@ function computeState(tw?: Record<string, unknown>, now = Date.now()): WindowSta
 
 /** stateBadge 状态徽章（文案 + variant）。 */
 function StateBadge({ state, endISO }: { state: WindowState; endISO?: string }) {
+  const { t } = useTranslation();
   if (state === "active") {
     return (
       <span className="inline-flex items-center gap-1.5">
-        <Badge variant="triggered">生效中</Badge>
-        {endISO && <span className="text-xs text-muted-foreground">{remainingText(endISO)}</span>}
+        <Badge variant="triggered">{t("maintenance.stateActive")}</Badge>
+        {endISO && (
+          <span className="text-xs text-muted-foreground">{remainingText(endISO, t)}</span>
+        )}
       </span>
     );
   }
-  if (state === "scheduled") return <Badge variant="acked">已排期</Badge>;
-  if (state === "expired") return <Badge variant="closed">已结束</Badge>;
+  if (state === "scheduled") return <Badge variant="acked">{t("maintenance.stateScheduled")}</Badge>;
+  if (state === "expired") return <Badge variant="closed">{t("maintenance.stateEnded")}</Badge>;
   return <Badge variant="secondary">—</Badge>;
 }
 
 /** remainingText 生效中窗口的剩余时间（简洁：剩 X 时 Y 分 / 剩 X 分）。 */
-function remainingText(endISO: string): string {
+function remainingText(endISO: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const ms = new Date(endISO).getTime() - Date.now();
   if (Number.isNaN(ms) || ms <= 0) return "";
   const mins = Math.floor(ms / 60000);
-  if (mins < 60) return `剩 ${mins} 分`;
+  if (mins < 60) return t("maintenance.remainingMinutes", { m: mins });
   const h = Math.floor(mins / 60);
-  return `剩 ${h} 时 ${mins % 60} 分`;
+  return t("maintenance.remainingHoursMinutes", { h, m: mins % 60 });
 }
 
 /** isoToLocalInput 把 RFC3339/ISO 转为 datetime-local 输入值（本地时区，YYYY-MM-DDTHH:mm）。 */
@@ -90,6 +94,7 @@ function localInputToISO(local: string): string {
 }
 
 export function Maintenance() {
+  const { t } = useTranslation();
   const { data, isLoading, isError } = useMaintenanceWindows();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<SuppressionRule | undefined>(undefined);
@@ -98,13 +103,11 @@ export function Maintenance() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">维护窗口</h1>
-          <p className="text-sm text-muted-foreground">
-            为计划内变更建维护窗，窗内命中告警自动抑制、到期自动失效。
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("maintenance.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("maintenance.subtitle")}</p>
         </div>
         <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 新建维护窗口
+          <Plus className="mr-1 h-4 w-4" /> {t("maintenance.createWindow")}
         </Button>
       </div>
 
@@ -119,19 +122,19 @@ export function Maintenance() {
           <div className="p-6">
             <EmptyState
               icon={<CalendarClock className="h-8 w-8" />}
-              title="暂无维护窗口"
-              description="为计划内变更建维护窗，窗内告警自动抑制、到期自动失效。"
+              title={t("maintenance.emptyTitle")}
+              description={t("maintenance.emptyDescription")}
             />
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-2.5 text-left font-medium">名称</th>
-                <th className="px-4 py-2.5 text-left font-medium">匹配范围</th>
-                <th className="px-4 py-2.5 text-left font-medium">计划时间窗</th>
-                <th className="px-4 py-2.5 text-left font-medium">状态</th>
-                <th className="px-4 py-2.5 text-left font-medium">启用</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("maintenance.colName")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("maintenance.colScope")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("maintenance.colTimeWindow")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("maintenance.colState")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("maintenance.colEnabled")}</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
@@ -152,6 +155,7 @@ export function Maintenance() {
 
 /** WindowRow 单行：范围/时间窗/状态/启停/编辑/删除。 */
 function WindowRow({ win, onEdit }: { win: SuppressionRule; onEdit: () => void }) {
+  const { t } = useTranslation();
   const del = useDeleteSuppressionRule();
   const update = useUpdateSuppressionRule();
   const { start, end } = readWindow(win.time_window);
@@ -175,7 +179,7 @@ function WindowRow({ win, onEdit }: { win: SuppressionRule; onEdit: () => void }
             ))}
           </div>
         ) : (
-          <span className="text-xs text-muted-foreground">全部告警</span>
+          <span className="text-xs text-muted-foreground">{t("maintenance.allAlerts")}</span>
         )}
       </td>
       <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -196,23 +200,25 @@ function WindowRow({ win, onEdit }: { win: SuppressionRule; onEdit: () => void }
           onClick={() => update.mutate({ id: win.id, body: { enabled: !win.enabled } })}
           disabled={update.isPending}
           className="text-xs"
-          title={win.enabled ? "点击停用" : "点击启用"}
+          title={win.enabled ? t("maintenance.clickToDisable") : t("maintenance.clickToEnable")}
         >
-          <Badge variant={win.enabled ? "default" : "secondary"}>{win.enabled ? "启用" : "停用"}</Badge>
+          <Badge variant={win.enabled ? "default" : "secondary"}>
+            {win.enabled ? t("maintenance.enabled") : t("maintenance.disabled")}
+          </Badge>
         </button>
       </td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="icon" title="编辑" onClick={onEdit}>
+          <Button variant="ghost" size="icon" title={t("common.edit")} onClick={onEdit}>
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            title="删除"
+            title={t("common.delete")}
             onClick={() => {
               // 破坏性操作二次确认，防误删维护窗口
-              if (window.confirm(`确认删除维护窗口「${win.name}」？`)) del.mutate(win.id);
+              if (window.confirm(t("maintenance.confirmDelete", { name: win.name }))) del.mutate(win.id);
             }}
             disabled={del.isPending}
           >
@@ -266,12 +272,15 @@ function useWindowForm(initial?: SuppressionRule): [WindowFormValues, React.Disp
  * buildBody 从表单值构造提交体。返回 { body } 或 { error }（校验失败）。
  * 关键：kind=maintenance；time_window={start,end}；expires_at=end（自动到期）。
  */
-function buildBody(v: WindowFormValues): { body: Partial<SuppressionRule> } | { error: string } {
-  if (!v.startLocal || !v.endLocal) return { error: "请填写计划起止时间" };
+function buildBody(
+  v: WindowFormValues,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): { body: Partial<SuppressionRule> } | { error: string } {
+  if (!v.startLocal || !v.endLocal) return { error: t("maintenance.errFillTimeRange") };
   const startISO = localInputToISO(v.startLocal);
   const endISO = localInputToISO(v.endLocal);
   if (new Date(startISO).getTime() >= new Date(endISO).getTime()) {
-    return { error: "开始时间必须早于结束时间" };
+    return { error: t("maintenance.errStartBeforeEnd") };
   }
   const matchLabels: Record<string, string> = {};
   if (v.matchKey && v.matchVal) matchLabels[v.matchKey] = v.matchVal;
@@ -303,26 +312,27 @@ function WindowFields({
   v: WindowFormValues;
   set: React.Dispatch<React.SetStateAction<WindowFormValues>>;
 }) {
+  const { t } = useTranslation();
   return (
     <>
-      <Field label="名称">
+      <Field label={t("maintenance.fieldName")}>
         <Input
           value={v.name}
           onChange={(e) => set((p) => ({ ...p, name: e.target.value }))}
-          placeholder="支付服务发布窗口"
+          placeholder={t("maintenance.placeholderName")}
           required
           autoFocus
         />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="匹配 Label Key（留空=匹配全部）">
+        <Field label={t("maintenance.fieldMatchKey")}>
           <Input
             value={v.matchKey}
             onChange={(e) => set((p) => ({ ...p, matchKey: e.target.value }))}
             placeholder="service"
           />
         </Field>
-        <Field label="匹配 Label Value">
+        <Field label={t("maintenance.fieldMatchValue")}>
           <Input
             value={v.matchVal}
             onChange={(e) => set((p) => ({ ...p, matchVal: e.target.value }))}
@@ -330,11 +340,9 @@ function WindowFields({
           />
         </Field>
       </div>
-      <p className="text-xs text-muted-foreground">
-        留空 Label 表示匹配全部告警（范围较大，请谨慎）。
-      </p>
+      <p className="text-xs text-muted-foreground">{t("maintenance.matchHint")}</p>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="计划开始">
+        <Field label={t("maintenance.fieldStart")}>
           <Input
             type="datetime-local"
             value={v.startLocal}
@@ -342,7 +350,7 @@ function WindowFields({
             required
           />
         </Field>
-        <Field label="计划结束">
+        <Field label={t("maintenance.fieldEnd")}>
           <Input
             type="datetime-local"
             value={v.endLocal}
@@ -351,7 +359,7 @@ function WindowFields({
           />
         </Field>
       </div>
-      <Field label="严重度过滤（逗号分隔，留空=全部）">
+      <Field label={t("maintenance.fieldSeverityFilter")}>
         <Input
           value={v.severityFilter}
           onChange={(e) => set((p) => ({ ...p, severityFilter: e.target.value }))}
@@ -365,7 +373,7 @@ function WindowFields({
           onChange={(e) => set((p) => ({ ...p, preserveCritical: e.target.checked }))}
           className="h-4 w-4"
         />
-        <span>保护 critical（严重告警仍照常触达，不被窗口抑制）</span>
+        <span>{t("maintenance.preserveCritical")}</span>
       </label>
     </>
   );
@@ -373,13 +381,14 @@ function WindowFields({
 
 /** CreateWindowDialog 新建维护窗口。 */
 function CreateWindowDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const create = useCreateSuppressionRule();
   const [v, set] = useWindowForm();
   const [err, setErr] = useState<string | undefined>(undefined);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const r = buildBody(v);
+    const r = buildBody(v, t);
     if ("error" in r) {
       setErr(r.error);
       return;
@@ -395,18 +404,18 @@ function CreateWindowDialog({ onClose }: { onClose: () => void }) {
     <Dialog
       open
       onClose={onClose}
-      title="新建维护窗口"
-      description="窗内命中告警自动抑制，到期（结束时间）自动失效。"
+      title={t("maintenance.createDialogTitle")}
+      description={t("maintenance.createDialogDescription")}
     >
       <form className="space-y-3" onSubmit={onSubmit}>
         <WindowFields v={v} set={set} />
         {err && <p className="text-xs text-destructive">{err}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={create.isPending || !v.name}>
-            {create.isPending ? "创建中..." : "创建"}
+            {create.isPending ? t("maintenance.creating") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -416,6 +425,7 @@ function CreateWindowDialog({ onClose }: { onClose: () => void }) {
 
 /** EditWindowDialog 编辑维护窗口（时间窗/范围/严重度/保护 critical/启停）。 */
 function EditWindowDialog({ win, onClose }: { win: SuppressionRule; onClose: () => void }) {
+  const { t } = useTranslation();
   const update = useUpdateSuppressionRule();
   const [v, set] = useWindowForm(win);
   const [enabled, setEnabled] = useState(!!win.enabled);
@@ -423,7 +433,7 @@ function EditWindowDialog({ win, onClose }: { win: SuppressionRule; onClose: () 
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const r = buildBody(v);
+    const r = buildBody(v, t);
     if ("error" in r) {
       setErr(r.error);
       return;
@@ -439,8 +449,8 @@ function EditWindowDialog({ win, onClose }: { win: SuppressionRule; onClose: () 
     <Dialog
       open
       onClose={onClose}
-      title={`编辑维护窗口 · ${win.name}`}
-      description="修改时间窗、匹配范围或启停。结束时间即到期失效点。"
+      title={t("maintenance.editDialogTitle", { name: win.name })}
+      description={t("maintenance.editDialogDescription")}
     >
       <form className="space-y-3" onSubmit={onSubmit}>
         <WindowFields v={v} set={set} />
@@ -451,15 +461,15 @@ function EditWindowDialog({ win, onClose }: { win: SuppressionRule; onClose: () 
             onChange={(e) => setEnabled(e.target.checked)}
             className="h-4 w-4"
           />
-          <span>启用</span>
+          <span>{t("maintenance.enabled")}</span>
         </label>
         {err && <p className="text-xs text-destructive">{err}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={update.isPending || !v.name}>
-            {update.isPending ? "保存中..." : "保存"}
+            {update.isPending ? t("common.submitting") : t("common.save")}
           </Button>
         </div>
       </form>

@@ -6,6 +6,7 @@
  *       POST /incidents/:id/postmortem/draft。
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, ClipboardList, Plus, FileText, Trash2, Sparkles, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,11 +32,12 @@ import { formatTime } from "@/lib/format";
 import { extractError } from "@/lib/http";
 import type { ActionItem, PostmortemStatus } from "@/lib/types";
 
-const STATUS_LABEL: Record<PostmortemStatus, string> = {
-  draft: "草稿",
-  in_review: "评审中",
-  published: "已发布",
-  archived: "已归档",
+// 状态 → i18n key（标签在组件内经 t() 解析，故此处存 key 而非中文字面量）。
+const STATUS_LABEL_KEY: Record<PostmortemStatus, string> = {
+  draft: "postmortems.statusDraft",
+  in_review: "postmortems.statusInReview",
+  published: "postmortems.statusPublished",
+  archived: "postmortems.statusArchived",
 };
 const STATUS_VARIANT: Record<PostmortemStatus, "default" | "secondary" | "outline"> = {
   draft: "secondary",
@@ -45,6 +47,7 @@ const STATUS_VARIANT: Record<PostmortemStatus, "default" | "secondary" | "outlin
 };
 
 export function Postmortems() {
+  const { t } = useTranslation();
   const { data, isLoading, isError } = usePostmortems();
   const [selected, setSelected] = useState<number | undefined>(undefined);
   const [drafting, setDrafting] = useState(false);
@@ -55,13 +58,11 @@ export function Postmortems() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">复盘</h1>
-          <p className="text-sm text-muted-foreground">
-            闭环学习：从事件起草复盘 → 结构化 → 改进项跟踪 → 知识沉淀。
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("postmortems.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("postmortems.subtitle")}</p>
         </div>
         <Button onClick={() => setDrafting(true)}>
-          <Plus className="mr-1 h-4 w-4" /> 从事件起草
+          <Plus className="mr-1 h-4 w-4" /> {t("postmortems.draftFromIncident")}
         </Button>
       </div>
 
@@ -76,8 +77,8 @@ export function Postmortems() {
           <CardContent className="p-6">
             <EmptyState
               icon={<ClipboardList className="h-8 w-8" />}
-              title="还没有复盘"
-              description="事件解决后可起草复盘，让复盘不再是 4 小时苦差。"
+              title={t("postmortems.emptyTitle")}
+              description={t("postmortems.emptyDescription")}
             />
           </CardContent>
         </Card>
@@ -92,9 +93,9 @@ export function Postmortems() {
               <CardContent className="flex items-center justify-between p-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">复盘 #{pm.id}</span>
-                    <Badge variant={STATUS_VARIANT[pm.status]}>{STATUS_LABEL[pm.status]}</Badge>
-                    <span className="text-xs text-muted-foreground">事件 #{pm.incident?.id}</span>
+                    <span className="font-medium">{t("postmortems.postmortemNo", { id: pm.id })}</span>
+                    <Badge variant={STATUS_VARIANT[pm.status]}>{t(STATUS_LABEL_KEY[pm.status])}</Badge>
+                    <span className="text-xs text-muted-foreground">{t("postmortems.incidentNo", { id: pm.incident?.id })}</span>
                   </div>
                 </div>
                 <span className="text-xs text-muted-foreground">{formatTime(pm.created_at)}</span>
@@ -119,6 +120,7 @@ export function Postmortems() {
 
 /** PostmortemDetail 详情：章节 + 改进项 + 状态流转 + 删除。 */
 function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
+  const { t } = useTranslation();
   const { data: pm, isLoading, isError } = usePostmortem(id);
   const transition = useTransitionPostmortem(id);
   const addAction = useAddActionItem(id);
@@ -131,8 +133,8 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
   if (isError || !pm) {
     return (
       <div className="p-6">
-        <Button variant="ghost" onClick={onBack}><ArrowLeft className="mr-1 h-4 w-4" />返回</Button>
-        <EmptyState title="复盘不存在" />
+        <Button variant="ghost" onClick={onBack}><ArrowLeft className="mr-1 h-4 w-4" />{t("postmortems.back")}</Button>
+        <EmptyState title={t("postmortems.notFound")} />
       </div>
     );
   }
@@ -141,18 +143,18 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={onBack}>
-          <ArrowLeft className="mr-1 h-4 w-4" />返回列表
+          <ArrowLeft className="mr-1 h-4 w-4" />{t("postmortems.backToList")}
         </Button>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">状态</span>
+          <span className="text-xs text-muted-foreground">{t("postmortems.statusLabel")}</span>
           <Select
             value={pm.status}
             onChange={(e) => transition.mutate(e.target.value as PostmortemStatus)}
             className="w-32"
             disabled={transition.isPending}
           >
-            {(Object.keys(STATUS_LABEL) as PostmortemStatus[]).map((s) => (
-              <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+            {(Object.keys(STATUS_LABEL_KEY) as PostmortemStatus[]).map((s) => (
+              <option key={s} value={s}>{t(STATUS_LABEL_KEY[s])}</option>
             ))}
           </Select>
           <Button
@@ -160,27 +162,27 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
             size="sm"
             disabled={del.isPending}
             onClick={() => {
-              if (window.confirm(`确定删除复盘 #${pm.id}？其改进项将一并删除，且不可恢复。`)) {
+              if (window.confirm(t("postmortems.deleteConfirm", { id: pm.id }))) {
                 del.mutate(pm.id, { onSuccess: onBack });
               }
             }}
           >
-            <Trash2 className="mr-1 h-4 w-4" /> 删除复盘
+            <Trash2 className="mr-1 h-4 w-4" /> {t("postmortems.deletePostmortem")}
           </Button>
         </div>
       </div>
 
       <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">复盘 #{pm.id}</h1>
-        <Badge variant={STATUS_VARIANT[pm.status]}>{STATUS_LABEL[pm.status]}</Badge>
-        <span className="text-sm text-muted-foreground">关联事件 #{pm.incident?.id}</span>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("postmortems.postmortemNo", { id: pm.id })}</h1>
+        <Badge variant={STATUS_VARIANT[pm.status]}>{t(STATUS_LABEL_KEY[pm.status])}</Badge>
+        <span className="text-sm text-muted-foreground">{t("postmortems.linkedIncidentNo", { id: pm.incident?.id })}</span>
       </div>
 
       <SectionsCard id={pm.id} status={pm.status} sections={pm.sections} />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">改进项</CardTitle>
+          <CardTitle className="text-base">{t("postmortems.actionItems")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {pm.action_items && pm.action_items.length > 0 ? (
@@ -194,7 +196,7 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
               />
             ))
           ) : (
-            <p className="text-sm text-muted-foreground">暂无改进项。</p>
+            <p className="text-sm text-muted-foreground">{t("postmortems.noActionItems")}</p>
           )}
           <form
             className="flex gap-2 pt-2"
@@ -204,8 +206,8 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
               addAction.mutate({ description: newItem }, { onSuccess: () => setNewItem("") });
             }}
           >
-            <Input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="添加改进项…" />
-            <Button type="submit" size="sm" disabled={addAction.isPending || !newItem}>添加</Button>
+            <Input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder={t("postmortems.addActionItemPlaceholder")} />
+            <Button type="submit" size="sm" disabled={addAction.isPending || !newItem}>{t("postmortems.add")}</Button>
           </form>
         </CardContent>
       </Card>
@@ -215,16 +217,16 @@ function PostmortemDetail({ id, onBack }: { id: number; onBack: () => void }) {
 
 // AI_SECTIONS_KEY sections JSON 内保留键：记录仍标记「AI 草拟」的段落名（与后端 engine.go aiSectionsKey 对齐）。
 const AI_SECTIONS_KEY = "_ai_sections";
-// 段名中文标签（覆盖模板段；未列出的段名原样展示）。
-const SECTION_LABEL: Record<string, string> = {
-  summary: "摘要",
-  impact: "影响",
-  timeline: "时间线",
-  root_cause: "根因",
-  contributing_factors: "促成因素",
-  what_went_well: "做得好的",
-  what_went_wrong: "做得差的",
-  action_items: "改进项",
+// 段名 → i18n key（覆盖模板段；未列出的段名原样展示）。标签在 SectionRow 内经 t() 解析。
+const SECTION_LABEL_KEY: Record<string, string> = {
+  summary: "postmortems.sectionSummary",
+  impact: "postmortems.sectionImpact",
+  timeline: "postmortems.sectionTimeline",
+  root_cause: "postmortems.sectionRootCause",
+  contributing_factors: "postmortems.sectionContributingFactors",
+  what_went_well: "postmortems.sectionWhatWentWell",
+  what_went_wrong: "postmortems.sectionWhatWentWrong",
+  action_items: "postmortems.sectionActionItems",
 };
 // 只读段：由系统/关联数据自动生成，不走逐段编辑（时间线是事实依据，改进项有独立 CRUD）。
 const READONLY_SECTIONS = new Set(["timeline", "action_items"]);
@@ -239,6 +241,7 @@ function SectionsCard({
   status: PostmortemStatus;
   sections?: Record<string, unknown>;
 }) {
+  const { t } = useTranslation();
   const edit = useEditSections(id);
   if (!sections || Object.keys(sections).length === 0) return null;
 
@@ -254,8 +257,8 @@ function SectionsCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <FileText className="h-4 w-4" /> 章节
-          {locked && <Badge variant="outline">已定稿·只读</Badge>}
+          <FileText className="h-4 w-4" /> {t("postmortems.sections")}
+          {locked && <Badge variant="outline">{t("postmortems.lockedReadonly")}</Badge>}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -295,6 +298,7 @@ function SectionRow({
   onSave: (val: unknown) => void;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   const isStringArray = Array.isArray(value) && value.every((x) => typeof x === "string");
   const asText =
     typeof value === "string"
@@ -304,7 +308,8 @@ function SectionRow({
         : JSON.stringify(value, null, 2);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(asText);
-  const label = SECTION_LABEL[name] ?? name;
+  const labelKey = SECTION_LABEL_KEY[name];
+  const label = labelKey ? t(labelKey) : name;
 
   const save = () => {
     // 字符串数组段：按行拆回数组（去空行）；字符串段：原样。
@@ -319,7 +324,7 @@ function SectionRow({
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
         {isAI && (
           <Badge variant="secondary" className="gap-1">
-            <Sparkles className="h-3 w-3" /> AI 草拟
+            <Sparkles className="h-3 w-3" /> {t("postmortems.aiDrafted")}
           </Badge>
         )}
         {editable && !editing && (
@@ -332,7 +337,7 @@ function SectionRow({
               setEditing(true);
             }}
           >
-            <Pencil className="mr-1 h-3 w-3" /> 编辑
+            <Pencil className="mr-1 h-3 w-3" /> {t("common.edit")}
           </Button>
         )}
       </div>
@@ -345,14 +350,14 @@ function SectionRow({
             autoFocus
           />
           {isStringArray && (
-            <p className="text-xs text-muted-foreground">每行一条。</p>
+            <p className="text-xs text-muted-foreground">{t("postmortems.onePerLine")}</p>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
-              取消
+              {t("common.cancel")}
             </Button>
             <Button size="sm" disabled={saving} onClick={save}>
-              保存
+              {t("common.save")}
             </Button>
           </div>
         </div>
@@ -375,7 +380,14 @@ function ActionItemRow({
   onDelete: () => void;
   deleting: boolean;
 }) {
+  const { t } = useTranslation();
   const STATUS: ActionItem["status"][] = ["open", "in_progress", "done"];
+  // 改进项状态 → i18n key。
+  const AI_STATUS_KEY: Record<ActionItem["status"], string> = {
+    open: "postmortems.aiStatusOpen",
+    in_progress: "postmortems.aiStatusInProgress",
+    done: "postmortems.aiStatusDone",
+  };
   return (
     <div className="flex items-center gap-2 rounded-md border p-2">
       <span className="flex-1 text-sm">{ai.description}</span>
@@ -385,15 +397,15 @@ function ActionItemRow({
         className="w-32"
       >
         {STATUS.map((s) => (
-          <option key={s} value={s}>{s}</option>
+          <option key={s} value={s}>{t(AI_STATUS_KEY[s])}</option>
         ))}
       </Select>
       {ai.tracker_url && (
         <a href={ai.tracker_url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
-          工单
+          {t("postmortems.ticket")}
         </a>
       )}
-      <Button variant="ghost" size="icon" title="删除" disabled={deleting} onClick={onDelete}>
+      <Button variant="ghost" size="icon" title={t("common.delete")} disabled={deleting} onClick={onDelete}>
         <Trash2 className="h-4 w-4" />
       </Button>
     </div>
@@ -408,6 +420,7 @@ function DraftDialog({
   onClose: () => void;
   onCreated: (pmId: number) => void;
 }) {
+  const { t } = useTranslation();
   const gen = useGenerateDraft();
   const [incidentId, setIncidentId] = useState("");
   const parsedId = Number(incidentId);
@@ -416,7 +429,7 @@ function DraftDialog({
   const errMsg = gen.error ? extractError(gen.error) : null;
 
   return (
-    <Dialog open onClose={onClose} title="从事件起草复盘" description="基于事件时间线 + AI 起草结构化复盘（人校对）。">
+    <Dialog open onClose={onClose} title={t("postmortems.draftDialogTitle")} description={t("postmortems.draftDialogDescription")}>
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -426,19 +439,19 @@ function DraftDialog({
         }}
       >
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">事件 ID</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("postmortems.incidentIdLabel")}</span>
           <Input
             type="number"
             min={1}
             value={incidentId}
             onChange={(e) => setIncidentId(e.target.value)}
-            placeholder="例如 1"
+            placeholder={t("postmortems.incidentIdPlaceholder")}
             required
             autoFocus
           />
         </label>
         <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
-          事件 ID 可在「事件」列表的编号列查看。无 LLM key 时降级为规则草稿（设计基线第 7 条）。
+          {t("postmortems.incidentIdHint")}
         </p>
         {errMsg && (
           <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
@@ -447,10 +460,10 @@ function DraftDialog({
         )}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={gen.isPending || !valid}>
-            {gen.isPending ? "起草中..." : "起草"}
+            {gen.isPending ? t("postmortems.drafting") : t("postmortems.draft")}
           </Button>
         </div>
       </form>

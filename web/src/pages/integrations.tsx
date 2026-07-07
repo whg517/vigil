@@ -4,6 +4,7 @@
  * 仿 services.tsx 模式。
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Cable, Copy, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import type { Integration, IntegrationType } from "@/lib/types";
 const TYPE_OPTIONS: IntegrationType[] = ["prometheus", "grafana", "webhook", "email", "zabbix", "cloud", "api"];
 
 export function Integrations() {
+  const { t } = useTranslation();
   const { data, isLoading } = useIntegrations();
   const [creating, setCreating] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -31,17 +33,17 @@ export function Integrations() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">接入管理</h1>
-          <p className="text-sm text-muted-foreground">告警源接入点 · webhook 鉴权 token</p>
+          <h1 className="text-lg font-semibold">{t("integrations.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("integrations.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* 快速创建：保留原简单表单，供已熟悉配置的用户直接建点。 */}
           <Button variant="outline" onClick={() => setCreating(true)}>
-            <Plus className="mr-1 h-4 w-4" /> 快速创建
+            <Plus className="mr-1 h-4 w-4" /> {t("integrations.quickCreate")}
           </Button>
           {/* 新建接入向导（M14.6）：分步引导选类型/配置/验证，降低 onboarding 门槛。 */}
           <Button onClick={() => setWizardOpen(true)}>
-            <Wand2 className="mr-1 h-4 w-4" /> 新建接入向导
+            <Wand2 className="mr-1 h-4 w-4" /> {t("integrations.wizardButton")}
           </Button>
         </div>
       </div>
@@ -53,11 +55,11 @@ export function Integrations() {
           ) : !data || data.length === 0 ? (
             <EmptyState
               icon={<Cable className="h-8 w-8" />}
-              title="暂无接入点"
-              description="用「新建接入向导」分步接入告警源，或点「快速创建」直接建点。"
+              title={t("integrations.emptyTitle")}
+              description={t("integrations.emptyDescription")}
               action={
                 <Button onClick={() => setWizardOpen(true)}>
-                  <Wand2 className="mr-1 h-4 w-4" /> 新建接入向导
+                  <Wand2 className="mr-1 h-4 w-4" /> {t("integrations.wizardButton")}
                 </Button>
               }
             />
@@ -65,10 +67,10 @@ export function Integrations() {
             <table className="w-full text-sm">
               <thead className="border-b text-left text-xs text-muted-foreground">
                 <tr>
-                  <th className="p-3">名称</th>
-                  <th className="p-3">类型</th>
-                  <th className="p-3">状态</th>
-                  <th className="p-3">创建时间</th>
+                  <th className="p-3">{t("integrations.colName")}</th>
+                  <th className="p-3">{t("integrations.colType")}</th>
+                  <th className="p-3">{t("integrations.colStatus")}</th>
+                  <th className="p-3">{t("integrations.colCreatedAt")}</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
@@ -91,6 +93,7 @@ export function Integrations() {
 
 /** IntegrationRow 单行 + 启停/编辑/删除。 */
 function IntegrationRow({ integ, onEdit }: { integ: Integration; onEdit: () => void }) {
+  const { t } = useTranslation();
   const del = useDeleteIntegration();
   const update = useUpdateIntegration();
   return (
@@ -101,7 +104,7 @@ function IntegrationRow({ integ, onEdit }: { integ: Integration; onEdit: () => v
       </td>
       <td className="p-3">
         <Badge variant={integ.enabled ? "default" : "secondary"}>
-          {integ.enabled ? "启用" : "停用"}
+          {integ.enabled ? t("integrations.enabled") : t("integrations.disabled")}
         </Badge>
       </td>
       <td className="p-3 text-muted-foreground">{formatTime(integ.created_at)}</td>
@@ -110,16 +113,16 @@ function IntegrationRow({ integ, onEdit }: { integ: Integration; onEdit: () => v
           <Button
             variant="ghost"
             size="sm"
-            title={integ.enabled ? "停用" : "启用"}
+            title={integ.enabled ? t("integrations.disable") : t("integrations.enable")}
             disabled={update.isPending}
             onClick={() => update.mutate({ id: integ.id, body: { enabled: !integ.enabled } })}
           >
-            {integ.enabled ? "停用" : "启用"}
+            {integ.enabled ? t("integrations.disable") : t("integrations.enable")}
           </Button>
-          <Button size="icon" variant="ghost" title="编辑" onClick={onEdit}>
+          <Button size="icon" variant="ghost" title={t("common.edit")} onClick={onEdit}>
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" title="删除" disabled={del.isPending} onClick={() => del.mutate(integ.id)}>
+          <Button size="icon" variant="ghost" title={t("common.delete")} disabled={del.isPending} onClick={() => del.mutate(integ.id)}>
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
@@ -130,12 +133,13 @@ function IntegrationRow({ integ, onEdit }: { integ: Integration; onEdit: () => v
 
 /** EditIntegrationDialog 改名 + 启停（type 创建后不可改）。 */
 function EditIntegrationDialog({ integ, onClose }: { integ: Integration; onClose: () => void }) {
+  const { t } = useTranslation();
   const update = useUpdateIntegration();
   const [name, setName] = useState(integ.name);
   const [enabled, setEnabled] = useState(!!integ.enabled);
 
   return (
-    <Dialog open onClose={onClose} title={`编辑接入点 · ${integ.type}`} description="类型创建后不可修改。">
+    <Dialog open onClose={onClose} title={t("integrations.editTitle", { type: integ.type })} description={t("integrations.typeImmutable")}>
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -144,7 +148,7 @@ function EditIntegrationDialog({ integ, onClose }: { integ: Integration; onClose
         }}
       >
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称</label>
+          <label className="text-sm font-medium">{t("integrations.colName")}</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         </div>
         <label className="flex items-center gap-2 text-sm">
@@ -154,11 +158,11 @@ function EditIntegrationDialog({ integ, onClose }: { integ: Integration; onClose
             onChange={(e) => setEnabled(e.target.checked)}
             className="h-4 w-4"
           />
-          <span>启用（停用后告警源推送将被拒绝）</span>
+          <span>{t("integrations.enableHint")}</span>
         </label>
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
-          <Button type="submit" disabled={update.isPending || !name}>保存</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="submit" disabled={update.isPending || !name}>{t("common.save")}</Button>
         </div>
       </form>
     </Dialog>
@@ -167,6 +171,7 @@ function EditIntegrationDialog({ integ, onClose }: { integ: Integration; onClose
 
 /** CreateIntegrationDialog 创建接入点。成功后展示 webhook URL + 一次性 token。 */
 function CreateIntegrationDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const create = useCreateIntegration();
   const [name, setName] = useState("");
   const [type, setType] = useState<IntegrationType>("prometheus");
@@ -181,54 +186,54 @@ function CreateIntegrationDialog({ onClose }: { onClose: () => void }) {
   };
 
   const copy = async (text: string) => {
-    try { await navigator.clipboard.writeText(text); toast.success("已复制"); }
-    catch { toast.error("复制失败"); }
+    try { await navigator.clipboard.writeText(text); toast.success(t("integrations.copied")); }
+    catch { toast.error(t("integrations.copyFailed")); }
   };
 
   // 创建成功：展示 webhook URL + 一次性 token
   if (created) {
     return (
-      <Dialog open onClose={onClose} title="接入点已创建" description="⚠️ 鉴权 token 仅此一次展示，请立即复制保存。">
+      <Dialog open onClose={onClose} title={t("integrations.createdTitle")} description={t("integrations.createdDescription")}>
         <div className="space-y-3">
           <div>
-            <label className="text-sm font-medium">Webhook URL（告警源推送到此）</label>
+            <label className="text-sm font-medium">{t("integrations.webhookUrlLabel")}</label>
             <div className="mt-1 flex items-center gap-2 rounded-md border bg-muted p-3">
               <code className="flex-1 break-all text-xs">{created.webhookUrl}</code>
               <Button size="sm" variant="outline" onClick={() => copy(created.webhookUrl)}>
-                <Copy className="mr-1 h-4 w-4" /> 复制
+                <Copy className="mr-1 h-4 w-4" /> {t("integrations.copy")}
               </Button>
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">鉴权 Token（如需 Header 方式）</label>
+            <label className="text-sm font-medium">{t("integrations.tokenLabel")}</label>
             <div className="mt-1 flex items-center gap-2 rounded-md border bg-muted p-3">
               <code className="flex-1 break-all text-xs">{created.token}</code>
               <Button size="sm" variant="outline" onClick={() => copy(created.token)}>
-                <Copy className="mr-1 h-4 w-4" /> 复制
+                <Copy className="mr-1 h-4 w-4" /> {t("integrations.copy")}
               </Button>
             </div>
           </div>
-          <Button className="w-full" onClick={onClose}>我已保存</Button>
+          <Button className="w-full" onClick={onClose}>{t("integrations.savedConfirm")}</Button>
         </div>
       </Dialog>
     );
   }
 
   return (
-    <Dialog open onClose={onClose} title="创建接入点" description="配置告警源接入。创建后获得 webhook URL。">
+    <Dialog open onClose={onClose} title={t("integrations.createTitle")} description={t("integrations.createDescription")}>
       <form className="space-y-3" onSubmit={onSubmit}>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">名称</label>
+          <label className="text-sm font-medium">{t("integrations.colName")}</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="prod-prometheus" required autoFocus />
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">类型</label>
+          <label className="text-sm font-medium">{t("integrations.colType")}</label>
           <Select value={type} onChange={(e) => setType(e.target.value as IntegrationType)}>
-            {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+            {TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
           </Select>
         </div>
         <Button type="submit" className="w-full" disabled={create.isPending || !name}>
-          {create.isPending ? "创建中..." : "创建"}
+          {create.isPending ? t("integrations.creating") : t("common.create")}
         </Button>
       </form>
     </Dialog>
