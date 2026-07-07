@@ -41,15 +41,6 @@ func markApplied(t *testing.T, db *sql.DB, versions ...string) {
 	}
 }
 
-func countRows(t *testing.T, db *sql.DB) int {
-	t.Helper()
-	var n int
-	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&n); err != nil {
-		t.Fatalf("count: %v", err)
-	}
-	return n
-}
-
 // TestStatus_ListsAppliedCurrentPending 验证 status 正确区分已应用/当前/待应用。
 func TestStatus_ListsAppliedCurrentPending(t *testing.T) {
 	db := newTestDB(t)
