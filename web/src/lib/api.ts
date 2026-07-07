@@ -42,6 +42,9 @@ import type {
   Runbook,
   RunbookExecuteResult,
   Schedule,
+  ScheduleDetail,
+  CreateScheduleReq,
+  UpdateScheduleReq,
   ScheduleOverride,
   Service,
   Subscription,
@@ -295,13 +298,14 @@ export const api = {
   listSchedules() {
     return http.get<Schedule[]>("/schedules").then((r) => r.data);
   },
+  // 详情视图：participants 与轮值配置已展开，专供编辑回填（不同于列表的 Schedule）。
   getSchedule(id: number) {
-    return http.get<Schedule>(`/schedules/${id}`).then((r) => r.data);
+    return http.get<ScheduleDetail>(`/schedules/${id}`).then((r) => r.data);
   },
-  createSchedule(body: Partial<Schedule> & { name: string }) {
+  createSchedule(body: CreateScheduleReq) {
     return http.post<Schedule>("/schedules", body).then((r) => r.data);
   },
-  updateSchedule(id: number, body: Partial<Schedule>) {
+  updateSchedule(id: number, body: UpdateScheduleReq) {
     return http.patch<Schedule>(`/schedules/${id}`, body).then((r) => r.data);
   },
   deleteSchedule(id: number) {

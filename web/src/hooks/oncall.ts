@@ -19,6 +19,18 @@ export function useSchedules() {
   return useQuery({ queryKey: oncallQk.schedules(), queryFn: () => api.listSchedules() });
 }
 
+/**
+ * useSchedule 排班详情（scheduleDetailView，含每层 participants + 轮值配置）。
+ * 专供编辑回填：列表的 Schedule 无 participants，PATCH 时若不带全会清空 Rotation。
+ */
+export function useSchedule(id: number | undefined) {
+  return useQuery({
+    queryKey: oncallQk.schedule(id ?? 0),
+    queryFn: () => api.getSchedule(id!),
+    enabled: !!id,
+  });
+}
+
 /** useOncall 某排班当前在班人。 */
 export function useOncall(id: number, time?: string) {
   return useQuery({
@@ -45,6 +57,9 @@ export function useCreateSchedule() {
     onSuccess: () => {
       toast.success("排班已创建");
       qc.invalidateQueries({ queryKey: ["schedules"] });
+      // 新排班可能立即产生在班人：刷新在班/预览缓存
+      qc.invalidateQueries({ queryKey: ["oncall"] });
+      qc.invalidateQueries({ queryKey: ["preview"] });
     },
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : "创建失败";
@@ -59,9 +74,13 @@ export function useUpdateSchedule() {
   return useMutation({
     mutationFn: (args: { id: number; body: Parameters<typeof api.updateSchedule>[1] }) =>
       api.updateSchedule(args.id, args.body),
-    onSuccess: () => {
+    onSuccess: (_data, args) => {
       toast.success("排班已更新");
       qc.invalidateQueries({ queryKey: ["schedules"] });
+      qc.invalidateQueries({ queryKey: oncallQk.schedule(args.id) });
+      // 改层/参与人会重建 Rotation，实时在班人随之变：刷新在班/预览缓存
+      qc.invalidateQueries({ queryKey: ["oncall", args.id] });
+      qc.invalidateQueries({ queryKey: ["preview", args.id] });
     },
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : "更新失败";

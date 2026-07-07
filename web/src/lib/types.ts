@@ -149,17 +149,41 @@ export type Team = Required<Omit<Schemas["ent.Team"], "edges">>;
 
 // —— Schedule（ent/schema/schedule.go，能力域 5）——
 export type ScheduleType = Schemas["schedule.Type"];
+
+/**
+ * ScheduleLayer 前端表单层模型（能力域 5）。
+ * id 为前端本地 key（React 列表用，不提交后端）；其余字段对齐后端 createLayerReq，
+ * participants（值班人 user id 列表）+ 轮值配置决定实时在班人。
+ */
 export interface ScheduleLayer {
   id: string;
   name: string;
   priority: number;
-  rotation_id: string;
+  participants: number[];
+  rotation_type: string;
+  shift_length: string;
+  handoff_time: string;
+  start_date: string; // RFC3339 或空（空=后端默认现在）
+  // follow_the_sun 专用（rotation/calendar 忽略）
+  timezone?: string;
+  work_start?: string;
+  work_end?: string;
 }
+
 export type Schedule = Required<
   Omit<Schemas["ent.Schedule"], "edges" | "layers">
 > & {
   layers?: ScheduleLayer[];
 };
+
+// GET /schedules/:id 详情视图（participants 与轮值配置已展开，供编辑回填）。
+export type ScheduleLayerDetail = Schemas["schedule.layerDetailView"];
+export type ScheduleDetail = Schemas["schedule.scheduleDetailView"];
+
+// 提交体（POST /schedules、PATCH /schedules/:id）：layer 形状对齐 createLayerReq。
+export type ScheduleLayerReq = Schemas["schedule.createLayerReq"];
+export type CreateScheduleReq = Schemas["schedule.createScheduleReq"];
+export type UpdateScheduleReq = Schemas["schedule.updateScheduleReq"];
 
 // 排班查询：某时刻在班人（schedule.Oncall*）
 export type OncallLayer = Required<Schemas["schedule.OncallLayer"]>;

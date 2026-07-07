@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeftRight, CalendarDays, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { ArrowLeftRight, CalendarDays, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import {
   useDeleteSchedule,
   useDeleteScheduleOverride,
   useOncall,
+  useSchedule,
   useSchedulePreview,
   useScheduleOverrides,
   useSchedules,
@@ -29,7 +30,27 @@ import {
 import { useUsers } from "@/hooks/users-teams";
 import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Schedule, ScheduleLayer } from "@/lib/types";
+import type {
+  CreateScheduleReq,
+  Schedule,
+  ScheduleDetail,
+  ScheduleLayer,
+  ScheduleLayerReq,
+} from "@/lib/types";
+
+/** 新层默认值（rotation_type=daily / shift=24h / handoff=09:00）。 */
+function makeLayer(name: string, priority: number): ScheduleLayer {
+  return {
+    id: `l${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+    name,
+    priority,
+    participants: [],
+    rotation_type: "daily",
+    shift_length: "24h",
+    handoff_time: "09:00",
+    start_date: "",
+  };
+}
 
 export function Oncall() {
   const { t } = useTranslation();
@@ -231,7 +252,11 @@ export function Oncall() {
   );
 }
 
-/** ScheduleFormDialog 创建/编辑排班。schedule 传则编辑，不传则创建。 */
+/**
+ * ScheduleFormDialog 创建/编辑排班。schedule 传则编辑，不传则创建。
+ * 编辑时先 GET /schedules/:id 拉详情（含每层 participants + 轮值配置）回填，
+ * 避免 PATCH 带的 layer 缺 participants 导致后端删旧 Rotation 后清空在班人。
+ */
 function ScheduleFormDialog({
   schedule,
   onClose,
@@ -240,24 +265,81 @@ function ScheduleFormDialog({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const isEdit = !!schedule;
+  // 编辑：拉详情视图回填（participants + 轮值配置）；新建：无需拉取。
+  const detail = useSchedule(isEdit ? schedule!.id : undefined);
+
+  // 详情加载中时展示占位（避免用空表单覆盖已有数据）。
+  if (isEdit && detail.isLoading) {
+    return (
+      <Dialog open onClose={onClose} title={t("oncall.editSchedule")} description={t("oncall.formDesc")}>
+        <Skeleton className="h-64 w-full" />
+      </Dialog>
+    );
+  }
+
+  return (
+    <ScheduleFormInner
+      schedule={schedule}
+      detail={isEdit ? detail.data : undefined}
+      onClose={onClose}
+    />
+  );
+}
+
+/** detailToLayers 把详情视图的 layerDetailView 转成表单层模型（补默认值）。 */
+function detailToLayers(detail: ScheduleDetail): ScheduleLayer[] {
+  return (detail.layers ?? []).map((l, i) => ({
+    id: `l${i}-${l.rotation_id ?? l.name ?? i}`,
+    name: l.name ?? "",
+    priority: l.priority ?? i + 1,
+    participants: l.participants ?? [],
+    rotation_type: l.rotation_type || "daily",
+    shift_length: l.shift_length || "24h",
+    handoff_time: l.handoff_time || "09:00",
+    start_date: l.start_date ?? "",
+    timezone: l.timezone,
+    work_start: l.work_start,
+    work_end: l.work_end,
+  }));
+}
+
+/** ScheduleFormInner 实际表单（detail 就绪后挂载，用初始值填 state）。 */
+function ScheduleFormInner({
+  schedule,
+  detail,
+  onClose,
+}: {
+  schedule?: Schedule;
+  detail?: ScheduleDetail;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
   const create = useCreateSchedule();
   const update = useUpdateSchedule();
+  const { data: users } = useUsers();
   const isEdit = !!schedule;
 
-  const [name, setName] = useState(schedule?.name ?? "");
-  const [type, setType] = useState<string>(schedule?.type ?? "rotation");
-  const [timezone, setTimezone] = useState(schedule?.timezone ?? "Asia/Shanghai");
-  const [layers, setLayers] = useState<ScheduleLayer[]>(schedule?.layers ?? []);
+  const [name, setName] = useState(detail?.name ?? schedule?.name ?? "");
+  const [type, setType] = useState<string>(detail?.type ?? schedule?.type ?? "rotation");
+  const [timezone, setTimezone] = useState(
+    detail?.timezone ?? schedule?.timezone ?? "Asia/Shanghai",
+  );
+  const [layers, setLayers] = useState<ScheduleLayer[]>(() =>
+    detail ? detailToLayers(detail) : [],
+  );
+
+  // calendar 全员常驻，轮值/班次/交接/开始日期无意义 → 隐藏；follow_the_sun 额外每层时区/工作时段。
+  const showRotationFields = type !== "calendar";
+  const showFtsFields = type === "follow_the_sun";
 
   const addLayer = () =>
     setLayers((prev) => [
       ...prev,
-      {
-        id: `l${Date.now()}`,
-        name: prev.length === 0 ? t("oncall.firstLayerName") : `L${prev.length + 1}`,
-        priority: prev.length + 1,
-        rotation_id: "",
-      },
+      makeLayer(
+        prev.length === 0 ? t("oncall.firstLayerName") : `L${prev.length + 1}`,
+        prev.length + 1,
+      ),
     ]);
 
   const patchLayer = (idx: number, patch: Partial<ScheduleLayer>) =>
@@ -266,22 +348,58 @@ function ScheduleFormDialog({
   const removeLayer = (idx: number) =>
     setLayers((prev) => prev.filter((_, i) => i !== idx));
 
+  const toggleParticipant = (idx: number, userId: number) =>
+    setLayers((prev) =>
+      prev.map((l, i) => {
+        if (i !== idx) return l;
+        const has = l.participants.includes(userId);
+        return {
+          ...l,
+          participants: has
+            ? l.participants.filter((u) => u !== userId)
+            : [...l.participants, userId],
+        };
+      }),
+    );
+
+  // 构造提交层：只带后端认识的字段（id 是前端本地 key，不提交）。
+  const toReqLayer = (l: ScheduleLayer): ScheduleLayerReq => {
+    const req: ScheduleLayerReq = {
+      name: l.name,
+      priority: l.priority,
+      participants: l.participants,
+    };
+    if (showRotationFields) {
+      req.rotation_type = l.rotation_type;
+      req.shift_length = l.shift_length;
+      req.handoff_time = l.handoff_time;
+      if (l.start_date) req.start_date = toRFC3339(l.start_date);
+    }
+    if (showFtsFields) {
+      if (l.timezone) req.timezone = l.timezone;
+      if (l.work_start) req.work_start = l.work_start;
+      if (l.work_end) req.work_end = l.work_end;
+    }
+    return req;
+  };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const reqLayers = layers.map(toReqLayer);
     if (isEdit && schedule) {
       update.mutate(
-        { id: schedule.id, body: { name, type: type as Schedule["type"], timezone, layers } },
+        { id: schedule.id, body: { name, type, timezone, layers: reqLayers } },
         { onSuccess: onClose },
       );
     } else {
-      create.mutate(
-        { name, type: type as Schedule["type"], timezone, layers },
-        { onSuccess: onClose },
-      );
+      const body: CreateScheduleReq = { name, type, timezone, layers: reqLayers };
+      create.mutate(body, { onSuccess: onClose });
     }
   };
 
   const pending = create.isPending || update.isPending;
+  // 有层但存在层没选人 → 提示（可提交，避免用户再次踩空）。
+  const hasEmptyLayer = layers.some((l) => l.participants.length === 0);
 
   return (
     <Dialog
@@ -290,7 +408,7 @@ function ScheduleFormDialog({
       title={isEdit ? t("oncall.editSchedule") : t("oncall.createSchedule")}
       description={t("oncall.formDesc")}
     >
-      <form className="space-y-3" onSubmit={onSubmit}>
+      <form className="max-h-[70vh] space-y-3 overflow-y-auto pr-1" onSubmit={onSubmit}>
         <div className="space-y-1.5">
           <label className="text-sm font-medium">{t("oncall.nameLabel")}</label>
           <Input
@@ -320,8 +438,8 @@ function ScheduleFormDialog({
           </div>
         </div>
 
-        {/* 分层管理 */}
-        <div className="space-y-1.5">
+        {/* 分层管理：每层 = 名称 + 优先级 + 参与人 + 轮值配置 */}
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium">{t("oncall.layersLabel")}</label>
             <Button type="button" size="sm" variant="outline" onClick={addLayer}>
@@ -329,44 +447,183 @@ function ScheduleFormDialog({
             </Button>
           </div>
           {layers.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              {t("oncall.noLayersHint")}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("oncall.noLayersHint")}</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {layers.map((l, i) => (
-                <div key={l.id} className="flex items-center gap-2">
-                  <Input
-                    value={l.name}
-                    onChange={(e) => patchLayer(i, { name: e.target.value })}
-                    placeholder={t("oncall.firstLayerName")}
-                    className="flex-1"
-                  />
-                  <Input
-                    type="number"
-                    min={1}
-                    value={l.priority}
-                    onChange={(e) => patchLayer(i, { priority: Number(e.target.value) || 1 })}
-                    className="w-20"
-                    title={t("oncall.priorityHint")}
-                  />
-                  <Input
-                    value={l.rotation_id}
-                    onChange={(e) => patchLayer(i, { rotation_id: e.target.value })}
-                    placeholder="rotation_id"
-                    className="w-32"
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => removeLayer(i)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div key={l.id} className="space-y-2 rounded-md border p-3">
+                  {/* 名称 + 优先级 + 删除 */}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={l.name}
+                      onChange={(e) => patchLayer(i, { name: e.target.value })}
+                      placeholder={t("oncall.firstLayerName")}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      min={1}
+                      value={l.priority}
+                      onChange={(e) => patchLayer(i, { priority: Number(e.target.value) || 1 })}
+                      className="w-20"
+                      title={t("oncall.priorityHint")}
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeLayer(i)}
+                      title={t("oncall.removeLayer")}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* 参与人多选 */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {t("oncall.participants")}
+                    </label>
+                    {/* 已选 chips */}
+                    {l.participants.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {l.participants.map((uid) => {
+                          const u = users?.find((x) => x.id === uid);
+                          return (
+                            <span
+                              key={uid}
+                              className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                            >
+                              {u?.name ?? t("oncall.userFallback", { id: uid })}
+                              <button
+                                type="button"
+                                className="text-primary/70 hover:text-primary"
+                                onClick={() => toggleParticipant(i, uid)}
+                                title={t("oncall.removeParticipant")}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* 添加参与人下拉：选中即加入，不显示已选 */}
+                    <Select
+                      value=""
+                      onChange={(e) => {
+                        const uid = Number(e.target.value);
+                        if (uid) toggleParticipant(i, uid);
+                      }}
+                    >
+                      <option value="">{t("oncall.addParticipant")}</option>
+                      {(users ?? [])
+                        .filter((u) => !l.participants.includes(u.id))
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                    </Select>
+                    {l.participants.length === 0 && (
+                      <p className="text-xs text-amber-600 dark:text-amber-500">
+                        {t("oncall.noParticipantsWarn")}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 轮值配置（calendar 隐藏） */}
+                  {showRotationFields && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          {t("oncall.rotationType")}
+                        </label>
+                        <Select
+                          value={l.rotation_type}
+                          onChange={(e) => patchLayer(i, { rotation_type: e.target.value })}
+                        >
+                          <option value="daily">{t("oncall.rotationDaily")}</option>
+                          <option value="weekly">{t("oncall.rotationWeekly")}</option>
+                          <option value="custom">{t("oncall.rotationCustom")}</option>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          {t("oncall.shiftLength")}
+                        </label>
+                        <Input
+                          value={l.shift_length}
+                          onChange={(e) => patchLayer(i, { shift_length: e.target.value })}
+                          placeholder="24h"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          {t("oncall.handoffTime")}
+                        </label>
+                        <Input
+                          value={l.handoff_time}
+                          onChange={(e) => patchLayer(i, { handoff_time: e.target.value })}
+                          placeholder="09:00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          {t("oncall.startDate")}
+                        </label>
+                        <Input
+                          type="date"
+                          value={(l.start_date || "").slice(0, 10)}
+                          onChange={(e) => patchLayer(i, { start_date: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* follow_the_sun 专用：本层时区 + 工作时段 */}
+                  {showFtsFields && (
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          {t("oncall.layerTimezone")}
+                        </label>
+                        <Input
+                          value={l.timezone ?? ""}
+                          onChange={(e) => patchLayer(i, { timezone: e.target.value })}
+                          placeholder="Asia/Shanghai"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          {t("oncall.workStart")}
+                        </label>
+                        <Input
+                          value={l.work_start ?? ""}
+                          onChange={(e) => patchLayer(i, { work_start: e.target.value })}
+                          placeholder="09:00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">
+                          {t("oncall.workEnd")}
+                        </label>
+                        <Input
+                          value={l.work_end ?? ""}
+                          onChange={(e) => patchLayer(i, { work_end: e.target.value })}
+                          placeholder="17:00"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
+          )}
+          {layers.length > 0 && hasEmptyLayer && (
+            <p className="text-xs text-amber-600 dark:text-amber-500">
+              {t("oncall.someLayersEmptyWarn")}
+            </p>
           )}
         </div>
 
