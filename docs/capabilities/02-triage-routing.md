@@ -212,12 +212,26 @@ escalation_policy=团队默认策略, source=auto, provisioned_at=now, status=ac
 - slug 白名单正则限制可自动创建的服务名，杜绝脏值。
 - 自动创建即 `active`（不丢告警），但作为「待认领」由 team_admin 复核。
 - 过期清理（后续）：`source=auto` 且 N 天无新 Event 的服务可定时停用。
-- **绝不触碰 `source=manual`**：主动同步（未来 P2，从 Prometheus targets / K8s / 目录文件周期 upsert）只增改 auto 服务。
+- **绝不触碰 `source=manual`**：主动同步（P2，见下）只增改 auto 服务。
 
 **可观测**：每次自动供给打点 `metrics.ServicesAutoProvisioned` + 结构化日志（自动创建不静默，便于审计与容量观察）。
 
-**分阶段**：本轮实现「懒供给（pull，未路由即时创建）」；「主动同步（push，周期从可观测源拉清单 upsert）」
-与「前端来源徽章/批量转正/过期清理」为后续增量，不阻塞本轮。
+#### 3.5.1 主动同步（P2，push）—— 服务上线即存在
+
+与懒供给（pull，未路由即时创建）互补：`internal/servicesync` 周期性从**外部源**拉取「期望服务清单」，
+upsert `source=auto` 服务（挂解析出的团队、继承团队默认策略），使服务在**首条告警到来前**即已存在。
+
+- **源**：`file`（本地 JSON 文件，GitOps 随卷/仓库更新）| `http`（返回 JSON 的目录/CMDB 端点）。
+  清单条目：`{slug, name, team, labels}`。
+- **调和规则**（与懒供给同款安全底线）：无 slug / 团队解析不到 / 团队无默认策略 → 跳过；
+  slug 不存在 → 建 auto；slug 存在且 `auto` → 更新 name/labels/team/策略对齐清单；
+  slug 存在且 `manual` → **跳过（尊重人工，绝不覆盖）**。单条失败不中断整批。
+- **配置**：`VIGIL_SERVICE_SYNC_ENABLED`（默认 false）/ `_SOURCE_TYPE`（file|http）/ `_SOURCE_URL` /
+  `_DEFAULT_TEAM` / `_INTERVAL`（默认 5m）。开关关不启动（无回归）。
+- **可观测**：`metrics.ServicesSynced{result=created|updated|skipped}` + 结构化日志。
+
+**分阶段**：懒供给（P1）+ 前端来源徽章/筛选/转正（P2 治理 UI）+ 主动同步（P2 push）均已落地；
+「过期清理（auto 且 N 天无 Event 自动停用）」为后续增量。
 
 ---
 
@@ -285,5 +299,7 @@ received ──► normalized ──► [去重] ──┬──► dedup_skippe
 | §3.1 路由匹配（M4.1/M4.2，C2/B14） | `internal/triage/engine.go`（`route`：slug 直达 → `Service.labels` 子集匹配（glob + 具体度优先）→ Integration 默认 service 兜底） |
 | §3.2 未路由重路由（M6） | `internal/triage/handler.go`（`POST /events/:id/reroute`，`Engine.Reroute`；权限 `service.route_override`，团队软隔离） |
 | §3.5 自动供给 Service（方案 C，懒供给） | `internal/triage/engine.go`（`tryAutoProvision`：服务键 label + slug 白名单 + 团队解析 + 团队默认策略；`Process` 在 route 未命中、unrouted 之前调用；slug 唯一冲突查回既有幂等）；`ent/schema/service.go`（`source`/`provisioned_at`）；`ent/schema/team.go`（`default_escalation_policy` 边）；`internal/config/config.go`（`Triage.AutoProvision*`，env `VIGIL_TRIAGE_AUTO_PROVISION_*`，默认关闭）；`internal/metrics`（`ServicesAutoProvisioned`） |
+| §3.5.1 主动同步 Service（方案 C，push） | `internal/servicesync`（`Source`/`FileSource`/`HTTPSource` + `Syncer.Reconcile/Run`：拉清单 upsert auto 服务、跳过 manual、继承团队默认策略）；`internal/server/wire.go`（ticker 装配，`cfg.ServiceSync.Enabled` 门控）；`internal/config/config.go`（`ServiceSync`，env `VIGIL_SERVICE_SYNC_*`，默认关闭）；`internal/metrics`（`ServicesSynced{result}`） |
+| §3.5 治理 API/UI（source 筛选/转正、团队默认策略） | `internal/service/handler.go`（list `?source=` + update 转正）；`internal/auth/handler_user_team.go`（team `default_escalation_policy_id` 读写 + `teamResponse`）；`internal/escalation/handler_policy.go`（list `?team_id=`）；前端 `web/src/pages/services.tsx`（source 徽章/筛选/转正）、`web/src/pages/users-teams.tsx`（默认策略选择器） |
 | 抑制规则 API（含 expires_at，B15；kind + time_window，维护窗口） | `internal/notification/handler.go`（SuppressionRule CRUD + `expires_at` 可设/清除 + `kind` 分类 + `time_window.{start,end}` 校验 + list `?kind=` 过滤，权限 `suppression.*`） |
 

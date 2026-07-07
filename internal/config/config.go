@@ -61,6 +61,9 @@ type Config struct {
 
 	// SelfMonitor 自监控闭环配置（平台化 H2.4，backlog §2.6）
 	SelfMonitor SelfMonitor `envconfig:"self_monitor"`
+
+	// ServiceSync 服务主动同步配置（方案C P2，02-triage-routing §3.5）
+	ServiceSync ServiceSync `envconfig:"service_sync"`
 }
 
 // SelfMonitor 自监控闭环配置（backlog §2.6，H2.4）。
@@ -154,6 +157,31 @@ func (s SelfMonitor) EffectiveAlertChannels() []string {
 		return []string{"webhook", "email"}
 	}
 	return s.AlertChannels
+}
+
+// ServiceSync 服务主动同步配置（方案C P2，02-triage-routing §3.5）。
+// 周期从外部源（目录文件 / HTTP 端点）拉取服务清单，upsert source=auto 服务
+// （挂解析出的团队、继承团队默认升级策略），绝不触碰 source=manual。
+// 默认关闭——「无配置不回归」，与懒供给（P1）一致。
+type ServiceSync struct {
+	// Enabled 是否启用主动同步。默认 false，需显式开启。
+	Enabled bool `envconfig:"enabled" default:"false"`
+	// Interval 同步间隔。<=0 用默认 5m。
+	Interval time.Duration `envconfig:"interval" default:"5m"`
+	// SourceType 源类型：file（本地 JSON 文件）| http（返回 JSON 的 URL）。默认 file。
+	SourceType string `envconfig:"source_type" default:"file"`
+	// SourceURL 源地址：file 为文件路径，http 为 URL。空则同步不启动。
+	SourceURL string `envconfig:"source_url"`
+	// DefaultTeam 兜底团队 slug：清单条目未指定 team 时归属它。空=该条目团队解析不到则跳过。
+	DefaultTeam string `envconfig:"default_team"`
+}
+
+// EffectiveInterval 返回同步间隔，零值回退 5m。
+func (s ServiceSync) EffectiveInterval() time.Duration {
+	if s.Interval <= 0 {
+		return 5 * time.Minute
+	}
+	return s.Interval
 }
 
 // Retention Event/RawEvent 保留清理配置（T6.2，能力域 15 平台化长尾）。

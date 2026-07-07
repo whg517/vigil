@@ -55,6 +55,7 @@ import (
 	"github.com/kevin/vigil/internal/schedule"
 	"github.com/kevin/vigil/internal/selfmon"
 	"github.com/kevin/vigil/internal/service"
+	"github.com/kevin/vigil/internal/servicesync"
 	"github.com/kevin/vigil/internal/store"
 	"github.com/kevin/vigil/internal/subscription"
 	"github.com/kevin/vigil/internal/ticket"
@@ -715,6 +716,28 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 			zap.Float64("failure_rate_threshold", smCfg.FailureRateThreshold))
 	} else {
 		log.Info("self-monitor disabled (VIGIL_SELF_MONITOR_ENABLED=false)")
+	}
+
+	// 方案C P2：服务主动同步。周期从外部源（文件/HTTP）拉服务清单 upsert source=auto 服务
+	// （挂团队、继承团队默认策略），绝不触碰 manual。默认关；开关关时不启动（无回归）。
+	if cfg.ServiceSync.Enabled && cfg.ServiceSync.SourceURL != "" {
+		var syncSource servicesync.Source
+		switch cfg.ServiceSync.SourceType {
+		case "http":
+			syncSource = servicesync.HTTPSource{URL: cfg.ServiceSync.SourceURL}
+		default: // file
+			syncSource = servicesync.FileSource{Path: cfg.ServiceSync.SourceURL}
+		}
+		syncer := servicesync.NewSyncer(st.DB, syncSource, cfg.ServiceSync.DefaultTeam)
+		syncCtx, syncCancel := context.WithCancel(ctx)
+		go syncer.Run(syncCtx, cfg.ServiceSync.EffectiveInterval())
+		wired.Closers = append(wired.Closers, syncCancel)
+		log.Info("service sync started",
+			zap.String("source_type", cfg.ServiceSync.SourceType),
+			zap.String("source_url", cfg.ServiceSync.SourceURL),
+			zap.Duration("interval", cfg.ServiceSync.EffectiveInterval()))
+	} else if cfg.ServiceSync.Enabled {
+		log.Warn("service sync enabled but VIGIL_SERVICE_SYNC_SOURCE_URL empty; not started")
 	}
 
 	return wired, nil

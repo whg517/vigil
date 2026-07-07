@@ -100,6 +100,14 @@ var (
 		Help: "Total services auto-provisioned by triage on unrouted alerts, by owning team slug.",
 	}, []string{"team"})
 
+	// ServicesSynced 主动同步（方案C P2）处理的 Service 条数，按结果分。
+	// result: created（新建）| updated（更新 auto 服务标签）| skipped（无团队/无默认策略/命中 manual）。
+	// 让"周期同步做了什么"可观测（容量、跳过原因分布）。
+	ServicesSynced = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "vigil_services_synced_total",
+		Help: "Total services processed by active sync from external sources, by result.",
+	}, []string{"result"})
+
 	// EscalationsTriggered 升级触发次数
 	EscalationsTriggered = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "vigil_escalations_triggered_total",
