@@ -644,6 +644,10 @@ const en: Resources = {
     creating: "Creating...",
     editTeamTitle: "Edit Team · {{slug}}",
     editTeamDesc: "Slug is the unique identifier and cannot be changed after creation.",
+    defaultEscalationPolicy: "Default escalation policy",
+    defaultEscalationPolicyNone: "(none)",
+    defaultEscalationPolicyHint:
+      "Auto-provisioned services inherit this policy; without it this team won't auto-provision services.",
   },
   wall: {
     title: "Vigil On-Call Wall",

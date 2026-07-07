@@ -7178,6 +7178,16 @@ const docTemplate = `{
         },
         "/escalation-policies": {
             "get": {
+                "parameters": [
+                    {
+                        "description": "按团队过滤（团队默认策略选择器用）",
+                        "in": "query",
+                        "name": "team_id",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "content": {
@@ -7191,6 +7201,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
                     },
                     "500": {
                         "content": {

@@ -1649,7 +1649,10 @@ export interface paths {
         /** 升级策略列表 */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description 按团队过滤（团队默认策略选择器用） */
+                    team_id?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1663,6 +1666,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ent.EscalationPolicy"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */

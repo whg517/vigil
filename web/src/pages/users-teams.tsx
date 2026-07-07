@@ -31,6 +31,7 @@ import {
   useRoleBindings,
   useRoles,
 } from "@/hooks/settings";
+import { useEscalationPolicies } from "@/hooks/escalation-policies";
 import { extractError } from "@/lib/http";
 import { formatTime } from "@/lib/format";
 import type { RoleBinding, Team, User } from "@/lib/types";
@@ -482,6 +483,12 @@ function EditTeamDialog({ team, onClose }: { team: Team; onClose: () => void }) 
   const update = useUpdateTeam();
   const [name, setName] = useState(team.name);
   const [description, setDescription] = useState(team.description ?? "");
+  // 默认升级策略：方案C §3.5 —— 自动供给的服务继承团队默认策略，此处提供配置入口。
+  // 只列该团队的策略（后端 ?team_id= 过滤 + 软隔离），空字符串表示不设置。
+  const policies = useEscalationPolicies(team.id);
+  const [policyId, setPolicyId] = useState<string>(
+    team.default_escalation_policy_id ? String(team.default_escalation_policy_id) : "",
+  );
 
   return (
     <Dialog
@@ -494,7 +501,14 @@ function EditTeamDialog({ team, onClose }: { team: Team; onClose: () => void }) 
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          update.mutate({ id: team.id, body: { name, description } }, { onSuccess: onClose });
+          update.mutate(
+            {
+              id: team.id,
+              // 0 = 清除默认策略（后端约定 nil 不改 / 0 清除 / >0 设置）。
+              body: { name, description, default_escalation_policy_id: policyId ? Number(policyId) : 0 },
+            },
+            { onSuccess: onClose },
+          );
         }}
       >
         <div className="space-y-1.5">
@@ -504,6 +518,18 @@ function EditTeamDialog({ team, onClose }: { team: Team; onClose: () => void }) 
         <div className="space-y-1.5">
           <label className="text-sm font-medium">{t("usersTeams.teamDescription")}</label>
           <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">{t("usersTeams.defaultEscalationPolicy")}</label>
+          <Select value={policyId} onChange={(e) => setPolicyId(e.target.value)}>
+            <option value="">{t("usersTeams.defaultEscalationPolicyNone")}</option>
+            {(policies.data ?? []).map((p) => (
+              <option key={p.id} value={String(p.id)}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">{t("usersTeams.defaultEscalationPolicyHint")}</p>
         </div>
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>

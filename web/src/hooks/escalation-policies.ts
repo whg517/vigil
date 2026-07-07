@@ -9,8 +9,12 @@ export const escalationQk = {
   policies: () => ["escalation-policies"] as const,
 };
 
-export function useEscalationPolicies() {
-  return useQuery({ queryKey: escalationQk.policies(), queryFn: () => api.listEscalationPolicies() });
+export function useEscalationPolicies(teamId?: number) {
+  return useQuery({
+    // teamId 入 queryKey：团队默认策略选择器按团队列策略，各团队独立缓存。
+    queryKey: [...escalationQk.policies(), teamId ?? "all"],
+    queryFn: () => api.listEscalationPolicies(teamId != null ? { team_id: teamId } : undefined),
+  });
 }
 
 export function useCreateEscalationPolicy() {

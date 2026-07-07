@@ -145,7 +145,10 @@ export type EscalationPolicy = Required<
 };
 
 // ENG-02：Team 从 Schemas 派生（原手写易与后端 ent.Team drift）。
-export type Team = Required<Omit<Schemas["ent.Team"], "edges">>;
+// default_escalation_policy_id 来自 auth.teamResponse（edge 非 ent.Team 字段），显式并入。
+export type Team = Required<Omit<Schemas["ent.Team"], "edges">> & {
+  default_escalation_policy_id?: number | null;
+};
 
 // —— Schedule（ent/schema/schedule.go，能力域 5）——
 export type ScheduleType = Schemas["schedule.Type"];

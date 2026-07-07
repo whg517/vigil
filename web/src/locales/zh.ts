@@ -643,6 +643,9 @@ const zh = {
     creating: "创建中...",
     editTeamTitle: "编辑团队 · {{slug}}",
     editTeamDesc: "Slug 为唯一标识，创建后不可修改。",
+    defaultEscalationPolicy: "默认升级策略",
+    defaultEscalationPolicyNone: "（未设置）",
+    defaultEscalationPolicyHint: "自动供给的服务将继承此策略；未设置则该团队不启用服务自动供给。",
   },
   wall: {
     title: "Vigil 值班大屏",

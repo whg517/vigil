@@ -207,8 +207,9 @@ export const api = {
       .then((r) => r.data);
   },
   // ===== EscalationPolicy 升级策略（能力域 6）=====
-  listEscalationPolicies() {
-    return http.get<EscalationPolicy[]>("/escalation-policies").then((r) => r.data);
+  listEscalationPolicies(params?: { team_id?: number }) {
+    const q = params?.team_id != null ? `?team_id=${params.team_id}` : "";
+    return http.get<EscalationPolicy[]>(`/escalation-policies${q}`).then((r) => r.data);
   },
   createEscalationPolicy(body: { name: string; repeat_times?: number; levels?: EscalationPolicy["levels"] }) {
     return http.post<EscalationPolicy>("/escalation-policies", body).then((r) => r.data);
@@ -288,7 +289,10 @@ export const api = {
   createTeam(body: { name: string; slug: string; description?: string }) {
     return http.post<Team>("/teams", body).then((r) => r.data);
   },
-  updateTeam(id: number, body: { name?: string; description?: string }) {
+  updateTeam(
+    id: number,
+    body: { name?: string; description?: string; default_escalation_policy_id?: number },
+  ) {
     return http.patch<Team>(`/teams/${id}`, body).then((r) => r.data);
   },
   deleteTeam(id: number) {

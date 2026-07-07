@@ -139,13 +139,23 @@ func (h *PolicyHandler) checkCreateTeam(c *echo.Context, teamID int) error {
 // @Summary      升级策略列表
 // @Tags         escalation
 // @Produce      json
+// @Param        team_id  query    int  false  "按团队过滤（团队默认策略选择器用）"
 // @Success      200  {array}   ent.EscalationPolicy
+// @Failure      400  {object} httputil.ErrorResponse
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /escalation-policies [get]
 func (h *PolicyHandler) list(c *echo.Context) error {
 	ctx := c.Request().Context()
 	q := h.db.EscalationPolicy.Query()
+	// team_id 过滤：团队默认策略选择器只需该团队的策略。非法值 400（客户端 bug，不静默全量）。
+	if tidStr := c.QueryParam("team_id"); tidStr != "" {
+		tid, perr := strconv.Atoi(tidStr)
+		if perr != nil {
+			return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid team_id"})
+		}
+		q = q.Where(escalationpolicy.HasTeamWith(team.IDEQ(tid)))
+	}
 	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
 	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
 	if h.authz != nil {
