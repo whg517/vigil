@@ -34,6 +34,8 @@ const (
 	EdgeSchedules = "schedules"
 	// EdgeEscalationPolicies holds the string denoting the escalation_policies edge name in mutations.
 	EdgeEscalationPolicies = "escalation_policies"
+	// EdgeDefaultEscalationPolicy holds the string denoting the default_escalation_policy edge name in mutations.
+	EdgeDefaultEscalationPolicy = "default_escalation_policy"
 	// EdgeRunbooks holds the string denoting the runbooks edge name in mutations.
 	EdgeRunbooks = "runbooks"
 	// EdgeNotificationRules holds the string denoting the notification_rules edge name in mutations.
@@ -86,6 +88,13 @@ const (
 	EscalationPoliciesInverseTable = "escalation_policies"
 	// EscalationPoliciesColumn is the table column denoting the escalation_policies relation/edge.
 	EscalationPoliciesColumn = "team_escalation_policies"
+	// DefaultEscalationPolicyTable is the table that holds the default_escalation_policy relation/edge.
+	DefaultEscalationPolicyTable = "teams"
+	// DefaultEscalationPolicyInverseTable is the table name for the EscalationPolicy entity.
+	// It exists in this package in order to avoid circular dependency with the "escalationpolicy" package.
+	DefaultEscalationPolicyInverseTable = "escalation_policies"
+	// DefaultEscalationPolicyColumn is the table column denoting the default_escalation_policy relation/edge.
+	DefaultEscalationPolicyColumn = "team_default_escalation_policy"
 	// RunbooksTable is the table that holds the runbooks relation/edge.
 	RunbooksTable = "runbooks"
 	// RunbooksInverseTable is the table name for the Runbook entity.
@@ -181,6 +190,12 @@ var Columns = []string{
 	FieldUpdatedAt,
 }
 
+// ForeignKeys holds the SQL foreign-keys that are owned by the "teams"
+// table and are not defined as standalone fields in the schema.
+var ForeignKeys = []string{
+	"team_default_escalation_policy",
+}
+
 var (
 	// UsersPrimaryKey and UsersColumn2 are the table columns denoting the
 	// primary key for the users relation (M2M).
@@ -194,6 +209,11 @@ var (
 func ValidColumn(column string) bool {
 	for i := range Columns {
 		if column == Columns[i] {
+			return true
+		}
+	}
+	for i := range ForeignKeys {
+		if column == ForeignKeys[i] {
 			return true
 		}
 	}
@@ -302,6 +322,13 @@ func ByEscalationPoliciesCount(opts ...sql.OrderTermOption) OrderOption {
 func ByEscalationPolicies(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newEscalationPoliciesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByDefaultEscalationPolicyField orders the results by default_escalation_policy field.
+func ByDefaultEscalationPolicyField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDefaultEscalationPolicyStep(), sql.OrderByField(field, opts...))
 	}
 }
 
@@ -498,6 +525,13 @@ func newEscalationPoliciesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(EscalationPoliciesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, EscalationPoliciesTable, EscalationPoliciesColumn),
+	)
+}
+func newDefaultEscalationPolicyStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DefaultEscalationPolicyInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, false, DefaultEscalationPolicyTable, DefaultEscalationPolicyColumn),
 	)
 }
 func newRunbooksStep() *sqlgraph.Step {

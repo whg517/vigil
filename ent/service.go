@@ -32,6 +32,10 @@ type Service struct {
 	AutoCreateIncident bool `json:"auto_create_incident,omitempty"`
 	// Status holds the value of the "status" field.
 	Status service.Status `json:"status,omitempty"`
+	// 来源：manual 手工 / auto 自动供给
+	Source service.Source `json:"source,omitempty"`
+	// 自动供给时间（source=auto）
+	ProvisionedAt *time.Time `json:"provisioned_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -176,9 +180,9 @@ func (*Service) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case service.FieldID:
 			values[i] = new(sql.NullInt64)
-		case service.FieldName, service.FieldSlug, service.FieldDescription, service.FieldStatus:
+		case service.FieldName, service.FieldSlug, service.FieldDescription, service.FieldStatus, service.FieldSource:
 			values[i] = new(sql.NullString)
-		case service.FieldCreatedAt, service.FieldUpdatedAt:
+		case service.FieldProvisionedAt, service.FieldCreatedAt, service.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		case service.ForeignKeys[0]: // service_escalation_policy
 			values[i] = new(sql.NullInt64)
@@ -242,6 +246,19 @@ func (_m *Service) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				_m.Status = service.Status(value.String)
+			}
+		case service.FieldSource:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field source", values[i])
+			} else if value.Valid {
+				_m.Source = service.Source(value.String)
+			}
+		case service.FieldProvisionedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field provisioned_at", values[i])
+			} else if value.Valid {
+				_m.ProvisionedAt = new(time.Time)
+				*_m.ProvisionedAt = value.Time
 			}
 		case service.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -372,6 +389,14 @@ func (_m *Service) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	builder.WriteString("source=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Source))
+	builder.WriteString(", ")
+	if v := _m.ProvisionedAt; v != nil {
+		builder.WriteString("provisioned_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

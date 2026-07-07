@@ -871,6 +871,8 @@ var (
 		{Name: "labels", Type: field.TypeJSON, Nullable: true},
 		{Name: "auto_create_incident", Type: field.TypeBool, Default: true},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "disabled"}, Default: "active"},
+		{Name: "source", Type: field.TypeEnum, Enums: []string{"manual", "auto"}, Default: "manual"},
+		{Name: "provisioned_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "service_escalation_policy", Type: field.TypeInt, Nullable: true},
@@ -884,13 +886,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "services_escalation_policies_escalation_policy",
-				Columns:    []*schema.Column{ServicesColumns[9]},
+				Columns:    []*schema.Column{ServicesColumns[11]},
 				RefColumns: []*schema.Column{EscalationPoliciesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "services_teams_services",
-				Columns:    []*schema.Column{ServicesColumns[10]},
+				Columns:    []*schema.Column{ServicesColumns[12]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -900,6 +902,11 @@ var (
 				Name:    "service_status",
 				Unique:  false,
 				Columns: []*schema.Column{ServicesColumns[6]},
+			},
+			{
+				Name:    "service_source",
+				Unique:  false,
+				Columns: []*schema.Column{ServicesColumns[7]},
 			},
 		},
 	}
@@ -999,12 +1006,21 @@ var (
 		{Name: "parent_team_id", Type: field.TypeString, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "team_default_escalation_policy", Type: field.TypeInt, Nullable: true},
 	}
 	// TeamsTable holds the schema information for the "teams" table.
 	TeamsTable = &schema.Table{
 		Name:       "teams",
 		Columns:    TeamsColumns,
 		PrimaryKey: []*schema.Column{TeamsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "teams_escalation_policies_default_escalation_policy",
+				Columns:    []*schema.Column{TeamsColumns[7]},
+				RefColumns: []*schema.Column{EscalationPoliciesColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
 		Indexes: []*schema.Index{
 			{
 				Name:    "team_parent_team_id",
@@ -1467,6 +1483,7 @@ func init() {
 	SubscriptionsTable.ForeignKeys[1].RefTable = TeamsTable
 	SubscriptionsTable.ForeignKeys[2].RefTable = UsersTable
 	SuppressionRulesTable.ForeignKeys[0].RefTable = TeamsTable
+	TeamsTable.ForeignKeys[0].RefTable = EscalationPoliciesTable
 	TicketIntegrationsTable.ForeignKeys[0].RefTable = TeamsTable
 	TimelineItemsTable.ForeignKeys[0].RefTable = IncidentsTable
 	WebhookSubscriptionsTable.ForeignKeys[0].RefTable = TeamsTable

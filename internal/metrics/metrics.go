@@ -92,6 +92,14 @@ var (
 		Help: "Total incidents created by severity.",
 	}, []string{"severity"})
 
+	// ServicesAutoProvisioned 分诊自动供给的 Service 数（方案C §3.5）。
+	// 未路由告警携带服务键 label 时即时创建 source=auto 服务。team 维度便于观察
+	// 哪些团队在长出新服务（容量/治理信号），也让"自动创建不静默"可审计。
+	ServicesAutoProvisioned = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "vigil_services_auto_provisioned_total",
+		Help: "Total services auto-provisioned by triage on unrouted alerts, by owning team slug.",
+	}, []string{"team"})
+
 	// EscalationsTriggered 升级触发次数
 	EscalationsTriggered = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "vigil_escalations_triggered_total",

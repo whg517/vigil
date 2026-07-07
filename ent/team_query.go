@@ -35,26 +35,28 @@ import (
 // TeamQuery is the builder for querying Team entities.
 type TeamQuery struct {
 	config
-	ctx                       *QueryContext
-	order                     []team.OrderOption
-	inters                    []Interceptor
-	predicates                []predicate.Team
-	withUsers                 *UserQuery
-	withServices              *ServiceQuery
-	withSchedules             *ScheduleQuery
-	withEscalationPolicies    *EscalationPolicyQuery
-	withRunbooks              *RunbookQuery
-	withNotificationRules     *NotificationRuleQuery
-	withNotificationTemplates *NotificationTemplateQuery
-	withSuppressionRules      *SuppressionRuleQuery
-	withRoleBindings          *RoleBindingQuery
-	withIncidents             *IncidentQuery
-	withIntegrations          *IntegrationQuery
-	withTicketIntegrations    *TicketIntegrationQuery
-	withCredentials           *CredentialQuery
-	withWebhookSubscriptions  *WebhookSubscriptionQuery
-	withSubscriptions         *SubscriptionQuery
-	withMetricsSnapshots      *MetricsSnapshotQuery
+	ctx                         *QueryContext
+	order                       []team.OrderOption
+	inters                      []Interceptor
+	predicates                  []predicate.Team
+	withUsers                   *UserQuery
+	withServices                *ServiceQuery
+	withSchedules               *ScheduleQuery
+	withEscalationPolicies      *EscalationPolicyQuery
+	withDefaultEscalationPolicy *EscalationPolicyQuery
+	withRunbooks                *RunbookQuery
+	withNotificationRules       *NotificationRuleQuery
+	withNotificationTemplates   *NotificationTemplateQuery
+	withSuppressionRules        *SuppressionRuleQuery
+	withRoleBindings            *RoleBindingQuery
+	withIncidents               *IncidentQuery
+	withIntegrations            *IntegrationQuery
+	withTicketIntegrations      *TicketIntegrationQuery
+	withCredentials             *CredentialQuery
+	withWebhookSubscriptions    *WebhookSubscriptionQuery
+	withSubscriptions           *SubscriptionQuery
+	withMetricsSnapshots        *MetricsSnapshotQuery
+	withFKs                     bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -172,6 +174,28 @@ func (_q *TeamQuery) QueryEscalationPolicies() *EscalationPolicyQuery {
 			sqlgraph.From(team.Table, team.FieldID, selector),
 			sqlgraph.To(escalationpolicy.Table, escalationpolicy.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, team.EscalationPoliciesTable, team.EscalationPoliciesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryDefaultEscalationPolicy chains the current query on the "default_escalation_policy" edge.
+func (_q *TeamQuery) QueryDefaultEscalationPolicy() *EscalationPolicyQuery {
+	query := (&EscalationPolicyClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, selector),
+			sqlgraph.To(escalationpolicy.Table, escalationpolicy.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, team.DefaultEscalationPolicyTable, team.DefaultEscalationPolicyColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -630,27 +654,28 @@ func (_q *TeamQuery) Clone() *TeamQuery {
 		return nil
 	}
 	return &TeamQuery{
-		config:                    _q.config,
-		ctx:                       _q.ctx.Clone(),
-		order:                     append([]team.OrderOption{}, _q.order...),
-		inters:                    append([]Interceptor{}, _q.inters...),
-		predicates:                append([]predicate.Team{}, _q.predicates...),
-		withUsers:                 _q.withUsers.Clone(),
-		withServices:              _q.withServices.Clone(),
-		withSchedules:             _q.withSchedules.Clone(),
-		withEscalationPolicies:    _q.withEscalationPolicies.Clone(),
-		withRunbooks:              _q.withRunbooks.Clone(),
-		withNotificationRules:     _q.withNotificationRules.Clone(),
-		withNotificationTemplates: _q.withNotificationTemplates.Clone(),
-		withSuppressionRules:      _q.withSuppressionRules.Clone(),
-		withRoleBindings:          _q.withRoleBindings.Clone(),
-		withIncidents:             _q.withIncidents.Clone(),
-		withIntegrations:          _q.withIntegrations.Clone(),
-		withTicketIntegrations:    _q.withTicketIntegrations.Clone(),
-		withCredentials:           _q.withCredentials.Clone(),
-		withWebhookSubscriptions:  _q.withWebhookSubscriptions.Clone(),
-		withSubscriptions:         _q.withSubscriptions.Clone(),
-		withMetricsSnapshots:      _q.withMetricsSnapshots.Clone(),
+		config:                      _q.config,
+		ctx:                         _q.ctx.Clone(),
+		order:                       append([]team.OrderOption{}, _q.order...),
+		inters:                      append([]Interceptor{}, _q.inters...),
+		predicates:                  append([]predicate.Team{}, _q.predicates...),
+		withUsers:                   _q.withUsers.Clone(),
+		withServices:                _q.withServices.Clone(),
+		withSchedules:               _q.withSchedules.Clone(),
+		withEscalationPolicies:      _q.withEscalationPolicies.Clone(),
+		withDefaultEscalationPolicy: _q.withDefaultEscalationPolicy.Clone(),
+		withRunbooks:                _q.withRunbooks.Clone(),
+		withNotificationRules:       _q.withNotificationRules.Clone(),
+		withNotificationTemplates:   _q.withNotificationTemplates.Clone(),
+		withSuppressionRules:        _q.withSuppressionRules.Clone(),
+		withRoleBindings:            _q.withRoleBindings.Clone(),
+		withIncidents:               _q.withIncidents.Clone(),
+		withIntegrations:            _q.withIntegrations.Clone(),
+		withTicketIntegrations:      _q.withTicketIntegrations.Clone(),
+		withCredentials:             _q.withCredentials.Clone(),
+		withWebhookSubscriptions:    _q.withWebhookSubscriptions.Clone(),
+		withSubscriptions:           _q.withSubscriptions.Clone(),
+		withMetricsSnapshots:        _q.withMetricsSnapshots.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -698,6 +723,17 @@ func (_q *TeamQuery) WithEscalationPolicies(opts ...func(*EscalationPolicyQuery)
 		opt(query)
 	}
 	_q.withEscalationPolicies = query
+	return _q
+}
+
+// WithDefaultEscalationPolicy tells the query-builder to eager-load the nodes that are connected to
+// the "default_escalation_policy" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TeamQuery) WithDefaultEscalationPolicy(opts ...func(*EscalationPolicyQuery)) *TeamQuery {
+	query := (&EscalationPolicyClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withDefaultEscalationPolicy = query
 	return _q
 }
 
@@ -910,12 +946,14 @@ func (_q *TeamQuery) prepareQuery(ctx context.Context) error {
 func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, error) {
 	var (
 		nodes       = []*Team{}
+		withFKs     = _q.withFKs
 		_spec       = _q.querySpec()
-		loadedTypes = [16]bool{
+		loadedTypes = [17]bool{
 			_q.withUsers != nil,
 			_q.withServices != nil,
 			_q.withSchedules != nil,
 			_q.withEscalationPolicies != nil,
+			_q.withDefaultEscalationPolicy != nil,
 			_q.withRunbooks != nil,
 			_q.withNotificationRules != nil,
 			_q.withNotificationTemplates != nil,
@@ -930,6 +968,12 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 			_q.withMetricsSnapshots != nil,
 		}
 	)
+	if _q.withDefaultEscalationPolicy != nil {
+		withFKs = true
+	}
+	if withFKs {
+		_spec.Node.Columns = append(_spec.Node.Columns, team.ForeignKeys...)
+	}
 	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*Team).scanValues(nil, columns)
 	}
@@ -973,6 +1017,12 @@ func (_q *TeamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Team, e
 		if err := _q.loadEscalationPolicies(ctx, query, nodes,
 			func(n *Team) { n.Edges.EscalationPolicies = []*EscalationPolicy{} },
 			func(n *Team, e *EscalationPolicy) { n.Edges.EscalationPolicies = append(n.Edges.EscalationPolicies, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withDefaultEscalationPolicy; query != nil {
+		if err := _q.loadDefaultEscalationPolicy(ctx, query, nodes, nil,
+			func(n *Team, e *EscalationPolicy) { n.Edges.DefaultEscalationPolicy = e }); err != nil {
 			return nil, err
 		}
 	}
@@ -1220,6 +1270,38 @@ func (_q *TeamQuery) loadEscalationPolicies(ctx context.Context, query *Escalati
 			return fmt.Errorf(`unexpected referenced foreign-key "team_escalation_policies" returned %v for node %v`, *fk, n.ID)
 		}
 		assign(node, n)
+	}
+	return nil
+}
+func (_q *TeamQuery) loadDefaultEscalationPolicy(ctx context.Context, query *EscalationPolicyQuery, nodes []*Team, init func(*Team), assign func(*Team, *EscalationPolicy)) error {
+	ids := make([]int, 0, len(nodes))
+	nodeids := make(map[int][]*Team)
+	for i := range nodes {
+		if nodes[i].team_default_escalation_policy == nil {
+			continue
+		}
+		fk := *nodes[i].team_default_escalation_policy
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(escalationpolicy.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "team_default_escalation_policy" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
 	}
 	return nil
 }

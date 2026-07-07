@@ -5135,6 +5135,22 @@ func (c *TeamClient) QueryEscalationPolicies(_m *Team) *EscalationPolicyQuery {
 	return query
 }
 
+// QueryDefaultEscalationPolicy queries the default_escalation_policy edge of a Team.
+func (c *TeamClient) QueryDefaultEscalationPolicy(_m *Team) *EscalationPolicyQuery {
+	query := (&EscalationPolicyClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(team.Table, team.FieldID, id),
+			sqlgraph.To(escalationpolicy.Table, escalationpolicy.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, team.DefaultEscalationPolicyTable, team.DefaultEscalationPolicyColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryRunbooks queries the runbooks edge of a Team.
 func (c *TeamClient) QueryRunbooks(_m *Team) *RunbookQuery {
 	query := (&RunbookClient{config: c.config}).Query()

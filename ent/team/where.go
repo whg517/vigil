@@ -537,6 +537,29 @@ func HasEscalationPoliciesWith(preds ...predicate.EscalationPolicy) predicate.Te
 	})
 }
 
+// HasDefaultEscalationPolicy applies the HasEdge predicate on the "default_escalation_policy" edge.
+func HasDefaultEscalationPolicy() predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, DefaultEscalationPolicyTable, DefaultEscalationPolicyColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasDefaultEscalationPolicyWith applies the HasEdge predicate on the "default_escalation_policy" edge with a given conditions (other predicates).
+func HasDefaultEscalationPolicyWith(preds ...predicate.EscalationPolicy) predicate.Team {
+	return predicate.Team(func(s *sql.Selector) {
+		step := newDefaultEscalationPolicyStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasRunbooks applies the HasEdge predicate on the "runbooks" edge.
 func HasRunbooks() predicate.Team {
 	return predicate.Team(func(s *sql.Selector) {

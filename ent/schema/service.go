@@ -25,6 +25,11 @@ func (Service) Fields() []ent.Field {
 		field.JSON("labels", map[string]string{}).Optional().Comment("路由匹配标签"),
 		field.Bool("auto_create_incident").Default(true).Comment("告警进来是否自动成 Incident"),
 		field.Enum("status").Values("active", "disabled").Default("active"),
+		// source 区分手工创建 vs 分诊自动供给（方案C，见 02-triage-routing §3.5）。
+		// auto 服务由未路由告警即时创建，前端可据此筛选/批量转正/过期清理，治理防泛滥。
+		field.Enum("source").Values("manual", "auto").Default("manual").Comment("来源：manual 手工 / auto 自动供给"),
+		// provisioned_at 自动供给时间（source=auto 时填），供过期清理判定。
+		field.Time("provisioned_at").Optional().Nillable().Comment("自动供给时间（source=auto）"),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}
@@ -61,6 +66,8 @@ func (Service) Edges() []ent.Edge {
 func (Service) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("status"),
+		// source 索引：治理时按来源筛选自动供给的服务（列表/批量转正/过期清理）。
+		index.Fields("source"),
 	}
 }
 

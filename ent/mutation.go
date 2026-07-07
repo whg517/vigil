@@ -22035,6 +22035,8 @@ type ServiceMutation struct {
 	labels                   *map[string]string
 	auto_create_incident     *bool
 	status                   *service.Status
+	source                   *service.Source
+	provisioned_at           *time.Time
 	created_at               *time.Time
 	updated_at               *time.Time
 	clearedFields            map[string]struct{}
@@ -22409,6 +22411,91 @@ func (m *ServiceMutation) OldStatus(ctx context.Context) (v service.Status, err 
 // ResetStatus resets all changes to the "status" field.
 func (m *ServiceMutation) ResetStatus() {
 	m.status = nil
+}
+
+// SetSource sets the "source" field.
+func (m *ServiceMutation) SetSource(s service.Source) {
+	m.source = &s
+}
+
+// Source returns the value of the "source" field in the mutation.
+func (m *ServiceMutation) Source() (r service.Source, exists bool) {
+	v := m.source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSource returns the old "source" field's value of the Service entity.
+// If the Service object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServiceMutation) OldSource(ctx context.Context) (v service.Source, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSource: %w", err)
+	}
+	return oldValue.Source, nil
+}
+
+// ResetSource resets all changes to the "source" field.
+func (m *ServiceMutation) ResetSource() {
+	m.source = nil
+}
+
+// SetProvisionedAt sets the "provisioned_at" field.
+func (m *ServiceMutation) SetProvisionedAt(t time.Time) {
+	m.provisioned_at = &t
+}
+
+// ProvisionedAt returns the value of the "provisioned_at" field in the mutation.
+func (m *ServiceMutation) ProvisionedAt() (r time.Time, exists bool) {
+	v := m.provisioned_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProvisionedAt returns the old "provisioned_at" field's value of the Service entity.
+// If the Service object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServiceMutation) OldProvisionedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProvisionedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProvisionedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProvisionedAt: %w", err)
+	}
+	return oldValue.ProvisionedAt, nil
+}
+
+// ClearProvisionedAt clears the value of the "provisioned_at" field.
+func (m *ServiceMutation) ClearProvisionedAt() {
+	m.provisioned_at = nil
+	m.clearedFields[service.FieldProvisionedAt] = struct{}{}
+}
+
+// ProvisionedAtCleared returns if the "provisioned_at" field was cleared in this mutation.
+func (m *ServiceMutation) ProvisionedAtCleared() bool {
+	_, ok := m.clearedFields[service.FieldProvisionedAt]
+	return ok
+}
+
+// ResetProvisionedAt resets all changes to the "provisioned_at" field.
+func (m *ServiceMutation) ResetProvisionedAt() {
+	m.provisioned_at = nil
+	delete(m.clearedFields, service.FieldProvisionedAt)
 }
 
 // SetCreatedAt sets the "created_at" field.
@@ -23027,7 +23114,7 @@ func (m *ServiceMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServiceMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 10)
 	if m.name != nil {
 		fields = append(fields, service.FieldName)
 	}
@@ -23045,6 +23132,12 @@ func (m *ServiceMutation) Fields() []string {
 	}
 	if m.status != nil {
 		fields = append(fields, service.FieldStatus)
+	}
+	if m.source != nil {
+		fields = append(fields, service.FieldSource)
+	}
+	if m.provisioned_at != nil {
+		fields = append(fields, service.FieldProvisionedAt)
 	}
 	if m.created_at != nil {
 		fields = append(fields, service.FieldCreatedAt)
@@ -23072,6 +23165,10 @@ func (m *ServiceMutation) Field(name string) (ent.Value, bool) {
 		return m.AutoCreateIncident()
 	case service.FieldStatus:
 		return m.Status()
+	case service.FieldSource:
+		return m.Source()
+	case service.FieldProvisionedAt:
+		return m.ProvisionedAt()
 	case service.FieldCreatedAt:
 		return m.CreatedAt()
 	case service.FieldUpdatedAt:
@@ -23097,6 +23194,10 @@ func (m *ServiceMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldAutoCreateIncident(ctx)
 	case service.FieldStatus:
 		return m.OldStatus(ctx)
+	case service.FieldSource:
+		return m.OldSource(ctx)
+	case service.FieldProvisionedAt:
+		return m.OldProvisionedAt(ctx)
 	case service.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case service.FieldUpdatedAt:
@@ -23152,6 +23253,20 @@ func (m *ServiceMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetStatus(v)
 		return nil
+	case service.FieldSource:
+		v, ok := value.(service.Source)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSource(v)
+		return nil
+	case service.FieldProvisionedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProvisionedAt(v)
+		return nil
 	case service.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -23202,6 +23317,9 @@ func (m *ServiceMutation) ClearedFields() []string {
 	if m.FieldCleared(service.FieldLabels) {
 		fields = append(fields, service.FieldLabels)
 	}
+	if m.FieldCleared(service.FieldProvisionedAt) {
+		fields = append(fields, service.FieldProvisionedAt)
+	}
 	return fields
 }
 
@@ -23221,6 +23339,9 @@ func (m *ServiceMutation) ClearField(name string) error {
 		return nil
 	case service.FieldLabels:
 		m.ClearLabels()
+		return nil
+	case service.FieldProvisionedAt:
+		m.ClearProvisionedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown Service nullable field %s", name)
@@ -23247,6 +23368,12 @@ func (m *ServiceMutation) ResetField(name string) error {
 		return nil
 	case service.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case service.FieldSource:
+		m.ResetSource()
+		return nil
+	case service.FieldProvisionedAt:
+		m.ResetProvisionedAt()
 		return nil
 	case service.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -25522,67 +25649,69 @@ func (m *SuppressionRuleMutation) ResetEdge(name string) error {
 // TeamMutation represents an operation that mutates the Team nodes in the graph.
 type TeamMutation struct {
 	config
-	op                            Op
-	typ                           string
-	id                            *int
-	name                          *string
-	slug                          *string
-	description                   *string
-	parent_team_id                *string
-	created_at                    *time.Time
-	updated_at                    *time.Time
-	clearedFields                 map[string]struct{}
-	users                         map[int]struct{}
-	removedusers                  map[int]struct{}
-	clearedusers                  bool
-	services                      map[int]struct{}
-	removedservices               map[int]struct{}
-	clearedservices               bool
-	schedules                     map[int]struct{}
-	removedschedules              map[int]struct{}
-	clearedschedules              bool
-	escalation_policies           map[int]struct{}
-	removedescalation_policies    map[int]struct{}
-	clearedescalation_policies    bool
-	runbooks                      map[int]struct{}
-	removedrunbooks               map[int]struct{}
-	clearedrunbooks               bool
-	notification_rules            map[int]struct{}
-	removednotification_rules     map[int]struct{}
-	clearednotification_rules     bool
-	notification_templates        map[int]struct{}
-	removednotification_templates map[int]struct{}
-	clearednotification_templates bool
-	suppression_rules             map[int]struct{}
-	removedsuppression_rules      map[int]struct{}
-	clearedsuppression_rules      bool
-	role_bindings                 map[int]struct{}
-	removedrole_bindings          map[int]struct{}
-	clearedrole_bindings          bool
-	incidents                     map[int]struct{}
-	removedincidents              map[int]struct{}
-	clearedincidents              bool
-	integrations                  map[int]struct{}
-	removedintegrations           map[int]struct{}
-	clearedintegrations           bool
-	ticket_integrations           map[int]struct{}
-	removedticket_integrations    map[int]struct{}
-	clearedticket_integrations    bool
-	credentials                   map[int]struct{}
-	removedcredentials            map[int]struct{}
-	clearedcredentials            bool
-	webhook_subscriptions         map[int]struct{}
-	removedwebhook_subscriptions  map[int]struct{}
-	clearedwebhook_subscriptions  bool
-	subscriptions                 map[int]struct{}
-	removedsubscriptions          map[int]struct{}
-	clearedsubscriptions          bool
-	metrics_snapshots             map[int]struct{}
-	removedmetrics_snapshots      map[int]struct{}
-	clearedmetrics_snapshots      bool
-	done                          bool
-	oldValue                      func(context.Context) (*Team, error)
-	predicates                    []predicate.Team
+	op                               Op
+	typ                              string
+	id                               *int
+	name                             *string
+	slug                             *string
+	description                      *string
+	parent_team_id                   *string
+	created_at                       *time.Time
+	updated_at                       *time.Time
+	clearedFields                    map[string]struct{}
+	users                            map[int]struct{}
+	removedusers                     map[int]struct{}
+	clearedusers                     bool
+	services                         map[int]struct{}
+	removedservices                  map[int]struct{}
+	clearedservices                  bool
+	schedules                        map[int]struct{}
+	removedschedules                 map[int]struct{}
+	clearedschedules                 bool
+	escalation_policies              map[int]struct{}
+	removedescalation_policies       map[int]struct{}
+	clearedescalation_policies       bool
+	default_escalation_policy        *int
+	cleareddefault_escalation_policy bool
+	runbooks                         map[int]struct{}
+	removedrunbooks                  map[int]struct{}
+	clearedrunbooks                  bool
+	notification_rules               map[int]struct{}
+	removednotification_rules        map[int]struct{}
+	clearednotification_rules        bool
+	notification_templates           map[int]struct{}
+	removednotification_templates    map[int]struct{}
+	clearednotification_templates    bool
+	suppression_rules                map[int]struct{}
+	removedsuppression_rules         map[int]struct{}
+	clearedsuppression_rules         bool
+	role_bindings                    map[int]struct{}
+	removedrole_bindings             map[int]struct{}
+	clearedrole_bindings             bool
+	incidents                        map[int]struct{}
+	removedincidents                 map[int]struct{}
+	clearedincidents                 bool
+	integrations                     map[int]struct{}
+	removedintegrations              map[int]struct{}
+	clearedintegrations              bool
+	ticket_integrations              map[int]struct{}
+	removedticket_integrations       map[int]struct{}
+	clearedticket_integrations       bool
+	credentials                      map[int]struct{}
+	removedcredentials               map[int]struct{}
+	clearedcredentials               bool
+	webhook_subscriptions            map[int]struct{}
+	removedwebhook_subscriptions     map[int]struct{}
+	clearedwebhook_subscriptions     bool
+	subscriptions                    map[int]struct{}
+	removedsubscriptions             map[int]struct{}
+	clearedsubscriptions             bool
+	metrics_snapshots                map[int]struct{}
+	removedmetrics_snapshots         map[int]struct{}
+	clearedmetrics_snapshots         bool
+	done                             bool
+	oldValue                         func(context.Context) (*Team, error)
+	predicates                       []predicate.Team
 }
 
 var _ ent.Mutation = (*TeamMutation)(nil)
@@ -26139,6 +26268,45 @@ func (m *TeamMutation) ResetEscalationPolicies() {
 	m.escalation_policies = nil
 	m.clearedescalation_policies = false
 	m.removedescalation_policies = nil
+}
+
+// SetDefaultEscalationPolicyID sets the "default_escalation_policy" edge to the EscalationPolicy entity by id.
+func (m *TeamMutation) SetDefaultEscalationPolicyID(id int) {
+	m.default_escalation_policy = &id
+}
+
+// ClearDefaultEscalationPolicy clears the "default_escalation_policy" edge to the EscalationPolicy entity.
+func (m *TeamMutation) ClearDefaultEscalationPolicy() {
+	m.cleareddefault_escalation_policy = true
+}
+
+// DefaultEscalationPolicyCleared reports if the "default_escalation_policy" edge to the EscalationPolicy entity was cleared.
+func (m *TeamMutation) DefaultEscalationPolicyCleared() bool {
+	return m.cleareddefault_escalation_policy
+}
+
+// DefaultEscalationPolicyID returns the "default_escalation_policy" edge ID in the mutation.
+func (m *TeamMutation) DefaultEscalationPolicyID() (id int, exists bool) {
+	if m.default_escalation_policy != nil {
+		return *m.default_escalation_policy, true
+	}
+	return
+}
+
+// DefaultEscalationPolicyIDs returns the "default_escalation_policy" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// DefaultEscalationPolicyID instead. It exists only for internal usage by the builders.
+func (m *TeamMutation) DefaultEscalationPolicyIDs() (ids []int) {
+	if id := m.default_escalation_policy; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetDefaultEscalationPolicy resets all changes to the "default_escalation_policy" edge.
+func (m *TeamMutation) ResetDefaultEscalationPolicy() {
+	m.default_escalation_policy = nil
+	m.cleareddefault_escalation_policy = false
 }
 
 // AddRunbookIDs adds the "runbooks" edge to the Runbook entity by ids.
@@ -27022,7 +27190,7 @@ func (m *TeamMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *TeamMutation) AddedEdges() []string {
-	edges := make([]string, 0, 16)
+	edges := make([]string, 0, 17)
 	if m.users != nil {
 		edges = append(edges, team.EdgeUsers)
 	}
@@ -27034,6 +27202,9 @@ func (m *TeamMutation) AddedEdges() []string {
 	}
 	if m.escalation_policies != nil {
 		edges = append(edges, team.EdgeEscalationPolicies)
+	}
+	if m.default_escalation_policy != nil {
+		edges = append(edges, team.EdgeDefaultEscalationPolicy)
 	}
 	if m.runbooks != nil {
 		edges = append(edges, team.EdgeRunbooks)
@@ -27102,6 +27273,10 @@ func (m *TeamMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case team.EdgeDefaultEscalationPolicy:
+		if id := m.default_escalation_policy; id != nil {
+			return []ent.Value{*id}
+		}
 	case team.EdgeRunbooks:
 		ids := make([]ent.Value, 0, len(m.runbooks))
 		for id := range m.runbooks {
@@ -27180,7 +27355,7 @@ func (m *TeamMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *TeamMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 16)
+	edges := make([]string, 0, 17)
 	if m.removedusers != nil {
 		edges = append(edges, team.EdgeUsers)
 	}
@@ -27338,7 +27513,7 @@ func (m *TeamMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *TeamMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 16)
+	edges := make([]string, 0, 17)
 	if m.clearedusers {
 		edges = append(edges, team.EdgeUsers)
 	}
@@ -27350,6 +27525,9 @@ func (m *TeamMutation) ClearedEdges() []string {
 	}
 	if m.clearedescalation_policies {
 		edges = append(edges, team.EdgeEscalationPolicies)
+	}
+	if m.cleareddefault_escalation_policy {
+		edges = append(edges, team.EdgeDefaultEscalationPolicy)
 	}
 	if m.clearedrunbooks {
 		edges = append(edges, team.EdgeRunbooks)
@@ -27402,6 +27580,8 @@ func (m *TeamMutation) EdgeCleared(name string) bool {
 		return m.clearedschedules
 	case team.EdgeEscalationPolicies:
 		return m.clearedescalation_policies
+	case team.EdgeDefaultEscalationPolicy:
+		return m.cleareddefault_escalation_policy
 	case team.EdgeRunbooks:
 		return m.clearedrunbooks
 	case team.EdgeNotificationRules:
@@ -27434,6 +27614,9 @@ func (m *TeamMutation) EdgeCleared(name string) bool {
 // if that edge is not defined in the schema.
 func (m *TeamMutation) ClearEdge(name string) error {
 	switch name {
+	case team.EdgeDefaultEscalationPolicy:
+		m.ClearDefaultEscalationPolicy()
+		return nil
 	}
 	return fmt.Errorf("unknown Team unique edge %s", name)
 }
@@ -27453,6 +27636,9 @@ func (m *TeamMutation) ResetEdge(name string) error {
 		return nil
 	case team.EdgeEscalationPolicies:
 		m.ResetEscalationPolicies()
+		return nil
+	case team.EdgeDefaultEscalationPolicy:
+		m.ResetDefaultEscalationPolicy()
 		return nil
 	case team.EdgeRunbooks:
 		m.ResetRunbooks()

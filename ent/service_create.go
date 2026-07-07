@@ -88,6 +88,34 @@ func (_c *ServiceCreate) SetNillableStatus(v *service.Status) *ServiceCreate {
 	return _c
 }
 
+// SetSource sets the "source" field.
+func (_c *ServiceCreate) SetSource(v service.Source) *ServiceCreate {
+	_c.mutation.SetSource(v)
+	return _c
+}
+
+// SetNillableSource sets the "source" field if the given value is not nil.
+func (_c *ServiceCreate) SetNillableSource(v *service.Source) *ServiceCreate {
+	if v != nil {
+		_c.SetSource(*v)
+	}
+	return _c
+}
+
+// SetProvisionedAt sets the "provisioned_at" field.
+func (_c *ServiceCreate) SetProvisionedAt(v time.Time) *ServiceCreate {
+	_c.mutation.SetProvisionedAt(v)
+	return _c
+}
+
+// SetNillableProvisionedAt sets the "provisioned_at" field if the given value is not nil.
+func (_c *ServiceCreate) SetNillableProvisionedAt(v *time.Time) *ServiceCreate {
+	if v != nil {
+		_c.SetProvisionedAt(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ServiceCreate) SetCreatedAt(v time.Time) *ServiceCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -317,6 +345,10 @@ func (_c *ServiceCreate) defaults() {
 		v := service.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
+	if _, ok := _c.mutation.Source(); !ok {
+		v := service.DefaultSource
+		_c.mutation.SetSource(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := service.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -349,6 +381,14 @@ func (_c *ServiceCreate) check() error {
 	if v, ok := _c.mutation.Status(); ok {
 		if err := service.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Service.status": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.Source(); !ok {
+		return &ValidationError{Name: "source", err: errors.New(`ent: missing required field "Service.source"`)}
+	}
+	if v, ok := _c.mutation.Source(); ok {
+		if err := service.SourceValidator(v); err != nil {
+			return &ValidationError{Name: "source", err: fmt.Errorf(`ent: validator failed for field "Service.source": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
@@ -406,6 +446,14 @@ func (_c *ServiceCreate) createSpec() (*Service, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(service.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.Source(); ok {
+		_spec.SetField(service.FieldSource, field.TypeEnum, value)
+		_node.Source = value
+	}
+	if value, ok := _c.mutation.ProvisionedAt(); ok {
+		_spec.SetField(service.FieldProvisionedAt, field.TypeTime, value)
+		_node.ProvisionedAt = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(service.FieldCreatedAt, field.TypeTime, value)

@@ -102,8 +102,10 @@ Team:
   slug:               # URL/标识用，唯一
   description:
   parent_team_id:     # 支持团队树（事业部>团队），仅组织展示用，权限不沿树继承
+  default_escalation_policy_id:  # 团队默认升级策略：自动供给的 Service 继承它（见 02-triage-routing §3.5）
 ```
 - 团队可嵌套（`parent_team_id`），用于"事业部 > 小组"这种结构，但**权限不沿树继承**——团队树仅作组织展示，避免越权。
+- `default_escalation_policy_id`（可选）指向本团队 `escalation_policies` 之一，作为**自动供给 Service** 的兜底升级策略——没有它，自动创建的服务将无策略、不升级（新的静默盲区），故自动供给以「团队已配默认策略」为前提。
 
 #### Member（成员关系）
 ```yaml
@@ -135,9 +137,12 @@ Service:
   runbook_ids: [...]      # 关联的 runbook
   auto_create_incident: bool   # 告警进来是否自动成 Incident
   status: active | disabled
+  source: manual | auto        # 来源：手工创建 vs 分诊自动供给（方案C）
+  provisioned_at:              # 自动供给时间（source=auto 时填），供治理/过期清理
 ```
 - Service 是**软隔离的核心载体**：它把告警、排班、升级、复盘都"绑"到一个团队上。
 - `labels` 是路由匹配的依据（告警的 label 匹配 Service 的 label → 命中）。
+- `source` 区分手工与自动：告警未匹配到任何 Service 但携带服务键 label 时，分诊可**自动供给**一个 `source=auto` 的轻量 Service（挂到解析出的团队、继承团队默认升级策略），解决大规模（100+ 微服务）逐个手配的负担。详见 [`02-triage-routing.md`](./capabilities/02-triage-routing.md) §3.5。
 
 #### Integration（接入点）—— 告警的入口
 ```yaml

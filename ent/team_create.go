@@ -164,6 +164,25 @@ func (_c *TeamCreate) AddEscalationPolicies(v ...*EscalationPolicy) *TeamCreate 
 	return _c.AddEscalationPolicyIDs(ids...)
 }
 
+// SetDefaultEscalationPolicyID sets the "default_escalation_policy" edge to the EscalationPolicy entity by ID.
+func (_c *TeamCreate) SetDefaultEscalationPolicyID(id int) *TeamCreate {
+	_c.mutation.SetDefaultEscalationPolicyID(id)
+	return _c
+}
+
+// SetNillableDefaultEscalationPolicyID sets the "default_escalation_policy" edge to the EscalationPolicy entity by ID if the given value is not nil.
+func (_c *TeamCreate) SetNillableDefaultEscalationPolicyID(id *int) *TeamCreate {
+	if id != nil {
+		_c = _c.SetDefaultEscalationPolicyID(*id)
+	}
+	return _c
+}
+
+// SetDefaultEscalationPolicy sets the "default_escalation_policy" edge to the EscalationPolicy entity.
+func (_c *TeamCreate) SetDefaultEscalationPolicy(v *EscalationPolicy) *TeamCreate {
+	return _c.SetDefaultEscalationPolicyID(v.ID)
+}
+
 // AddRunbookIDs adds the "runbooks" edge to the Runbook entity by IDs.
 func (_c *TeamCreate) AddRunbookIDs(ids ...int) *TeamCreate {
 	_c.mutation.AddRunbookIDs(ids...)
@@ -520,6 +539,23 @@ func (_c *TeamCreate) createSpec() (*Team, *sqlgraph.CreateSpec) {
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.DefaultEscalationPolicyIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   team.DefaultEscalationPolicyTable,
+			Columns: []string{team.DefaultEscalationPolicyColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(escalationpolicy.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.team_default_escalation_policy = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.RunbooksIDs(); len(nodes) > 0 {

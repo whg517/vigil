@@ -75,6 +75,11 @@ func AutoCreateIncident(v bool) predicate.Service {
 	return predicate.Service(sql.FieldEQ(FieldAutoCreateIncident, v))
 }
 
+// ProvisionedAt applies equality check predicate on the "provisioned_at" field. It's identical to ProvisionedAtEQ.
+func ProvisionedAt(v time.Time) predicate.Service {
+	return predicate.Service(sql.FieldEQ(FieldProvisionedAt, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Service {
 	return predicate.Service(sql.FieldEQ(FieldCreatedAt, v))
@@ -328,6 +333,76 @@ func StatusIn(vs ...Status) predicate.Service {
 // StatusNotIn applies the NotIn predicate on the "status" field.
 func StatusNotIn(vs ...Status) predicate.Service {
 	return predicate.Service(sql.FieldNotIn(FieldStatus, vs...))
+}
+
+// SourceEQ applies the EQ predicate on the "source" field.
+func SourceEQ(v Source) predicate.Service {
+	return predicate.Service(sql.FieldEQ(FieldSource, v))
+}
+
+// SourceNEQ applies the NEQ predicate on the "source" field.
+func SourceNEQ(v Source) predicate.Service {
+	return predicate.Service(sql.FieldNEQ(FieldSource, v))
+}
+
+// SourceIn applies the In predicate on the "source" field.
+func SourceIn(vs ...Source) predicate.Service {
+	return predicate.Service(sql.FieldIn(FieldSource, vs...))
+}
+
+// SourceNotIn applies the NotIn predicate on the "source" field.
+func SourceNotIn(vs ...Source) predicate.Service {
+	return predicate.Service(sql.FieldNotIn(FieldSource, vs...))
+}
+
+// ProvisionedAtEQ applies the EQ predicate on the "provisioned_at" field.
+func ProvisionedAtEQ(v time.Time) predicate.Service {
+	return predicate.Service(sql.FieldEQ(FieldProvisionedAt, v))
+}
+
+// ProvisionedAtNEQ applies the NEQ predicate on the "provisioned_at" field.
+func ProvisionedAtNEQ(v time.Time) predicate.Service {
+	return predicate.Service(sql.FieldNEQ(FieldProvisionedAt, v))
+}
+
+// ProvisionedAtIn applies the In predicate on the "provisioned_at" field.
+func ProvisionedAtIn(vs ...time.Time) predicate.Service {
+	return predicate.Service(sql.FieldIn(FieldProvisionedAt, vs...))
+}
+
+// ProvisionedAtNotIn applies the NotIn predicate on the "provisioned_at" field.
+func ProvisionedAtNotIn(vs ...time.Time) predicate.Service {
+	return predicate.Service(sql.FieldNotIn(FieldProvisionedAt, vs...))
+}
+
+// ProvisionedAtGT applies the GT predicate on the "provisioned_at" field.
+func ProvisionedAtGT(v time.Time) predicate.Service {
+	return predicate.Service(sql.FieldGT(FieldProvisionedAt, v))
+}
+
+// ProvisionedAtGTE applies the GTE predicate on the "provisioned_at" field.
+func ProvisionedAtGTE(v time.Time) predicate.Service {
+	return predicate.Service(sql.FieldGTE(FieldProvisionedAt, v))
+}
+
+// ProvisionedAtLT applies the LT predicate on the "provisioned_at" field.
+func ProvisionedAtLT(v time.Time) predicate.Service {
+	return predicate.Service(sql.FieldLT(FieldProvisionedAt, v))
+}
+
+// ProvisionedAtLTE applies the LTE predicate on the "provisioned_at" field.
+func ProvisionedAtLTE(v time.Time) predicate.Service {
+	return predicate.Service(sql.FieldLTE(FieldProvisionedAt, v))
+}
+
+// ProvisionedAtIsNil applies the IsNil predicate on the "provisioned_at" field.
+func ProvisionedAtIsNil() predicate.Service {
+	return predicate.Service(sql.FieldIsNull(FieldProvisionedAt))
+}
+
+// ProvisionedAtNotNil applies the NotNil predicate on the "provisioned_at" field.
+func ProvisionedAtNotNil() predicate.Service {
+	return predicate.Service(sql.FieldNotNull(FieldProvisionedAt))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

@@ -319,6 +319,39 @@ type Triage struct {
 	DedupWindow time.Duration `envconfig:"dedup_window" default:"5m"`
 	// AggregateWindow 聚合窗口：同 service+severity 在窗口内并入同一 Incident。默认 5min。
 	AggregateWindow time.Duration `envconfig:"aggregate_window" default:"5m"`
+
+	// —— 自动供给 Service（方案C §3.5）——
+	// 大规模（100+ 微服务）下逐个手工建 Service 负担极重；开启后，未匹配到任何 Service
+	// 但携带服务键 label 的告警会即时创建 source=auto 的轻量服务（挂解析出的团队、继承团队
+	// 默认升级策略），无需预建。**默认关闭**，未开启行为与今天完全一致（走 unrouted）。
+
+	// AutoProvisionEnabled 总开关。默认 false（无配置不回归）。
+	AutoProvisionEnabled bool `envconfig:"auto_provision_enabled" default:"false"`
+	// AutoProvisionServiceLabel 服务键 label 名：取其值作为新 Service 的 slug/name。默认 "service"。
+	AutoProvisionServiceLabel string `envconfig:"auto_provision_service_label" default:"service"`
+	// AutoProvisionTeamLabel 团队键 label 名：取其值匹配 Team.slug 决定归属团队。默认 "team"。
+	AutoProvisionTeamLabel string `envconfig:"auto_provision_team_label" default:"team"`
+	// AutoProvisionDefaultTeam 兜底团队 slug：团队键 label 缺失/解析不到时归属它。空=不兜底（回落 unrouted）。
+	AutoProvisionDefaultTeam string `envconfig:"auto_provision_default_team"`
+	// AutoProvisionSlugPattern 服务键值白名单正则：非空时仅匹配的值才允许自动创建（防脏值刷服务）。
+	// 空=放行任意非空值。装配层负责编译校验（非法正则应在启动时暴露而非静默放行）。
+	AutoProvisionSlugPattern string `envconfig:"auto_provision_slug_pattern"`
+}
+
+// EffectiveAutoProvisionServiceLabel 返回服务键 label 名，空值回退 "service"。
+func (t Triage) EffectiveAutoProvisionServiceLabel() string {
+	if t.AutoProvisionServiceLabel == "" {
+		return "service"
+	}
+	return t.AutoProvisionServiceLabel
+}
+
+// EffectiveAutoProvisionTeamLabel 返回团队键 label 名，空值回退 "team"。
+func (t Triage) EffectiveAutoProvisionTeamLabel() string {
+	if t.AutoProvisionTeamLabel == "" {
+		return "team"
+	}
+	return t.AutoProvisionTeamLabel
 }
 
 // EffectiveDedupWindow 返回去重窗口，零值回退 5min（envconfig 嵌套 default 兜底）。

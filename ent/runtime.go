@@ -471,11 +471,11 @@ func init() {
 	// service.DefaultAutoCreateIncident holds the default value on creation for the auto_create_incident field.
 	service.DefaultAutoCreateIncident = serviceDescAutoCreateIncident.Default.(bool)
 	// serviceDescCreatedAt is the schema descriptor for created_at field.
-	serviceDescCreatedAt := serviceFields[6].Descriptor()
+	serviceDescCreatedAt := serviceFields[8].Descriptor()
 	// service.DefaultCreatedAt holds the default value on creation for the created_at field.
 	service.DefaultCreatedAt = serviceDescCreatedAt.Default.(func() time.Time)
 	// serviceDescUpdatedAt is the schema descriptor for updated_at field.
-	serviceDescUpdatedAt := serviceFields[7].Descriptor()
+	serviceDescUpdatedAt := serviceFields[9].Descriptor()
 	// service.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	service.DefaultUpdatedAt = serviceDescUpdatedAt.Default.(func() time.Time)
 	// service.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

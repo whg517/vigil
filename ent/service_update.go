@@ -124,6 +124,40 @@ func (_u *ServiceUpdate) SetNillableStatus(v *service.Status) *ServiceUpdate {
 	return _u
 }
 
+// SetSource sets the "source" field.
+func (_u *ServiceUpdate) SetSource(v service.Source) *ServiceUpdate {
+	_u.mutation.SetSource(v)
+	return _u
+}
+
+// SetNillableSource sets the "source" field if the given value is not nil.
+func (_u *ServiceUpdate) SetNillableSource(v *service.Source) *ServiceUpdate {
+	if v != nil {
+		_u.SetSource(*v)
+	}
+	return _u
+}
+
+// SetProvisionedAt sets the "provisioned_at" field.
+func (_u *ServiceUpdate) SetProvisionedAt(v time.Time) *ServiceUpdate {
+	_u.mutation.SetProvisionedAt(v)
+	return _u
+}
+
+// SetNillableProvisionedAt sets the "provisioned_at" field if the given value is not nil.
+func (_u *ServiceUpdate) SetNillableProvisionedAt(v *time.Time) *ServiceUpdate {
+	if v != nil {
+		_u.SetProvisionedAt(*v)
+	}
+	return _u
+}
+
+// ClearProvisionedAt clears the value of the "provisioned_at" field.
+func (_u *ServiceUpdate) ClearProvisionedAt() *ServiceUpdate {
+	_u.mutation.ClearProvisionedAt()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *ServiceUpdate) SetUpdatedAt(v time.Time) *ServiceUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -521,6 +555,11 @@ func (_u *ServiceUpdate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Service.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Source(); ok {
+		if err := service.SourceValidator(v); err != nil {
+			return &ValidationError{Name: "source", err: fmt.Errorf(`ent: validator failed for field "Service.source": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -559,6 +598,15 @@ func (_u *ServiceUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(service.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.Source(); ok {
+		_spec.SetField(service.FieldSource, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ProvisionedAt(); ok {
+		_spec.SetField(service.FieldProvisionedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ProvisionedAtCleared() {
+		_spec.ClearField(service.FieldProvisionedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(service.FieldUpdatedAt, field.TypeTime, value)
@@ -1089,6 +1137,40 @@ func (_u *ServiceUpdateOne) SetNillableStatus(v *service.Status) *ServiceUpdateO
 	return _u
 }
 
+// SetSource sets the "source" field.
+func (_u *ServiceUpdateOne) SetSource(v service.Source) *ServiceUpdateOne {
+	_u.mutation.SetSource(v)
+	return _u
+}
+
+// SetNillableSource sets the "source" field if the given value is not nil.
+func (_u *ServiceUpdateOne) SetNillableSource(v *service.Source) *ServiceUpdateOne {
+	if v != nil {
+		_u.SetSource(*v)
+	}
+	return _u
+}
+
+// SetProvisionedAt sets the "provisioned_at" field.
+func (_u *ServiceUpdateOne) SetProvisionedAt(v time.Time) *ServiceUpdateOne {
+	_u.mutation.SetProvisionedAt(v)
+	return _u
+}
+
+// SetNillableProvisionedAt sets the "provisioned_at" field if the given value is not nil.
+func (_u *ServiceUpdateOne) SetNillableProvisionedAt(v *time.Time) *ServiceUpdateOne {
+	if v != nil {
+		_u.SetProvisionedAt(*v)
+	}
+	return _u
+}
+
+// ClearProvisionedAt clears the value of the "provisioned_at" field.
+func (_u *ServiceUpdateOne) ClearProvisionedAt() *ServiceUpdateOne {
+	_u.mutation.ClearProvisionedAt()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *ServiceUpdateOne) SetUpdatedAt(v time.Time) *ServiceUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -1499,6 +1581,11 @@ func (_u *ServiceUpdateOne) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Service.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Source(); ok {
+		if err := service.SourceValidator(v); err != nil {
+			return &ValidationError{Name: "source", err: fmt.Errorf(`ent: validator failed for field "Service.source": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -1554,6 +1641,15 @@ func (_u *ServiceUpdateOne) sqlSave(ctx context.Context) (_node *Service, err er
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(service.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.Source(); ok {
+		_spec.SetField(service.FieldSource, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ProvisionedAt(); ok {
+		_spec.SetField(service.FieldProvisionedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ProvisionedAtCleared() {
+		_spec.ClearField(service.FieldProvisionedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(service.FieldUpdatedAt, field.TypeTime, value)

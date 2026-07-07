@@ -38,6 +38,10 @@ func (Team) Edges() []ent.Edge {
 		edge.To("schedules", Schedule.Type),
 		// Team -> EscalationPolicy（团队拥有的升级策略）
 		edge.To("escalation_policies", EscalationPolicy.Type),
+		// Team -> EscalationPolicy（团队默认升级策略，方案C §3.5）。
+		// 自动供给的 Service 继承此策略——无它则不自动供给，避免创建无策略的静默服务。
+		// 应指向本团队 escalation_policies 之一（业务层校验）；Unique = 至多一个默认。
+		edge.To("default_escalation_policy", EscalationPolicy.Type).Unique(),
 		// Team -> Runbook（团队拥有的处置手册）
 		edge.To("runbooks", Runbook.Type),
 		// Team -> NotificationRule（团队拥有的通知规则）

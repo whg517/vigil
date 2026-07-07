@@ -160,6 +160,9 @@ service:
 
 ### 3.2 未命中路由（M4.3）
 
+> **注**：开启自动供给（§3.5）时，匹配失败的 Event 在进入 unrouted 池**之前**先尝试自动创建 Service；
+> 仅当自动供给也未产出 Service（未开启 / 无服务键 label / 团队或默认策略解析不到）时，才落入下列 unrouted 流程。
+
 匹配失败的 Event 进入 `unrouted` 池：
 - 需 `event.view_unrouted` 权限查看（避免越权）。
 - team_admin 可手动指派 Service（`POST /events/:id/reroute`，权限 `service.route_override`，
@@ -178,6 +181,43 @@ Service 命中后，Incident/Event 自动继承：
 - `service.escalation_policy_id`（升级策略）
 - `service` 关联的 Schedule（排班）
 - `service.runbook_ids`（处置手册，供能力域 9）
+
+### 3.5 自动供给 Service（方案 C）★ 大规模场景
+
+**背景**：路由靠 label 匹配既有 Service，但在 100+ 微服务 + 操作系统 + 中间件的规模下，
+「一个微服务一个 Service」意味着上百次手工建服务 + 配策略/排班，配置负担极重（对标 PagerDuty/Opsgenie
+均以 IaC/目录同步/动态路由规避）。自动供给让**新服务的告警首次进来即被接住**，无需预先手工建 Service。
+
+**机制**：§3.1 全部匹配失败后、进入 unrouted（§3.2）**之前**，若开启自动供给且满足条件，即时创建一个
+轻量 Service 并继续按其聚合建单。放在 route() 之后、以 Process 侧的独立步骤实现（保持 route() 为纯匹配、无副作用）。
+
+**触发条件（全部满足才创建，任一不满足则回落 unrouted，不制造静默盲区）**：
+1. 开关 `auto_provision_enabled=true`（**默认关闭**，未开启行为与今天完全一致——遵循「无配置不回归」）。
+2. Event 携带**服务键** label（默认 key=`service`，可配），其值非空且通过 slug 白名单正则校验
+   （防 `service=up` 之类垃圾值刷出脏服务）。
+3. 能解析**归属团队**：优先用**团队键** label（默认 key=`team`）匹配 `Team.slug`，否则用配置的兜底团队 slug；
+   都解析不到 → 回落 unrouted。
+4. 该团队已配 `default_escalation_policy` → 作为新 Service 的升级策略。**无默认策略则不创建**
+   （否则新服务无策略、不升级，等于把「未路由」换成「已路由但静默」，更危险）。critical 仍照旧走 unrouted 兜底通知。
+
+**创建内容**：`slug=服务键值, name=服务键值, labels={<服务键>:值}, team=解析团队,
+escalation_policy=团队默认策略, source=auto, provisioned_at=now, status=active, auto_create_incident=true`。
+创建后即绑定到 Event、按该 Service 走既有聚合/建单/升级流程（与手工建的 Service 完全一致）。
+
+**幂等与并发**：`Service.slug` 唯一约束兜底——并发同名告警撞 `ConstraintError` 时改为「查回既有同 slug Service」返回，
+保证只建一个（复刻 `createIncident` 的唯一冲突重试模式）。
+
+**治理（防实体泛滥）**：
+- `source=auto` 标记 + `provisioned_at`：前端可按来源筛选、批量「转正」（改 `manual` 并补配 runbook/排班）。
+- slug 白名单正则限制可自动创建的服务名，杜绝脏值。
+- 自动创建即 `active`（不丢告警），但作为「待认领」由 team_admin 复核。
+- 过期清理（后续）：`source=auto` 且 N 天无新 Event 的服务可定时停用。
+- **绝不触碰 `source=manual`**：主动同步（未来 P2，从 Prometheus targets / K8s / 目录文件周期 upsert）只增改 auto 服务。
+
+**可观测**：每次自动供给打点 `metrics.ServicesAutoProvisioned` + 结构化日志（自动创建不静默，便于审计与容量观察）。
+
+**分阶段**：本轮实现「懒供给（pull，未路由即时创建）」；「主动同步（push，周期从可观测源拉清单 upsert）」
+与「前端来源徽章/批量转正/过期清理」为后续增量，不阻塞本轮。
 
 ---
 
@@ -224,6 +264,7 @@ received ──► normalized ──► [去重] ──┬──► dedup_skippe
 | Q1 | 自定义聚合规则的表达形式（DSL / UI 配置） | UI 表单为主，DSL 为高级选项 |
 | Q2 | 服务拓扑的存储与查询效率 | 邻接表 + 缓存，初期不优化 |
 | Q3 | AI 噪音判定的介入时机（实时 vs 离线） | 离线建议为主，避免实时 LLM 拖慢分诊 |
+| Q4 | 大规模（100+ 微服务）Service 配置负担 | **已裁决**：不要求 1:1 建服务。①路由靠 label 匹配（既有）；②未匹配时**自动供给** `source=auto` 服务（§3.5，本轮）；③后续 push 同步 + 前端治理。人工配置量从「N 个微服务」降到「M 个团队各配一次默认升级策略」 |
 
 ---
 
@@ -243,5 +284,6 @@ received ──► normalized ──► [去重] ──┬──► dedup_skippe
 | §2.7 resolved 处理（M3.7） | `internal/triage/engine.go`（`handleResolved`） |
 | §3.1 路由匹配（M4.1/M4.2，C2/B14） | `internal/triage/engine.go`（`route`：slug 直达 → `Service.labels` 子集匹配（glob + 具体度优先）→ Integration 默认 service 兜底） |
 | §3.2 未路由重路由（M6） | `internal/triage/handler.go`（`POST /events/:id/reroute`，`Engine.Reroute`；权限 `service.route_override`，团队软隔离） |
+| §3.5 自动供给 Service（方案 C，懒供给） | `internal/triage/engine.go`（`tryAutoProvision`：服务键 label + slug 白名单 + 团队解析 + 团队默认策略；`Process` 在 route 未命中、unrouted 之前调用；slug 唯一冲突查回既有幂等）；`ent/schema/service.go`（`source`/`provisioned_at`）；`ent/schema/team.go`（`default_escalation_policy` 边）；`internal/config/config.go`（`Triage.AutoProvision*`，env `VIGIL_TRIAGE_AUTO_PROVISION_*`，默认关闭）；`internal/metrics`（`ServicesAutoProvisioned`） |
 | 抑制规则 API（含 expires_at，B15；kind + time_window，维护窗口） | `internal/notification/handler.go`（SuppressionRule CRUD + `expires_at` 可设/清除 + `kind` 分类 + `time_window.{start,end}` 校验 + list `?kind=` 过滤，权限 `suppression.*`） |
 

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path"
+	"regexp"
 	"sort"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/service"
+	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/timelineitem"
 	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/metrics"
@@ -61,6 +63,19 @@ type Engine struct {
 	// 为 nil 时跳过（未配置 LLM / 测试）——AI 是横向增益，缺失不影响分诊主流程。
 	// 触发为异步 best-effort：不阻塞建单，LLM 不可用时分析器内部自行降级不产出。
 	aiAnalyzer TriageAIAnalyzer
+
+	// autoProvision 自动供给配置（方案C §3.5）。零值（enabled=false）时关闭，
+	// 路由未命中照旧走 unrouted——「无配置不回归」。由 SetAutoProvision 注入。
+	autoProvision autoProvisionConfig
+}
+
+// autoProvisionConfig 未路由告警自动创建 Service 的配置（方案C §3.5）。
+type autoProvisionConfig struct {
+	enabled      bool           // 总开关
+	serviceLabel string         // 服务键 label 名（取值作 slug/name）
+	teamLabel    string         // 团队键 label 名（取值匹配 Team.slug）
+	defaultTeam  string         // 兜底团队 slug（团队键解析不到时用）
+	slugPattern  *regexp.Regexp // 服务键值白名单（nil=放行任意非空值）
 }
 
 // TriageAIAnalyzer 分诊 AI 分析器接口（T3.2）。由装配层用 ai.TriageAIEngine 适配实现。
@@ -87,6 +102,19 @@ type UnroutedNotifier interface {
 // SetUnroutedNotifier 注入未路由兜底通知器（装配时调用）。为 nil 时不兜底。
 func (e *Engine) SetUnroutedNotifier(n UnroutedNotifier) {
 	e.unroutedNotifier = n
+}
+
+// SetAutoProvision 注入自动供给配置（方案C §3.5，装配时调用）。
+// enabled=false（默认）时不启用，路由未命中照旧走 unrouted。slugPattern 由装配层编译校验
+// （非法正则应在启动时暴露，而非静默放行）；nil 表示放行任意非空服务键值。
+func (e *Engine) SetAutoProvision(enabled bool, serviceLabel, teamLabel, defaultTeam string, slugPattern *regexp.Regexp) {
+	e.autoProvision = autoProvisionConfig{
+		enabled:      enabled,
+		serviceLabel: serviceLabel,
+		teamLabel:    teamLabel,
+		defaultTeam:  defaultTeam,
+		slugPattern:  slugPattern,
+	}
 }
 
 // 默认去重/聚合窗口（C9：可经 SetWindows 覆盖，未配置时用此默认）。
@@ -219,6 +247,15 @@ func (e *Engine) Process(ctx context.Context, evtID int) (*Result, error) {
 	svc, err := e.route(ctx, evt)
 	if err != nil {
 		return nil, fmt.Errorf("route: %w", err)
+	}
+	if svc == nil {
+		// §3.5 自动供给（方案C）：路由未命中时尝试即时创建 source=auto 的 Service。
+		// 开关关/不满足条件（无服务键 label、slug 不过白名单、团队或默认策略解析不到）时返回 nil，
+		// 回落下方既有 unrouted 逻辑（含 critical 兜底通知），无回归。
+		svc, err = e.tryAutoProvision(ctx, evt)
+		if err != nil {
+			return nil, fmt.Errorf("auto-provision: %w", err)
+		}
 	}
 	if svc == nil {
 		// 未命中：标记 unrouted（Event.service_id 留空），等待人工分诊。
@@ -427,6 +464,111 @@ func (e *Engine) routeByIntegration(ctx context.Context, evt *ent.Event) (*ent.S
 		return nil, err
 	}
 	return svc, nil
+}
+
+// tryAutoProvision 未路由告警自动创建 Service（方案C §3.5）。
+//
+// 仅在开关开启且全部条件满足时创建，任一不满足返回 (nil, nil) 回落 unrouted——绝不制造静默盲区：
+//  1. 携带服务键 label 且值非空、通过 slug 白名单（防脏值刷服务）。
+//  2. 能解析归属团队（团队键 label → Team.slug，否则兜底团队）。
+//  3. 该团队已配 default_escalation_policy——无默认策略则不创建（否则新服务无策略、不升级，
+//     等于把"未路由"换成"已路由但静默"，更危险；此时回落 unrouted，critical 仍兜底通知）。
+//
+// 幂等：Service.slug 唯一约束兜底——并发/已存在同 slug 时查回既有（仅当其为 active 才复用，
+// 尊重人工 disable，不复活被停用的服务）。
+func (e *Engine) tryAutoProvision(ctx context.Context, evt *ent.Event) (*ent.Service, error) {
+	if !e.autoProvision.enabled {
+		return nil, nil
+	}
+	// 1. 服务键
+	slug := evt.Labels[e.autoProvision.serviceLabel]
+	if slug == "" {
+		return nil, nil
+	}
+	// 2. slug 白名单（非空正则时须匹配）
+	if e.autoProvision.slugPattern != nil && !e.autoProvision.slugPattern.MatchString(slug) {
+		slog.Warn("triage: auto-provision skipped, slug rejected by pattern",
+			"slug", slug, "event_id", evt.ID)
+		return nil, nil
+	}
+	// 3. 归属团队
+	tm, err := e.resolveAutoProvisionTeam(ctx, evt)
+	if err != nil {
+		return nil, err
+	}
+	if tm == nil {
+		return nil, nil // 团队解析不到 → 回落 unrouted
+	}
+	// 4. 团队默认升级策略（无则不供给）
+	policy, err := tm.QueryDefaultEscalationPolicy().Only(ctx)
+	if ent.IsNotFound(err) {
+		slog.Warn("triage: auto-provision skipped, team has no default escalation policy",
+			"team", tm.Slug, "slug", slug, "event_id", evt.ID)
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query team default escalation policy: %w", err)
+	}
+	// 5. 创建（source=auto，继承团队默认策略）
+	svc, err := e.db.Service.Create().
+		SetName(slug).
+		SetSlug(slug).
+		SetLabels(map[string]string{e.autoProvision.serviceLabel: slug}).
+		SetSource(service.SourceAuto).
+		SetProvisionedAt(time.Now()).
+		SetStatus(service.StatusActive).
+		SetAutoCreateIncident(true).
+		SetTeamID(tm.ID).
+		SetEscalationPolicyID(policy.ID).
+		Save(ctx)
+	if err != nil {
+		// slug 唯一冲突：并发已建 / 已存在同名服务——查回既有，仅复用 active 的。
+		if ent.IsConstraintError(err) {
+			existing, gerr := e.db.Service.Query().Where(service.SlugEQ(slug)).Only(ctx)
+			if gerr != nil {
+				return nil, fmt.Errorf("auto-provision slug conflict, refetch service %q: %w", slug, gerr)
+			}
+			if existing.Status != service.StatusActive {
+				// 已存在但被停用：尊重人工 disable，不复活；回落 unrouted。
+				return nil, nil
+			}
+			return existing, nil
+		}
+		return nil, fmt.Errorf("auto-provision service %q: %w", slug, err)
+	}
+	metrics.ServicesAutoProvisioned.WithLabelValues(tm.Slug).Inc()
+	slog.Info("triage: auto-provisioned service",
+		"slug", slug, "team", tm.Slug, "policy_id", policy.ID, "event_id", evt.ID)
+	return svc, nil
+}
+
+// resolveAutoProvisionTeam 解析自动供给的归属团队（方案C §3.5）：
+// 优先团队键 label 匹配 Team.slug，缺失/无匹配时回退配置的兜底团队；都解析不到返回 (nil, nil)。
+func (e *Engine) resolveAutoProvisionTeam(ctx context.Context, evt *ent.Event) (*ent.Team, error) {
+	// 团队键 label
+	if e.autoProvision.teamLabel != "" {
+		if slug := evt.Labels[e.autoProvision.teamLabel]; slug != "" {
+			tm, err := e.db.Team.Query().Where(team.SlugEQ(slug)).Only(ctx)
+			if err == nil {
+				return tm, nil
+			}
+			if !ent.IsNotFound(err) {
+				return nil, fmt.Errorf("query team by label %q: %w", slug, err)
+			}
+			// label 有值但无匹配团队 → 继续尝试兜底团队
+		}
+	}
+	// 兜底团队
+	if e.autoProvision.defaultTeam != "" {
+		tm, err := e.db.Team.Query().Where(team.SlugEQ(e.autoProvision.defaultTeam)).Only(ctx)
+		if err == nil {
+			return tm, nil
+		}
+		if !ent.IsNotFound(err) {
+			return nil, fmt.Errorf("query default team %q: %w", e.autoProvision.defaultTeam, err)
+		}
+	}
+	return nil, nil
 }
 
 // labelsSubsetMatch 判断 pattern 集是否是 target 的子集（值支持 glob）。

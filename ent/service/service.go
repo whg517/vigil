@@ -27,6 +27,10 @@ const (
 	FieldAutoCreateIncident = "auto_create_incident"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldSource holds the string denoting the source field in the database.
+	FieldSource = "source"
+	// FieldProvisionedAt holds the string denoting the provisioned_at field in the database.
+	FieldProvisionedAt = "provisioned_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -120,6 +124,8 @@ var Columns = []string{
 	FieldLabels,
 	FieldAutoCreateIncident,
 	FieldStatus,
+	FieldSource,
+	FieldProvisionedAt,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -200,6 +206,32 @@ func StatusValidator(s Status) error {
 	}
 }
 
+// Source defines the type for the "source" enum field.
+type Source string
+
+// SourceManual is the default value of the Source enum.
+const DefaultSource = SourceManual
+
+// Source values.
+const (
+	SourceManual Source = "manual"
+	SourceAuto   Source = "auto"
+)
+
+func (s Source) String() string {
+	return string(s)
+}
+
+// SourceValidator is a validator for the "source" field enum values. It is called by the builders before save.
+func SourceValidator(s Source) error {
+	switch s {
+	case SourceManual, SourceAuto:
+		return nil
+	default:
+		return fmt.Errorf("service: invalid enum value for source field: %q", s)
+	}
+}
+
 // OrderOption defines the ordering options for the Service queries.
 type OrderOption func(*sql.Selector)
 
@@ -231,6 +263,16 @@ func ByAutoCreateIncident(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// BySource orders the results by the source field.
+func BySource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSource, opts...).ToFunc()
+}
+
+// ByProvisionedAt orders the results by the provisioned_at field.
+func ByProvisionedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProvisionedAt, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

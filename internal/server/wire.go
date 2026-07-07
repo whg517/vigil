@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -317,6 +318,35 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// C3：注入未路由兜底通知器——critical 级 Event 无 Service 匹配时兜底通知 org_admin，
 	// 避免高危故障因路由未命中而完全静默（既不建单、不升级、不通知）。
 	triageEngine.SetUnroutedNotifier(&unroutedFallbackNotifier{db: st.DB, notifier: notifier, log: log})
+	// 方案C §3.5：自动供给。未路由且携带服务键 label 的告警即时创建 source=auto 服务
+	// （继承团队默认升级策略）。默认关闭；开关关时行为与今天完全一致（走 unrouted）。
+	if apEnabled := cfg.Triage.AutoProvisionEnabled; apEnabled {
+		var slugPattern *regexp.Regexp
+		if raw := cfg.Triage.AutoProvisionSlugPattern; raw != "" {
+			p, perr := regexp.Compile(raw)
+			if perr != nil {
+				// 白名单正则非法：这是一道治理安全阀，宁可整体关闭自动供给，也不无白名单裸奔。
+				log.Error("triage: invalid auto_provision_slug_pattern, disabling auto-provision",
+					zap.String("pattern", raw), zap.Error(perr))
+				apEnabled = false
+			} else {
+				slugPattern = p
+			}
+		}
+		if apEnabled {
+			triageEngine.SetAutoProvision(
+				true,
+				cfg.Triage.EffectiveAutoProvisionServiceLabel(),
+				cfg.Triage.EffectiveAutoProvisionTeamLabel(),
+				cfg.Triage.AutoProvisionDefaultTeam,
+				slugPattern,
+			)
+			log.Info("triage: service auto-provision enabled",
+				zap.String("service_label", cfg.Triage.EffectiveAutoProvisionServiceLabel()),
+				zap.String("team_label", cfg.Triage.EffectiveAutoProvisionTeamLabel()),
+				zap.String("default_team", cfg.Triage.AutoProvisionDefaultTeam))
+		}
+	}
 	q.Register(triage.TaskTriage, triage.NewWorker(triageEngine).Handle)
 	log.Info("pipeline ready (ingestion → triage → escalation → notification)")
 

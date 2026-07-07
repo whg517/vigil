@@ -178,6 +178,25 @@ func (_u *TeamUpdate) AddEscalationPolicies(v ...*EscalationPolicy) *TeamUpdate 
 	return _u.AddEscalationPolicyIDs(ids...)
 }
 
+// SetDefaultEscalationPolicyID sets the "default_escalation_policy" edge to the EscalationPolicy entity by ID.
+func (_u *TeamUpdate) SetDefaultEscalationPolicyID(id int) *TeamUpdate {
+	_u.mutation.SetDefaultEscalationPolicyID(id)
+	return _u
+}
+
+// SetNillableDefaultEscalationPolicyID sets the "default_escalation_policy" edge to the EscalationPolicy entity by ID if the given value is not nil.
+func (_u *TeamUpdate) SetNillableDefaultEscalationPolicyID(id *int) *TeamUpdate {
+	if id != nil {
+		_u = _u.SetDefaultEscalationPolicyID(*id)
+	}
+	return _u
+}
+
+// SetDefaultEscalationPolicy sets the "default_escalation_policy" edge to the EscalationPolicy entity.
+func (_u *TeamUpdate) SetDefaultEscalationPolicy(v *EscalationPolicy) *TeamUpdate {
+	return _u.SetDefaultEscalationPolicyID(v.ID)
+}
+
 // AddRunbookIDs adds the "runbooks" edge to the Runbook entity by IDs.
 func (_u *TeamUpdate) AddRunbookIDs(ids ...int) *TeamUpdate {
 	_u.mutation.AddRunbookIDs(ids...)
@@ -445,6 +464,12 @@ func (_u *TeamUpdate) RemoveEscalationPolicies(v ...*EscalationPolicy) *TeamUpda
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveEscalationPolicyIDs(ids...)
+}
+
+// ClearDefaultEscalationPolicy clears the "default_escalation_policy" edge to the EscalationPolicy entity.
+func (_u *TeamUpdate) ClearDefaultEscalationPolicy() *TeamUpdate {
+	_u.mutation.ClearDefaultEscalationPolicy()
+	return _u
 }
 
 // ClearRunbooks clears all "runbooks" edges to the Runbook entity.
@@ -948,6 +973,35 @@ func (_u *TeamUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Inverse: false,
 			Table:   team.EscalationPoliciesTable,
 			Columns: []string{team.EscalationPoliciesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(escalationpolicy.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.DefaultEscalationPolicyCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   team.DefaultEscalationPolicyTable,
+			Columns: []string{team.DefaultEscalationPolicyColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(escalationpolicy.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DefaultEscalationPolicyIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   team.DefaultEscalationPolicyTable,
+			Columns: []string{team.DefaultEscalationPolicyColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(escalationpolicy.FieldID, field.TypeInt),
@@ -1652,6 +1706,25 @@ func (_u *TeamUpdateOne) AddEscalationPolicies(v ...*EscalationPolicy) *TeamUpda
 	return _u.AddEscalationPolicyIDs(ids...)
 }
 
+// SetDefaultEscalationPolicyID sets the "default_escalation_policy" edge to the EscalationPolicy entity by ID.
+func (_u *TeamUpdateOne) SetDefaultEscalationPolicyID(id int) *TeamUpdateOne {
+	_u.mutation.SetDefaultEscalationPolicyID(id)
+	return _u
+}
+
+// SetNillableDefaultEscalationPolicyID sets the "default_escalation_policy" edge to the EscalationPolicy entity by ID if the given value is not nil.
+func (_u *TeamUpdateOne) SetNillableDefaultEscalationPolicyID(id *int) *TeamUpdateOne {
+	if id != nil {
+		_u = _u.SetDefaultEscalationPolicyID(*id)
+	}
+	return _u
+}
+
+// SetDefaultEscalationPolicy sets the "default_escalation_policy" edge to the EscalationPolicy entity.
+func (_u *TeamUpdateOne) SetDefaultEscalationPolicy(v *EscalationPolicy) *TeamUpdateOne {
+	return _u.SetDefaultEscalationPolicyID(v.ID)
+}
+
 // AddRunbookIDs adds the "runbooks" edge to the Runbook entity by IDs.
 func (_u *TeamUpdateOne) AddRunbookIDs(ids ...int) *TeamUpdateOne {
 	_u.mutation.AddRunbookIDs(ids...)
@@ -1919,6 +1992,12 @@ func (_u *TeamUpdateOne) RemoveEscalationPolicies(v ...*EscalationPolicy) *TeamU
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveEscalationPolicyIDs(ids...)
+}
+
+// ClearDefaultEscalationPolicy clears the "default_escalation_policy" edge to the EscalationPolicy entity.
+func (_u *TeamUpdateOne) ClearDefaultEscalationPolicy() *TeamUpdateOne {
+	_u.mutation.ClearDefaultEscalationPolicy()
+	return _u
 }
 
 // ClearRunbooks clears all "runbooks" edges to the Runbook entity.
@@ -2452,6 +2531,35 @@ func (_u *TeamUpdateOne) sqlSave(ctx context.Context) (_node *Team, err error) {
 			Inverse: false,
 			Table:   team.EscalationPoliciesTable,
 			Columns: []string{team.EscalationPoliciesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(escalationpolicy.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.DefaultEscalationPolicyCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   team.DefaultEscalationPolicyTable,
+			Columns: []string{team.DefaultEscalationPolicyColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(escalationpolicy.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DefaultEscalationPolicyIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   team.DefaultEscalationPolicyTable,
+			Columns: []string{team.DefaultEscalationPolicyColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(escalationpolicy.FieldID, field.TypeInt),

@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/team"
 )
 
@@ -31,8 +32,9 @@ type Team struct {
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the TeamQuery when eager-loading is set.
-	Edges        TeamEdges `json:"edges"`
-	selectValues sql.SelectValues
+	Edges                          TeamEdges `json:"edges"`
+	team_default_escalation_policy *int
+	selectValues                   sql.SelectValues
 }
 
 // TeamEdges holds the relations/edges for other nodes in the graph.
@@ -45,6 +47,8 @@ type TeamEdges struct {
 	Schedules []*Schedule `json:"schedules,omitempty"`
 	// EscalationPolicies holds the value of the escalation_policies edge.
 	EscalationPolicies []*EscalationPolicy `json:"escalation_policies,omitempty"`
+	// DefaultEscalationPolicy holds the value of the default_escalation_policy edge.
+	DefaultEscalationPolicy *EscalationPolicy `json:"default_escalation_policy,omitempty"`
 	// Runbooks holds the value of the runbooks edge.
 	Runbooks []*Runbook `json:"runbooks,omitempty"`
 	// NotificationRules holds the value of the notification_rules edge.
@@ -71,7 +75,7 @@ type TeamEdges struct {
 	MetricsSnapshots []*MetricsSnapshot `json:"metrics_snapshots,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [16]bool
+	loadedTypes [17]bool
 }
 
 // UsersOrErr returns the Users value or an error if the edge
@@ -110,10 +114,21 @@ func (e TeamEdges) EscalationPoliciesOrErr() ([]*EscalationPolicy, error) {
 	return nil, &NotLoadedError{edge: "escalation_policies"}
 }
 
+// DefaultEscalationPolicyOrErr returns the DefaultEscalationPolicy value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e TeamEdges) DefaultEscalationPolicyOrErr() (*EscalationPolicy, error) {
+	if e.DefaultEscalationPolicy != nil {
+		return e.DefaultEscalationPolicy, nil
+	} else if e.loadedTypes[4] {
+		return nil, &NotFoundError{label: escalationpolicy.Label}
+	}
+	return nil, &NotLoadedError{edge: "default_escalation_policy"}
+}
+
 // RunbooksOrErr returns the Runbooks value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) RunbooksOrErr() ([]*Runbook, error) {
-	if e.loadedTypes[4] {
+	if e.loadedTypes[5] {
 		return e.Runbooks, nil
 	}
 	return nil, &NotLoadedError{edge: "runbooks"}
@@ -122,7 +137,7 @@ func (e TeamEdges) RunbooksOrErr() ([]*Runbook, error) {
 // NotificationRulesOrErr returns the NotificationRules value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) NotificationRulesOrErr() ([]*NotificationRule, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[6] {
 		return e.NotificationRules, nil
 	}
 	return nil, &NotLoadedError{edge: "notification_rules"}
@@ -131,7 +146,7 @@ func (e TeamEdges) NotificationRulesOrErr() ([]*NotificationRule, error) {
 // NotificationTemplatesOrErr returns the NotificationTemplates value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) NotificationTemplatesOrErr() ([]*NotificationTemplate, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[7] {
 		return e.NotificationTemplates, nil
 	}
 	return nil, &NotLoadedError{edge: "notification_templates"}
@@ -140,7 +155,7 @@ func (e TeamEdges) NotificationTemplatesOrErr() ([]*NotificationTemplate, error)
 // SuppressionRulesOrErr returns the SuppressionRules value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) SuppressionRulesOrErr() ([]*SuppressionRule, error) {
-	if e.loadedTypes[7] {
+	if e.loadedTypes[8] {
 		return e.SuppressionRules, nil
 	}
 	return nil, &NotLoadedError{edge: "suppression_rules"}
@@ -149,7 +164,7 @@ func (e TeamEdges) SuppressionRulesOrErr() ([]*SuppressionRule, error) {
 // RoleBindingsOrErr returns the RoleBindings value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) RoleBindingsOrErr() ([]*RoleBinding, error) {
-	if e.loadedTypes[8] {
+	if e.loadedTypes[9] {
 		return e.RoleBindings, nil
 	}
 	return nil, &NotLoadedError{edge: "role_bindings"}
@@ -158,7 +173,7 @@ func (e TeamEdges) RoleBindingsOrErr() ([]*RoleBinding, error) {
 // IncidentsOrErr returns the Incidents value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) IncidentsOrErr() ([]*Incident, error) {
-	if e.loadedTypes[9] {
+	if e.loadedTypes[10] {
 		return e.Incidents, nil
 	}
 	return nil, &NotLoadedError{edge: "incidents"}
@@ -167,7 +182,7 @@ func (e TeamEdges) IncidentsOrErr() ([]*Incident, error) {
 // IntegrationsOrErr returns the Integrations value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) IntegrationsOrErr() ([]*Integration, error) {
-	if e.loadedTypes[10] {
+	if e.loadedTypes[11] {
 		return e.Integrations, nil
 	}
 	return nil, &NotLoadedError{edge: "integrations"}
@@ -176,7 +191,7 @@ func (e TeamEdges) IntegrationsOrErr() ([]*Integration, error) {
 // TicketIntegrationsOrErr returns the TicketIntegrations value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) TicketIntegrationsOrErr() ([]*TicketIntegration, error) {
-	if e.loadedTypes[11] {
+	if e.loadedTypes[12] {
 		return e.TicketIntegrations, nil
 	}
 	return nil, &NotLoadedError{edge: "ticket_integrations"}
@@ -185,7 +200,7 @@ func (e TeamEdges) TicketIntegrationsOrErr() ([]*TicketIntegration, error) {
 // CredentialsOrErr returns the Credentials value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) CredentialsOrErr() ([]*Credential, error) {
-	if e.loadedTypes[12] {
+	if e.loadedTypes[13] {
 		return e.Credentials, nil
 	}
 	return nil, &NotLoadedError{edge: "credentials"}
@@ -194,7 +209,7 @@ func (e TeamEdges) CredentialsOrErr() ([]*Credential, error) {
 // WebhookSubscriptionsOrErr returns the WebhookSubscriptions value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) WebhookSubscriptionsOrErr() ([]*WebhookSubscription, error) {
-	if e.loadedTypes[13] {
+	if e.loadedTypes[14] {
 		return e.WebhookSubscriptions, nil
 	}
 	return nil, &NotLoadedError{edge: "webhook_subscriptions"}
@@ -203,7 +218,7 @@ func (e TeamEdges) WebhookSubscriptionsOrErr() ([]*WebhookSubscription, error) {
 // SubscriptionsOrErr returns the Subscriptions value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) SubscriptionsOrErr() ([]*Subscription, error) {
-	if e.loadedTypes[14] {
+	if e.loadedTypes[15] {
 		return e.Subscriptions, nil
 	}
 	return nil, &NotLoadedError{edge: "subscriptions"}
@@ -212,7 +227,7 @@ func (e TeamEdges) SubscriptionsOrErr() ([]*Subscription, error) {
 // MetricsSnapshotsOrErr returns the MetricsSnapshots value or an error if the edge
 // was not loaded in eager-loading.
 func (e TeamEdges) MetricsSnapshotsOrErr() ([]*MetricsSnapshot, error) {
-	if e.loadedTypes[15] {
+	if e.loadedTypes[16] {
 		return e.MetricsSnapshots, nil
 	}
 	return nil, &NotLoadedError{edge: "metrics_snapshots"}
@@ -229,6 +244,8 @@ func (*Team) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullString)
 		case team.FieldCreatedAt, team.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
+		case team.ForeignKeys[0]: // team_default_escalation_policy
+			values[i] = new(sql.NullInt64)
 		default:
 			values[i] = new(sql.UnknownType)
 		}
@@ -286,6 +303,13 @@ func (_m *Team) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.UpdatedAt = value.Time
 			}
+		case team.ForeignKeys[0]:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for edge-field team_default_escalation_policy", value)
+			} else if value.Valid {
+				_m.team_default_escalation_policy = new(int)
+				*_m.team_default_escalation_policy = int(value.Int64)
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -317,6 +341,11 @@ func (_m *Team) QuerySchedules() *ScheduleQuery {
 // QueryEscalationPolicies queries the "escalation_policies" edge of the Team entity.
 func (_m *Team) QueryEscalationPolicies() *EscalationPolicyQuery {
 	return NewTeamClient(_m.config).QueryEscalationPolicies(_m)
+}
+
+// QueryDefaultEscalationPolicy queries the "default_escalation_policy" edge of the Team entity.
+func (_m *Team) QueryDefaultEscalationPolicy() *EscalationPolicyQuery {
+	return NewTeamClient(_m.config).QueryDefaultEscalationPolicy(_m)
 }
 
 // QueryRunbooks queries the "runbooks" edge of the Team entity.
