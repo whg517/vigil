@@ -64,6 +64,9 @@ type Config struct {
 
 	// ServiceSync 服务主动同步配置（方案C P2，02-triage-routing §3.5）
 	ServiceSync ServiceSync `envconfig:"service_sync"`
+
+	// ServiceCleanup 自动供给服务过期清理配置（方案C 治理，02-triage-routing §3.5）
+	ServiceCleanup ServiceCleanup `envconfig:"service_cleanup"`
 }
 
 // SelfMonitor 自监控闭环配置（backlog §2.6，H2.4）。
@@ -180,6 +183,35 @@ type ServiceSync struct {
 func (s ServiceSync) EffectiveInterval() time.Duration {
 	if s.Interval <= 0 {
 		return 5 * time.Minute
+	}
+	return s.Interval
+}
+
+// ServiceCleanup 自动供给服务过期清理配置（方案C 治理，02-triage-routing §3.5）。
+// 周期把「source=auto 且 StaleDays 天内无新 Event」的服务停用（status=disabled），防长尾泛滥。
+// 只停用不删除（保留历史 Incident 关联，可人工重新启用/转正）；绝不触碰 source=manual。
+// 默认关闭——「无配置不回归」。
+type ServiceCleanup struct {
+	// Enabled 是否启用过期清理。默认 false，需显式开启。
+	Enabled bool `envconfig:"enabled" default:"false"`
+	// StaleDays 判定过期的静默天数：auto 服务超过此天数无新 Event 且供给早于此天数 → 停用。<=0 用默认 30。
+	StaleDays int `envconfig:"stale_days" default:"30"`
+	// Interval 清理巡检间隔。<=0 用默认 6h（低频后台任务）。
+	Interval time.Duration `envconfig:"interval" default:"6h"`
+}
+
+// EffectiveStaleDays 返回静默天数，零值回退 30。
+func (s ServiceCleanup) EffectiveStaleDays() int {
+	if s.StaleDays <= 0 {
+		return 30
+	}
+	return s.StaleDays
+}
+
+// EffectiveInterval 返回清理巡检间隔，零值回退 6h。
+func (s ServiceCleanup) EffectiveInterval() time.Duration {
+	if s.Interval <= 0 {
+		return 6 * time.Hour
 	}
 	return s.Interval
 }

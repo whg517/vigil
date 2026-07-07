@@ -108,6 +108,13 @@ var (
 		Help: "Total services processed by active sync from external sources, by result.",
 	}, []string{"result"})
 
+	// ServicesPruned 过期清理（方案C 治理）停用的 auto 服务数。
+	// source=auto 且 StaleDays 天内无新 Event 的服务被 disable，此计数使"长尾自动收缩"可观测。
+	ServicesPruned = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "vigil_services_pruned_total",
+		Help: "Total auto-provisioned services disabled by staleness cleanup.",
+	})
+
 	// EscalationsTriggered 升级触发次数
 	EscalationsTriggered = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "vigil_escalations_triggered_total",

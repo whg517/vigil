@@ -740,6 +740,18 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		log.Warn("service sync enabled but VIGIL_SERVICE_SYNC_SOURCE_URL empty; not started")
 	}
 
+	// 方案C 治理：自动供给服务过期清理。周期停用 source=auto 且 N 天无新 Event 的服务，
+	// 防长尾泛滥。只 disable 不 delete，人工可重启用/转正。默认关；开关关不启动（无回归）。
+	if cfg.ServiceCleanup.Enabled {
+		pruner := servicesync.NewPruner(st.DB, cfg.ServiceCleanup.EffectiveStaleDays())
+		pruneCtx, pruneCancel := context.WithCancel(ctx)
+		go pruner.Run(pruneCtx, cfg.ServiceCleanup.EffectiveInterval())
+		wired.Closers = append(wired.Closers, pruneCancel)
+		log.Info("service cleanup started",
+			zap.Int("stale_days", cfg.ServiceCleanup.EffectiveStaleDays()),
+			zap.Duration("interval", cfg.ServiceCleanup.EffectiveInterval()))
+	}
+
 	return wired, nil
 }
 
