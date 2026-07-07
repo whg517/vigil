@@ -6330,7 +6330,10 @@ export interface paths {
         /** 服务列表 */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description 按来源筛选：manual | auto（治理自动供给的服务） */
+                    source?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -6344,6 +6347,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ent.Service"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["httputil.ErrorResponse"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -7144,7 +7156,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ent.Team"][];
+                        "application/json": components["schemas"]["auth.teamResponse"][];
                     };
                 };
                 /** @description Internal Server Error */
@@ -7180,7 +7192,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ent.Team"];
+                        "application/json": components["schemas"]["auth.teamResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -7276,7 +7288,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ent.Team"];
+                        "application/json": components["schemas"]["auth.teamResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -8903,6 +8915,24 @@ export interface components {
             /** @description 新密码，必填，须过强度校验 */
             new_password?: string;
         };
+        "auth.teamResponse": {
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            default_escalation_policy_id?: number;
+            /** @description Description holds the value of the "description" field. */
+            description?: string;
+            edges?: components["schemas"]["ent.TeamEdges"];
+            /** @description ID of the ent. */
+            id?: number;
+            /** @description Name holds the value of the "name" field. */
+            name?: string;
+            /** @description 父团队，仅组织展示，权限不继承 */
+            parent_team_id?: string;
+            /** @description URL/标识用 */
+            slug?: string;
+            /** @description UpdatedAt holds the value of the "updated_at" field. */
+            updated_at?: string;
+        };
         "auth.updateRoleReq": {
             description?: string;
             name?: string;
@@ -8910,6 +8940,11 @@ export interface components {
             permissions?: string[];
         };
         "auth.updateTeamReq": {
+            /**
+             * @description DefaultEscalationPolicyID 团队默认升级策略（方案C §3.5：自动供给的 Service 继承它）。
+             *     指针区分三种语义：nil 不改 / 0 清除 / >0 设置（须为本团队的策略，否则 400）。
+             */
+            default_escalation_policy_id?: number;
             description?: string;
             name?: string;
             /** @description 父团队（仅组织展示，权限不继承） */
@@ -9663,8 +9698,11 @@ export interface components {
             };
             /** @description Name holds the value of the "name" field. */
             name?: string;
+            /** @description 自动供给时间（source=auto） */
+            provisioned_at?: string;
             /** @description Slug holds the value of the "slug" field. */
             slug?: string;
+            source?: components["schemas"]["service.Source"];
             status?: components["schemas"]["service.Status"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
@@ -9780,6 +9818,7 @@ export interface components {
         "ent.TeamEdges": {
             /** @description Credentials holds the value of the credentials edge. */
             credentials?: components["schemas"]["ent.Credential"][];
+            default_escalation_policy?: components["schemas"]["ent.EscalationPolicy"];
             /** @description EscalationPolicies holds the value of the escalation_policies edge. */
             escalation_policies?: components["schemas"]["ent.EscalationPolicy"][];
             /** @description Incidents holds the value of the incidents edge. */
@@ -10617,6 +10656,11 @@ export interface components {
             type?: string;
         };
         /**
+         * @description 来源：manual 手工 / auto 自动供给
+         * @enum {string}
+         */
+        "service.Source": "manual" | "auto";
+        /**
          * @description Status holds the value of the "status" field.
          * @enum {string}
          */
@@ -10704,6 +10748,11 @@ export interface components {
              */
             schedule_ids?: number[];
             slug?: string;
+            /**
+             * @description Source 转正（方案C §3.5 治理）：仅接受 "manual"，把自动供给的服务标记为手工管理，
+             *     使其脱离自动供给的治理范畴（不再被过期清理/主动同步触碰）。不接受 "auto"（不能人为伪造自动来源）。
+             */
+            source?: string;
             status?: string;
         };
         /**

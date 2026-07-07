@@ -15,6 +15,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/actionitem"
+	"github.com/kevin/vigil/ent/escalationpolicy"
 	"github.com/kevin/vigil/ent/rolebinding"
 	"github.com/kevin/vigil/ent/team"
 	"github.com/kevin/vigil/ent/user"
@@ -742,21 +743,46 @@ type createTeamReq struct {
 	ParentTeamID *string `json:"parent_team_id"`
 }
 
+// teamResponse 团队响应体：内嵌 ent.Team 全字段 + 默认升级策略 id。
+//
+// 背景：Team→EscalationPolicy 的默认策略是 edge（非字段），ent.Team 默认序列化不含它；
+// 前端团队设置需回显「当前默认升级策略」以预选，故显式回带 id（方案C §3.5：自动供给继承它）。
+type teamResponse struct {
+	*ent.Team
+	DefaultEscalationPolicyID *int `json:"default_escalation_policy_id"`
+}
+
+// teamResp 把已（可选）预加载 default_escalation_policy 边的 Team 包装为响应体。
+// 边未加载时 DefaultEscalationPolicyID 为 nil（等价"未设置"）——调用方须先 WithDefaultEscalationPolicy 预加载。
+func teamResp(t *ent.Team) teamResponse {
+	r := teamResponse{Team: t}
+	if t.Edges.DefaultEscalationPolicy != nil {
+		id := t.Edges.DefaultEscalationPolicy.ID
+		r.DefaultEscalationPolicyID = &id
+	}
+	return r
+}
+
 // listTeams 团队列表。
 //
 // @Summary      团队列表
 // @Tags         team
 // @Produce      json
-// @Success      200  {array}   ent.Team
+// @Success      200  {array}   teamResponse
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /teams [get]
 func (h *TeamHandler) listTeams(c *echo.Context) error {
-	teams, err := h.db.Team.Query().All(c.Request().Context())
+	// 预加载默认升级策略边，避免逐团队 N+1 查询（团队数少，一次带出即可）。
+	teams, err := h.db.Team.Query().WithDefaultEscalationPolicy().All(c.Request().Context())
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
-	return c.JSON(http.StatusOK, teams)
+	resp := make([]teamResponse, len(teams))
+	for i, t := range teams {
+		resp[i] = teamResp(t)
+	}
+	return c.JSON(http.StatusOK, resp)
 }
 
 // createTeam 创建团队。
@@ -766,7 +792,7 @@ func (h *TeamHandler) listTeams(c *echo.Context) error {
 // @Accept       json
 // @Produce      json
 // @Param        body  body     createTeamReq  true  "团队配置"
-// @Success      201  {object} ent.Team
+// @Success      201  {object} teamResponse
 // @Failure      400  {object} httputil.ErrorResponse
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
@@ -786,11 +812,12 @@ func (h *TeamHandler) createTeam(c *echo.Context) error {
 	if req.ParentTeamID != nil {
 		b.SetParentTeamID(*req.ParentTeamID)
 	}
+	// 默认升级策略不在创建时设：策略隶属团队，须团队存在后再建策略、再回填（避免先后依赖）。
 	t, err := b.Save(c.Request().Context())
 	if err != nil {
 		return errs.FailConstraint(c, nil, err, "team", "team slug or name already exists")
 	}
-	return c.JSON(http.StatusCreated, t)
+	return c.JSON(http.StatusCreated, teamResp(t))
 }
 
 // updateTeamReq 更新团队请求。
@@ -798,6 +825,9 @@ type updateTeamReq struct {
 	Name         *string `json:"name"`
 	Description  *string `json:"description"`
 	ParentTeamID *string `json:"parent_team_id"` // 父团队（仅组织展示，权限不继承）
+	// DefaultEscalationPolicyID 团队默认升级策略（方案C §3.5：自动供给的 Service 继承它）。
+	// 指针区分三种语义：nil 不改 / 0 清除 / >0 设置（须为本团队的策略，否则 400）。
+	DefaultEscalationPolicyID *int `json:"default_escalation_policy_id"`
 }
 
 // updateTeam 更新团队。
@@ -808,7 +838,7 @@ type updateTeamReq struct {
 // @Produce      json
 // @Param        id    path      int             true  "团队 ID"
 // @Param        body  body      updateTeamReq   true  "更新字段"
-// @Success      200  {object} ent.Team
+// @Success      200  {object} teamResponse
 // @Failure      400  {object} httputil.ErrorResponse
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
@@ -822,6 +852,7 @@ func (h *TeamHandler) updateTeam(c *echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
+	ctx := c.Request().Context()
 	u := h.db.Team.UpdateOneID(id)
 	if req.Name != nil {
 		u.SetName(*req.Name)
@@ -832,14 +863,39 @@ func (h *TeamHandler) updateTeam(c *echo.Context) error {
 	if req.ParentTeamID != nil {
 		u.SetParentTeamID(*req.ParentTeamID)
 	}
-	t, err := u.Save(c.Request().Context())
-	if err != nil {
+	// 默认升级策略：nil 不改，0 清除，>0 设置（须为本团队策略，防跨团队越权绑定）。
+	if req.DefaultEscalationPolicyID != nil {
+		if *req.DefaultEscalationPolicyID > 0 {
+			owned, verr := h.db.EscalationPolicy.Query().
+				Where(
+					escalationpolicy.IDEQ(*req.DefaultEscalationPolicyID),
+					escalationpolicy.HasTeamWith(team.IDEQ(id)),
+				).Exist(ctx)
+			if verr != nil {
+				return errs.Internal(c, nil, verr)
+			}
+			if !owned {
+				return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error: "default_escalation_policy must belong to this team",
+				})
+			}
+			u.SetDefaultEscalationPolicyID(*req.DefaultEscalationPolicyID)
+		} else {
+			u.ClearDefaultEscalationPolicy()
+		}
+	}
+	if _, err := u.Save(ctx); err != nil {
 		if ent.IsNotFound(err) {
 			return errs.FailNotFound(c, nil, err, "team")
 		}
 		return errs.FailConstraint(c, nil, err, "team", "team slug or name already exists")
 	}
-	return c.JSON(http.StatusOK, t)
+	// 重新查出并预加载默认策略边，回带 id 供前端回显。
+	t, err := h.db.Team.Query().Where(team.IDEQ(id)).WithDefaultEscalationPolicy().Only(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	return c.JSON(http.StatusOK, teamResp(t))
 }
 
 // deleteTeam 删除团队。

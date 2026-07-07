@@ -103,13 +103,24 @@ func (h *Handler) Register(g *echo.Group) {
 // @Summary      服务列表
 // @Tags         service
 // @Produce      json
+// @Param        source  query    string  false  "按来源筛选：manual | auto（治理自动供给的服务）"
 // @Success      200  {array}   ent.Service
+// @Failure      400  {object} httputil.ErrorResponse
 // @Failure      500  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /services [get]
 func (h *Handler) list(c *echo.Context) error {
 	ctx := c.Request().Context()
 	q := h.db.Service.Query()
+	// source 过滤（治理：只看自动供给 / 只看手工）。非法值返 400，避免静默全量误导。
+	if src := c.QueryParam("source"); src != "" {
+		switch entservice.Source(src) {
+		case entservice.SourceManual, entservice.SourceAuto:
+			q = q.Where(entservice.SourceEQ(entservice.Source(src)))
+		default:
+			return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid source filter"})
+		}
+	}
 	// SEC-01 list 数据隔离：按当前用户可见 team 过滤。
 	// org 级用户（orgWide）全可见；team 级用户仅可见 binding 的 team；无 binding 返回空。
 	if h.authz != nil {
@@ -265,6 +276,9 @@ type updateReq struct {
 	RunbookIDs  *[]int `json:"runbook_ids"`
 	// DependsOnIDs 服务依赖，全量替换语义（同 ScheduleIDs）：nil 不改 / [] 清空 / [x,y] 替换。
 	DependsOnIDs *[]int `json:"depends_on_ids"`
+	// Source 转正（方案C §3.5 治理）：仅接受 "manual"，把自动供给的服务标记为手工管理，
+	// 使其脱离自动供给的治理范畴（不再被过期清理/主动同步触碰）。不接受 "auto"（不能人为伪造自动来源）。
+	Source *string `json:"source"`
 }
 
 // update 更新服务。
@@ -292,11 +306,15 @@ func (h *Handler) update(c *echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
-	// 关联排班/处置手册/服务依赖是「配置枢纽」写操作，须 service.update（仅 view 的只读角色不得改关联）。
-	if req.ScheduleIDs != nil || req.RunbookIDs != nil || req.DependsOnIDs != nil {
+	// 关联排班/处置手册/服务依赖 + 转正是「配置枢纽/治理」写操作，须 service.update（仅 view 的只读角色不得改）。
+	if req.ScheduleIDs != nil || req.RunbookIDs != nil || req.DependsOnIDs != nil || req.Source != nil {
 		if e := h.checkAccess(c, id, auth.PermServiceUpdate); e != nil {
 			return e
 		}
+	}
+	// 转正：仅允许标记为 manual（不能人为伪造 auto 来源）。非法值 400。
+	if req.Source != nil && *req.Source != string(entservice.SourceManual) {
+		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "source can only be set to manual (adopt)"})
 	}
 	upd := h.db.Service.UpdateOneID(id)
 	if req.Name != nil {
@@ -313,6 +331,10 @@ func (h *Handler) update(c *echo.Context) error {
 	}
 	if req.AutoCreateIncident != nil {
 		upd.SetAutoCreateIncident(*req.AutoCreateIncident)
+	}
+	if req.Source != nil {
+		// 已在上方校验只可能是 manual。转正后保留 provisioned_at 作历史痕迹。
+		upd.SetSource(entservice.SourceManual)
 	}
 	if req.Status != nil {
 		upd.SetStatus(entservice.Status(*req.Status))

@@ -714,6 +714,45 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "auth.teamResponse": {
+                "properties": {
+                    "created_at": {
+                        "description": "CreatedAt holds the value of the \"created_at\" field.",
+                        "type": "string"
+                    },
+                    "default_escalation_policy_id": {
+                        "type": "integer"
+                    },
+                    "description": {
+                        "description": "Description holds the value of the \"description\" field.",
+                        "type": "string"
+                    },
+                    "edges": {
+                        "$ref": "#/components/schemas/ent.TeamEdges"
+                    },
+                    "id": {
+                        "description": "ID of the ent.",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "description": "Name holds the value of the \"name\" field.",
+                        "type": "string"
+                    },
+                    "parent_team_id": {
+                        "description": "父团队，仅组织展示，权限不继承",
+                        "type": "string"
+                    },
+                    "slug": {
+                        "description": "URL/标识用",
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "description": "UpdatedAt holds the value of the \"updated_at\" field.",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "auth.updateRoleReq": {
                 "properties": {
                     "description": {
@@ -735,6 +774,10 @@ const docTemplate = `{
             },
             "auth.updateTeamReq": {
                 "properties": {
+                    "default_escalation_policy_id": {
+                        "description": "DefaultEscalationPolicyID 团队默认升级策略（方案C §3.5：自动供给的 Service 继承它）。\n指针区分三种语义：nil 不改 / 0 清除 / \u003e0 设置（须为本团队的策略，否则 400）。",
+                        "type": "integer"
+                    },
                     "description": {
                         "type": "string"
                     },
@@ -2294,9 +2337,16 @@ const docTemplate = `{
                         "description": "Name holds the value of the \"name\" field.",
                         "type": "string"
                     },
+                    "provisioned_at": {
+                        "description": "自动供给时间（source=auto）",
+                        "type": "string"
+                    },
                     "slug": {
                         "description": "Slug holds the value of the \"slug\" field.",
                         "type": "string"
+                    },
+                    "source": {
+                        "$ref": "#/components/schemas/service.Source"
                     },
                     "status": {
                         "$ref": "#/components/schemas/service.Status"
@@ -2559,6 +2609,9 @@ const docTemplate = `{
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "default_escalation_policy": {
+                        "$ref": "#/components/schemas/ent.EscalationPolicy"
                     },
                     "escalation_policies": {
                         "description": "EscalationPolicies holds the value of the escalation_policies edge.",
@@ -4686,6 +4739,19 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "service.Source": {
+                "description": "来源：manual 手工 / auto 自动供给",
+                "enum": [
+                    "manual",
+                    "auto"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "DefaultSource",
+                    "SourceManual",
+                    "SourceAuto"
+                ]
+            },
             "service.Status": {
                 "description": "Status holds the value of the \"status\" field.",
                 "enum": [
@@ -4895,6 +4961,10 @@ const docTemplate = `{
                         "uniqueItems": false
                     },
                     "slug": {
+                        "type": "string"
+                    },
+                    "source": {
+                        "description": "Source 转正（方案C §3.5 治理）：仅接受 \"manual\"，把自动供给的服务标记为手工管理，\n使其脱离自动供给的治理范畴（不再被过期清理/主动同步触碰）。不接受 \"auto\"（不能人为伪造自动来源）。",
                         "type": "string"
                     },
                     "status": {
@@ -12311,6 +12381,16 @@ const docTemplate = `{
         },
         "/services": {
             "get": {
+                "parameters": [
+                    {
+                        "description": "按来源筛选：manual | auto（治理自动供给的服务）",
+                        "in": "query",
+                        "name": "source",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "content": {
@@ -12324,6 +12404,16 @@ const docTemplate = `{
                             }
                         },
                         "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/httputil.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
                     },
                     "500": {
                         "content": {
@@ -13221,7 +13311,7 @@ const docTemplate = `{
                             "application/json": {
                                 "schema": {
                                     "items": {
-                                        "$ref": "#/components/schemas/ent.Team"
+                                        "$ref": "#/components/schemas/auth.teamResponse"
                                     },
                                     "type": "array"
                                 }
@@ -13276,7 +13366,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ent.Team"
+                                    "$ref": "#/components/schemas/auth.teamResponse"
                                 }
                             }
                         },
@@ -13389,7 +13479,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ent.Team"
+                                    "$ref": "#/components/schemas/auth.teamResponse"
                                 }
                             }
                         },
