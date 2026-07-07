@@ -5860,7 +5860,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 排班详情 */
+        /**
+         * 排班详情
+         * @description 返回排班及每层参与人与轮值配置（participants 从关联 Rotation 展开，供编辑回填）。
+         */
         get: {
             parameters: {
                 query?: never;
@@ -5879,7 +5882,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ent.Schedule"];
+                        "application/json": components["schemas"]["schedule.scheduleDetailView"];
                     };
                 };
                 /** @description Bad Request */
@@ -10481,6 +10484,25 @@ export interface components {
             /** @description calendar | rotation | follow_the_sun */
             type?: string;
         };
+        "schedule.layerDetailView": {
+            /** @description "HH:MM" */
+            handoff_time?: string;
+            name?: string;
+            /** @description 从 Rotation.participants 展开（供编辑回填） */
+            participants?: number[];
+            priority?: number;
+            rotation_id?: string;
+            /** @description daily|weekly|custom */
+            rotation_type?: string;
+            /** @description 如 "24h" */
+            shift_length?: string;
+            /** @description RFC3339 */
+            start_date?: string;
+            /** @description follow_the_sun 专用（存在 layer JSON 上，非 Rotation） */
+            timezone?: string;
+            work_end?: string;
+            work_start?: string;
+        };
         "schedule.overrideView": {
             created_at?: string;
             /** @description 创建人（自我换班=顶替对象，admin 指派=管理员） */
@@ -10494,6 +10516,16 @@ export interface components {
             user_id?: number;
             /** @description 顶替人显示名 */
             user_name?: string;
+        };
+        "schedule.scheduleDetailView": {
+            created_at?: string;
+            id?: number;
+            layers?: components["schemas"]["schedule.layerDetailView"][];
+            name?: string;
+            team_id?: number;
+            timezone?: string;
+            type?: string;
+            updated_at?: string;
         };
         "schedule.updateScheduleReq": {
             layers?: components["schemas"]["schedule.createLayerReq"][];

@@ -4381,6 +4381,54 @@ const docTemplate = `{
                 },
                 "type": "object"
             },
+            "schedule.layerDetailView": {
+                "properties": {
+                    "handoff_time": {
+                        "description": "\"HH:MM\"",
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "participants": {
+                        "description": "从 Rotation.participants 展开（供编辑回填）",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "priority": {
+                        "type": "integer"
+                    },
+                    "rotation_id": {
+                        "type": "string"
+                    },
+                    "rotation_type": {
+                        "description": "daily|weekly|custom",
+                        "type": "string"
+                    },
+                    "shift_length": {
+                        "description": "如 \"24h\"",
+                        "type": "string"
+                    },
+                    "start_date": {
+                        "description": "RFC3339",
+                        "type": "string"
+                    },
+                    "timezone": {
+                        "description": "follow_the_sun 专用（存在 layer JSON 上，非 Rotation）",
+                        "type": "string"
+                    },
+                    "work_end": {
+                        "type": "string"
+                    },
+                    "work_start": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "schedule.overrideView": {
                 "properties": {
                     "created_at": {
@@ -4411,6 +4459,39 @@ const docTemplate = `{
                     },
                     "user_name": {
                         "description": "顶替人显示名",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "schedule.scheduleDetailView": {
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "layers": {
+                        "items": {
+                            "$ref": "#/components/schemas/schedule.layerDetailView"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "team_id": {
+                        "type": "integer"
+                    },
+                    "timezone": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "updated_at": {
                         "type": "string"
                     }
                 },
@@ -11733,6 +11814,7 @@ const docTemplate = `{
                 ]
             },
             "get": {
+                "description": "返回排班及每层参与人与轮值配置（participants 从关联 Rotation 展开，供编辑回填）。",
                 "parameters": [
                     {
                         "description": "排班 ID",
@@ -11749,7 +11831,7 @@ const docTemplate = `{
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ent.Schedule"
+                                    "$ref": "#/components/schemas/schedule.scheduleDetailView"
                                 }
                             }
                         },

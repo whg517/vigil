@@ -304,11 +304,82 @@ func buildRotation(ctx context.Context, tx *ent.Tx, lr createLayerReq) (*ent.Rot
 	return rb.Save(ctx)
 }
 
+// scheduleDetailView 排班详情视图。
+//
+// 在 ent.Schedule 基础上，把每层的 participants + rotation 配置从关联的 Rotation 实体
+// 展开返回。原因：layers JSON 只存 rotation_id，参与人存在 Rotation 上；若详情不回传
+// participants，前端编辑表单就拿不到现有参与人，而 PATCH 提供 layers 时会「删旧 Rotation
+// 重建」——等于把参与人清空。故详情必须回填参与人，保证编辑往返不丢数据。
+type scheduleDetailView struct {
+	ID        int               `json:"id"`
+	Name      string            `json:"name"`
+	Type      string            `json:"type"`
+	Timezone  string            `json:"timezone"`
+	TeamID    int               `json:"team_id,omitempty"`
+	Layers    []layerDetailView `json:"layers"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
+}
+
+// layerDetailView 层详情：层元数据 + 从关联 Rotation 展开的参与人与轮值配置。
+type layerDetailView struct {
+	Name         string `json:"name"`
+	Priority     int    `json:"priority"`
+	RotationID   string `json:"rotation_id,omitempty"`
+	Participants []int  `json:"participants"`            // 从 Rotation.participants 展开（供编辑回填）
+	RotationType string `json:"rotation_type,omitempty"` // daily|weekly|custom
+	ShiftLength  string `json:"shift_length,omitempty"`  // 如 "24h"
+	HandoffTime  string `json:"handoff_time,omitempty"`  // "HH:MM"
+	StartDate    string `json:"start_date,omitempty"`    // RFC3339
+	// follow_the_sun 专用（存在 layer JSON 上，非 Rotation）
+	Timezone  string `json:"timezone,omitempty"`
+	WorkStart string `json:"work_start,omitempty"`
+	WorkEnd   string `json:"work_end,omitempty"`
+}
+
+// toScheduleDetailView 把 Schedule + 其 Rotation（含 participants）组装成详情视图。
+func toScheduleDetailView(s *ent.Schedule) scheduleDetailView {
+	// 按 Rotation.ID（字符串）建索引，供 layer.RotationID 反查参与人/配置。
+	rotByID := make(map[string]*ent.Rotation, len(s.Edges.Rotations))
+	for _, r := range s.Edges.Rotations {
+		rotByID[strconv.Itoa(r.ID)] = r
+	}
+	v := scheduleDetailView{
+		ID: s.ID, Name: s.Name, Type: s.Type.String(), Timezone: s.Timezone,
+		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+		Layers: make([]layerDetailView, 0, len(s.Layers)),
+	}
+	if t := s.Edges.Team; t != nil {
+		v.TeamID = t.ID
+	}
+	for _, l := range s.Layers {
+		lv := layerDetailView{
+			Name: l.Name, Priority: l.Priority, RotationID: l.RotationID,
+			Timezone: l.Timezone, WorkStart: l.WorkStart, WorkEnd: l.WorkEnd,
+			Participants: []int{},
+		}
+		if rot, ok := rotByID[l.RotationID]; ok {
+			for _, p := range rot.Edges.Participants {
+				lv.Participants = append(lv.Participants, p.ID)
+			}
+			lv.RotationType = rot.RotationType.String()
+			lv.ShiftLength = rot.ShiftLength
+			lv.HandoffTime = rot.HandoffTime
+			if !rot.StartDate.IsZero() {
+				lv.StartDate = rot.StartDate.Format(time.RFC3339)
+			}
+		}
+		v.Layers = append(v.Layers, lv)
+	}
+	return v
+}
+
 // @Summary      排班详情
+// @Description  返回排班及每层参与人与轮值配置（participants 从关联 Rotation 展开，供编辑回填）。
 // @Tags         schedule
 // @Produce      json
 // @Param        id   path     int  true  "排班 ID"
-// @Success      200  {object} ent.Schedule
+// @Success      200  {object} schedule.scheduleDetailView
 // @Failure      400  {object} httputil.ErrorResponse
 // @Failure      404  {object} httputil.ErrorResponse
 // @Failure      500  {object} httputil.ErrorResponse
@@ -322,14 +393,19 @@ func (h *Handler) get(c *echo.Context) error {
 	if e := h.checkAccess(c, id, auth.PermScheduleView); e != nil {
 		return e
 	}
-	s, err := h.db.Schedule.Get(c.Request().Context(), id)
+	// 加载 schedule + 各 Rotation（含在职/离职全部 participants，供编辑回填）+ team。
+	s, err := h.db.Schedule.Query().
+		Where(entschedule.IDEQ(id)).
+		WithTeam().
+		WithRotations(func(q *ent.RotationQuery) { q.WithParticipants() }).
+		Only(c.Request().Context())
 	if ent.IsNotFound(err) {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "not found"})
 	}
 	if err != nil {
 		return errs.Internal(c, nil, err)
 	}
-	return c.JSON(http.StatusOK, s)
+	return c.JSON(http.StatusOK, toScheduleDetailView(s))
 }
 
 // updateScheduleReq 更新排班请求（全部字段可选）。
