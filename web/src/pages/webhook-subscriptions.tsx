@@ -207,7 +207,8 @@ function CreateSubscriptionDialog({ onClose }: { onClose: () => void }) {
   const create = useCreateWebhookSubscription();
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  const [eventTypes, setEventTypes] = useState<string[]>([]);
+  // 默认选中全部事件类型（用户诉求）；后端「空=全部」，全选与空等效但更直观可见
+  const [eventTypes, setEventTypes] = useState<string[]>([...EVENT_TYPES]);
   const [signingSecret, setSigningSecret] = useState("");
   const [enabled, setEnabled] = useState(true);
 
@@ -300,7 +301,10 @@ function EditSubscriptionDialog({
   const update = useUpdateWebhookSubscription();
   const [name, setName] = useState(sub.name ?? "");
   const [url, setUrl] = useState(sub.url);
-  const [eventTypes, setEventTypes] = useState<string[]>(sub.event_types ?? []);
+  // 回填:已存的空数组语义为「全部」,故空时预选全部以直观呈现(与创建默认一致)
+  const [eventTypes, setEventTypes] = useState<string[]>(
+    sub.event_types && sub.event_types.length > 0 ? sub.event_types : [...EVENT_TYPES],
+  );
   const [signingSecret, setSigningSecret] = useState("");
   const [rotateSecret, setRotateSecret] = useState(false);
   const [enabled, setEnabled] = useState(!!sub.enabled);
