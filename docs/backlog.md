@@ -96,9 +96,7 @@
 
 ### 2.6 平台化 / 运维
 
-| 项 | 出处 | 说明 |
-|----|------|------|
-| i18n 国际化 | NFR | **框架已落地**（i18next + react-i18next，zh/en 双语，侧边栏语言切换 + localStorage 持久化，`en.ts` 类型约束保证 key 结构与 zh 一致）+ **核心流程已完整双语**（导航/登录/改密/仪表盘/事件列表/设置 tab/严重度·状态 Badge）。**其余管理页仍为存量中文，待增量迁移**（逐页替换 `t()` 即可，框架无需再改）。覆盖清单见 `web/README.md`「国际化（i18n）」。 |
+> 本域当前无未排期项（自监控闭环、i18n 国际化均已完成，见附录）。
 
 ### 2.7 旅程 / UX 缺口
 
@@ -124,7 +122,8 @@
 | webhook 出站动态订阅 CRUD | N2.2 `5849755` | Incident 人工合并端点 | N1.1 `efdad8d` |
 | 通知送达持久化（Notification 实体） | T2.2 `3907aac` | NotificationRule 精确匹配 | T2.2 `3907aac` |
 | 执行器凭据加密托管 | T6.3 `aad6a9c` | 出站签名 + 死信 + 重放 | T5.2 `14b663c` |
-| 值班大屏 / PWA / WS 实时看板 | P4·B `4c10e38` | migrate status/down 版本化回滚 | P4·C `564ef26` |
+| 值班大屏 / PWA / WS 实时看板 | P4·B `4c10e38` | migrate status（迁移状态查询） | `564ef26` |
 | AI Ollama 本地 Provider | `76505bb` | AI 置信度阈值配置化 | `76505bb` |
 | audit-logs CSV 导出端点 | `4979072` | 自监控闭环（队列/失败率超阈自告警） | `247e93d` |
 | 维护窗口独立操作流（kind + 专属页） | `a1466be`/`0e09402` | git 钩子 + commitlint CI | `142d460`/`7989f2c` |
+| i18n 国际化（框架 + 全页 zh/en 双语） | `41084b6`/`2813d46` | migrate down 回滚移除（回滚=备份恢复） | `aa80da3` |
