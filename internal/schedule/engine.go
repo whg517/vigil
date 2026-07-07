@@ -57,26 +57,28 @@ func (e *Engine) log() *zap.Logger {
 }
 
 // OncallResult 排班计算结果。
+// json tag 必填：前端/OpenAPI 按 snake_case 读取，无 tag 时 json.Marshal 会输出
+// PascalCase（Layers/Users/…）导致前端读不到 → 一直显示「无在班人」。
 type OncallResult struct {
-	ScheduleID   int
-	ScheduleName string
+	ScheduleID   int    `json:"schedule_id"`
+	ScheduleName string `json:"schedule_name"`
 	// 按层有序：primary → secondary → override
-	Layers []OncallLayer
+	Layers []OncallLayer `json:"layers"`
 }
 
 // OncallLayer 某一层的在班人。
 type OncallLayer struct {
-	Name     string // 层名（如"一线"）
-	Priority int
-	Users    []OncallUser
+	Name     string       `json:"name"` // 层名（如"一线"）
+	Priority int          `json:"priority"`
+	Users    []OncallUser `json:"users"`
 }
 
 // OncallUser 在班的用户。
 type OncallUser struct {
-	ID       int
-	Name     string
-	Username string
-	Override bool // 是否为临时换班顶替
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	Override bool   `json:"override"` // 是否为临时换班顶替
 }
 
 // Oncall 实时计算某 Schedule 在指定时刻的在班人。
@@ -319,8 +321,8 @@ func previewFollowTheSunDay(
 
 // DayOncall 某天的在班情况（预览用）。
 type DayOncall struct {
-	Date   time.Time
-	Layers []OncallLayer
+	Date   time.Time     `json:"date"`
+	Layers []OncallLayer `json:"layers"`
 }
 
 // PreviewResult 排班预览结果（preview handler 返回）。

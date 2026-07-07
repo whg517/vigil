@@ -3087,6 +3087,7 @@ components:
           items:
             $ref: '#/components/schemas/schedule.OncallLayer'
           type: array
+          uniqueItems: false
       type: object
     schedule.OncallLayer:
       properties:
@@ -3099,6 +3100,7 @@ components:
           items:
             $ref: '#/components/schemas/schedule.OncallUser'
           type: array
+          uniqueItems: false
       type: object
     schedule.OncallResult:
       properties:
@@ -3107,9 +3109,10 @@ components:
           items:
             $ref: '#/components/schemas/schedule.OncallLayer'
           type: array
-        scheduleID:
+          uniqueItems: false
+        schedule_id:
           type: integer
-        scheduleName:
+        schedule_name:
           type: string
       type: object
     schedule.OncallUser:

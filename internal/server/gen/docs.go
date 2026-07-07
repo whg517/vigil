@@ -4198,7 +4198,8 @@ const docTemplate = `{
                         "items": {
                             "$ref": "#/components/schemas/schedule.OncallLayer"
                         },
-                        "type": "array"
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -4216,7 +4217,8 @@ const docTemplate = `{
                         "items": {
                             "$ref": "#/components/schemas/schedule.OncallUser"
                         },
-                        "type": "array"
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -4228,12 +4230,13 @@ const docTemplate = `{
                         "items": {
                             "$ref": "#/components/schemas/schedule.OncallLayer"
                         },
-                        "type": "array"
+                        "type": "array",
+                        "uniqueItems": false
                     },
-                    "scheduleID": {
+                    "schedule_id": {
                         "type": "integer"
                     },
-                    "scheduleName": {
+                    "schedule_name": {
                         "type": "string"
                     }
                 },

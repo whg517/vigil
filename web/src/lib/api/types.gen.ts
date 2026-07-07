@@ -10425,8 +10425,8 @@ export interface components {
         "schedule.OncallResult": {
             /** @description 按层有序：primary → secondary → override */
             layers?: components["schemas"]["schedule.OncallLayer"][];
-            scheduleID?: number;
-            scheduleName?: string;
+            schedule_id?: number;
+            schedule_name?: string;
         };
         "schedule.OncallUser": {
             id?: number;
