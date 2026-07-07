@@ -156,8 +156,9 @@ export const api = {
   },
 
   // —— Service（能力域 4/13）——
-  listServices() {
-    return http.get<Service[]>("/services").then((r) => r.data);
+  listServices(params?: { source?: "manual" | "auto" }) {
+    const q = params?.source ? `?source=${params.source}` : "";
+    return http.get<Service[]>(`/services${q}`).then((r) => r.data);
   },
   getService(id: number) {
     return http.get<Service>(`/services/${id}`).then((r) => r.data);

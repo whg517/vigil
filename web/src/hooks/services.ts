@@ -10,8 +10,12 @@ export const serviceQk = {
   service: (id: number) => ["service", id] as const,
 };
 
-export function useServices() {
-  return useQuery({ queryKey: serviceQk.services(), queryFn: () => api.listServices() });
+export function useServices(source?: "manual" | "auto") {
+  return useQuery({
+    // queryKey 带上 source，切换筛选即独立缓存；变更后按 ["services"] 前缀失效覆盖所有筛选。
+    queryKey: [...serviceQk.services(), source ?? "all"],
+    queryFn: () => api.listServices(source ? { source } : undefined),
+  });
 }
 
 export function useService(id: number) {

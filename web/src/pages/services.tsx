@@ -6,7 +6,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Plus, Trash2, Boxes } from "lucide-react";
+import { Pencil, Plus, Trash2, Boxes, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,9 +24,12 @@ import {
 import { formatTime } from "@/lib/format";
 import type { Service } from "@/lib/types";
 
+type SourceFilter = "" | "manual" | "auto";
+
 export function Services() {
   const { t } = useTranslation();
-  const { data, isLoading, isError } = useServices();
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("");
+  const { data, isLoading, isError } = useServices(sourceFilter || undefined);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Service | undefined>(undefined);
 
@@ -37,9 +40,22 @@ export function Services() {
           <h1 className="text-2xl font-semibold tracking-tight">{t("services.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("services.subtitle")}</p>
         </div>
-        <Button onClick={() => setCreating(true)}>
-          <Plus className="mr-1 h-4 w-4" /> {t("services.create")}
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* 治理：按来源筛选，快速定位自动供给出来的服务（方案C §3.5）。 */}
+          <Select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
+            className="w-40"
+            aria-label={t("services.filterSource")}
+          >
+            <option value="">{t("services.filterAllSources")}</option>
+            <option value="manual">{t("services.sourceManual")}</option>
+            <option value="auto">{t("services.sourceAuto")}</option>
+          </Select>
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="mr-1 h-4 w-4" /> {t("services.create")}
+          </Button>
+        </div>
       </div>
 
       <Card className="overflow-hidden">
@@ -65,6 +81,7 @@ export function Services() {
                 <th className="px-4 py-2.5 text-left font-medium">{t("services.colSlug")}</th>
                 <th className="px-4 py-2.5 text-left font-medium">{t("services.colLabels")}</th>
                 <th className="px-4 py-2.5 text-left font-medium">{t("services.colStatus")}</th>
+                <th className="px-4 py-2.5 text-left font-medium">{t("services.colSource")}</th>
                 <th className="px-4 py-2.5 text-left font-medium">{t("services.colAutoCreate")}</th>
                 <th className="px-4 py-2.5 text-left font-medium">{t("services.colCreatedAt")}</th>
                 <th className="px-4 py-2.5"></th>
@@ -85,10 +102,12 @@ export function Services() {
   );
 }
 
-/** ServiceRow 单行 + 编辑/删除。 */
+/** ServiceRow 单行 + 编辑/删除/转正。 */
 function ServiceRow({ svc, onEdit }: { svc: Service; onEdit: () => void }) {
   const { t } = useTranslation();
   const del = useDeleteService();
+  const update = useUpdateService(svc.id);
+  const isAuto = svc.source === "auto";
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="px-4 py-3 font-medium">{svc.name}</td>
@@ -111,12 +130,34 @@ function ServiceRow({ svc, onEdit }: { svc: Service; onEdit: () => void }) {
           {svc.status === "active" ? t("services.statusActive") : t("services.statusDisabled")}
         </Badge>
       </td>
+      <td className="px-4 py-3">
+        {/* 自动供给的服务用醒目样式标注，便于治理识别（配合 provisioned_at 悬浮说明）。 */}
+        <Badge
+          variant={isAuto ? "secondary" : "outline"}
+          className={isAuto ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}
+          title={isAuto && svc.provisioned_at ? formatTime(svc.provisioned_at) : undefined}
+        >
+          {isAuto ? t("services.sourceAuto") : t("services.sourceManual")}
+        </Badge>
+      </td>
       <td className="px-4 py-3 text-xs text-muted-foreground">
         {svc.auto_create_incident ? t("services.yes") : t("services.no")}
       </td>
       <td className="px-4 py-3 text-xs text-muted-foreground">{formatTime(svc.created_at)}</td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-1">
+          {/* 转正：把自动供给的服务标记为手工管理，脱离自动治理范畴。 */}
+          {isAuto && (
+            <Button
+              variant="ghost"
+              size="icon"
+              title={t("services.adopt")}
+              onClick={() => update.mutate({ source: "manual" })}
+              disabled={update.isPending}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" title={t("common.edit")} onClick={onEdit}>
             <Pencil className="h-4 w-4" />
           </Button>
