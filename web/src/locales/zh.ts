@@ -243,6 +243,13 @@ const zh = {
     copyFailed: "复制失败",
     savedConfirm: "我已保存",
     creating: "创建中...",
+    webhookSectionTitle: "接入信息",
+    rotateToken: "轮换 token",
+    rotating: "轮换中...",
+    rotateHint: "token 泄露或需重置时轮换（旧 token 立即失效）。",
+    rotateConfirm: "轮换后旧 token 立即失效，源端旧 webhook 地址将无法推送，须换用新地址。确认轮换？",
+    rotated: "token 已轮换，请复制新地址",
+    webhookLoadFailed: "接入信息加载失败，请重试。",
   },
   integrationWizard: {
     step1Label: "选类型",

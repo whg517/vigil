@@ -104,6 +104,14 @@ export type Integration = Required<
 export interface IntegrationCreated extends Integration {
   token: string;
 }
+/**
+ * 接入点详情（GET /integrations/:id）—— 含 webhook 鉴权 token。
+ * token 是 URL 路径密钥（非加密），详情端点按 integration.view 鉴权，供表单持久展示接入 URL/token。
+ * 后端 integrationDetail 结构；spec 未建模 token 字段，单独叠加（同 IntegrationCreated 模式）。
+ */
+export interface IntegrationDetail extends Integration {
+  token: string;
+}
 
 // —— 集成配置模板/接线指引（config_template.go，M14.6 集成向导后端辅助）——
 // 向导据此渲染类型清单（step1）+ 配置字段表单（step2）+ 上游接线指引。

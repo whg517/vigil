@@ -244,6 +244,13 @@ const en: Resources = {
     copyFailed: "Copy failed",
     savedConfirm: "I've saved it",
     creating: "Creating...",
+    webhookSectionTitle: "Integration info",
+    rotateToken: "Rotate token",
+    rotating: "Rotating...",
+    rotateHint: "Rotate when the token is leaked or needs a reset (old token expires immediately).",
+    rotateConfirm: "After rotation the old token expires immediately and the source's old webhook URL will stop working; it must switch to the new URL. Rotate now?",
+    rotated: "Token rotated, copy the new URL",
+    webhookLoadFailed: "Failed to load integration info, please retry.",
   },
   integrationWizard: {
     step1Label: "Select type",

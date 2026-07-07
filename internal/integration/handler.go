@@ -228,13 +228,24 @@ func (h *Handler) create(c *echo.Context) error {
 	return c.JSON(http.StatusCreated, createResp{Integration: integ, Token: integ.Token})
 }
 
-// get 接入点详情。
+// integrationDetail 详情视图（含明文 token，供已授权用户查看接入 URL/token）。
+//
+// 安全说明：webhook token 是 URL 路径密钥（webhook 端点 POST /api/v1/webhook/<token>），
+// 非加密凭据、可安全回显；本端点已按 integration.view 鉴权（且 list 数据隔离按可见 team 过滤），
+// 授权 admin 查看自己接入点的 token（等同展示 webhook URL）合理且必要。
+// 仅在详情（单个 :id）返回 token，list 保持不回显——避免批量暴露。
+type integrationDetail struct {
+	*ent.Integration
+	Token string `json:"token"` // webhook 鉴权 token（URL 路径密钥，详情持久展示用）
+}
+
+// get 接入点详情（含 webhook 鉴权 token，供表单持久展示接入 URL/token）。
 //
 // @Summary      接入点详情
 // @Tags         integration
 // @Produce      json
 // @Param        id   path      int  true  "接入点 ID"
-// @Success      200  {object} ent.Integration
+// @Success      200  {object} integrationDetail
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
 // @Router       /integrations/{id} [get]
@@ -250,7 +261,7 @@ func (h *Handler) get(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusNotFound, httputil.ErrorResponse{Error: "integration not found"})
 	}
-	return c.JSON(http.StatusOK, integ)
+	return c.JSON(http.StatusOK, integrationDetail{Integration: integ, Token: integ.Token})
 }
 
 // updateReq 更新接入点请求（全指针，支持部分更新）。

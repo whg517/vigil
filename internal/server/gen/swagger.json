@@ -3577,6 +3577,46 @@
                 },
                 "type": "object"
             },
+            "integration.integrationDetail": {
+                "properties": {
+                    "config": {
+                        "additionalProperties": {},
+                        "description": "类型相关配置",
+                        "type": "object"
+                    },
+                    "created_at": {
+                        "description": "CreatedAt holds the value of the \"created_at\" field.",
+                        "type": "string"
+                    },
+                    "edges": {
+                        "$ref": "#/components/schemas/ent.IntegrationEdges"
+                    },
+                    "enabled": {
+                        "description": "Enabled holds the value of the \"enabled\" field.",
+                        "type": "boolean"
+                    },
+                    "id": {
+                        "description": "ID of the ent.",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "description": "Name holds the value of the \"name\" field.",
+                        "type": "string"
+                    },
+                    "token": {
+                        "description": "webhook 鉴权 token（URL 路径密钥，详情持久展示用）",
+                        "type": "string"
+                    },
+                    "type": {
+                        "$ref": "#/components/schemas/integration.Type"
+                    },
+                    "updated_at": {
+                        "description": "UpdatedAt holds the value of the \"updated_at\" field.",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "integration.rotateTokenResp": {
                 "properties": {
                     "id": {
@@ -9392,7 +9432,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ent.Integration"
+                                    "$ref": "#/components/schemas/integration.integrationDetail"
                                 }
                             }
                         },

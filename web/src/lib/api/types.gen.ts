@@ -3664,7 +3664,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ent.Integration"];
+                        "application/json": components["schemas"]["integration.integrationDetail"];
                     };
                 };
                 /** @description Not Found */
@@ -10199,6 +10199,26 @@ export interface components {
             /** @description Name holds the value of the "name" field. */
             name?: string;
             /** @description ★ 明文 token，仅创建时返回一次 */
+            token?: string;
+            type?: components["schemas"]["integration.Type"];
+            /** @description UpdatedAt holds the value of the "updated_at" field. */
+            updated_at?: string;
+        };
+        "integration.integrationDetail": {
+            /** @description 类型相关配置 */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** @description CreatedAt holds the value of the "created_at" field. */
+            created_at?: string;
+            edges?: components["schemas"]["ent.IntegrationEdges"];
+            /** @description Enabled holds the value of the "enabled" field. */
+            enabled?: boolean;
+            /** @description ID of the ent. */
+            id?: number;
+            /** @description Name holds the value of the "name" field. */
+            name?: string;
+            /** @description webhook 鉴权 token（URL 路径密钥，详情持久展示用） */
             token?: string;
             type?: components["schemas"]["integration.Type"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */

@@ -14,7 +14,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCreateIntegration, useDeleteIntegration, useIntegrations, useUpdateIntegration } from "@/hooks/integrations";
+import {
+  useCreateIntegration,
+  useDeleteIntegration,
+  useIntegration,
+  useIntegrations,
+  useRotateIntegrationToken,
+  useUpdateIntegration,
+} from "@/hooks/integrations";
 import { IntegrationWizard } from "@/pages/integration-wizard";
 import { formatTime } from "@/lib/format";
 import { toast } from "sonner";
@@ -131,12 +138,44 @@ function IntegrationRow({ integ, onEdit }: { integ: Integration; onEdit: () => v
   );
 }
 
-/** EditIntegrationDialog 改名 + 启停（type 创建后不可改）。 */
+/** CopyRow 只读值 + 复制按钮（接入 URL/token 展示行，长值 break-all）。 */
+function CopyRow({ label, value }: { label: string; value: string }) {
+  const { t } = useTranslation();
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(value); toast.success(t("integrations.copied")); }
+    catch { toast.error(t("integrations.copyFailed")); }
+  };
+  return (
+    <div>
+      <label className="text-sm font-medium">{label}</label>
+      <div className="mt-1 flex items-center gap-2 rounded-md border bg-muted p-3">
+        <code className="flex-1 break-all text-xs">{value}</code>
+        <Button size="sm" variant="outline" type="button" onClick={copy}>
+          <Copy className="mr-1 h-4 w-4" /> {t("integrations.copy")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** EditIntegrationDialog 改名 + 启停（type 不可改）+ 展示可复制的 webhook URL/token + 轮换 token。 */
 function EditIntegrationDialog({ integ, onClose }: { integ: Integration; onClose: () => void }) {
   const { t } = useTranslation();
   const update = useUpdateIntegration();
+  // 详情含 token（列表不回显）：打开弹窗时按 id 拉取，展示接入 URL/token。
+  const { data: detail, isLoading: detailLoading } = useIntegration(integ.id);
+  const rotate = useRotateIntegrationToken();
   const [name, setName] = useState(integ.name);
   const [enabled, setEnabled] = useState(!!integ.enabled);
+
+  const token = detail?.token ?? "";
+  const webhookUrl = token ? `${window.location.origin}/api/v1/webhook/${token}` : "";
+
+  const onRotate = () => {
+    // 高危：旧 token 立即失效，源端旧地址随之失效——先确认再执行。
+    if (!window.confirm(t("integrations.rotateConfirm"))) return;
+    rotate.mutate(integ.id, { onSuccess: () => toast.success(t("integrations.rotated")) });
+  };
 
   return (
     <Dialog open onClose={onClose} title={t("integrations.editTitle", { type: integ.type })} description={t("integrations.typeImmutable")}>
@@ -165,6 +204,27 @@ function EditIntegrationDialog({ integ, onClose }: { integ: Integration; onClose
           <Button type="submit" disabled={update.isPending || !name}>{t("common.save")}</Button>
         </div>
       </form>
+
+      {/* 接入信息：webhook URL + 鉴权 token（详情端点回显，可复制）。 */}
+      <div className="mt-4 space-y-3 border-t pt-4">
+        <p className="text-sm font-medium">{t("integrations.webhookSectionTitle")}</p>
+        {detailLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : token ? (
+          <>
+            <CopyRow label={t("integrations.webhookUrlLabel")} value={webhookUrl} />
+            <CopyRow label={t("integrations.tokenLabel")} value={token} />
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">{t("integrations.rotateHint")}</p>
+              <Button type="button" variant="outline" size="sm" disabled={rotate.isPending} onClick={onRotate}>
+                {rotate.isPending ? t("integrations.rotating") : t("integrations.rotateToken")}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">{t("integrations.webhookLoadFailed")}</p>
+        )}
+      </div>
     </Dialog>
   );
 }

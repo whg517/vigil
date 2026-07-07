@@ -89,9 +89,10 @@ func TestCreate_ReturnsTokenOnce(t *testing.T) {
 	}
 }
 
-// TestListAndGet_DoNotLeakToken list/get 不回显 token 明文（Sensitive 脱敏）。
-// 安全：token 是 webhook 鉴权凭证，泄露可被伪造告警。
-func TestListAndGet_DoNotLeakToken(t *testing.T) {
+// TestListAndGet_TokenExposure token 回显契约：list 不回显（避免批量暴露），
+// get 详情回显（供已授权用户查看接入 URL/token；token 是 webhook URL 路径密钥、非加密，
+// get 已按 integration.view 鉴权，等同展示 webhook URL）。
+func TestListAndGet_TokenExposure(t *testing.T) {
 	c := newIntegrationTestClient(t, "integ_leak")
 	ctx := context.Background()
 	// 直接造一条带 token 的 integration
@@ -106,24 +107,24 @@ func TestListAndGet_DoNotLeakToken(t *testing.T) {
 	e.GET("/integrations", h.list)
 	e.GET("/integrations/:id", h.get)
 
-	// list
+	// list：不回显 token（批量暴露风险）。
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/integrations", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list status %d", rec.Code)
 	}
 	if strings.Contains(rec.Body.String(), "vig_int_secret_xyz") {
-		t.Errorf("list 泄露 token 明文：敏感凭证不应回显（Sensitive 脱敏应生效）")
+		t.Errorf("list 泄露 token 明文：列表不应回显（避免批量暴露）")
 	}
 
-	// get
+	// get：详情回显 token（供表单持久展示接入 URL/token）。
 	rec2 := httptest.NewRecorder()
 	e.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/integrations/"+itoa(integ.ID), nil))
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("get status %d", rec2.Code)
 	}
-	if strings.Contains(rec2.Body.String(), "vig_int_secret_xyz") {
-		t.Errorf("get 泄露 token 明文：敏感凭证不应回显")
+	if !strings.Contains(rec2.Body.String(), "vig_int_secret_xyz") {
+		t.Errorf("get 未回显 token：详情应返回 token 供展示接入 URL")
 	}
 }
 

@@ -28,6 +28,7 @@ import type {
   Integration,
   IntegrationConfigTemplate,
   IntegrationCreated,
+  IntegrationDetail,
   IntegrationTestResult,
   Team,
   User,
@@ -180,7 +181,12 @@ export const api = {
     return http.post<IntegrationCreated>("/integrations", body).then((r) => r.data);
   },
   getIntegration(id: number) {
-    return http.get<Integration>(`/integrations/${id}`).then((r) => r.data);
+    // 详情含 webhook 鉴权 token（IntegrationDetail），供编辑弹窗持久展示接入 URL/token。
+    return http.get<IntegrationDetail>(`/integrations/${id}`).then((r) => r.data);
+  },
+  // 轮换 token（T5.1）：生成新 token，旧 token 立即失效（旧 webhook URL 随之失效）。
+  rotateIntegrationToken(id: number) {
+    return http.post<{ id: number; token: string }>(`/integrations/${id}/rotate-token`).then((r) => r.data);
   },
   updateIntegration(id: number, body: { name?: string; enabled?: boolean }) {
     return http.patch<Integration>(`/integrations/${id}`, body).then((r) => r.data);

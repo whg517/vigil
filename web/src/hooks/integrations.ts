@@ -16,6 +16,34 @@ export function useIntegrations() {
   return useQuery({ queryKey: integrationQk.integrations(), queryFn: () => api.listIntegrations() });
 }
 
+/**
+ * useIntegration 接入点详情（含 webhook 鉴权 token）。
+ * 编辑弹窗打开时按 id 拉取，供持久展示接入 URL/token（列表不回显 token）。
+ * enabled 门控：仅在传入有效 id 时发请求。
+ */
+export function useIntegration(id: number | undefined) {
+  return useQuery({
+    queryKey: integrationQk.integration(id ?? 0),
+    queryFn: () => api.getIntegration(id as number),
+    enabled: id != null && id > 0,
+  });
+}
+
+/**
+ * useRotateIntegrationToken 轮换 webhook 鉴权 token（高危：旧 token 立即失效）。
+ * 轮换后刷新详情与列表缓存，弹窗展示新 URL/token。
+ */
+export function useRotateIntegrationToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.rotateIntegrationToken(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: integrationQk.integration(id) });
+      qc.invalidateQueries({ queryKey: integrationQk.integrations() });
+    },
+  });
+}
+
 /** useConfigTemplates 集成向导 step1：全部接入类型的配置模板/简介（列出可选源）。静态说明数据，长缓存。 */
 export function useConfigTemplates() {
   return useQuery({
