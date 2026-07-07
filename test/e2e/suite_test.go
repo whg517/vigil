@@ -73,12 +73,19 @@ var _ = ginkgo.BeforeSuite(func() {
 	os.Setenv("VIGIL_DB_NAME", "vigil")
 	os.Setenv("VIGIL_DB_SSL_MODE", "disable")
 	os.Setenv("VIGIL_REDIS_ADDR", "localhost:6379")
-	os.Setenv("VIGIL_REDIS_DB", "0")
+	// 用独立 Redis DB 15 隔离 e2e：asynq 是共享队列，若与本地 dev 服务（默认 DB 0）
+	// 同库，会互相抢 normalize/triage 任务、用彼此配置处理，导致 e2e 间歇失败（任务被偷）。
+	// 隔离到 15 后，e2e 只与自己的 worker 竞争，稳定可复现。BeforeSuite 会 FlushDB(15)。
+	os.Setenv("VIGIL_REDIS_DB", "15")
 	os.Setenv("VIGIL_HTTP_ADDR", addr)
 	// 强制鉴权：e2e 验证 RBAC 与鉴权三轨，必须开启。
 	os.Setenv("VIGIL_AUTH_ENABLED", "true")
 	os.Setenv("VIGIL_AUTH_JWT_SECRET", "e2e-test-jwt-secret")
 	os.Setenv("VIGIL_APP_ENV", "development")
+	// 方案C：开启服务自动供给，供 service_autoprovision_test 验证端到端。
+	// 仅当告警未路由 + 带 service/team label + 团队已配默认策略时才触发；
+	// 其它 spec 不配团队默认策略，故不受影响（auto-provision 跳过 → 保持 unrouted）。
+	os.Setenv("VIGIL_TRIAGE_AUTO_PROVISION_ENABLED", "true")
 
 	cfg, err := config.Load()
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "load config")
