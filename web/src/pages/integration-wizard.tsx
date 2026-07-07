@@ -52,6 +52,21 @@ const SAMPLE_PAYLOADS: Record<string, string> = {
     null,
     2,
   ),
+  grafana: JSON.stringify(
+    {
+      alerts: [
+        {
+          status: "firing",
+          labels: { alertname: "HighCPU", service: "api", env: "prod" },
+          annotations: { summary: "CPU 使用率过高" },
+          severity: "critical",
+          fingerprint: "abc123",
+        },
+      ],
+    },
+    null,
+    2,
+  ),
   webhook: JSON.stringify(
     { source_event_id: "evt-1", severity: "critical", summary: "磁盘将满", labels: { env: "prod", service: "api" } },
     null,
