@@ -23,7 +23,7 @@
 | 前端 | React · TypeScript · Vite · Tailwind CSS v4 · shadcn/ui |
 | 部署 | Docker Compose · Helm |
 
-完整选型与论证见 [`docs/tech-stack.md`](./docs/tech-stack.md)。
+完整选型与论证见 [`docs/adr/`](./docs/adr/) 的 ADR-0003～0009。
 
 ---
 
@@ -35,17 +35,13 @@ vigil/
 ├── internal/             # 业务模块（按领域分）
 │   └── auth/             # RBAC 权限点（permission.go）
 ├── ent/                  # ent ORM
-│   ├── schema/           # ★ 实体定义（17 个实体，改 schema 后须 generate）
+│   ├── schema/           # ★ 实体定义（26 个实体，改 schema 后须 generate）
 │   └── *.go              # ent 自动生成代码（提交入库）
 ├── web/                  # 前端（React + Vite）
-├── docs/                 # 所有设计文档
-│   ├── PRD.md            # 产品需求（15+2 能力域）
-│   ├── data-model.md     # 数据模型 + RBAC
-│   ├── architecture.md   # 系统架构（6 大引擎）
-│   ├── tech-stack.md     # 技术选型
-│   ├── development.md    # ★ 开发流程（必读）
-│   └── capabilities/     # 10 份能力域详细设计
-└── AGENTS.md             # 本文件
+├── docs/                 # 设计文档
+│   ├── architecture.md   # ★ 系统架构全景（唯一主文档）
+│   └── adr/              # ★ 架构决策记录（一决策一文件，README.md 为索引）
+└── AGENTS.md             # 本文件（协作指南 + 开发流程/命令）
 ```
 
 ---
@@ -84,12 +80,12 @@ go build ./... && pnpm --dir web build
 
 ## 开发约定（必读）
 
-> 完整规范见 [`docs/development.md`](./docs/development.md)。以下为强制要点。
+> 本节是开发流程的**权威速查**;其背后的设计取舍(为何 worktree 闭环、为何禁 chore、门禁顺序理由)见 [ADR-0035](./docs/adr/0035-dev-workflow-gates.md)。
 
 ### 工作模式：worktree + 特性分支
 
 - 主仓库目录**永远停在 `main`**，只用于合并，不直接开发。
-- 每个特性在 `.worktree/<type>-<特性>/` 下独立开发（**目录名 = 分支名 = `<type>-<特性>`**，扁平名无斜杠；type 与提交信息一致，见 docs/development.md §4.2）：
+- 每个特性在 `.worktree/<type>-<特性>/` 下独立开发（**目录名 = 分支名 = `<type>-<特性>`**，扁平名无斜杠；type 与提交信息一致）：
 
   ```bash
   git worktree add .worktree/<type>-<name> -b <type>-<name>
@@ -100,14 +96,14 @@ go build ./... && pnpm --dir web build
 
 ### 完整闭环：每个特性必须合入 main 才算交付（★ 重要）
 
-> 代码写完 ≠ 完成。**合入 main + main 复验**才算交付。详见 docs/development.md §3.4 闭环原子性。
+> 代码写完 ≠ 完成。**合入 main + main 复验**才算交付。详见 [ADR-0035](./docs/adr/0035-dev-workflow-gates.md) 闭环原子性。
 
 每个特性按以下顺序一次性做完（**不要在中途停下来请示合并/清理**，属规范已授权的可逆操作）：
 
-1. **从最新 main 拉分支**（`git worktree add ... -b <type>-<name>`）。**严禁在特性分支上叠特性分支**——有依赖时先把被依赖特性合并进 main，再从更新后的 main 拉下一个（见 §3.2.1）。
+1. **从最新 main 拉分支**（`git worktree add ... -b <type>-<name>`）。**严禁在特性分支上叠特性分支**——有依赖时先把被依赖特性合并进 main，再从更新后的 main 拉下一个。
 2. **worktree 内开发 + 提交**。
-3. **worktree 内三道门禁全绿**（lint→test→build，见 docs/development.md §3.4）：`golangci-lint run ./... && go test ./... && go build ./...` + `pnpm --dir web lint && pnpm --dir web build`。改了 schema 必须 `go generate ./ent/...` 且生成代码一起提交。注：默认 `go test ./...` **不含 e2e**（用 `//go:build integration` 隔离）；e2e 在独立 CI job / `make test-e2e` 跑，改动涉及核心流水线（ingestion/triage/escalation/auth）时应本地 `make test-e2e` 验证。
-4. **回主仓库 squash 合并**：先 `git branch --show-current` 确认在 **main**（不是则 `git checkout main`），再 `git merge --squash <type>-<name>` → `git commit` → `git log --oneline -1` 确认新提交落在 main。**合并防呆见 docs/development.md §3.3。**
+3. **worktree 内三道门禁全绿**（lint→test→build）：`golangci-lint run ./... && go test ./... && go build ./...` + `pnpm --dir web lint && pnpm --dir web build`。改了 schema 必须 `go generate ./ent/...` 且生成代码一起提交。注：默认 `go test ./...` **不含 e2e**（用 `//go:build integration` 隔离）；e2e 在独立 CI job / `make test-e2e` 跑，改动涉及核心流水线（ingestion/triage/escalation/auth）时应本地 `make test-e2e` 验证。
+4. **回主仓库 squash 合并**：先 `git branch --show-current` 确认在 **main**（不是则 `git checkout main`），再 `git merge --squash <type>-<name>` → `git commit` → `git log --oneline -1` 确认新提交落在 main。
 5. **删 worktree + 分支**：`git worktree remove` + `git branch -D`。
 6. **main 复验**：`golangci-lint run ./... && go test ./... && go build ./... && pnpm --dir web build`。
 
@@ -122,7 +118,7 @@ go build ./... && pnpm --dir web build
 **允许的 type**：`feat` `fix` `docs` `refactor` `perf` `test` `style` `build` `ci` `revert`
 
 > **⚠️ 禁止使用 `chore`**。没有合适 type 时，说明提交不够原子或意图不清，应拆分或重新表述。
-> 对照表见 [`docs/development.md`](./docs/development.md) §4.3。
+> 理由与 type 对照见 [ADR-0035](./docs/adr/0035-dev-workflow-gates.md)。
 
 ### ent schema 变更
 
@@ -132,7 +128,7 @@ go build ./... && pnpm --dir web build
 
 ## 关键设计原则
 
-以下原则贯穿全项目，改动前先理解（详见 [`docs/data-model.md`](./docs/data-model.md) §1 设计基线）：
+以下原则贯穿全项目，改动前先理解（详见 [ADR-0002 产品定位](./docs/adr/0002-product-positioning.md) 与相关 ADR）：
 
 1. **告警消费者定位**：只做告警"下一步"，不内置监控采集。
 2. **Event / Incident 分离**：Event 是原始信号（海量不可变），Incident 是处理单元（少量有状态）。
@@ -148,21 +144,21 @@ go build ./... && pnpm --dir web build
 
 | 要找什么 | 去哪里 |
 |---------|--------|
-| 产品做什么 | [`docs/PRD.md`](./docs/PRD.md) |
-| 实体/字段/关系 | [`docs/data-model.md`](./docs/data-model.md) + `ent/schema/` |
-| 架构与引擎 | [`docs/architecture.md`](./docs/architecture.md) |
-| UI/UX 设计 | [`docs/ui-ux.md`](./docs/ui-ux.md) |
-| 某能力域怎么做 | [`docs/capabilities/`](./docs/capabilities/) |
-| 怎么开发/提交 | [`docs/development.md`](./docs/development.md) |
-| e2e 测试怎么写/跑 | [`docs/development.md`](./docs/development.md) §八 + `test/e2e/` |
+| 系统架构全景 | [`docs/architecture.md`](./docs/architecture.md) |
+| 某项设计"为什么这么定" | [`docs/adr/`](./docs/adr/)（[索引](./docs/adr/README.md)） |
+| 产品定位与非目标 | [ADR-0002](./docs/adr/0002-product-positioning.md) |
+| 实体/字段/关系 | `ent/schema/` + [ADR-0010](./docs/adr/0010-event-incident-separation.md) |
+| UI/UX 设计 | [ADR-0034](./docs/adr/0034-uiux-oncall-principles.md) |
+| 怎么开发/提交 | 本文件「开发约定」+ [ADR-0035](./docs/adr/0035-dev-workflow-gates.md) |
+| e2e 测试怎么写/跑 | [ADR-0035](./docs/adr/0035-dev-workflow-gates.md) + `test/e2e/` |
 | 权限点清单 | `internal/auth/permission.go` |
 
 ---
 
 ## 当前状态
 
-- ✅ 立项文档（需求/架构/数据模型/技术选型/能力域设计）完成
-- ✅ 全栈工程骨架可编译（ent 17 实体 + React 前端）
-- ⏳ 业务模块实现中（ingestion/triage/escalation/...）
+- ✅ 架构文档收敛为 architecture 主文档 + 35 份 ADR
+- ✅ 全栈实现深入中：`internal/` 37 个业务模块、ent 26 实体、前端 19 页面(全站 i18n)
+- ⏳ 服务自动供给/治理(方案C)、AI Copilot、复盘等持续演进
 
-下一步计划见各文档的"开放问题"与"下一步"章节。
+设计取舍见 [`docs/adr/`](./docs/adr/);组件全景见 [`docs/architecture.md`](./docs/architecture.md)。

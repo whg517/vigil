@@ -39,7 +39,7 @@ open http://localhost:8080      # Web UI
 open http://localhost:8080/docs # Swagger API 文档
 ```
 
-> 部署细节见 [`docs/deployment.md`](docs/deployment.md)。pgvector 是硬前置（Postgres 需装扩展，推荐 `pgvector/pgvector:pg16`）。
+> 部署细节见 [ADR-0031 部署形态](docs/adr/0031-single-binary-compose-helm.md)。pgvector 是硬前置（Postgres 需装扩展，推荐 `pgvector/pgvector:pg16`）。
 
 > ⚠️ **安全警告（自托管必读）**
 >
@@ -58,32 +58,28 @@ open http://localhost:8080/docs # Swagger API 文档
 
 ## 文档导航
 
-### 总览文档
-| 文档 | 说明 |
-|------|------|
-| [`docs/PRD.md`](docs/PRD.md) | 产品需求文档 —— 15+2 能力域完整需求 |
-| [`docs/data-model.md`](docs/data-model.md) | 核心数据模型 + RBAC 权限模型 |
-| [`docs/architecture.md`](docs/architecture.md) | 系统架构设计 |
-| [`docs/deployment.md`](docs/deployment.md) | **部署指南** —— Docker Compose 一键起、pgvector 前置、生产 checklist |
-| [`docs/ui-ux.md`](docs/ui-ux.md) | UI/UX 设计 —— 设计系统、关键页面、IM 卡片、移动端 |
-| [`docs/tech-stack.md`](docs/tech-stack.md) | 技术选型说明 |
-| [`docs/development.md`](docs/development.md) | **开发流程** —— worktree 工作模式、特性分支、提交规范（禁用 chore） |
-| [`docs/competitive-analysis.md`](docs/competitive-analysis.md) | 竞品分析（PagerDuty/incident.io/Rootly 等） |
-| [`docs/personas.md`](docs/personas.md) | 目标用户画像 |
+文档收敛为两部分:**架构全景** + **架构决策记录(ADR)**。
 
-### 能力域详细设计（`docs/capabilities/`）
-| 文档 | 覆盖能力域 |
-|------|-----------|
-| [`01-ingestion-normalization.md`](docs/capabilities/01-ingestion-normalization.md) | 1-2 接入与归一化 |
-| [`02-triage-routing.md`](docs/capabilities/02-triage-routing.md) | 3-4 分诊降噪与路由 |
-| [`03-scheduling-escalation.md`](docs/capabilities/03-scheduling-escalation.md) | 5-6 排班与升级 |
-| [`04-notification.md`](docs/capabilities/04-notification.md) | 7 通知 |
-| [`05-im-chatops.md`](docs/capabilities/05-im-chatops.md) | 8 IM 协同 ★ |
-| [`06-runbook.md`](docs/capabilities/06-runbook.md) | 9 Runbook 处置 |
-| [`07-timeline-ai.md`](docs/capabilities/07-timeline-ai.md) | 10-11 时间线与 AI |
-| [`08-postmortem.md`](docs/capabilities/08-postmortem.md) | 12 复盘 |
-| [`09-admin-rbac.md`](docs/capabilities/09-admin-rbac.md) | 13 管理与 RBAC |
-| [`10-integrations-analytics.md`](docs/capabilities/10-integrations-analytics.md) | 14-15 集成与报表 |
+| 入口 | 说明 |
+|------|------|
+| [`docs/architecture.md`](docs/architecture.md) | **系统架构全景** —— 产品定位、组件结构、核心引擎、数据流、横切关注点 |
+| [`docs/adr/`](docs/adr/) | **架构决策记录** —— 一决策一文件,回答"为什么这么定"([索引](docs/adr/README.md)) |
+
+实体字段以 `ent/schema/` 为准,权限点以 [`internal/auth/permission.go`](internal/auth/permission.go) 为准,开发流程与命令见 [`AGENTS.md`](AGENTS.md)。
+
+常用决策速查:
+
+| 想了解 | 去哪里 |
+|--------|--------|
+| 产品定位与非目标 | [ADR-0002](docs/adr/0002-product-positioning.md) |
+| 技术选型(Go/Echo/ent/Asynq/Postgres) | [ADR-0003](docs/adr/0003-backend-language-go.md)～[0009](docs/adr/0009-pluggable-integrations.md) |
+| 接入/分诊/路由 | [ADR-0010](docs/adr/0010-event-incident-separation.md)～[0014](docs/adr/0014-service-auto-provisioning.md) |
+| 排班/升级/通知 | [ADR-0015](docs/adr/0015-schedule-realtime-no-snapshot.md)～[0017](docs/adr/0017-notification-fallback-chain.md) |
+| IM 协同 ★ | [ADR-0018](docs/adr/0018-im-same-rbac-as-web.md)～[0020](docs/adr/0020-responder-temp-grant.md) |
+| Runbook / AI / 复盘 | [ADR-0021](docs/adr/0021-runbook-two-tier.md)～[0026](docs/adr/0026-postmortem-ai-draft.md) |
+| RBAC / 软隔离 / 集成 | [ADR-0027](docs/adr/0027-rbac-permissions-roles.md)～[0030](docs/adr/0030-integrations-encrypted-openapi.md) |
+| 部署 / 迁移 / 自监控 | [ADR-0031](docs/adr/0031-single-binary-compose-helm.md)～[0033](docs/adr/0033-selfmon-and-auth.md) |
+| UI/UX / 开发流程 | [ADR-0034](docs/adr/0034-uiux-oncall-principles.md)、[ADR-0035](docs/adr/0035-dev-workflow-gates.md) |
 
 ## License
 

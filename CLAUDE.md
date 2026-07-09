@@ -15,8 +15,8 @@
 ### 工作前必做
 
 1. **先读 [`AGENTS.md`](./AGENTS.md)**（已通过 `@AGENTS.md` 加载）—— 掌握项目约定、命令、结构。
-2. **理解当前分支上下文**：确认在哪个特性分支、对应哪个能力域（`docs/capabilities/`）。
-3. **改动前对照设计**：任何实体/接口改动先核对 [`docs/data-model.md`](./docs/data-model.md) 与 `ent/schema/`，避免偏离设计。
+2. **理解当前分支上下文**：确认在哪个特性分支、对应哪个能力域,先读 [`docs/architecture.md`](./docs/architecture.md) 定位。
+3. **改动前对照设计**：任何实体/接口改动先核对 `ent/schema/` 与相关 [ADR](./docs/adr/)，避免偏离设计。
 
 ### 代码风格
 
@@ -26,14 +26,14 @@
 
 ### 提交
 
-- 严格遵循 [`docs/development.md`](./docs/development.md) §4 的提交规范。
+- 严格遵循 [`AGENTS.md`](./AGENTS.md) 「提交信息规范」与 [ADR-0035](./docs/adr/0035-dev-workflow-gates.md)。
 - **绝不使用 `chore`**；拿不准 type 时拆分提交或询问。
 - 在 worktree 内提交，不在主仓库目录直接提交业务改动。
 
 ### 边界
 
-- **不直接在生产写操作逻辑上冒险**：Runbook 处置类（写）必须 `require_approval`，详见 [`docs/capabilities/06-runbook.md`](./docs/capabilities/06-runbook.md)。
-- **不绕过 RBAC**：IM 操作复用 Web 同一鉴权链路，绝不因"在 IM 里"放行，详见 [`docs/capabilities/09-admin-rbac.md`](./docs/capabilities/09-admin-rbac.md)。
+- **不直接在生产写操作逻辑上冒险**：Runbook 处置类（写）必须 `require_approval`，详见 [ADR-0021](./docs/adr/0021-runbook-two-tier.md)。
+- **不绕过 RBAC**：IM 操作复用 Web 同一鉴权链路，绝不因"在 IM 里"放行，详见 [ADR-0018](./docs/adr/0018-im-same-rbac-as-web.md) 与 [ADR-0027](./docs/adr/0027-rbac-permissions-roles.md)。
 - **文档先行**：设计性改动先更新 `docs/`，再写代码（本项目 docs-driven）。
 
 ### 验证
