@@ -14,7 +14,7 @@
 
 固定顺序 **去重 → 抑制 → 相关性聚合 → Incident**,实现于 `internal/triage/engine.go`。
 
-- **去重**:Redis `SET dedup:{dedup_key} event_id EX <窗口>`(SETNX + 过期窗口)。默认 5min,可配 `VIGIL_TRIAGE_DEDUP_WINDOW`。resolved Event 不丢弃,而是关联同 `DedupKey` 的 firing 以触发解决。
+- **去重**:Redis `SET vigil:dedup:{dedup_key} event_id EX <窗口>`(SETNX + 过期窗口)。默认 5min,可配 `VIGIL_TRIAGE_DEDUP_WINDOW`。resolved Event 不丢弃,而是关联同 `DedupKey` 的 firing 以触发解决。
 - **抑制**(`internal/triage/suppression.go`、`ent/schema/suppression_rule.go`):`SuppressionRule.kind` 枚举 `adhoc`(日常降噪)/ `maintenance`(计划维护窗口,含 `time_window` RFC3339 + `expires_at` 自动软失效)。两类走同一 `matchRule`(label 全等 + time_window + severity_filter),`kind` 只是分类标签,供前端维护窗口专属入口。动作 `suppress`(标 `IsNoise=true` 仅留痕)或 `reduce_severity`。**守卫 `preserve_critical` 默认生效**:critical 不被抑制,避免维护期误杀真故障。
 - **聚合**:聚合键默认 `service + severity`(+ 可选 label),默认 5min 窗口。窗口内同键并入活跃 Incident(状态 ∈ {`triggered`, `acked`}),否则按 `Service.auto_create_incident` 创建。用 PostgreSQL 窗口函数实现。
 

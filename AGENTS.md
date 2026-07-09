@@ -35,18 +35,32 @@ vigil/
 ├── internal/             # 业务模块（按领域分）
 │   └── auth/             # RBAC 权限点（permission.go）
 ├── ent/                  # ent ORM
-│   ├── schema/           # ★ 实体定义（26 个实体，改 schema 后须 generate）
+│   ├── schema/           # ★ 实体定义（25 个实体，改 schema 后须 generate）
 │   └── *.go              # ent 自动生成代码（提交入库）
 ├── web/                  # 前端（React + Vite）
 ├── docs/                 # 设计文档
 │   ├── architecture.md   # ★ 系统架构全景（唯一主文档）
-│   └── adr/              # ★ 架构决策记录（一决策一文件，README.md 为索引）
+│   ├── adr/              # ★ 架构决策记录（一决策一文件，README.md 为索引）
+│   ├── design/           # 功能设计（docs-driven 落笔处，一特性一文件）
+│   ├── backlog.md        # 待办单一信源（暂不做/待规划）
+│   ├── operations.md     # 运维手册（部署/升级/备份/排查）
+│   └── known-issues.md   # 已知未修缺陷与限制
 └── AGENTS.md             # 本文件（协作指南 + 开发流程/命令）
 ```
 
 ---
 
 ## 常用命令
+
+### 本地一键起步（make）
+
+```bash
+make dev-setup              # 初始化 .env + 起依赖 + 迁移（首次）
+make dev-up / dev-down      # 起 / 停依赖容器（postgres + redis）
+make dev-backend            # 后端开发服务器（:8080）
+make dev-frontend           # 前端开发服务器（:5173）
+make help                   # 全部 target 说明
+```
 
 ### 后端（Go）
 
@@ -147,6 +161,10 @@ go build ./... && pnpm --dir web build
 | 系统架构全景 | [`docs/architecture.md`](./docs/architecture.md) |
 | 某项设计"为什么这么定" | [`docs/adr/`](./docs/adr/)（[索引](./docs/adr/README.md)） |
 | 产品定位与非目标 | [ADR-0002](./docs/adr/0002-product-positioning.md) |
+| 新功能设计写在哪 | [`docs/design/`](./docs/design/)（含模板与流程） |
+| 还剩什么没做 / 什么暂不做 | [`docs/backlog.md`](./docs/backlog.md) |
+| 怎么部署/升级/备份/排障 | [`docs/operations.md`](./docs/operations.md) |
+| 已知未修缺陷与限制 | [`docs/known-issues.md`](./docs/known-issues.md) |
 | 实体/字段/关系 | `ent/schema/` + [ADR-0010](./docs/adr/0010-event-incident-separation.md) |
 | UI/UX 设计 | [ADR-0034](./docs/adr/0034-uiux-oncall-principles.md) |
 | 怎么开发/提交 | 本文件「开发约定」+ [ADR-0035](./docs/adr/0035-dev-workflow-gates.md) |
@@ -157,8 +175,8 @@ go build ./... && pnpm --dir web build
 
 ## 当前状态
 
-- ✅ 架构文档收敛为 architecture 主文档 + 35 份 ADR
-- ✅ 全栈实现深入中：`internal/` 37 个业务模块、ent 26 实体、前端 19 页面(全站 i18n)
+- ✅ 架构文档收敛为 architecture 主文档 + 35 份 ADR（活文档：backlog / design / operations / known-issues）
+- ✅ 全栈实现深入中：`internal/` 35 个业务模块、ent 25 实体、前端 19 页面(全站 i18n)
 - ⏳ 服务自动供给/治理(方案C)、AI Copilot、复盘等持续演进
 
 设计取舍见 [`docs/adr/`](./docs/adr/);组件全景见 [`docs/architecture.md`](./docs/architecture.md)。

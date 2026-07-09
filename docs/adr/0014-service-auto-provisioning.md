@@ -14,7 +14,7 @@
 
 在 `route()` 未命中、进入 unrouted 之前插入懒供给:若开启 `auto_provision_enabled`(**默认关闭**),且满足**全部**条件:
 
-- 服务键 label 通过 **slug 白名单正则**;
+- 服务键 label 通过 **slug 正则校验**(可选配置,未配则放行任意非空 slug);
 - 能解析归属团队;
 - 该团队已配 `default_escalation_policy_id`;
 
