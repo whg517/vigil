@@ -24,7 +24,7 @@ import type { Subscription, SubscriptionSeverity } from "@/lib/types";
 import type { TFunction } from "i18next";
 
 const SEVERITY_OPTIONS: SubscriptionSeverity[] = ["critical", "warning", "info"];
-const CHANNELS = ["im", "email", "sms", "phone", "webhook"] as const;
+const CHANNELS = ["im", "email", "webhook"] as const;
 
 /** scopeLabel 从订阅的 team/service edge 提取可读 scope 描述。 */
 function scopeLabel(sub: Subscription, t: TFunction): string {

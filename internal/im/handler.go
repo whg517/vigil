@@ -113,7 +113,7 @@ func (h *Handler) SetOncallResolver(o OncallResolver) { h.schedules = o }
 //
 //	POST /api/v1/im/:platform/callback
 //
-// 各平台回调入口，platform 为 feishu/dingtalk/wecom。
+// 各平台回调入口，platform 为 feishu/dingtalk。
 func (h *Handler) Register(g *echo.Group) {
 	g.POST("/im/:platform/callback", h.callback)
 }
@@ -129,9 +129,9 @@ func (h *Handler) RegisterStatus(g *echo.Group) {
 
 // imPlatformStatus 单个平台状态。
 type imPlatformStatus struct {
-	Platform  string `json:"platform"`  // feishu | dingtalk | wecom
+	Platform  string `json:"platform"`  // feishu | dingtalk
 	Available bool   `json:"available"` // 凭证已配置且客户端就绪
-	Impl      string `json:"impl"`      // 适配器类型：real | noop（占位）
+	Impl      string `json:"impl"`      // 适配器类型：恒为 real（占位平台已随 ADR-0037 移除）
 }
 
 // platforms 返回所有已注册 IM 平台的可用性。
@@ -147,16 +147,12 @@ func (h *Handler) platforms(c *echo.Context) error {
 	if h.registry == nil {
 		return c.JSON(http.StatusOK, []imPlatformStatus{})
 	}
-	out := make([]imPlatformStatus, 0, 3)
+	out := make([]imPlatformStatus, 0, 2)
 	for _, b := range h.registry.All() {
-		impl := "real"
-		if _, ok := b.(*NoopBot); ok {
-			impl = "noop"
-		}
 		out = append(out, imPlatformStatus{
 			Platform:  b.Platform(),
 			Available: b.Available(),
-			Impl:      impl,
+			Impl:      "real",
 		})
 	}
 	return c.JSON(http.StatusOK, out)
@@ -165,11 +161,11 @@ func (h *Handler) platforms(c *echo.Context) error {
 // callback 统一回调入口。
 //
 // @Summary      IM 平台回调
-// @Description  各平台（feishu/dingtalk/wecom）回调入口：签名校验 → 解析为标准事件 → 派发卡片/命令/@ 处理。公开入口，平台签名鉴权，不走 RBAC。
+// @Description  各平台（feishu/dingtalk）回调入口：签名校验 → 解析为标准事件 → 派发卡片/命令/@ 处理。公开入口，平台签名鉴权，不走 RBAC。
 // @Tags         im
 // @Accept       json
 // @Produce      json
-// @Param        platform  path    string  true  "IM 平台（feishu/dingtalk/wecom）"  Enums(feishu, dingtalk, wecom)
+// @Param        platform  path    string  true  "IM 平台（feishu/dingtalk）"  Enums(feishu, dingtalk)
 // @Success      200       {object} map[string]string
 // @Failure      400       {object} httputil.ErrorResponse
 // @Failure      401       {object} httputil.ErrorResponse

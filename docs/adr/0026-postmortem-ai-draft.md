@@ -17,7 +17,7 @@
 - **触发**:critical 强制复盘——resolved 后自动创建 `draft` 并停在"待复盘"而非直接 `closed`;warning 可配;info 不强制。
 - **草稿来源**:三路合成——① 时间线(事实自动填充)② AI 起草(`postmortem_draft` 填 `summary` / `impact` / `root_cause`)③ Incident 元数据。每个字段标注"AI 起草"来源,evidence 引用时间线条目可溯源。
 - **逐字段校对**:每个字段可 `accept` / `edit` / `reject`,保证人工把关质量(HITL,见 ADR-0022)。
-- **改进项外接**:`ActionItem`(`owner` / `due` / `status` / `TrackerURL`),复盘发布时可自动在 Jira / 禅道建改进任务,逾期报表高亮。
+- **改进项外接**:`ActionItem`(`owner` / `due` / `status` / `TrackerURL`),复盘发布时可经通用 webhook 工单出口在外部工单系统建改进任务,逾期报表高亮。
 - **知识反哺**:`published` 复盘进可检索知识库,反哺相似事件检索(见 ADR-0024)。
 - **可见性**:默认团队内可见(无指责文化),critical 可设为全公司可见。
 - `generated_by`:`ai` | `human` | `mixed`,记录复盘的产出方式。
@@ -39,4 +39,4 @@
 
 - 逐字段校对引入人工环节,牺牲全自动的即时性,换取复盘质量,这是刻意取舍。
 - 强制 critical 复盘会让 resolved 后多一个"待复盘"停留态,流程更长但保证关键事件必被复盘。
-- 改进项外接依赖 Jira / 禅道等外部系统的对接与凭证管理,复杂度上移到集成层。
+- 改进项外接依赖外部工单系统的对接与凭证管理(经通用 webhook 出口,Jira/禅道 SDK 占位已随 [ADR-0037](./0037-trim-deferred-features.md) 移除),复杂度上移到集成层。

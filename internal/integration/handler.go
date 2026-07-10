@@ -137,7 +137,7 @@ func generateToken() string {
 // createReq 创建接入点请求。
 type createReq struct {
 	Name      string         `json:"name"`
-	Type      string         `json:"type"`   // webhook|email|prometheus|zabbix|grafana|cloud|api
+	Type      string         `json:"type"`   // webhook|email|prometheus|grafana|api
 	Config    map[string]any `json:"config"` // 类型相关配置（URL/过滤/限流等）
 	TeamID    int            `json:"team_id"`
 	ServiceID int            `json:"service_id"`

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/kevin/vigil/ent"
 )
 
 // fakeSMTPServer 极简 SMTP mock：接受连接，回 250 应答，记录收到的 DATA 内容。
@@ -98,6 +100,11 @@ func (s *fakeSMTPServer) hostPort() (string, int) {
 }
 
 // TestEmailChannel_RealSMTPSend 验证邮件真实发送（经 fakeSMTPServer）。
+// newTestIncident 辅助构造测试用 incident（无需 db，区别于 channels_test.go 的 newIncident）。
+func newTestIncident() *ent.Incident {
+	return &ent.Incident{ID: 1, Number: "INC-0001", Title: "test", Severity: "critical", Summary: "测试事件"}
+}
+
 func TestEmailChannel_RealSMTPSend(t *testing.T) {
 	srv := newFakeSMTPServer(t)
 	host, port := srv.hostPort()
@@ -114,7 +121,7 @@ func TestEmailChannel_RealSMTPSend(t *testing.T) {
 	}
 
 	results, err := ch.Send(context.Background(), &Message{
-		Incident: newPhoneIncident(),
+		Incident: newTestIncident(),
 		Title:    "[CRITICAL] 测试标题",
 		Summary:  "测试正文内容",
 	})

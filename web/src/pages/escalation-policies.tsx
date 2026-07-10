@@ -21,7 +21,7 @@ import {
 import { formatTime } from "@/lib/format";
 import type { EscalationPolicy } from "@/lib/types";
 
-const CHANNELS = ["im", "phone", "sms", "email", "webhook"] as const;
+const CHANNELS = ["im", "email", "webhook"] as const;
 type Channel = (typeof CHANNELS)[number];
 
 /**

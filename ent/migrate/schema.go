@@ -305,7 +305,7 @@ var (
 	// ImAccountBindingsColumns holds the columns for the "im_account_bindings" table.
 	ImAccountBindingsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "platform", Type: field.TypeEnum, Enums: []string{"feishu", "dingtalk", "wecom"}},
+		{Name: "platform", Type: field.TypeEnum, Enums: []string{"feishu", "dingtalk"}},
 		{Name: "account_id", Type: field.TypeString},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "user_im_bindings", Type: field.TypeInt},
@@ -457,7 +457,7 @@ var (
 	IntegrationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "name", Type: field.TypeString},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"webhook", "email", "prometheus", "zabbix", "grafana", "cloud", "api"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"webhook", "email", "prometheus", "grafana", "api"}},
 		{Name: "config", Type: field.TypeJSON, Nullable: true},
 		{Name: "token", Type: field.TypeString},
 		{Name: "enabled", Type: field.TypeBool, Default: true},
@@ -614,7 +614,7 @@ var (
 	NotificationTemplatesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "name", Type: field.TypeString},
-		{Name: "channel", Type: field.TypeEnum, Enums: []string{"im", "email", "webhook", "phone", "sms"}},
+		{Name: "channel", Type: field.TypeEnum, Enums: []string{"im", "email", "webhook"}},
 		{Name: "format", Type: field.TypeEnum, Enums: []string{"text", "interactive_card"}},
 		{Name: "title_template", Type: field.TypeString},
 		{Name: "body_template", Type: field.TypeString, Size: 2147483647},
@@ -1032,7 +1032,7 @@ var (
 	TicketIntegrationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "name", Type: field.TypeString},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"webhook", "jira", "zentao"}, Default: "webhook"},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"webhook"}, Default: "webhook"},
 		{Name: "endpoint", Type: field.TypeString},
 		{Name: "credential", Type: field.TypeString, Nullable: true},
 		{Name: "callback_secret", Type: field.TypeString, Nullable: true},

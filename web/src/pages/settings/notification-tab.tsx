@@ -110,7 +110,7 @@ function CreateNotificationRuleDialog({ onClose }: { onClose: () => void }) {
     );
   };
 
-  const channelOptions = ["im", "email", "phone", "sms", "webhook"];
+  const channelOptions = ["im", "email", "webhook"];
 
   return (
     <Dialog open onClose={onClose} title={t("settings.notification.rules.createTitle")} description={t("settings.notification.rules.createDescription")}>
@@ -190,7 +190,7 @@ function EditNotificationRuleDialog({ rule, onClose }: { rule: NotificationRule;
     );
   };
 
-  const channelOptions = ["im", "email", "phone", "sms", "webhook"];
+  const channelOptions = ["im", "email", "webhook"];
 
   return (
     <Dialog open onClose={onClose} title={t("settings.notification.rules.editTitle", { name: rule.name })} description={t("settings.notification.rules.editDescription")}>
@@ -228,7 +228,7 @@ function EditNotificationRuleDialog({ rule, onClose }: { rule: NotificationRule;
   );
 }
 
-// ChannelSelector 通道多选（im/email/phone/sms/webhook）—— 规则创建/编辑共用。
+// ChannelSelector 通道多选（im/email/webhook）—— 规则创建/编辑共用。
 function ChannelSelector({
   channels,
   onToggle,
@@ -616,7 +616,7 @@ function CreateNotificationTemplateDialog({ onClose }: { onClose: () => void }) 
   const { t } = useTranslation();
   const create = useCreateNotificationTemplate();
   const [name, setName] = useState("");
-  const [channel, setChannel] = useState<"im" | "email" | "webhook" | "phone" | "sms">("im");
+  const [channel, setChannel] = useState<"im" | "email" | "webhook">("im");
   const [format, setFormat] = useState<"text" | "interactive_card">("text");
   const [titleTemplate, setTitleTemplate] = useState("");
   const [bodyTemplate, setBodyTemplate] = useState("");
@@ -639,12 +639,10 @@ function CreateNotificationTemplateDialog({ onClose }: { onClose: () => void }) 
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t("settings.notification.templates.channelLabel")}</label>
-            <Select value={channel} onChange={(e) => setChannel(e.target.value as "im" | "email" | "webhook" | "phone" | "sms")}>
+            <Select value={channel} onChange={(e) => setChannel(e.target.value as "im" | "email" | "webhook")}>
               <option value="im">im</option>
               <option value="email">email</option>
               <option value="webhook">webhook</option>
-              <option value="phone">phone</option>
-              <option value="sms">sms</option>
             </Select>
           </div>
           <div className="space-y-1.5">
@@ -676,7 +674,10 @@ function EditTemplateDialog({ template, onClose }: { template: NotificationTempl
   const { t } = useTranslation();
   const update = useUpdateNotificationTemplate();
   const [name, setName] = useState(template.name);
-  const [channel, setChannel] = useState<"im" | "email" | "webhook" | "phone" | "sms">(template.channel ?? "im");
+  // 已下线的通道（phone/sms）若出现在存量模板里，编辑时回退为 im。
+  const [channel, setChannel] = useState<"im" | "email" | "webhook">(
+    template.channel === "email" || template.channel === "webhook" ? template.channel : "im",
+  );
   const [format, setFormat] = useState<"text" | "interactive_card">(template.format ?? "text");
   const [titleTemplate, setTitleTemplate] = useState(template.title_template ?? "");
   const [bodyTemplate, setBodyTemplate] = useState(template.body_template ?? "");
@@ -699,12 +700,10 @@ function EditTemplateDialog({ template, onClose }: { template: NotificationTempl
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t("settings.notification.templates.channelLabel")}</label>
-            <Select value={channel} onChange={(e) => setChannel(e.target.value as "im" | "email" | "webhook" | "phone" | "sms")}>
+            <Select value={channel} onChange={(e) => setChannel(e.target.value as "im" | "email" | "webhook")}>
               <option value="im">im</option>
               <option value="email">email</option>
               <option value="webhook">webhook</option>
-              <option value="phone">phone</option>
-              <option value="sms">sms</option>
             </Select>
           </div>
           <div className="space-y-1.5">

@@ -107,7 +107,7 @@ func (h *Handler) auditConfigChange(c *echo.Context, action string, ti *ent.Tick
 // createReq 创建工单集成请求。
 type createReq struct {
 	Name       string         `json:"name"`
-	Type       string         `json:"type"`       // webhook|jira|zentao（默认 webhook）
+	Type       string         `json:"type"`       // webhook（唯一类型，默认）
 	Endpoint   string         `json:"endpoint"`   // 建单目标 URL
 	Credential string         `json:"credential"` // 凭据（token/密码），仅入不出（Sensitive）
 	Config     map[string]any `json:"config"`     // 目标项目/字段映射

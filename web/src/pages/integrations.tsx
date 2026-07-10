@@ -27,7 +27,7 @@ import { formatTime } from "@/lib/format";
 import { toast } from "sonner";
 import type { Integration, IntegrationType } from "@/lib/types";
 
-const TYPE_OPTIONS: IntegrationType[] = ["prometheus", "grafana", "webhook", "email", "zabbix", "cloud", "api"];
+const TYPE_OPTIONS: IntegrationType[] = ["prometheus", "grafana", "webhook", "email", "api"];
 
 export function Integrations() {
   const { t } = useTranslation();

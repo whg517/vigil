@@ -19,9 +19,9 @@ func TestAlertsReceived(t *testing.T) {
 		t.Errorf("AlertsReceived 应 +1: before=%v after=%v", before, after)
 	}
 	// 不同 label 不应影响
-	other := testutil.ToFloat64(AlertsReceived.WithLabelValues("zabbix", "warning"))
+	other := testutil.ToFloat64(AlertsReceived.WithLabelValues("grafana", "warning"))
 	AlertsReceived.WithLabelValues("prometheus", "critical").Inc()
-	if testutil.ToFloat64(AlertsReceived.WithLabelValues("zabbix", "warning")) != other {
+	if testutil.ToFloat64(AlertsReceived.WithLabelValues("grafana", "warning")) != other {
 		t.Error("不同 label 不应互相影响")
 	}
 }

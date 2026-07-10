@@ -25,9 +25,7 @@ import {
 import { useTeams } from "@/hooks/users-teams";
 import { formatTime } from "@/lib/format";
 import { toast } from "sonner";
-import type { TicketIntegration, TicketIntegrationType } from "@/lib/types";
-
-const TYPE_OPTIONS: TicketIntegrationType[] = ["webhook", "jira", "zentao"];
+import type { TicketIntegration } from "@/lib/types";
 
 export function TicketIntegrations() {
   const { t } = useTranslation();
@@ -160,7 +158,6 @@ function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
   const create = useCreateTicketIntegration();
   const { data: teams } = useTeams();
   const [name, setName] = useState("");
-  const [type, setType] = useState<TicketIntegrationType>("webhook");
   const [endpoint, setEndpoint] = useState("");
   const [credential, setCredential] = useState("");
   const [configText, setConfigText] = useState("");
@@ -178,7 +175,7 @@ function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
     create.mutate(
       {
         name,
-        type,
+        type: "webhook",
         endpoint,
         credential: credential || undefined,
         config,
@@ -199,15 +196,12 @@ function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t("ticketIntegrations.fieldName")}</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="jira-ops" required autoFocus />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="ops-webhook" required autoFocus />
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t("ticketIntegrations.fieldType")}</label>
-            <Select value={type} onChange={(e) => setType(e.target.value as TicketIntegrationType)}>
-              {TYPE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </Select>
+            {/* 工单类型仅剩 webhook（ADR-0037 裁撤 jira/zentao），固定展示无需选择。 */}
+            <Input value="webhook" disabled readOnly />
           </div>
         </div>
         <div className="space-y-1.5">
@@ -215,7 +209,7 @@ function CreateTicketIntegrationDialog({ onClose }: { onClose: () => void }) {
           <Input
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
-            placeholder="https://jira.example.com/rest/api/2/issue"
+            placeholder="https://ticket.example.com/api/tickets"
             required
           />
         </div>

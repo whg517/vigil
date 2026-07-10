@@ -77,7 +77,6 @@ type Platform string
 const (
 	PlatformFeishu   Platform = "feishu"
 	PlatformDingtalk Platform = "dingtalk"
-	PlatformWecom    Platform = "wecom"
 )
 
 func (pl Platform) String() string {
@@ -87,7 +86,7 @@ func (pl Platform) String() string {
 // PlatformValidator is a validator for the "platform" field enum values. It is called by the builders before save.
 func PlatformValidator(pl Platform) error {
 	switch pl {
-	case PlatformFeishu, PlatformDingtalk, PlatformWecom:
+	case PlatformFeishu, PlatformDingtalk:
 		return nil
 	default:
 		return fmt.Errorf("imaccountbinding: invalid enum value for platform field: %q", pl)

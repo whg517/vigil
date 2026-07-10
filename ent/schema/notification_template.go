@@ -20,8 +20,8 @@ type NotificationTemplate struct {
 func (NotificationTemplate) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name").NotEmpty().Comment("模板名，唯一标识，如 default_im_card"),
-		// channel 适用通道：im | email | webhook | phone | sms
-		field.Enum("channel").Values("im", "email", "webhook", "phone", "sms"),
+		// channel 适用通道：im | email | webhook
+		field.Enum("channel").Values("im", "email", "webhook"),
 		// format 渲染格式：text（纯文本）/ interactive_card（IM 卡片，带按钮）
 		field.Enum("format").Values("text", "interactive_card"),
 		// title_template 标题模板（Go template）

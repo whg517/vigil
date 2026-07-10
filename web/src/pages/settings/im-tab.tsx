@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 
-/** 平台静态元数据（凭证提示 + 能力矩阵），label/env/capabilities 走 i18n key 由组件内解析。 */
+/** 平台静态元数据（凭证提示 + 能力矩阵），label/capabilities 走 i18n key 由组件内解析，env 为环境变量原文。 */
 const IM_PLATFORM_META: Record<string, { labelKey: string; env: string; capabilitiesKey: string }> = {
   feishu: {
     labelKey: "settings.im.platformFeishu",
@@ -18,11 +18,6 @@ const IM_PLATFORM_META: Record<string, { labelKey: string; env: string; capabili
     labelKey: "settings.im.platformDingtalk",
     env: "VIGIL_IM_DINGTALK_APP_KEY/APP_SECRET",
     capabilitiesKey: "settings.im.capabilitiesDingtalk",
-  },
-  wecom: {
-    labelKey: "settings.im.platformWecom",
-    env: "settings.im.envPending",
-    capabilitiesKey: "settings.im.capabilitiesWecom",
   },
 };
 
@@ -72,7 +67,7 @@ export function IMTab() {
         {platforms.map((p) => {
           const metaEntry = IM_PLATFORM_META[p.platform];
           const label = metaEntry ? t(metaEntry.labelKey) : p.platform;
-          const env = metaEntry ? t(metaEntry.env) : "—";
+          const env = metaEntry ? metaEntry.env : "—";
           const capabilities = metaEntry ? t(metaEntry.capabilitiesKey) : "—";
           const ready = p.available;
           return (
@@ -80,11 +75,7 @@ export function IMTab() {
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-base">{label}</CardTitle>
                 <Badge variant={ready ? "default" : "secondary"}>
-                  {ready
-                    ? t("settings.im.statusReady")
-                    : p.impl === "noop"
-                      ? t("settings.im.statusNotIntegrated")
-                      : t("settings.im.statusNotConfigured")}
+                  {ready ? t("settings.im.statusReady") : t("settings.im.statusNotConfigured")}
                 </Badge>
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
@@ -94,7 +85,7 @@ export function IMTab() {
                   {t("settings.im.envHintSuffix")}
                 </p>
                 <p>{t("settings.im.capabilitiesLabel", { capabilities })}</p>
-                {!ready && p.impl !== "noop" && (
+                {!ready && (
                   <p className="text-xs text-muted-foreground">
                     {t("settings.im.restartHint")}
                   </p>

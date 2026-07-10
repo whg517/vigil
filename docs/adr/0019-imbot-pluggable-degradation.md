@@ -2,19 +2,19 @@
 
 | 字段 | 内容 |
 |------|------|
-| **状态** | Accepted(部分实现) |
+| **状态** | Accepted |
 | **日期** | 2026-07-09 |
 | **相关** | [`0018-im-same-rbac-as-web.md`](./0018-im-same-rbac-as-web.md)、[`0009-pluggable-integrations.md`](./0009-pluggable-integrations.md)、[`../architecture.md`](../architecture.md) |
 
 ## 背景
 
-Vigil 把本土 IM(钉钉/飞书/企微)当协同工作面而非通知通道,但各平台卡片/建群/回调能力差异大,且开放能力受限。业务层不应被任一平台的具体差异绑死,某平台能力缺失也不能导致告警静默丢失。
+Vigil 把本土 IM(飞书/钉钉)当协同工作面而非通知通道,但各平台卡片/建群/回调能力差异大,且开放能力受限。业务层不应被任一平台的具体差异绑死,某平台能力缺失也不能导致告警静默丢失。
 
 ## 决策
 
 抽象 `IMBot` 接口(`SendCard / UpdateCard / ParseCallback` 等)封装平台差异,业务层不感知具体平台。
 
-- **平台优先级**:钉钉 P0 / 飞书 P0 / 企微 P1 / Slack · Teams P2。飞书、钉钉真实接入;企微为 `NoopBot` 占位(`Available() == false` 被 registry 排除但**不静默丢告警**,降级走 notification 兜底链)。
+- **平台矩阵**:飞书 P0 / 钉钉 P0,均真实接入。平台能力缺失或不可用时不静默丢告警,降级走 notification 兜底链。
 - **状态双向同步**:IM → Web 经 WebSocket 实时刷新;Web → IM 由领域事件驱动 `card_refresher` 更新卡片。
 - **关键降级(降级矩阵)**:
   - 钉钉 `sampleActionCard` 无法原地刷新 → `UpdateCard` 解出 cardID 编码的 channel,重发一条带状态徽章的新消息(**B16**)。
@@ -34,6 +34,6 @@ Vigil 把本土 IM(钉钉/飞书/企微)当协同工作面而非通知通道,但
 
 ## 影响 / 权衡
 
-- **部分实现**:企微仅 `NoopBot` 占位,完整 bot 暂不做。作战室能力已整体移除(含建群原语),见 [ADR-0036](./0036-remove-war-room.md)。
+- 企微支持已随 [ADR-0037](./0037-trim-deferred-features.md) 移除(含 `NoopBot` 占位),平台矩阵收敛为飞书 + 钉钉。作战室能力已整体移除(含建群原语),见 [ADR-0036](./0036-remove-war-room.md)。
 - 钉钉靠"重发带徽章的新消息"模拟原地刷新(B16),会在群里留下多条消息,是平台限制下的取舍。
 - CardStore 依赖 Redis 持久化(B24),Redis 不可用则卡片刷新能力退化。

@@ -82,7 +82,7 @@ func (Integration) Fields() []ent.Field {
 		field.String("name").NotEmpty(),
 		// type 决定用哪个适配器做归一化
 		field.Enum("type").Values(
-			"webhook", "email", "prometheus", "zabbix", "grafana", "cloud", "api",
+			"webhook", "email", "prometheus", "grafana", "api",
 		),
 		// config 存类型相关配置（URL/过滤/鉴权方式/限流等）
 		field.JSON("config", map[string]any{}).Optional().Comment("类型相关配置"),

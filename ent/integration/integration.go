@@ -124,9 +124,7 @@ const (
 	TypeWebhook    Type = "webhook"
 	TypeEmail      Type = "email"
 	TypePrometheus Type = "prometheus"
-	TypeZabbix     Type = "zabbix"
 	TypeGrafana    Type = "grafana"
-	TypeCloud      Type = "cloud"
 	TypeAPI        Type = "api"
 )
 
@@ -137,7 +135,7 @@ func (_type Type) String() string {
 // TypeValidator is a validator for the "type" field enum values. It is called by the builders before save.
 func TypeValidator(_type Type) error {
 	switch _type {
-	case TypeWebhook, TypeEmail, TypePrometheus, TypeZabbix, TypeGrafana, TypeCloud, TypeAPI:
+	case TypeWebhook, TypeEmail, TypePrometheus, TypeGrafana, TypeAPI:
 		return nil
 	default:
 		return fmt.Errorf("integration: invalid enum value for type field: %q", _type)

@@ -47,7 +47,7 @@ type Config struct {
 	// Triage 分诊配置（能力域 3-4，去重/聚合窗口）
 	Triage Triage `envconfig:"triage"`
 
-	// Notification 通知通道配置（能力域 7，邮件/电话/SMS）
+	// Notification 通知通道配置（能力域 7，邮件）
 	Notification Notification `envconfig:"notification"`
 
 	// Postmortem 复盘配置（能力域 12，自动起草触发档位）
@@ -458,9 +458,7 @@ type Credential struct {
 // Notification 通知通道配置（能力域 7，PRD M7.2/M7.3）。
 // 各通道凭证缺失时降级为不发送（设计基线第 7 条）。
 type Notification struct {
-	SMTP  SMTP  `envconfig:"smtp"`  // 邮件通道
-	Phone Voice `envconfig:"phone"` // 电话通道（占位，转发 webhook）
-	SMS   Voice `envconfig:"sms"`   // 短信通道（占位，转发 webhook）
+	SMTP SMTP `envconfig:"smtp"` // 邮件通道
 }
 
 // SMTP 邮件服务器配置（能力域 7 M7.3）。Host 为空时邮件通道禁用。
@@ -470,14 +468,6 @@ type SMTP struct {
 	Username string `envconfig:"username"` // 认证用户名，空=匿名
 	Password string `envconfig:"password"` // 认证密码
 	From     string `envconfig:"from"`     // 发件人地址，空=vigil@localhost
-}
-
-// Voice 电话/SMS 提供商配置（能力域 7 M7.2，本期占位）。
-// WebhookURL 非空时，通知 POST 到此 URL，用户在端侧对接云语音 API（阿里云/腾讯云）。
-// 真实云厂商对接留 docs/backlog.md，避免本期绑定具体厂商。
-type Voice struct {
-	WebhookURL string `envconfig:"webhook_url"` // 语音/SMS 接收端点，空=禁用
-	From       string `envconfig:"from"`        // 主叫/发件标识（可选）
 }
 
 // LLM 配置（云端智谱 GLM / 本地 Ollama）。APIKey/BaseURL 缺失时 AI 功能自动降级（设计基线第 7 条）。

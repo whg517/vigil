@@ -144,20 +144,6 @@ func TestEngine_OnPublished_SkipsAlreadyTracked(t *testing.T) {
 	}
 }
 
-// TestEngine_NotImplementedAdapter_DoesNotBlock Jira/禅道预留适配器建单降级不回写不阻断。
-func TestEngine_NotImplementedAdapter_DoesNotBlock(t *testing.T) {
-	c, pmID, aiID, teamID := setupPM(t)
-	ctx := context.Background()
-	c.TicketIntegration.Create().SetName("jira").SetType("jira").
-		SetEndpoint("https://jira.example.com").SetTeamID(teamID).SetEnabled(true).SaveX(ctx)
-
-	// 只注册 jira 预留适配器。
-	NewEngine(c, NewJiraAdapter()).OnPostmortemPublished(ctx, pmID)
-	if got := c.ActionItem.GetX(ctx, aiID); got.TrackerURL != "" {
-		t.Errorf("not-implemented adapter should not backfill, got %q", got.TrackerURL)
-	}
-}
-
 // TestCredentialNotPlaintext 凭据经 Sensitive 字段存储：JSON API 响应不含明文、String() 脱敏。
 //
 // 安全保证（handler list/get 直接 c.JSON 该 ent 实体）：

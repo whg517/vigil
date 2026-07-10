@@ -507,13 +507,11 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// （critical 强制，warning 可配，info 不起草）。复用 GenerateDraft，best-effort 不阻断事件派发。
 	bus.Subscribe(domainevent.IncidentResolved, postmortemEngine.OnIncidentResolved)
 	// T4.3 出向工单集成：复盘发布 → 为其下 ActionItem 建外部工单，回写 tracker_url（best-effort）。
-	// 通用 webhook 工单已实现，Jira/禅道预留适配器接口（当前建单降级不阻断）。
+	// 工单集成只做通用 webhook（Jira/禅道 SDK 明确不做，ADR-0037；需要时经 webhook 网关对接）。
 	// SSRF 防护：生产禁私网/元数据，dev/test 放行（与 runbook 出站同款）。
 	allowPrivateTicket := !cfg.App.IsProduction()
 	ticketEngine := ticket.NewEngine(st.DB,
 		ticket.NewWebhookAdapter(allowPrivateTicket),
-		ticket.NewJiraAdapter(),   // 预留：当前建单返回 not-implemented，降级不阻断
-		ticket.NewZentaoAdapter(), // 预留：同上
 	)
 	// T6.3：工单凭据也复用统一 AES-256-GCM 加密（与 Runbook 执行器同源密钥），
 	// 消除 T4.3 遗留的明文-at-rest 缺口；cipher 为 nil 时向后兼容明文透传。
@@ -761,7 +759,6 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 // 会永远返回 true、warn 永不触发，等于自欺。故此处对每个候选通道查其真实配置来源：
 //   - webhook：出口 URL 非空（notifWebhookURLs 来自 VIGIL_WEBHOOK_OUT_URLS）
 //   - email  ：SMTP Host 非空
-//   - phone/sms：对应语音 webhook URL 非空
 //   - im     ：不参与（自监控刻意排除 im，即便配了也不算「独立通道」）
 //
 // 任一候选通道真实可用即返回 true。
@@ -774,14 +771,6 @@ func selfMonHasDeliverableChannel(cfg *config.Config, notifWebhookURLs []string,
 			}
 		case "email":
 			if cfg.Notification.SMTP.Host != "" {
-				return true
-			}
-		case "phone":
-			if cfg.Notification.Phone.WebhookURL != "" {
-				return true
-			}
-		case "sms":
-			if cfg.Notification.SMS.WebhookURL != "" {
 				return true
 			}
 		}
@@ -848,22 +837,12 @@ func buildNotifier(ctx context.Context, cfg *config.Config, log *zap.Logger, st 
 	if emailChan.Available() {
 		log.Info("email channel ready (smtp)")
 	}
-	// 电话/SMS 通道（占位：转发 webhook 供用户对接云语音 API）。
-	phoneChan := &notification.PhoneChannel{
-		Config:    notification.VoiceProviderConfig{WebhookURL: cfg.Notification.Phone.WebhookURL, From: cfg.Notification.Phone.From},
-		GetPhones: func(targets []notification.Target) []string { return resolvePhones(ctx, st.DB, targets) },
-	}
-	smsChan := &notification.SMSChannel{
-		Config:    notification.VoiceProviderConfig{WebhookURL: cfg.Notification.SMS.WebhookURL, From: cfg.Notification.SMS.From},
-		GetPhones: func(targets []notification.Target) []string { return resolvePhones(ctx, st.DB, targets) },
-	}
-	reg.Register(phoneChan)
-	reg.Register(smsChan)
-	// 默认降级链（B8/C12）：IM 优先（IM-first），失败降级邮件，再降级电话/短信（强打扰兜底）。
+	// 默认降级链（B8/C12）：IM 优先（IM-first），失败降级邮件。
 	// 顺序即「主通道失败才启用下一通道」的降级层次，而非并联各发一份。
 	// IMChannel 在 Wire 后注册，notifier 实时查 registry，晚注册也能生效。
-	// 注：electricity/短信仅在配了云语音 webhook 时可用（未配则 Send 返回空，链自动跳过）。
-	defaultChans := []string{"im", "email", "phone", "sms"}
+	// 电话/SMS 通道已随 ADR-0037 移除：强提醒场景经 webhook 出口对接自建语音网关。
+	// 存量配置里残留的 "phone"/"sms" 通道名 registry 查不到即跳过，链上其余通道照常。
+	defaultChans := []string{"im", "email"}
 	if len(notifWebhookURLs) > 0 {
 		defaultChans = append([]string{"webhook"}, defaultChans...)
 	}
@@ -949,7 +928,6 @@ func buildIMRegistry(cfg *config.Config) (*im.Registry, *feishu.Adapter, *dingta
 	})
 	reg.Register(feishuBot)
 	reg.Register(dingtalkBot)
-	reg.Register(im.NewNoopBot("wecom"))
 	return reg, feishuBot, dingtalkBot
 }
 
@@ -965,9 +943,6 @@ func logIMStatus(log *zap.Logger, feishuBot *feishu.Adapter, dingtalkBot *dingta
 	} else {
 		log.Info("im disabled (dingtalk credentials not configured)")
 	}
-	// 企微为 NoopBot 占位（完整适配器待 PoC，是设计目标）。明确记一行，
-	// 避免运维误以为企微已可用；不静默丢告警——IM 空转时通知走 notification 兜底降级链（C12）。
-	log.Info("im wecom placeholder (not implemented; notifications fall back to email/phone chain)")
 }
 
 // buildCredentialCipher 构造凭据加密器（T6.3/S16）。
@@ -1087,34 +1062,10 @@ func resolveEmails(ctx context.Context, db *ent.Client, targets []notification.T
 	return emails
 }
 
-// resolvePhones 从 targets 的 user_id 批量查 User.phone（电话/SMS 通道用）。
-func resolvePhones(ctx context.Context, db *ent.Client, targets []notification.Target) []string {
-	var uids []int
-	for _, t := range targets {
-		if t.UserID > 0 {
-			uids = append(uids, t.UserID)
-		}
-	}
-	if len(uids) == 0 {
-		return nil
-	}
-	users, err := db.User.Query().Where(user.IDIn(uids...)).All(ctx)
-	if err != nil {
-		return nil
-	}
-	var phones []string
-	for _, u := range users {
-		if u.Phone != "" {
-			phones = append(phones, u.Phone)
-		}
-	}
-	return phones
-}
-
 // unroutedFallbackNotifier 实现 triage.UnroutedNotifier（C3）。
 //
 // 未路由的 critical Event 无 Service/Incident，无法走升级链——本适配器解算 org_admin
-// 收件人，用 Notifier.NotifyUnrouted 走 email/phone/sms/webhook 兜底通知（不走 IM 卡片，
+// 收件人，用 Notifier.NotifyUnrouted 走 email/webhook 兜底通知（不走 IM 卡片，
 // 无单可渲染）。org_admin 是"全组织可见"角色，无 Service 归属的漏网告警交给他们兜底最合理。
 type unroutedFallbackNotifier struct {
 	db       *ent.Client

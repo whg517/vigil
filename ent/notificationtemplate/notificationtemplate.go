@@ -102,8 +102,6 @@ const (
 	ChannelIm      Channel = "im"
 	ChannelEmail   Channel = "email"
 	ChannelWebhook Channel = "webhook"
-	ChannelPhone   Channel = "phone"
-	ChannelSms     Channel = "sms"
 )
 
 func (c Channel) String() string {
@@ -113,7 +111,7 @@ func (c Channel) String() string {
 // ChannelValidator is a validator for the "channel" field enum values. It is called by the builders before save.
 func ChannelValidator(c Channel) error {
 	switch c {
-	case ChannelIm, ChannelEmail, ChannelWebhook, ChannelPhone, ChannelSms:
+	case ChannelIm, ChannelEmail, ChannelWebhook:
 		return nil
 	default:
 		return fmt.Errorf("notificationtemplate: invalid enum value for channel field: %q", c)

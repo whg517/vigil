@@ -3,7 +3,6 @@ package ticket
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -21,7 +20,7 @@ import (
 // 全程 best-effort（见包注释）：任何一步失败仅记日志，不上抛阻断调用方（复盘发布不受影响）。
 type Engine struct {
 	db       *ent.Client
-	adapters map[string]Adapter // type → 适配器（webhook 已实现，jira/zentao 预留）
+	adapters map[string]Adapter // type → 适配器（仅通用 webhook）
 	// cipher 凭据加密器（T6.3 统一加密机制，可选）。非 nil 时把 integ.Credential 视为密文解密后
 	// 再传给适配器；nil 或解密失败时按明文透传（向后兼容 T4.3 既有明文凭据）。
 	cipher *crypto.Cipher
@@ -120,12 +119,9 @@ func (e *Engine) createForActionItem(ctx context.Context, integ *ent.TicketInteg
 	}
 	res, err := adapter.CreateTicket(ctx, cfg, req)
 	if err != nil {
-		// best-effort：建单失败（不可达/未实现/超时）不阻断，记日志留待人工/重试。
-		lvl := "ticket: create ticket failed (best-effort, postmortem publish not blocked)"
-		if errors.Is(err, ErrAdapterNotImplemented) {
-			lvl = "ticket: adapter not implemented, skipping create (reserved for jira/zentao)"
-		}
-		slog.Warn(lvl, "type", integ.Type, "action_item_id", ai.ID, "error", err)
+		// best-effort：建单失败（不可达/超时）不阻断，记日志留待人工/重试。
+		slog.Warn("ticket: create ticket failed (best-effort, postmortem publish not blocked)",
+			"type", integ.Type, "action_item_id", ai.ID, "error", err)
 		return false
 	}
 	if res == nil || strings.TrimSpace(res.TrackerURL) == "" {

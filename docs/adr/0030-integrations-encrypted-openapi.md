@@ -15,8 +15,8 @@ Vigil 要融入企业既有工具链:既消费外部告警,也向外产出事件
 - **凭据加密存储**:集成凭据(token/密钥)经 crypto 模块加密后落 `Credential` 实体,**不明文入库**;外部 KMS 作为后置增强,暂不强依赖。
 - **四方向集成**:
   - 入向(告警源接入);
-  - 双向 IM(收发消息/卡片/建群);
-  - 出向(工单 Jira/禅道、云语音、Webhook 出口——可订阅 Incident 生命周期事件推送外部,带 token + 事件类型选择 + 轮换);
+  - 双向 IM(收发消息/卡片);
+  - 出向(工单与通用 Webhook 出口——可订阅 Incident 生命周期事件推送外部,带 token + 事件类型选择 + 轮换);
   - 开放 API。
 - **API 契约**:REST 覆盖所有实体 + WebSocket 实时推送,统一挂在 `/api/v1/`,以 OpenAPI 3.1 为契约,API Key(scoped)鉴权;GraphQL 后置。
 - **code-first 契约**:spec 由 `swaggo/swag` v2 加 `--v3.1` 从 handler 注解生成,权威源是 `internal/<domain>/handler.go` 的注解块,spec 编译期 embed 进二进制;前端类型由**同一 spec** 派生到 `web/src/lib/api/types.gen.ts`。改注解后流程:`go generate ./cmd/vigil/...` → `cd web && pnpm gen:types` → 提交生成产物;CI 校验 spec 与前端类型无漂移。Swagger UI 挂 `/docs`,原始 spec 挂 `/openapi.yaml`。

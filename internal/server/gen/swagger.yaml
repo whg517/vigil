@@ -294,7 +294,7 @@ components:
           description: IM 平台 unionId
           type: string
         platform:
-          description: dingtalk | feishu | wecom
+          description: dingtalk | feishu
           type: string
       type: object
     auth.changePasswordReq:
@@ -2376,10 +2376,10 @@ components:
           description: 凭证已配置且客户端就绪
           type: boolean
         impl:
-          description: 适配器类型：real | noop（占位）
+          description: 适配器类型：恒为 real（占位平台已随 ADR-0037 移除）
           type: string
         platform:
-          description: feishu | dingtalk | wecom
+          description: feishu | dingtalk
           type: string
       type: object
     imaccountbinding.Platform:
@@ -2387,12 +2387,10 @@ components:
       enum:
       - feishu
       - dingtalk
-      - wecom
       type: string
       x-enum-varnames:
       - PlatformFeishu
       - PlatformDingtalk
-      - PlatformWecom
     incident.Priority:
       description: Priority holds the value of the "priority" field.
       enum:
@@ -2544,18 +2542,14 @@ components:
       - webhook
       - email
       - prometheus
-      - zabbix
       - grafana
-      - cloud
       - api
       type: string
       x-enum-varnames:
       - TypeWebhook
       - TypeEmail
       - TypePrometheus
-      - TypeZabbix
       - TypeGrafana
-      - TypeCloud
       - TypeAPI
     integration.configField:
       properties:
@@ -2609,7 +2603,7 @@ components:
         team_id:
           type: integer
         type:
-          description: webhook|email|prometheus|zabbix|grafana|cloud|api
+          description: webhook|email|prometheus|grafana|api
           type: string
       type: object
     integration.createResp:
@@ -2910,15 +2904,11 @@ components:
       - im
       - email
       - webhook
-      - phone
-      - sms
       type: string
       x-enum-varnames:
       - ChannelIm
       - ChannelEmail
       - ChannelWebhook
-      - ChannelPhone
-      - ChannelSms
     notificationtemplate.Format:
       description: Format holds the value of the "format" field.
       enum:
@@ -3402,7 +3392,7 @@ components:
           description: IM 平台的 unionId
           type: string
         platform:
-          description: dingtalk | feishu | wecom
+          description: dingtalk | feishu
           type: string
       type: object
     schema.NullableVector:
@@ -3763,7 +3753,7 @@ components:
           description: 归属团队，0=org 级
           type: integer
         type:
-          description: webhook|jira|zentao（默认 webhook）
+          description: webhook（唯一类型，默认）
           type: string
       type: object
     ticket.updateReq:
@@ -3788,14 +3778,10 @@ components:
       description: Type holds the value of the "type" field.
       enum:
       - webhook
-      - jira
-      - zentao
       type: string
       x-enum-varnames:
       - DefaultType
       - TypeWebhook
-      - TypeJira
-      - TypeZentao
     time.Duration:
       enum:
       - -9223372036854775808
@@ -5348,10 +5334,10 @@ paths:
       - triage
   /im/{platform}/callback:
     post:
-      description: 各平台（feishu/dingtalk/wecom）回调入口：签名校验 → 解析为标准事件 → 派发卡片/命令/@ 处理。公开入口，平台签名鉴权，不走
+      description: 各平台（feishu/dingtalk）回调入口：签名校验 → 解析为标准事件 → 派发卡片/命令/@ 处理。公开入口，平台签名鉴权，不走
         RBAC。
       parameters:
-      - description: IM 平台（feishu/dingtalk/wecom）
+      - description: IM 平台（feishu/dingtalk）
         in: path
         name: platform
         required: true
@@ -5359,7 +5345,6 @@ paths:
           enum:
           - feishu
           - dingtalk
-          - wecom
           type: string
       requestBody:
         content:
@@ -6511,7 +6496,7 @@ paths:
   /integrations/config-template:
     get:
       parameters:
-      - description: 接入点类型（webhook|email|prometheus|zabbix|grafana|cloud|api），空/all=全部
+      - description: 接入点类型（webhook|email|prometheus|grafana|api），空/all=全部
         in: query
         name: type
         schema:
@@ -9294,7 +9279,7 @@ paths:
       - user
   /users/{id}/im-accounts/{platform}:
     delete:
-      description: 解除用户在指定 IM 平台（feishu/dingtalk/wecom）的账号绑定。本人或有 user.im.bind 权限者可操作。
+      description: 解除用户在指定 IM 平台（feishu/dingtalk）的账号绑定。本人或有 user.im.bind 权限者可操作。
       parameters:
       - description: 用户 ID
         in: path
@@ -9310,7 +9295,6 @@ paths:
           enum:
           - feishu
           - dingtalk
-          - wecom
           type: string
       responses:
         "204":

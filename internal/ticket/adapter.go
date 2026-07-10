@@ -5,9 +5,8 @@
 // 复盘发布时把 ActionItem 推到外部工单系统建改进任务，回写 tracker_url。
 //
 // 设计取舍（scope 已核实）：
-//   - 完整 Jira/禅道 SDK 体量大，本轮先实现**通用 webhook 工单**（POST 可配 URL，
-//     payload 含 ActionItem），Jira/禅道预留适配器接口（returns ErrAdapterNotImplemented），
-//     后续按需接入而不改建单触发链路。
+//   - 只做**通用 webhook 工单**（POST 可配 URL，payload 含 ActionItem）；
+//     Jira/禅道 等具体 SDK 明确不做（ADR-0037），需要时经 webhook 网关对接。
 //   - 建单**best-effort**：工单系统不可达/失败不阻断复盘发布，仅记日志（复用出站 webhook 的
 //     降级契约）。回写 tracker_url 成功才算建单闭环，失败留待人工/重试。
 //   - 凭据经 ent Sensitive 存储、不明文回显（见 ent/schema/ticket_integration.go）。
@@ -26,10 +25,6 @@ import (
 	"syscall"
 	"time"
 )
-
-// ErrAdapterNotImplemented 该工单类型的适配器尚未实现（Jira/禅道预留）。
-// 建单链路据此降级：不阻断复盘发布，仅记日志，不回写 tracker_url。
-var ErrAdapterNotImplemented = errors.New("ticket adapter not implemented for this type")
 
 // ErrTicketBlocked endpoint 未通过 SSRF/URL 校验（建单目标被拦）。
 var ErrTicketBlocked = errors.New("ticket endpoint blocked")
@@ -157,24 +152,6 @@ func (a *WebhookAdapter) CreateTicket(ctx context.Context, cfg AdapterConfig, re
 	_ = json.NewDecoder(resp.Body).Decode(&wr)
 	return &TicketResult{TrackerURL: strings.TrimSpace(wr.TrackerURL), ExternalID: wr.ExternalID}, nil
 }
-
-// notImplementedAdapter Jira/禅道预留适配器：接口占位，建单返回 ErrAdapterNotImplemented。
-//
-// 后续实现完整 Jira/禅道 REST 建单时，替换本适配器为真实实现即可，
-// Engine 装配与建单触发链路不变。
-type notImplementedAdapter struct{ typ string }
-
-func (a *notImplementedAdapter) Type() string { return a.typ }
-
-func (a *notImplementedAdapter) CreateTicket(_ context.Context, _ AdapterConfig, _ TicketRequest) (*TicketResult, error) {
-	return nil, fmt.Errorf("%w: %s", ErrAdapterNotImplemented, a.typ)
-}
-
-// NewJiraAdapter 返回 Jira 适配器占位（预留接口，当前未实现建单）。
-func NewJiraAdapter() Adapter { return &notImplementedAdapter{typ: "jira"} }
-
-// NewZentaoAdapter 返回禅道适配器占位（预留接口，当前未实现建单）。
-func NewZentaoAdapter() Adapter { return &notImplementedAdapter{typ: "zentao"} }
 
 // validateTicketEndpoint 静态校验建单 URL（scheme/host），IP 校验交给 dialer（防 rebinding）。
 func validateTicketEndpoint(endpoint string) error {

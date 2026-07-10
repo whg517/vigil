@@ -24,11 +24,10 @@ type TicketIntegration struct {
 func (TicketIntegration) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name").NotEmpty(),
-		// type 决定用哪个适配器建单。
-		//   - webhook：通用 webhook 工单（POST 可配 URL，payload 含 ActionItem）——本轮实现。
-		//   - jira / zentao：预留适配器接口，当前未实现建单逻辑（走 webhook 兜底或不建单）。
-		field.Enum("type").Values("webhook", "jira", "zentao").Default("webhook"),
-		// endpoint 目标系统建单 URL（webhook 工单必填；Jira/禅道为其 REST base URL，预留）。
+		// type 决定用哪个适配器建单。只有通用 webhook 工单——具体厂商 SDK 明确不做（ADR-0037），
+		// 需要对接 Jira/禅道等系统时经用户侧 webhook 网关转换。
+		field.Enum("type").Values("webhook").Default("webhook"),
+		// endpoint 目标系统建单 URL。
 		field.String("endpoint").NotEmpty().Comment("建单目标 URL"),
 		// credential 凭据（API token / 密码等），Sensitive 加密存储、list/get 不回显。
 		// 复用 Integration.token 的 Sensitive 模式（见 service.go Integration）。

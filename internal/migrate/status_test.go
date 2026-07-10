@@ -53,8 +53,8 @@ func TestStatus_ListsAppliedCurrentPending(t *testing.T) {
 	}
 
 	// 已知版本应为 3 个，按 apply 顺序：pre_0001_pgvector, 0002_baseline, 0003_drop_war_room
-	if len(rep.Versions) != 3 {
-		t.Fatalf("want 3 known versions, got %d: %+v", len(rep.Versions), rep.Versions)
+	if len(rep.Versions) != 4 {
+		t.Fatalf("want 4 known versions, got %d: %+v", len(rep.Versions), rep.Versions)
 	}
 	if rep.Versions[0].Version != "pre_0001_pgvector" || rep.Versions[1].Version != "0002_baseline" {
 		t.Errorf("apply order wrong: %s, %s", rep.Versions[0].Version, rep.Versions[1].Version)
@@ -74,9 +74,9 @@ func TestStatus_ListsAppliedCurrentPending(t *testing.T) {
 	if rep.Current != "pre_0001_pgvector" {
 		t.Errorf("Current = %q, want pre_0001_pgvector", rep.Current)
 	}
-	// 待应用 = [0002_baseline, 0003_drop_war_room]
-	if len(rep.Pending) != 2 || rep.Pending[0] != "0002_baseline" {
-		t.Errorf("Pending = %v, want [0002_baseline 0003_drop_war_room]", rep.Pending)
+	// 待应用 = [0002_baseline, 0003_drop_war_room, 0004_trim_deferred_types]
+	if len(rep.Pending) != 3 || rep.Pending[0] != "0002_baseline" {
+		t.Errorf("Pending = %v, want [0002_baseline 0003_drop_war_room 0004_trim_deferred_types]", rep.Pending)
 	}
 }
 
@@ -90,7 +90,7 @@ func TestStatus_NoneApplied(t *testing.T) {
 	if rep.Current != "" {
 		t.Errorf("Current should be empty, got %q", rep.Current)
 	}
-	if len(rep.Pending) != 3 {
+	if len(rep.Pending) != 4 {
 		t.Errorf("all versions should be pending, got %d", len(rep.Pending))
 	}
 }

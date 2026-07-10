@@ -417,7 +417,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "platform": {
-                        "description": "dingtalk | feishu | wecom",
+                        "description": "dingtalk | feishu",
                         "type": "string"
                     }
                 },
@@ -3229,11 +3229,11 @@ const docTemplate = `{
                         "type": "boolean"
                     },
                     "impl": {
-                        "description": "适配器类型：real | noop（占位）",
+                        "description": "适配器类型：恒为 real（占位平台已随 ADR-0037 移除）",
                         "type": "string"
                     },
                     "platform": {
-                        "description": "feishu | dingtalk | wecom",
+                        "description": "feishu | dingtalk",
                         "type": "string"
                     }
                 },
@@ -3243,14 +3243,12 @@ const docTemplate = `{
                 "description": "Platform holds the value of the \"platform\" field.",
                 "enum": [
                     "feishu",
-                    "dingtalk",
-                    "wecom"
+                    "dingtalk"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
                     "PlatformFeishu",
-                    "PlatformDingtalk",
-                    "PlatformWecom"
+                    "PlatformDingtalk"
                 ]
             },
             "incident.Priority": {
@@ -3445,9 +3443,7 @@ const docTemplate = `{
                     "webhook",
                     "email",
                     "prometheus",
-                    "zabbix",
                     "grafana",
-                    "cloud",
                     "api"
                 ],
                 "type": "string",
@@ -3455,9 +3451,7 @@ const docTemplate = `{
                     "TypeWebhook",
                     "TypeEmail",
                     "TypePrometheus",
-                    "TypeZabbix",
                     "TypeGrafana",
-                    "TypeCloud",
                     "TypeAPI"
                 ]
             },
@@ -3532,7 +3526,7 @@ const docTemplate = `{
                         "type": "integer"
                     },
                     "type": {
-                        "description": "webhook|email|prometheus|zabbix|grafana|cloud|api",
+                        "description": "webhook|email|prometheus|grafana|api",
                         "type": "string"
                     }
                 },
@@ -3960,17 +3954,13 @@ const docTemplate = `{
                 "enum": [
                     "im",
                     "email",
-                    "webhook",
-                    "phone",
-                    "sms"
+                    "webhook"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
                     "ChannelIm",
                     "ChannelEmail",
-                    "ChannelWebhook",
-                    "ChannelPhone",
-                    "ChannelSms"
+                    "ChannelWebhook"
                 ]
             },
             "notificationtemplate.Format": {
@@ -4645,7 +4635,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "platform": {
-                        "description": "dingtalk | feishu | wecom",
+                        "description": "dingtalk | feishu",
                         "type": "string"
                     }
                 },
@@ -5114,7 +5104,7 @@ const docTemplate = `{
                         "type": "integer"
                     },
                     "type": {
-                        "description": "webhook|jira|zentao（默认 webhook）",
+                        "description": "webhook（唯一类型，默认）",
                         "type": "string"
                     }
                 },
@@ -5149,16 +5139,12 @@ const docTemplate = `{
             "ticketintegration.Type": {
                 "description": "Type holds the value of the \"type\" field.",
                 "enum": [
-                    "webhook",
-                    "jira",
-                    "zentao"
+                    "webhook"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
                     "DefaultType",
-                    "TypeWebhook",
-                    "TypeJira",
-                    "TypeZentao"
+                    "TypeWebhook"
                 ]
             },
             "time.Duration": {
@@ -7741,18 +7727,17 @@ const docTemplate = `{
         },
         "/im/{platform}/callback": {
             "post": {
-                "description": "各平台（feishu/dingtalk/wecom）回调入口：签名校验 → 解析为标准事件 → 派发卡片/命令/@ 处理。公开入口，平台签名鉴权，不走 RBAC。",
+                "description": "各平台（feishu/dingtalk）回调入口：签名校验 → 解析为标准事件 → 派发卡片/命令/@ 处理。公开入口，平台签名鉴权，不走 RBAC。",
                 "parameters": [
                     {
-                        "description": "IM 平台（feishu/dingtalk/wecom）",
+                        "description": "IM 平台（feishu/dingtalk）",
                         "in": "path",
                         "name": "platform",
                         "required": true,
                         "schema": {
                             "enum": [
                                 "feishu",
-                                "dingtalk",
-                                "wecom"
+                                "dingtalk"
                             ],
                             "type": "string"
                         }
@@ -9337,7 +9322,7 @@ const docTemplate = `{
             "get": {
                 "parameters": [
                     {
-                        "description": "接入点类型（webhook|email|prometheus|zabbix|grafana|cloud|api），空/all=全部",
+                        "description": "接入点类型（webhook|email|prometheus|grafana|api），空/all=全部",
                         "in": "query",
                         "name": "type",
                         "schema": {
@@ -14375,7 +14360,7 @@ const docTemplate = `{
         },
         "/users/{id}/im-accounts/{platform}": {
             "delete": {
-                "description": "解除用户在指定 IM 平台（feishu/dingtalk/wecom）的账号绑定。本人或有 user.im.bind 权限者可操作。",
+                "description": "解除用户在指定 IM 平台（feishu/dingtalk）的账号绑定。本人或有 user.im.bind 权限者可操作。",
                 "parameters": [
                     {
                         "description": "用户 ID",
@@ -14394,8 +14379,7 @@ const docTemplate = `{
                         "schema": {
                             "enum": [
                                 "feishu",
-                                "dingtalk",
-                                "wecom"
+                                "dingtalk"
                             ],
                             "type": "string"
                         }

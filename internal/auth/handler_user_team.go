@@ -555,7 +555,7 @@ func (h *UserHandler) collectHandover(ctx context.Context, u *ent.User) (handove
 
 // bindIMAccountReq 绑定 IM 账号请求。
 type bindIMAccountReq struct {
-	Platform  string `json:"platform"`   // dingtalk | feishu | wecom
+	Platform  string `json:"platform"`   // dingtalk | feishu
 	AccountID string `json:"account_id"` // IM 平台 unionId
 }
 
@@ -640,11 +640,11 @@ func (h *UserHandler) listIMAccounts(c *echo.Context) error {
 // 本人无法自助解绑；故在 handler 内做「本人 OR 有权限」的复合判定。
 //
 // @Summary      解绑 IM 账号
-// @Description  解除用户在指定 IM 平台（feishu/dingtalk/wecom）的账号绑定。本人或有 user.im.bind 权限者可操作。
+// @Description  解除用户在指定 IM 平台（feishu/dingtalk）的账号绑定。本人或有 user.im.bind 权限者可操作。
 // @Tags         user
 // @Produce      json
 // @Param        id        path      int     true  "用户 ID"
-// @Param        platform  path      string  true  "IM 平台"  Enums(feishu, dingtalk, wecom)
+// @Param        platform  path      string  true  "IM 平台"  Enums(feishu, dingtalk)
 // @Success      204
 // @Failure      400  {object}  httputil.ErrorResponse
 // @Failure      403  {object}  httputil.ErrorResponse

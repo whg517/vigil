@@ -59,8 +59,8 @@ func TestConfigTemplate_All(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	// 应覆盖 schema 枚举全集（7 种）。
-	if len(resp.Templates) != 7 {
-		t.Errorf("expected 7 templates (schema enum full set), got %d", len(resp.Templates))
+	if len(resp.Templates) != 5 {
+		t.Errorf("expected 5 templates (schema enum full set), got %d", len(resp.Templates))
 	}
 }
 

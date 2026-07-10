@@ -6,9 +6,8 @@
 //   - Mapper：im_unionid → User 映射（§6，IM 操作走与 Web 相同的鉴权链路）
 //   - Handler：IM Webhook 回调 → 账号映射 → RBAC → incident.Service 动作 → 刷新卡片
 //
-// 平台支持矩阵（§2 + §10）：
-//   - feishu：真实适配器（卡片更新✅ 建群✅ @人✅）
-//   - dingtalk / wecom：占位 NoopBot，留待 PoC
+// 平台支持矩阵（ADR-0019/ADR-0037）：feishu、dingtalk 均为真实适配器
+// （卡片下发/更新 + @人 + 回调），不再有占位平台。
 package im
 
 import (
@@ -16,10 +15,9 @@ import (
 	"errors"
 )
 
-// IMBot IM 平台适配器接口。各平台（飞书/钉钉/企微）实现此接口。
-// 对应 capabilities/05-im-chatops.md §9。
+// IMBot IM 平台适配器接口。各平台（飞书/钉钉）实现此接口。
 type IMBot interface {
-	// Platform 平台标识：feishu | dingtalk | wecom
+	// Platform 平台标识：feishu | dingtalk
 	Platform() string
 
 	// Available 该适配器是否可用（凭证已配置、客户端就绪）。
@@ -53,7 +51,7 @@ const (
 // IMEvent 标准化回调事件（平台无关）。
 type IMEvent struct {
 	Type      IMEventType
-	Platform  string // feishu | dingtalk | wecom
+	Platform  string // feishu | dingtalk
 	UnionID   string // 操作者的 IM 平台唯一标识，用于映射 User
 	ChannelID string // 事件来源频道/群/会话 ID
 	// CardAction 专用：用户点击的按钮 action（如 ack/escalate/resolve）+ 关联 incident

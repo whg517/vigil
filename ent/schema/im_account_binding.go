@@ -23,8 +23,8 @@ type IMAccountBinding struct {
 
 func (IMAccountBinding) Fields() []ent.Field {
 	return []ent.Field{
-		// platform IM 平台标识：feishu | dingtalk | wecom
-		field.Enum("platform").Values("feishu", "dingtalk", "wecom"),
+		// platform IM 平台标识：feishu | dingtalk
+		field.Enum("platform").Values("feishu", "dingtalk"),
 		// account_id IM 平台返回的稳定账号标识（飞书 open_id / 钉钉 unionId / 企微 userid）
 		field.String("account_id").NotEmpty().Comment("IM 平台账号标识（open_id/unionId/userid）"),
 		field.Time("created_at").Default(time.Now).Immutable(),

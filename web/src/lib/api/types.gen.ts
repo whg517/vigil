@@ -2109,15 +2109,15 @@ export interface paths {
         put?: never;
         /**
          * IM 平台回调
-         * @description 各平台（feishu/dingtalk/wecom）回调入口：签名校验 → 解析为标准事件 → 派发卡片/命令/@ 处理。公开入口，平台签名鉴权，不走 RBAC。
+         * @description 各平台（feishu/dingtalk）回调入口：签名校验 → 解析为标准事件 → 派发卡片/命令/@ 处理。公开入口，平台签名鉴权，不走 RBAC。
          */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    /** @description IM 平台（feishu/dingtalk/wecom） */
-                    platform: "feishu" | "dingtalk" | "wecom";
+                    /** @description IM 平台（feishu/dingtalk） */
+                    platform: "feishu" | "dingtalk";
                 };
                 cookie?: never;
             };
@@ -3601,7 +3601,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description 接入点类型（webhook|email|prometheus|zabbix|grafana|cloud|api），空/all=全部 */
+                    /** @description 接入点类型（webhook|email|prometheus|grafana|api），空/all=全部 */
                     type?: string;
                 };
                 header?: never;
@@ -8017,7 +8017,7 @@ export interface paths {
         post?: never;
         /**
          * 解绑 IM 账号
-         * @description 解除用户在指定 IM 平台（feishu/dingtalk/wecom）的账号绑定。本人或有 user.im.bind 权限者可操作。
+         * @description 解除用户在指定 IM 平台（feishu/dingtalk）的账号绑定。本人或有 user.im.bind 权限者可操作。
          */
         delete: {
             parameters: {
@@ -8027,7 +8027,7 @@ export interface paths {
                     /** @description 用户 ID */
                     id: number;
                     /** @description IM 平台 */
-                    platform: "feishu" | "dingtalk" | "wecom";
+                    platform: "feishu" | "dingtalk";
                 };
                 cookie?: never;
             };
@@ -8814,7 +8814,7 @@ export interface components {
         "auth.bindIMAccountReq": {
             /** @description IM 平台 unionId */
             account_id?: string;
-            /** @description dingtalk | feishu | wecom */
+            /** @description dingtalk | feishu */
             platform?: string;
         };
         "auth.changePasswordReq": {
@@ -10074,16 +10074,16 @@ export interface components {
         "im.imPlatformStatus": {
             /** @description 凭证已配置且客户端就绪 */
             available?: boolean;
-            /** @description 适配器类型：real | noop（占位） */
+            /** @description 适配器类型：恒为 real（占位平台已随 ADR-0037 移除） */
             impl?: string;
-            /** @description feishu | dingtalk | wecom */
+            /** @description feishu | dingtalk */
             platform?: string;
         };
         /**
          * @description Platform holds the value of the "platform" field.
          * @enum {string}
          */
-        "imaccountbinding.Platform": "feishu" | "dingtalk" | "wecom";
+        "imaccountbinding.Platform": "feishu" | "dingtalk";
         /**
          * @description Priority holds the value of the "priority" field.
          * @enum {string}
@@ -10144,7 +10144,7 @@ export interface components {
          * @description Type holds the value of the "type" field.
          * @enum {string}
          */
-        "integration.Type": "webhook" | "email" | "prometheus" | "zabbix" | "grafana" | "cloud" | "api";
+        "integration.Type": "webhook" | "email" | "prometheus" | "grafana" | "api";
         "integration.configField": {
             /** @description 示例值 */
             example?: string;
@@ -10177,7 +10177,7 @@ export interface components {
             name?: string;
             service_id?: number;
             team_id?: number;
-            /** @description webhook|email|prometheus|zabbix|grafana|cloud|api */
+            /** @description webhook|email|prometheus|grafana|api */
             type?: string;
         };
         "integration.createResp": {
@@ -10353,7 +10353,7 @@ export interface components {
          * @description Channel holds the value of the "channel" field.
          * @enum {string}
          */
-        "notificationtemplate.Channel": "im" | "email" | "webhook" | "phone" | "sms";
+        "notificationtemplate.Channel": "im" | "email" | "webhook";
         /**
          * @description Format holds the value of the "format" field.
          * @enum {string}
@@ -10613,7 +10613,7 @@ export interface components {
         "schema.IMAccount": {
             /** @description IM 平台的 unionId */
             account_id?: string;
-            /** @description dingtalk | feishu | wecom */
+            /** @description dingtalk | feishu */
             platform?: string;
         };
         /** @description 语义向量，published 复盘入库后计算，知识沉淀检索用 */
@@ -10830,7 +10830,7 @@ export interface components {
             name?: string;
             /** @description 归属团队，0=org 级 */
             team_id?: number;
-            /** @description webhook|jira|zentao（默认 webhook） */
+            /** @description webhook（唯一类型，默认） */
             type?: string;
         };
         "ticket.updateReq": {
@@ -10849,7 +10849,7 @@ export interface components {
          * @description Type holds the value of the "type" field.
          * @enum {string}
          */
-        "ticketintegration.Type": "webhook" | "jira" | "zentao";
+        "ticketintegration.Type": "webhook";
         /** @enum {integer} */
         "time.Duration": -9223372036854776000 | 9223372036854776000 | 1 | 1000 | 1000000 | 1000000000 | 60000000000 | 3600000000000;
         "timeline.addReq": {

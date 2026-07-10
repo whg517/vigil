@@ -36,7 +36,7 @@ type configTemplate struct {
 }
 
 // configTemplates 内置各类型的配置模板。
-// key 对应 ent Integration.type 枚举（webhook|email|prometheus|zabbix|grafana|cloud|api）。
+// key 对应 ent Integration.type 枚举（webhook|email|prometheus|grafana|api）。
 //
 // 说明性数据，随支持的接入源演进补充；这里覆盖当前 schema 枚举全集，避免向导拿到未知类型。
 var configTemplates = map[string]configTemplate{
@@ -60,16 +60,6 @@ var configTemplates = map[string]configTemplate{
 		},
 		SetupHint: "在 Grafana → Alerting → Contact points 新建 Webhook 类型，URL 指向 " +
 			"`https://<vigil-host>/api/v1/webhook/<token>`，方法 POST。",
-	},
-	"zabbix": {
-		Type:        "zabbix",
-		DisplayName: "Zabbix",
-		Description: "接收 Zabbix media type（webhook 脚本）推送的问题事件。",
-		Fields: []configField{
-			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
-		},
-		SetupHint: "在 Zabbix → Alerts → Media types 新建 Webhook，脚本内 POST 到 " +
-			"`https://<vigil-host>/api/v1/webhook/<token>`，payload 含 host/severity/trigger 等宏。",
 	},
 	"webhook": {
 		Type:        "webhook",
@@ -99,17 +89,6 @@ var configTemplates = map[string]configTemplate{
 		Fields:      []configField{},
 		SetupHint:   "邮件接入适配器为设计目标，当前请优先使用 webhook/prometheus 等类型。",
 	},
-	"cloud": {
-		Type:        "cloud",
-		DisplayName: "云监控",
-		Description: "接收云厂商监控（阿里云/腾讯云/AWS CloudWatch 等）的告警回调。",
-		Fields: []configField{
-			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
-		},
-		SetupHint: "在云厂商监控告警动作中配置 webhook/回调，URL 指向 " +
-			"`https://<vigil-host>/api/v1/webhook/<token>`。具体 payload 因厂商而异，" +
-			"可先用接入点干跑测试端点（POST /integrations/:id/test）核对归一化结果。",
-	},
 }
 
 // configTemplate 端点：返回给定类型的配置模板/接线指引（M14.6 向导后端辅助）。
@@ -120,7 +99,7 @@ var configTemplates = map[string]configTemplate{
 // @Summary      集成配置模板/接线指引
 // @Tags         integration
 // @Produce      json
-// @Param        type  query    string  false  "接入点类型（webhook|email|prometheus|zabbix|grafana|cloud|api），空/all=全部"
+// @Param        type  query    string  false  "接入点类型（webhook|email|prometheus|grafana|api），空/all=全部"
 // @Success      200  {object} configTemplate
 // @Failure      404  {object} httputil.ErrorResponse
 // @Security     bearerAuth
@@ -129,7 +108,7 @@ func (h *Handler) configTemplate(c *echo.Context) error {
 	t := c.QueryParam("type")
 	if t == "" || t == "all" {
 		// 返回全部模板（稳定顺序：按 schema 枚举顺序，便于向导展示与 diff）。
-		order := []string{"prometheus", "grafana", "zabbix", "webhook", "api", "cloud", "email"}
+		order := []string{"prometheus", "grafana", "webhook", "api", "email"}
 		out := make([]configTemplate, 0, len(order))
 		for _, k := range order {
 			if tpl, ok := configTemplates[k]; ok {

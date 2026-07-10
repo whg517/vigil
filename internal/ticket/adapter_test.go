@@ -84,15 +84,6 @@ func TestWebhookAdapter_InvalidEndpoint_Blocked(t *testing.T) {
 	}
 }
 
-// TestNotImplementedAdapters Jira/禅道适配器占位返回 ErrAdapterNotImplemented。
-func TestNotImplementedAdapters(t *testing.T) {
-	for _, a := range []Adapter{NewJiraAdapter(), NewZentaoAdapter()} {
-		if _, err := a.CreateTicket(context.Background(), AdapterConfig{Endpoint: "https://x"}, TicketRequest{}); err == nil {
-			t.Errorf("%s adapter should return not-implemented", a.Type())
-		}
-	}
-}
-
 // TestSSRF_BlocksPrivateInProduction 生产模式（allowPrivate=false）拦截私网/元数据地址。
 func TestSSRF_BlocksPrivateInProduction(t *testing.T) {
 	a := NewWebhookAdapter(false) // 生产：禁私网

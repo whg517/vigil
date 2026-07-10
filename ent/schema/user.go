@@ -46,7 +46,7 @@ func (User) Fields() []ent.Field {
 // IMAccount IM 平台账号绑定（User.im_accounts 元素）。
 // 一个 User 可绑多个 IM 平台账号，是 IM-first 的前提。
 type IMAccount struct {
-	Platform  string `json:"platform"`   // dingtalk | feishu | wecom
+	Platform  string `json:"platform"`   // dingtalk | feishu
 	AccountID string `json:"account_id"` // IM 平台的 unionId
 }
 

@@ -75,8 +75,8 @@ func TestResolveUser_MultiPlatform(t *testing.T) {
 		t.Errorf("dingtalk resolve failed: %v", err)
 	}
 	// 平台不匹配
-	if _, err := m.ResolveUser(ctx, "wecom", "dt_001"); !errors.Is(err, ErrNotBound) {
-		t.Errorf("wecom should be not bound, got %v", err)
+	if _, err := m.ResolveUser(ctx, "otherim", "dt_001"); !errors.Is(err, ErrNotBound) {
+		t.Errorf("otherim should be not bound, got %v", err)
 	}
 }
 
@@ -261,7 +261,7 @@ func TestUnbindAccount_NotBound(t *testing.T) {
 	ctx := context.Background()
 	u, _ := c.User.Create().SetUsername("nb").SetEmail("nb@x.com").Save(ctx)
 	m := NewMapper(c)
-	removed, err := m.UnbindAccount(ctx, u.ID, "wecom")
+	removed, err := m.UnbindAccount(ctx, u.ID, "otherim")
 	if err != nil {
 		t.Fatalf("unbind not-bound: %v", err)
 	}
