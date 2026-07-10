@@ -20,12 +20,11 @@ export type IncidentStatus = Schemas["incident.Status"];
 export type Priority = Schemas["incident.Priority"];
 
 export type Incident = Required<
-  Omit<Schemas["ent.Incident"], "edges" | "embedding" | "war_room">
+  Omit<Schemas["ent.Incident"], "edges" | "embedding">
 > & {
   summary?: string;
   merged_into?: string;
   trigger_source_event_id?: string;
-  war_room?: Record<string, unknown>;
   resolved_at?: string | null;
   closed_at?: string | null;
   // 边（按需 WithX 才出现）

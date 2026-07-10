@@ -1383,11 +1383,6 @@ const docTemplate = `{
                     "updated_at": {
                         "description": "UpdatedAt holds the value of the \"updated_at\" field.",
                         "type": "string"
-                    },
-                    "war_room": {
-                        "additionalProperties": {},
-                        "description": "作战室：im_platform/im_channel_id/created_at",
-                        "type": "object"
                     }
                 },
                 "type": "object"

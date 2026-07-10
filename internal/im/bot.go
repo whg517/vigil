@@ -32,9 +32,6 @@ type IMBot interface {
 	// UpdateCard 更新已下发卡片（平台能力依赖，部分平台不支持则降级为发新消息）。
 	UpdateCard(ctx context.Context, cardID string, card *Card) error
 
-	// CreateWarRoom 创建作战室临时群，返回群 ID。
-	CreateWarRoom(ctx context.Context, name string, members []string) (roomID string, err error)
-
 	// VerifyCallback 校验 IM 平台回调请求的签名/令牌（防伪造）。
 	// 返回解密后的原始 payload 与 nil 表示校验通过。
 	VerifyCallback(headers map[string]string, rawBody []byte) ([]byte, error)

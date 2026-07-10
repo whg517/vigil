@@ -225,18 +225,6 @@ func (_u *IncidentUpdate) ClearTriggerSourceEventID() *IncidentUpdate {
 	return _u
 }
 
-// SetWarRoom sets the "war_room" field.
-func (_u *IncidentUpdate) SetWarRoom(v map[string]interface{}) *IncidentUpdate {
-	_u.mutation.SetWarRoom(v)
-	return _u
-}
-
-// ClearWarRoom clears the value of the "war_room" field.
-func (_u *IncidentUpdate) ClearWarRoom() *IncidentUpdate {
-	_u.mutation.ClearWarRoom()
-	return _u
-}
-
 // SetResolvedAt sets the "resolved_at" field.
 func (_u *IncidentUpdate) SetResolvedAt(v time.Time) *IncidentUpdate {
 	_u.mutation.SetResolvedAt(v)
@@ -800,12 +788,6 @@ func (_u *IncidentUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.TriggerSourceEventIDCleared() {
 		_spec.ClearField(incident.FieldTriggerSourceEventID, field.TypeString)
-	}
-	if value, ok := _u.mutation.WarRoom(); ok {
-		_spec.SetField(incident.FieldWarRoom, field.TypeJSON, value)
-	}
-	if _u.mutation.WarRoomCleared() {
-		_spec.ClearField(incident.FieldWarRoom, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.ResolvedAt(); ok {
 		_spec.SetField(incident.FieldResolvedAt, field.TypeTime, value)
@@ -1458,18 +1440,6 @@ func (_u *IncidentUpdateOne) ClearTriggerSourceEventID() *IncidentUpdateOne {
 	return _u
 }
 
-// SetWarRoom sets the "war_room" field.
-func (_u *IncidentUpdateOne) SetWarRoom(v map[string]interface{}) *IncidentUpdateOne {
-	_u.mutation.SetWarRoom(v)
-	return _u
-}
-
-// ClearWarRoom clears the value of the "war_room" field.
-func (_u *IncidentUpdateOne) ClearWarRoom() *IncidentUpdateOne {
-	_u.mutation.ClearWarRoom()
-	return _u
-}
-
 // SetResolvedAt sets the "resolved_at" field.
 func (_u *IncidentUpdateOne) SetResolvedAt(v time.Time) *IncidentUpdateOne {
 	_u.mutation.SetResolvedAt(v)
@@ -2063,12 +2033,6 @@ func (_u *IncidentUpdateOne) sqlSave(ctx context.Context) (_node *Incident, err 
 	}
 	if _u.mutation.TriggerSourceEventIDCleared() {
 		_spec.ClearField(incident.FieldTriggerSourceEventID, field.TypeString)
-	}
-	if value, ok := _u.mutation.WarRoom(); ok {
-		_spec.SetField(incident.FieldWarRoom, field.TypeJSON, value)
-	}
-	if _u.mutation.WarRoomCleared() {
-		_spec.ClearField(incident.FieldWarRoom, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.ResolvedAt(); ok {
 		_spec.SetField(incident.FieldResolvedAt, field.TypeTime, value)

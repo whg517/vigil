@@ -161,12 +161,6 @@ func (_c *IncidentCreate) SetNillableTriggerSourceEventID(v *string) *IncidentCr
 	return _c
 }
 
-// SetWarRoom sets the "war_room" field.
-func (_c *IncidentCreate) SetWarRoom(v map[string]interface{}) *IncidentCreate {
-	_c.mutation.SetWarRoom(v)
-	return _c
-}
-
 // SetResolvedAt sets the "resolved_at" field.
 func (_c *IncidentCreate) SetResolvedAt(v time.Time) *IncidentCreate {
 	_c.mutation.SetResolvedAt(v)
@@ -640,10 +634,6 @@ func (_c *IncidentCreate) createSpec() (*Incident, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TriggerSourceEventID(); ok {
 		_spec.SetField(incident.FieldTriggerSourceEventID, field.TypeString, value)
 		_node.TriggerSourceEventID = value
-	}
-	if value, ok := _c.mutation.WarRoom(); ok {
-		_spec.SetField(incident.FieldWarRoom, field.TypeJSON, value)
-		_node.WarRoom = value
 	}
 	if value, ok := _c.mutation.ResolvedAt(); ok {
 		_spec.SetField(incident.FieldResolvedAt, field.TypeTime, value)

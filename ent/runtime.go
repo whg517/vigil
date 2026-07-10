@@ -191,15 +191,15 @@ func init() {
 	// incident.DefaultCurrentLevel holds the default value on creation for the current_level field.
 	incident.DefaultCurrentLevel = incidentDescCurrentLevel.Default.(int)
 	// incidentDescPostmortemSkipped is the schema descriptor for postmortem_skipped field.
-	incidentDescPostmortemSkipped := incidentFields[13].Descriptor()
+	incidentDescPostmortemSkipped := incidentFields[12].Descriptor()
 	// incident.DefaultPostmortemSkipped holds the default value on creation for the postmortem_skipped field.
 	incident.DefaultPostmortemSkipped = incidentDescPostmortemSkipped.Default.(bool)
 	// incidentDescCreatedAt is the schema descriptor for created_at field.
-	incidentDescCreatedAt := incidentFields[17].Descriptor()
+	incidentDescCreatedAt := incidentFields[16].Descriptor()
 	// incident.DefaultCreatedAt holds the default value on creation for the created_at field.
 	incident.DefaultCreatedAt = incidentDescCreatedAt.Default.(func() time.Time)
 	// incidentDescUpdatedAt is the schema descriptor for updated_at field.
-	incidentDescUpdatedAt := incidentFields[18].Descriptor()
+	incidentDescUpdatedAt := incidentFields[17].Descriptor()
 	// incident.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	incident.DefaultUpdatedAt = incidentDescUpdatedAt.Default.(func() time.Time)
 	// incident.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

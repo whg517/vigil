@@ -1,7 +1,7 @@
 // Package feishu 实现飞书（Lark）IM 平台的真实适配器。
 //
 // 飞书是本期唯一接入真实 API 的 IM 平台（capabilities §2 P0），
-// 因其卡片能力最全：交互卡片✅ 卡片更新✅ 建临时群✅ @人✅ 命令机器人✅。
+// 因其卡片能力最全：交互卡片✅ 卡片更新✅ @人✅ 命令机器人✅。
 //
 // 鉴权：tenant_access_token 模式（app_id + app_secret 换 token，2h 有效期，本地缓存）。
 // 回调签名校验：飞书事件订阅 v2 用 EncryptKey（AES）+ VerificationToken（明文校验）。
@@ -179,37 +179,6 @@ func (c *Client) PatchInteractiveCard(ctx context.Context, messageID string, car
 	}
 	path := fmt.Sprintf("/im/v1/messages/%s", messageID)
 	return c.do(ctx, http.MethodPatch, path, payload, nil)
-}
-
-// --- 建群 ---
-
-// createChatResponse 建群响应。
-type createChatResponse struct {
-	ChatID string `json:"chat_id"`
-}
-
-// CreateChat 创建群（作战室），返回 chat_id。
-// openAPI: /im/v1/chats
-func (c *Client) CreateChat(ctx context.Context, name string, ownerID string, memberIDs []string) (string, error) {
-	members := make([]map[string]string, 0, len(memberIDs))
-	for _, id := range memberIDs {
-		members = append(members, map[string]string{"id": id, "type": "open_id"})
-	}
-	payload := map[string]any{
-		"name":      name,
-		"chat_mode": "group",
-		"chat_type": "private", // 外部不可搜索加入
-		"members":   members,
-	}
-	if ownerID != "" {
-		payload["owner_id"] = ownerID
-		payload["owner_id_type"] = "open_id"
-	}
-	var resp createChatResponse
-	if err := c.do(ctx, http.MethodPost, "/im/v1/chats", payload, &resp); err != nil {
-		return "", err
-	}
-	return resp.ChatID, nil
 }
 
 // VerificationToken 暴露给 adapter 做回调校验。

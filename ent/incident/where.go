@@ -641,16 +641,6 @@ func TriggerSourceEventIDContainsFold(v string) predicate.Incident {
 	return predicate.Incident(sql.FieldContainsFold(FieldTriggerSourceEventID, v))
 }
 
-// WarRoomIsNil applies the IsNil predicate on the "war_room" field.
-func WarRoomIsNil() predicate.Incident {
-	return predicate.Incident(sql.FieldIsNull(FieldWarRoom))
-}
-
-// WarRoomNotNil applies the NotNil predicate on the "war_room" field.
-func WarRoomNotNil() predicate.Incident {
-	return predicate.Incident(sql.FieldNotNull(FieldWarRoom))
-}
-
 // ResolvedAtEQ applies the EQ predicate on the "resolved_at" field.
 func ResolvedAtEQ(v time.Time) predicate.Incident {
 	return predicate.Incident(sql.FieldEQ(FieldResolvedAt, v))

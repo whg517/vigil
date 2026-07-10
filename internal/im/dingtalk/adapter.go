@@ -119,14 +119,6 @@ func decodeCardID(cardID string) (channel, msgID string, ok bool) {
 	return cardID[:idx], cardID[idx+1:], true
 }
 
-// CreateWarRoom 创建作战室群。members 为钉钉 staffId 列表。
-func (a *Adapter) CreateWarRoom(ctx context.Context, name string, members []string) (string, error) {
-	if len(members) == 0 {
-		return "", fmt.Errorf("dingtalk: create warroom needs >=1 member")
-	}
-	return a.client.CreateChat(ctx, name, members)
-}
-
 // --- 回调校验 / 解析 ---
 
 // VerifyCallback 校验钉钉事件回调的签名 + 解密。

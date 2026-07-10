@@ -59,11 +59,6 @@ func (a *Adapter) UpdateCard(ctx context.Context, cardID string, card *im.Card) 
 	return a.client.PatchInteractiveCard(ctx, cardID, cardJSON)
 }
 
-// CreateWarRoom 创建作战室群。members 为飞书 open_id 列表。
-func (a *Adapter) CreateWarRoom(ctx context.Context, name string, members []string) (string, error) {
-	return a.client.CreateChat(ctx, name, "", members)
-}
-
 // --- 回调校验 / 解析 ---
 
 // VerifyCallback 校验飞书事件回调。

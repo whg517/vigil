@@ -2,7 +2,7 @@
 //
 // 钉钉与飞书并列能力域 8 P0（capabilities §2），是企业用户主战场。
 // 本包接入企业内部应用机器人，覆盖 IMBot 全部能力：
-// 交互卡片✅（ActionCard）单聊✅ 群聊✅ 建临时群✅ @人✅ 回调校验✅。
+// 交互卡片✅（ActionCard）单聊✅ 群聊✅ @人✅ 回调校验✅。
 // 卡片更新钉钉支持卡片数据更新（cardData update）；不支持场景降级为发新消息（§10 降级矩阵）。
 //
 // 鉴权：企业内部应用 access_token（appKey+appSecret 换 token，7200s 有效，本地缓存）。
@@ -32,7 +32,7 @@ import (
 const (
 	// oapiBase 钉钉旧版域名（gettoken 等走这里）。
 	oapiBase = "https://oapi.dingtalk.com"
-	// apiBase 钉钉新版域名（v1.0 业务 API：发消息/建群等走这里）。
+	// apiBase 钉钉新版域名（v1.0 业务 API：发消息等走这里）。
 	apiBase = "https://api.dingtalk.com"
 )
 
@@ -248,44 +248,4 @@ func (c *Client) SendGroupMessage(ctx context.Context, openConversationID, msgKe
 		return "", fmt.Errorf("dingtalk group send decode: %w", err)
 	}
 	return r.MessageID, nil
-}
-
-// --- 建群（作战室）---
-
-// createChatResponse 建群响应。
-type createChatResponse struct {
-	ChatID string `json:"chatId"`
-	// 新版 im API 返回 openConversationID
-	OpenConversationID string `json:"openConversationID"`
-	Result             int    `json:"result"`
-}
-
-// CreateChat 创建群（作战室），返回 openConversationID。
-// openAPI: POST /v1.0/im/orgGroups/create（企业内部应用建群）。
-// name 群名；memberUserIds 初始成员 staffId 列表。
-// 失败返回错误；chatId/openConversationID 至少返回其一。
-func (c *Client) CreateChat(ctx context.Context, name string, memberUserIds []string) (string, error) {
-	payload := map[string]any{
-		"title":       name,
-		"subType":     0, // 0=普通群
-		"ownerUser":   memberUserIds[0],
-		"memberUsers": memberUserIds,
-		"iconUrl":     "",
-	}
-	raw, err := c.doV1(ctx, http.MethodPost, "/v1.0/im/orgGroups/create", payload)
-	if err != nil {
-		return "", err
-	}
-	var r createChatResponse
-	if err := json.Unmarshal(raw, &r); err != nil {
-		return "", fmt.Errorf("dingtalk create chat decode: %w", err)
-	}
-	// 优先 openConversationID（发消息用），退而求其次 chatId
-	if r.OpenConversationID != "" {
-		return r.OpenConversationID, nil
-	}
-	if r.ChatID != "" {
-		return r.ChatID, nil
-	}
-	return "", fmt.Errorf("dingtalk create chat: empty id in response %s", string(raw))
 }

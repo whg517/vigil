@@ -37,8 +37,6 @@ func (Incident) Fields() []ent.Field {
 		// trigger 触发方式
 		field.Enum("trigger_type").Values("auto", "manual", "merged").Default("auto"),
 		field.String("trigger_source_event_id").Optional(),
-		// war_room 作战室信息
-		field.JSON("war_room", map[string]any{}).Optional().Comment("作战室：im_platform/im_channel_id/created_at"),
 		field.Time("resolved_at").Optional().Nillable(),
 		// postmortem_skipped 复盘闸门跳过标记（T4.1）。
 		// critical 事件 resolved 后须先完成复盘（发布）才能 close，否则停「待复盘」。

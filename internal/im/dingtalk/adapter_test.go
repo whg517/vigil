@@ -47,7 +47,6 @@ func TestRobotCodeDefault(t *testing.T) {
 // newMockServer 启动一个钉钉 mock 服务端：
 //   - /gettoken 返回 access_token
 //   - /v1.0/robot/oToMessages/batchSend、/v1.0/robot/groupMessages/send 返回发消息结果
-//   - /v1.0/im/orgGroups/create 返回建群结果
 //
 // 返回服务端实例（用于断言请求计数）与 (oapiBase, apiBase) 注入 Config。
 type mockServer struct {
@@ -55,7 +54,6 @@ type mockServer struct {
 	tokenHits   int32
 	otoHits     int32
 	groupHits   int32
-	createHits  int32
 	lastOTOBody map[string]any
 }
 
@@ -82,11 +80,6 @@ func newMockServer(t *testing.T) *mockServer {
 		atomic.AddInt32(&m.groupHits, 1)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"messageId":"msg_002"}`))
-	})
-	mux.HandleFunc("/v1.0/im/orgGroups/create", func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&m.createHits, 1)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"chatId":"cid_x","openConversationID":"ocid_x"}`))
 	})
 	m.Server = httptest.NewServer(mux)
 	t.Cleanup(m.Close)
@@ -183,28 +176,6 @@ func TestSendCard_ButtonActionURLEncoding(t *testing.T) {
 	if len(p.Btns) != 1 || !strings.Contains(p.Btns[0].ActionURL, "act=ack") ||
 		!strings.Contains(p.Btns[0].ActionURL, "inc=42") {
 		t.Errorf("按钮 actionURL 编码错误: %+v", p.Btns)
-	}
-}
-
-// TestCreateWarRoom 建群返回 openConversationID。
-func TestCreateWarRoom(t *testing.T) {
-	m := newMockServer(t)
-	a := adapterFromMock(m)
-	id, err := a.CreateWarRoom(context.Background(), "[Vigil] INC-0042", []string{"staff1", "staff2"})
-	if err != nil {
-		t.Fatalf("CreateWarRoom: %v", err)
-	}
-	if id != "ocid_x" {
-		t.Errorf("warroom id: got %q, want ocid_x", id)
-	}
-}
-
-// TestCreateWarRoom_NoMembers 空成员应报错。
-func TestCreateWarRoom_NoMembers(t *testing.T) {
-	a := New(Config{AppKey: "k", AppSecret: "s"})
-	_, err := a.CreateWarRoom(context.Background(), "x", nil)
-	if err == nil {
-		t.Error("空成员应报错")
 	}
 }
 

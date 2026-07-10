@@ -151,7 +151,7 @@ oncall 的灵魂——"没人理找下一个"。Incident 创建即 `asynq.Proces
 
 ### 5.6 IM 协同层(ChatOps)★ 差异化核心 → [ADR-0018](./adr/0018-im-same-rbac-as-web.md) · [ADR-0019](./adr/0019-imbot-pluggable-degradation.md)
 
-IM 双向通信 + 状态同步:IM 回调 → 映射 `im_accounts`→User → **走与 Web 完全相同的 RBAC 鉴权** → 调核心服务(复用 `internal/incident/service.go`)。交互卡片按权限渲染(无权按钮不显示),状态变化时原地更新卡片;平台能力参差走降级矩阵(飞书全 / 钉钉部分 / 企微 NoopBot 兜底不丢告警)。作战室:建群原语(`CreateWarRoom`)已实现,**live path 未接**——Incident 事件链暂不自动建群,`Incident.war_room` 无写入路径(推迟依据与重启前置见 [`backlog.md`](./backlog.md) §1.1)。
+IM 双向通信 + 状态同步:IM 回调 → 映射 `im_accounts`→User → **走与 Web 完全相同的 RBAC 鉴权** → 调核心服务(复用 `internal/incident/service.go`)。交互卡片按权限渲染(无权按钮不显示),状态变化时原地更新卡片;平台能力参差走降级矩阵(飞书全 / 钉钉部分 / 企微 NoopBot 兜底不丢告警)。作战室能力已整体移除,协同由「工作群 + 交互卡片 + 实时刷新」承载([ADR-0036](./adr/0036-remove-war-room.md))。
 
 ### 5.7 端到端:一条告警的生命周期
 

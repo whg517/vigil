@@ -3,7 +3,6 @@
 package ent
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -46,8 +45,6 @@ type Incident struct {
 	TriggerType incident.TriggerType `json:"trigger_type,omitempty"`
 	// TriggerSourceEventID holds the value of the "trigger_source_event_id" field.
 	TriggerSourceEventID string `json:"trigger_source_event_id,omitempty"`
-	// 作战室：im_platform/im_channel_id/created_at
-	WarRoom map[string]interface{} `json:"war_room,omitempty"`
 	// ResolvedAt holds the value of the "resolved_at" field.
 	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
 	// 复盘闸门：显式跳过复盘则可直接 close
@@ -215,8 +212,6 @@ func (*Incident) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case incident.FieldWarRoom:
-			values[i] = new([]byte)
 		case incident.FieldEmbedding:
 			values[i] = new(schema.NullableVector)
 		case incident.FieldPostmortemSkipped:
@@ -321,14 +316,6 @@ func (_m *Incident) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field trigger_source_event_id", values[i])
 			} else if value.Valid {
 				_m.TriggerSourceEventID = value.String
-			}
-		case incident.FieldWarRoom:
-			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field war_room", values[i])
-			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &_m.WarRoom); err != nil {
-					return fmt.Errorf("unmarshal field war_room: %w", err)
-				}
 			}
 		case incident.FieldResolvedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -526,9 +513,6 @@ func (_m *Incident) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("trigger_source_event_id=")
 	builder.WriteString(_m.TriggerSourceEventID)
-	builder.WriteString(", ")
-	builder.WriteString("war_room=")
-	builder.WriteString(fmt.Sprintf("%v", _m.WarRoom))
 	builder.WriteString(", ")
 	if v := _m.ResolvedAt; v != nil {
 		builder.WriteString("resolved_at=")

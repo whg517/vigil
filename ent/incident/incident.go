@@ -37,8 +37,6 @@ const (
 	FieldTriggerType = "trigger_type"
 	// FieldTriggerSourceEventID holds the string denoting the trigger_source_event_id field in the database.
 	FieldTriggerSourceEventID = "trigger_source_event_id"
-	// FieldWarRoom holds the string denoting the war_room field in the database.
-	FieldWarRoom = "war_room"
 	// FieldResolvedAt holds the string denoting the resolved_at field in the database.
 	FieldResolvedAt = "resolved_at"
 	// FieldPostmortemSkipped holds the string denoting the postmortem_skipped field in the database.
@@ -168,7 +166,6 @@ var Columns = []string{
 	FieldMergedInto,
 	FieldTriggerType,
 	FieldTriggerSourceEventID,
-	FieldWarRoom,
 	FieldResolvedAt,
 	FieldPostmortemSkipped,
 	FieldAckedAt,

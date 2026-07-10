@@ -10,27 +10,21 @@
 
 ## 一、🚧 暂不做(明确推迟)
 
-### 1.1 作战室(War Room)live path
-
-一键作战室(Incident 触发自动建群/拉人/升级联动入群)、作战室归档、IM 消息回写时间线。
-
-- **现状**:飞书/钉钉 `CreateWarRoom` 建群**原语已实现**(`internal/im/{feishu,dingtalk}/adapter.go`),但 **live path 未接**——Incident 事件链不调用它,`Incident.war_room` 字段无写入路径。
-- **推迟原因**:① 建群/邀人/升级联动/归档是跨 IM 平台与业务事件的整套编排,成本高;当前「工作群 + 交互卡片 + 实时刷新」已满足协同诉求;② 各平台建群/群成员/消息回写 API 能力参差,需先 PoC 定边界。
-- **重启前置**:IM 建群/群成员/消息回写 API PoC 完成;编排设计评审通过(建议先落 `docs/design/`);与复盘归档、时间线回写的联动方案确定。
-
-### 1.2 IaC / Terraform Provider
+### 1.1 IaC / Terraform Provider
 
 - **推迟原因**:完整 Provider(CRUD 映射 + state 协调 + import)体量大、需长期契约稳定;REST API + Web 已能全量管理资源,ROI 不足。
 - **替代**:REST API 脚本化 + 配置模板(config-template)批量接入。
 - **重启前置**:API 版本化契约稳定;资源 import/state 映射方案;IaC 需求规模验证。
 
-### 1.3 首次部署向导 / 企微完整 bot / Jira·禅道 SDK
+### 1.2 首次部署向导 / 企微完整 bot / Jira·禅道 SDK
 
 - **首次部署向导**:env + 种子超管 + 首登强制改密已够;分步 web 向导属 onboarding UX 大件,待产品评审。
 - **企微 bot**:`NoopBot` 占位,`Available()==false` 被通知链排除但**不静默丢告警**(走邮件/电话/短信兜底,见 [ADR-0019](./adr/0019-imbot-pluggable-degradation.md));重启前置:企微应用注册 + 卡片/群 API PoC。
 - **Jira/禅道 SDK**:通用 webhook 工单已覆盖主要场景;`internal/ticket/adapter.go` 留有 `NewJiraAdapter`/`NewZentaoAdapter` 占位,替换占位即接入;重启前置:目标实例可联调 + 认证/字段映射方案。
 
-### 1.4 AI 无监督自学习 / 回训
+### 1.3 AI 无监督自学习 / 回训
+
+> 注:作战室(War Room)原为本节 §1.1"暂不做"项,2026-07-10 起**整体移除**(含建群原语),见 [ADR-0036](./adr/0036-remove-war-room.md)。
 
 **明确不做**(非推迟),与 human-in-the-loop 基线冲突,裁决见 [ADR-0025](./adr/0025-no-auto-retrain.md)。
 

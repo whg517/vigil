@@ -9254,10 +9254,6 @@ export interface components {
             trigger_type?: components["schemas"]["incident.TriggerType"];
             /** @description UpdatedAt holds the value of the "updated_at" field. */
             updated_at?: string;
-            /** @description 作战室：im_platform/im_channel_id/created_at */
-            war_room?: {
-                [key: string]: unknown;
-            };
         };
         "ent.IncidentAction": {
             /** @description actor: kind + id */

@@ -7037,7 +7037,6 @@ type IncidentMutation struct {
 	merged_into              *string
 	trigger_type             *incident.TriggerType
 	trigger_source_event_id  *string
-	war_room                 *map[string]interface{}
 	resolved_at              *time.Time
 	postmortem_skipped       *bool
 	acked_at                 *time.Time
@@ -7650,55 +7649,6 @@ func (m *IncidentMutation) TriggerSourceEventIDCleared() bool {
 func (m *IncidentMutation) ResetTriggerSourceEventID() {
 	m.trigger_source_event_id = nil
 	delete(m.clearedFields, incident.FieldTriggerSourceEventID)
-}
-
-// SetWarRoom sets the "war_room" field.
-func (m *IncidentMutation) SetWarRoom(value map[string]interface{}) {
-	m.war_room = &value
-}
-
-// WarRoom returns the value of the "war_room" field in the mutation.
-func (m *IncidentMutation) WarRoom() (r map[string]interface{}, exists bool) {
-	v := m.war_room
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldWarRoom returns the old "war_room" field's value of the Incident entity.
-// If the Incident object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *IncidentMutation) OldWarRoom(ctx context.Context) (v map[string]interface{}, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldWarRoom is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldWarRoom requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldWarRoom: %w", err)
-	}
-	return oldValue.WarRoom, nil
-}
-
-// ClearWarRoom clears the value of the "war_room" field.
-func (m *IncidentMutation) ClearWarRoom() {
-	m.war_room = nil
-	m.clearedFields[incident.FieldWarRoom] = struct{}{}
-}
-
-// WarRoomCleared returns if the "war_room" field was cleared in this mutation.
-func (m *IncidentMutation) WarRoomCleared() bool {
-	_, ok := m.clearedFields[incident.FieldWarRoom]
-	return ok
-}
-
-// ResetWarRoom resets all changes to the "war_room" field.
-func (m *IncidentMutation) ResetWarRoom() {
-	m.war_room = nil
-	delete(m.clearedFields, incident.FieldWarRoom)
 }
 
 // SetResolvedAt sets the "resolved_at" field.
@@ -8558,7 +8508,7 @@ func (m *IncidentMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *IncidentMutation) Fields() []string {
-	fields := make([]string, 0, 19)
+	fields := make([]string, 0, 18)
 	if m.number != nil {
 		fields = append(fields, incident.FieldNumber)
 	}
@@ -8591,9 +8541,6 @@ func (m *IncidentMutation) Fields() []string {
 	}
 	if m.trigger_source_event_id != nil {
 		fields = append(fields, incident.FieldTriggerSourceEventID)
-	}
-	if m.war_room != nil {
-		fields = append(fields, incident.FieldWarRoom)
 	}
 	if m.resolved_at != nil {
 		fields = append(fields, incident.FieldResolvedAt)
@@ -8646,8 +8593,6 @@ func (m *IncidentMutation) Field(name string) (ent.Value, bool) {
 		return m.TriggerType()
 	case incident.FieldTriggerSourceEventID:
 		return m.TriggerSourceEventID()
-	case incident.FieldWarRoom:
-		return m.WarRoom()
 	case incident.FieldResolvedAt:
 		return m.ResolvedAt()
 	case incident.FieldPostmortemSkipped:
@@ -8693,8 +8638,6 @@ func (m *IncidentMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldTriggerType(ctx)
 	case incident.FieldTriggerSourceEventID:
 		return m.OldTriggerSourceEventID(ctx)
-	case incident.FieldWarRoom:
-		return m.OldWarRoom(ctx)
 	case incident.FieldResolvedAt:
 		return m.OldResolvedAt(ctx)
 	case incident.FieldPostmortemSkipped:
@@ -8794,13 +8737,6 @@ func (m *IncidentMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetTriggerSourceEventID(v)
-		return nil
-	case incident.FieldWarRoom:
-		v, ok := value.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetWarRoom(v)
 		return nil
 	case incident.FieldResolvedAt:
 		v, ok := value.(time.Time)
@@ -8917,9 +8853,6 @@ func (m *IncidentMutation) ClearedFields() []string {
 	if m.FieldCleared(incident.FieldTriggerSourceEventID) {
 		fields = append(fields, incident.FieldTriggerSourceEventID)
 	}
-	if m.FieldCleared(incident.FieldWarRoom) {
-		fields = append(fields, incident.FieldWarRoom)
-	}
 	if m.FieldCleared(incident.FieldResolvedAt) {
 		fields = append(fields, incident.FieldResolvedAt)
 	}
@@ -8954,9 +8887,6 @@ func (m *IncidentMutation) ClearField(name string) error {
 		return nil
 	case incident.FieldTriggerSourceEventID:
 		m.ClearTriggerSourceEventID()
-		return nil
-	case incident.FieldWarRoom:
-		m.ClearWarRoom()
 		return nil
 	case incident.FieldResolvedAt:
 		m.ClearResolvedAt()
@@ -9010,9 +8940,6 @@ func (m *IncidentMutation) ResetField(name string) error {
 		return nil
 	case incident.FieldTriggerSourceEventID:
 		m.ResetTriggerSourceEventID()
-		return nil
-	case incident.FieldWarRoom:
-		m.ResetWarRoom()
 		return nil
 	case incident.FieldResolvedAt:
 		m.ResetResolvedAt()

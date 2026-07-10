@@ -345,7 +345,6 @@ var (
 		{Name: "merged_into", Type: field.TypeString, Nullable: true},
 		{Name: "trigger_type", Type: field.TypeEnum, Enums: []string{"auto", "manual", "merged"}, Default: "auto"},
 		{Name: "trigger_source_event_id", Type: field.TypeString, Nullable: true},
-		{Name: "war_room", Type: field.TypeJSON, Nullable: true},
 		{Name: "resolved_at", Type: field.TypeTime, Nullable: true},
 		{Name: "postmortem_skipped", Type: field.TypeBool, Default: false},
 		{Name: "acked_at", Type: field.TypeTime, Nullable: true},
@@ -366,25 +365,25 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "incidents_escalation_policies_incidents",
-				Columns:    []*schema.Column{IncidentsColumns[20]},
+				Columns:    []*schema.Column{IncidentsColumns[19]},
 				RefColumns: []*schema.Column{EscalationPoliciesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "incidents_users_assignee",
-				Columns:    []*schema.Column{IncidentsColumns[21]},
+				Columns:    []*schema.Column{IncidentsColumns[20]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "incidents_services_incidents",
-				Columns:    []*schema.Column{IncidentsColumns[22]},
+				Columns:    []*schema.Column{IncidentsColumns[21]},
 				RefColumns: []*schema.Column{ServicesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "incidents_teams_incidents",
-				Columns:    []*schema.Column{IncidentsColumns[23]},
+				Columns:    []*schema.Column{IncidentsColumns[22]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -398,17 +397,17 @@ var (
 			{
 				Name:    "incident_team_incidents",
 				Unique:  false,
-				Columns: []*schema.Column{IncidentsColumns[23]},
+				Columns: []*schema.Column{IncidentsColumns[22]},
 			},
 			{
 				Name:    "incident_service_incidents",
 				Unique:  false,
-				Columns: []*schema.Column{IncidentsColumns[22]},
+				Columns: []*schema.Column{IncidentsColumns[21]},
 			},
 			{
 				Name:    "incident_resolved_at",
 				Unique:  false,
-				Columns: []*schema.Column{IncidentsColumns[13]},
+				Columns: []*schema.Column{IncidentsColumns[12]},
 			},
 		},
 	}

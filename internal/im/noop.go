@@ -31,9 +31,6 @@ func (b *NoopBot) SendCard(_ context.Context, _ string, _ *Card) (string, error)
 func (b *NoopBot) UpdateCard(_ context.Context, _ string, _ *Card) error {
 	return ErrUnsupported
 }
-func (b *NoopBot) CreateWarRoom(_ context.Context, _ string, _ []string) (string, error) {
-	return "", ErrUnsupported
-}
 func (b *NoopBot) VerifyCallback(_ map[string]string, _ []byte) ([]byte, error) {
 	return nil, ErrUnsupported
 }

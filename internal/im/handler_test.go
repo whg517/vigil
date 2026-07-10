@@ -54,9 +54,6 @@ func (b *stubBot) UpdateCard(_ context.Context, _ string, c *Card) error {
 	b.updated = append(b.updated, c)
 	return nil
 }
-func (b *stubBot) CreateWarRoom(_ context.Context, _ string, _ []string) (string, error) {
-	return "room_x", nil
-}
 func (b *stubBot) VerifyCallback(_ map[string]string, body []byte) ([]byte, error) { return body, nil }
 func (b *stubBot) ParseCallback(payload []byte) (*IMEvent, error) {
 	var e IMEvent

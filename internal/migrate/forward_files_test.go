@@ -25,7 +25,7 @@ func TestForwardMigrationFiles_ExcludesDownScripts(t *testing.T) {
 	}
 
 	// up 脚本必须在正向列表里
-	for _, want := range []string{"pre_0001_pgvector.sql", "0002_baseline.sql"} {
+	for _, want := range []string{"pre_0001_pgvector.sql", "0002_baseline.sql", "0003_drop_war_room.sql"} {
 		if !has(want) {
 			t.Errorf("forward migration files 缺少 up 脚本 %q：%v", want, files)
 		}
