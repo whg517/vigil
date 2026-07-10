@@ -89,6 +89,23 @@ export function useIncidentAction(id: number) {
 }
 
 /**
+ * useAddTimelineNote 手动追加时间线备注（处置过程中的人工记录：联系了谁、试了什么）。
+ * 成功后刷新时间线；toast 文案由调用方（页面）以 i18n 提示。
+ */
+export function useAddTimelineNote(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (content: string) => api.addTimelineNote(id, content),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.timeline(id) });
+    },
+    onError: () => {
+      // 错误提示由 http 拦截器统一处理（toast）
+    },
+  });
+}
+
+/**
  * useMergeIncident 把源事件合并进本单（能力域 3 去重合并，不可逆）。
  * 成功后：源单被关闭、本单吸并 events/responders；刷新详情/时间线/列表。
  */

@@ -43,8 +43,7 @@ vigil/
 │   ├── adr/              # ★ 架构决策记录（一决策一文件，README.md 为索引）
 │   ├── design/           # 功能设计（docs-driven 落笔处，一特性一文件）
 │   ├── backlog.md        # 待办单一信源（暂不做/待规划）
-│   ├── operations.md     # 运维手册（部署/升级/备份/排查）
-│   └── known-issues.md   # 已知未修缺陷与限制
+│   └── operations.md     # 运维手册（部署/升级/备份/排查）
 └── AGENTS.md             # 本文件（协作指南 + 开发流程/命令）
 ```
 
@@ -164,7 +163,6 @@ go build ./... && pnpm --dir web build
 | 新功能设计写在哪 | [`docs/design/`](./docs/design/)（含模板与流程） |
 | 还剩什么没做 / 什么暂不做 | [`docs/backlog.md`](./docs/backlog.md) |
 | 怎么部署/升级/备份/排障 | [`docs/operations.md`](./docs/operations.md) |
-| 已知未修缺陷与限制 | [`docs/known-issues.md`](./docs/known-issues.md) |
 | 实体/字段/关系 | `ent/schema/` + [ADR-0010](./docs/adr/0010-event-incident-separation.md) |
 | UI/UX 设计 | [ADR-0034](./docs/adr/0034-uiux-oncall-principles.md) |
 | 怎么开发/提交 | 本文件「开发约定」+ [ADR-0035](./docs/adr/0035-dev-workflow-gates.md) |
@@ -175,7 +173,7 @@ go build ./... && pnpm --dir web build
 
 ## 当前状态
 
-- ✅ 架构文档收敛为 architecture 主文档 + 35 份 ADR（活文档：backlog / design / operations / known-issues）
+- ✅ 架构文档收敛为 architecture 主文档 + 36 份 ADR（活文档：backlog / design / operations）
 - ✅ 全栈实现深入中：`internal/` 35 个业务模块、ent 25 实体、前端 19 页面(全站 i18n)
 - ⏳ 服务自动供给/治理(方案C)、AI Copilot、复盘等持续演进
 

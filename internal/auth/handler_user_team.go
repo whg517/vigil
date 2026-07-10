@@ -317,6 +317,12 @@ func (h *UserHandler) updateUser(c *echo.Context) error {
 	}
 	if req.Status != nil {
 		u.SetStatus(user.Status(*req.Status))
+		// 禁用即吊销：active→disabled 时自增令牌版本（复用 T0.4 改密吊销机制），
+		// 使该用户所有已签发的 access JWT 立即失效。否则 refresh/API Key 虽即时
+		// 失效（各自查 status），短时效 access token 仍可用到过期——禁用必须是全量下线。
+		if user.Status(*req.Status) == user.StatusDisabled && prevStatus != user.StatusDisabled {
+			u.AddTokenVersion(1)
+		}
 	}
 	if req.Timezone != nil {
 		u.SetTimezone(*req.Timezone)

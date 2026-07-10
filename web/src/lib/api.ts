@@ -115,6 +115,13 @@ export const api = {
       .then((r) => r.data);
   },
 
+  // addTimelineNote 手动追加 note_added 备注（actor 由服务端从登录态回填，防冒充）。
+  addTimelineNote(incidentId: number, content: string) {
+    return http
+      .post(`/incidents/${incidentId}/timeline`, { content })
+      .then((r) => r.data);
+  },
+
   // —— AI 诊断（能力域 11）——
   // diagnoseIncident 触发根因诊断。后端未启用 LLM 时返回 200 + {status:"disabled"}，
   // 否则返回 201 + DiagnoseResult。两种形态以联合类型表达，由调用方按 status 字段区分。

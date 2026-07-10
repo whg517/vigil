@@ -100,7 +100,9 @@ var builtinRoles = []struct {
 			"incident.runbook.execute", "incident.merge",
 			"event.view",
 			"runbook.view", "runbook.execute",
+			// actionitem.manage：lead 能发布复盘就必须能闭环其中的改进项（权责对齐，known-issue #3）
 			"postmortem.view", "postmortem.create", "postmortem.update", "postmortem.publish",
+			"postmortem.actionitem.manage",
 			"schedule.view",
 			"service.view",
 			// AI 建议采纳/拒绝（处置级）
@@ -127,17 +129,23 @@ var builtinRoles = []struct {
 			"incident.view", "incident.ack", "incident.escalate", "incident.resolve",
 			"event.view",
 			"runbook.view", "runbook.execute",
+			// postmortem.view：值班处置时需参考历史复盘（known-issue #2：列表可见详情 403 的体验断裂）
+			"postmortem.view",
 			"schedule.view", "schedule.override",
 		},
 	},
 }
 
-// SeedBuiltinRoles 写入内置角色（幂等）。
+// SeedBuiltinRoles 写入并同步内置角色（幂等，create-or-sync）。
 // 在服务启动时调用，保证鉴权生效后有可用角色。
 //
-// 幂等策略：依赖 Role.name 唯一约束（schema 已加）。
-// 直接 Create，遇到 ConstraintError（name 冲突）视为「已存在」跳过，
-// 避免旧的「Count 判重 → Create」两步操作在多实例并发启动时产生竞态。
+// 同步语义：内置角色「可复制不可改」（handler 拒绝编辑 builtin），其权限集的
+// 唯一权威定义就是上方 builtinRoles——若只 create-not-update，代码里给内置角色
+// 增删权限点对存量库永不生效（升级后新老安装行为分叉）。故已存在时强制把
+// 描述/scope/权限集对齐到代码定义。
+//
+// 并发安全：先 Create、遇 ConstraintError（name 唯一约束冲突）转为 Update，
+// 避免「查再建」两步在多实例并发启动时的竞态。
 func SeedBuiltinRoles(ctx context.Context, db *ent.Client) error {
 	for _, br := range builtinRoles {
 		_, err := db.Role.Create().
@@ -147,11 +155,19 @@ func SeedBuiltinRoles(ctx context.Context, db *ent.Client) error {
 			SetScopeLevel(br.Scope).
 			SetPermissions(br.Permissions).
 			Save(ctx)
-		if err != nil {
-			// 唯一约束冲突 = 已存在（并发或重复启动），幂等跳过
-			if ent.IsConstraintError(err) {
-				continue
-			}
+		if err == nil {
+			continue
+		}
+		if !ent.IsConstraintError(err) {
+			return err
+		}
+		// 已存在 → 同步到代码定义（只动 builtin=true 的同名角色，不碰用户自建角色）
+		if _, err := db.Role.Update().
+			Where(role.NameEQ(br.Name), role.BuiltinEQ(true)).
+			SetDescription(br.Description).
+			SetScopeLevel(br.Scope).
+			SetPermissions(br.Permissions).
+			Save(ctx); err != nil {
 			return err
 		}
 	}

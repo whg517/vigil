@@ -166,3 +166,53 @@ func TestSeed_ScopeLevel(t *testing.T) {
 		t.Error("responder should be team scope")
 	}
 }
+
+// TestSeedBuiltinRoles_SyncsExistingPermissions 已存在的内置角色须被同步到代码定义
+// （create-or-sync 语义）：否则给内置角色增删权限点对存量库永不生效（known-issue #2/#3）。
+func TestSeedBuiltinRoles_SyncsExistingPermissions(t *testing.T) {
+	c := newSeedTestClient(t)
+	ctx := context.Background()
+
+	// 模拟存量库：oncall 已存在但缺 postmortem.view（旧版本权限集）
+	if _, err := c.Role.Create().
+		SetName("oncall").SetDescription("旧描述").SetBuiltin(true).
+		SetScopeLevel(role.ScopeLevelTeam).
+		SetPermissions([]string{"incident.view", "incident.ack"}).
+		Save(ctx); err != nil {
+		t.Fatalf("seed stale oncall: %v", err)
+	}
+
+	if err := SeedBuiltinRoles(ctx, c); err != nil {
+		t.Fatalf("SeedBuiltinRoles: %v", err)
+	}
+
+	rl, err := c.Role.Query().Where(role.NameEQ("oncall")).Only(ctx)
+	if err != nil {
+		t.Fatalf("query oncall: %v", err)
+	}
+	has := func(perm string) bool {
+		for _, p := range rl.Permissions {
+			if p == perm {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("postmortem.view") {
+		t.Errorf("oncall should be synced to include postmortem.view, got %v", rl.Permissions)
+	}
+	// responder_lead 是新建路径，也应含 actionitem.manage
+	lead, err := c.Role.Query().Where(role.NameEQ("responder_lead")).Only(ctx)
+	if err != nil {
+		t.Fatalf("query responder_lead: %v", err)
+	}
+	found := false
+	for _, p := range lead.Permissions {
+		if p == "postmortem.actionitem.manage" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("responder_lead should include postmortem.actionitem.manage, got %v", lead.Permissions)
+	}
+}

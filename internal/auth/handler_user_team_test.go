@@ -390,3 +390,42 @@ func seedUserWithOrgPerm(t *testing.T, c *ent.Client, perm Permission) int {
 	}
 	return u.ID
 }
+
+// TestUpdateUser_DisableRevokesTokens 禁用（active→disabled）须自增 token_version，
+// 使已签发的 access JWT 立即失效（known-issue #1：此前仅 refresh/API Key 即时失效）。
+func TestUpdateUser_DisableRevokesTokens(t *testing.T) {
+	c, h, target := newUserHandlerTest(t)
+	before, err := c.User.Get(context.Background(), target)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+
+	if code := patchStatus(t, h, target, target, "disabled"); code != http.StatusOK {
+		t.Fatalf("disable: code=%d", code)
+	}
+	after, err := c.User.Get(context.Background(), target)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if after.TokenVersion != before.TokenVersion+1 {
+		t.Errorf("disable should bump token_version: before=%d after=%d", before.TokenVersion, after.TokenVersion)
+	}
+
+	// 重新启用不吊销（启用不是安全事件，无需强制下线）
+	if code := patchStatus(t, h, target, target, "active"); code != http.StatusOK {
+		t.Fatalf("enable: code=%d", code)
+	}
+	enabled, _ := c.User.Get(context.Background(), target)
+	if enabled.TokenVersion != after.TokenVersion {
+		t.Errorf("enable should not bump token_version: got %d, want %d", enabled.TokenVersion, after.TokenVersion)
+	}
+
+	// 提交相同 status（disabled→disabled）不重复吊销
+	_ = patchStatus(t, h, target, target, "disabled")
+	again, _ := c.User.Get(context.Background(), target)
+	_ = patchStatus(t, h, target, target, "disabled")
+	same, _ := c.User.Get(context.Background(), target)
+	if same.TokenVersion != again.TokenVersion {
+		t.Errorf("repeated disable should not bump again: got %d, want %d", same.TokenVersion, again.TokenVersion)
+	}
+}

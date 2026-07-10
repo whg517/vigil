@@ -67,7 +67,6 @@ open http://localhost:8080/docs # Swagger API 文档
 | [`docs/operations.md`](docs/operations.md) | 运维手册 —— 部署 / 升级 / 备份回滚 / 故障排查 |
 | [`docs/backlog.md`](docs/backlog.md) | 待办单一信源 —— 暂不做(含重启前置)/ 待规划 |
 | [`docs/design/`](docs/design/) | 功能设计 —— docs-driven 的落笔处(含模板) |
-| [`docs/known-issues.md`](docs/known-issues.md) | 已知未修缺陷与限制 |
 
 实体字段以 `ent/schema/` 为准,权限点以 [`internal/auth/permission.go`](internal/auth/permission.go) 为准,开发流程与命令见 [`AGENTS.md`](AGENTS.md)。
 

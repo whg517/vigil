@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Brain, Check, ChevronUp, GitMerge, Hand, RotateCcw, Sparkles, X } from "lucide-react";
-import { useIncident, useIncidentAction, useIncidents, useMergeIncident, useTimeline } from "@/hooks/incidents";
+import { useAddTimelineNote, useIncident, useIncidentAction, useIncidents, useMergeIncident, useTimeline } from "@/hooks/incidents";
+import { toast } from "sonner";
 import { useIncidentWS } from "@/hooks/use-incident-ws";
 import {
   useDiagnoseIncident,
@@ -14,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SeverityBadge, StatusBadge } from "@/lib/badges";
@@ -44,6 +46,20 @@ export function IncidentDetail() {
   const { data: tl } = useTimeline(incId);
   const action = useIncidentAction(incId);
   const [merging, setMerging] = useState(false);
+  const addNote = useAddTimelineNote(incId);
+  const [note, setNote] = useState("");
+
+  // 提交人工备注（联系了谁、试了什么）——处置现场的记录必须能沉淀到时间线
+  const submitNote = () => {
+    const content = note.trim();
+    if (!content) return;
+    addNote.mutate(content, {
+      onSuccess: () => {
+        setNote("");
+        toast.success(t("incidentDetail.noteAdded"));
+      },
+    });
+  };
 
   if (isLoading) return <DetailSkeleton />;
   if (!inc) {
@@ -164,6 +180,25 @@ export function IncidentDetail() {
           <CardTitle>{t("incidentDetail.timelineTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* 人工备注输入：POST /incidents/:id/timeline（note_added，actor 服务端回填） */}
+          <div className="mb-4 flex gap-2">
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitNote();
+              }}
+              placeholder={t("incidentDetail.notePlaceholder")}
+              disabled={addNote.isPending}
+            />
+            <Button
+              variant="outline"
+              onClick={submitNote}
+              disabled={addNote.isPending || !note.trim()}
+            >
+              {t("incidentDetail.noteSubmit")}
+            </Button>
+          </div>
           {items.length === 0 ? (
             <EmptyState title={t("incidentDetail.timelineEmpty")} />
           ) : (
