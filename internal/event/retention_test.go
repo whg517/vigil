@@ -8,6 +8,7 @@ package event
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -185,7 +186,7 @@ func TestSweep_BatchPaginatesUntilDrained(t *testing.T) {
 	old := time.Now().Add(-100 * 24 * time.Hour)
 	// 建 7 条超期无关联 Event，batch=2 → 需多批才能删净。
 	for i := 0; i < 7; i++ {
-		mkEvent(t, c, "old-"+itoa(i), old.Add(time.Duration(i)*time.Minute), nil)
+		mkEvent(t, c, "old-"+strconv.Itoa(i), old.Add(time.Duration(i)*time.Minute), nil)
 	}
 	s := NewRetentionSweeper(c, 90, 0, 2, 0) // batch=2
 	ev, _, err := s.Sweep(ctx)
@@ -198,8 +199,4 @@ func TestSweep_BatchPaginatesUntilDrained(t *testing.T) {
 	if cnt, _ := c.Event.Query().Count(ctx); cnt != 0 {
 		t.Fatalf("expected 0 events remaining, got %d", cnt)
 	}
-}
-
-func itoa(i int) string {
-	return string(rune('0' + i))
 }

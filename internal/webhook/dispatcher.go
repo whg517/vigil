@@ -152,13 +152,14 @@ func (d *Dispatcher) OnIncidentChanged(ctx context.Context, inc *ent.Incident, a
 	}
 	body, _ := json.Marshal(payload)
 
-	// 每个目标独立 goroutine 推送，wg 跟踪以便 Close 等待
+	// 每个目标独立 goroutine 推送，wg 跟踪以便 Close 等待。
+	// WithoutCancel：脱离请求生命周期（请求结束不中断推送），但保留 ctx 携带的值（如追踪信息）。
+	pushCtx := context.WithoutCancel(ctx)
 	for _, tgt := range targets {
 		d.wg.Add(1)
 		go func(t deliveryTarget) {
 			defer d.wg.Done()
-			// 用独立 context.Background()，不被请求生命周期绑定
-			d.push(context.Background(), t, eventName, inc.ID, body)
+			d.push(pushCtx, t, eventName, inc.ID, body)
 		}(tgt)
 	}
 }

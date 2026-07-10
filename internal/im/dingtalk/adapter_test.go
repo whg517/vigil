@@ -355,9 +355,12 @@ func TestVerifyCallback_Encrypted(t *testing.T) {
 	aesKeyB64 := base64.StdEncoding.EncodeToString(key)
 	// 钉钉密文布局：16 字节随机前缀 + 4 字节 msg_len + msg + corpId，AES-256-CBC(IV=0)
 	plaintext := []byte(`{"event":"test"}`)
+	if len(plaintext) > 0xFF {
+		t.Fatalf("测试 payload 超过单字节 msg_len 可表示范围: %d", len(plaintext))
+	}
 	prefix := make([]byte, 16)
 	msgLen := make([]byte, 4)
-	msgLen[3] = byte(len(plaintext))
+	msgLen[3] = byte(len(plaintext) & 0xFF)
 	corp := []byte("ding123")
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -367,8 +370,11 @@ func TestVerifyCallback_Encrypted(t *testing.T) {
 	// PKCS7 填充到块整数倍
 	bs := block.BlockSize()
 	pad := bs - len(plain)%bs
+	if pad < 1 || pad > 0xFF {
+		t.Fatalf("PKCS7 pad 超出 byte 范围: %d", pad)
+	}
 	for i := 0; i < pad; i++ {
-		plain = append(plain, byte(pad))
+		plain = append(plain, byte(pad&0xFF))
 	}
 	cipherText := make([]byte, len(plain))
 	iv := make([]byte, bs)

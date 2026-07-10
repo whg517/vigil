@@ -236,8 +236,8 @@ func encryptForTest(plain []byte, encryptKey string) string {
 	block, _ := aes.NewCipher(keyHash[:])
 	// PKCS7 填充
 	bs := block.BlockSize()
-	pad := bs - len(plain)%bs
-	padded := append(plain, bytes.Repeat([]byte{byte(pad)}, pad)...)
+	pad := bs - len(plain)%bs // PKCS7：pad ∈ [1, bs]，bs=16，恒在 byte 范围内
+	padded := append(plain, bytes.Repeat([]byte{byte(pad & 0xFF)}, pad)...)
 	// IV 全零
 	iv := make([]byte, bs)
 	enc := cipher.NewCBCEncrypter(block, iv)

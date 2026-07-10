@@ -91,6 +91,15 @@ func (w *Wired) Close() {
 	}
 }
 
+// goPeriodic 启动一个后台周期任务 goroutine，并把其 cancel 纳入 Closers 统一优雅关闭。
+// 收敛装配期重复的 WithCancel + go + append 三件套，保证没有 goroutine 游离在关闭管理之外。
+func (w *Wired) goPeriodic(ctx context.Context, run func(context.Context)) {
+	// cancel 不在此处调用——生命周期由 Wired.Close 统一管理（gosec 无法跨函数跟踪到 Close）。
+	runCtx, cancel := context.WithCancel(ctx) //nolint:gosec // G118: cancel 经 Closers 在优雅关闭时调用
+	w.Closers = append(w.Closers, cancel)
+	go run(runCtx)
+}
+
 // Wire 装配全部组件并挂载路由，返回生命周期句柄。不启动阻塞服务。
 //
 // ctx 用于装配期初始化（如 resolveEmails 闭包、seed）。调用方传入的 ctx 生命周期
@@ -607,9 +616,6 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	subscriptionH.SetAuthorizer(authz)
 	subscriptionH.Register(v1)
 
-	// QA 审计 C3：通知聚合 flush ticker。原实现 FlushAggregated 从未被调用 → 非 critical
-	// 聚合通知成死信（永滞 Redis）。周期扫 pending targets 合并发送，间隔 ≤ 聚合窗口。
-	flushCtx, flushCancel := context.WithCancel(ctx)
 	wired := &Wired{Server: srv, WebhookDispatcher: webhookDisp}
 	// T6.4：多副本 WS pub/sub 订阅 goroutine 的停止函数纳入优雅关闭（Redis 可用时非 nil）。
 	if wsPubSubStop != nil {
@@ -618,36 +624,29 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// P4·B3 值班大屏定时刷新：每 30s 向 /ws/dashboard 订阅者推一条心跳（无 incident 的 tick），
 	// 让大屏即便无事件也定期重拉 KPI（MTTA/MTTR/近 N 分钟告警量随时间推移的变化）。
 	// 事件驱动（OnDashboardEvent）负责即时增量；此 ticker 兜底聚合类指标的周期刷新。纳入优雅关闭。
-	dashTickCtx, dashTickCancel := context.WithCancel(ctx)
-	go runDashboardTicker(dashTickCtx, wsHub, 30*time.Second)
-	wired.Closers = append(wired.Closers, dashTickCancel)
+	wired.goPeriodic(ctx, func(c context.Context) { runDashboardTicker(c, wsHub, 30*time.Second) })
+	// QA 审计 C3：通知聚合 flush ticker。原实现 FlushAggregated 从未被调用 → 非 critical
+	// 聚合通知成死信（永滞 Redis）。周期扫 pending targets 合并发送，间隔 ≤ 聚合窗口。
 	if notifAggregator != nil && st.Redis != nil {
 		interval := notifAggregator.Window() / 2
 		if interval <= 0 {
 			interval = 15 * time.Second
 		}
-		go runAggregationFlusher(flushCtx, notifier, interval, log)
-		wired.Closers = append(wired.Closers, flushCancel)
+		wired.goPeriodic(ctx, func(c context.Context) { runAggregationFlusher(c, notifier, interval, log) })
 		log.Info("notification aggregation flusher started", zap.Duration("interval", interval))
-	} else {
-		flushCancel()
 	}
 
 	// T5.5 原始告警自动回灌巡检：周期把 requeued（限流/背压/入队失败落库）的 RawEvent
 	// 重新投入归一化队列，使过载/故障恢复后自动补投（无需人工逐条重放）。纳入优雅关闭。
-	sweepCtx, sweepCancel := context.WithCancel(ctx)
 	sweeper := ingestion.NewRequeueSweeper(st.DB, ingestHandler, 0, 0) // 默认 batch=50 / interval=30s
-	go sweeper.Run(sweepCtx)
-	wired.Closers = append(wired.Closers, sweepCancel)
+	wired.goPeriodic(ctx, sweeper.Run)
 	log.Info("raw_event requeue sweeper started", zap.Duration("interval", sweeper.Interval()))
 
 	// T6.1 报表定时聚合：周期把各团队 + org 全局指标预计算成 MetricsSnapshot 存库，
 	// 报表端点可选读快照（source=snapshot）加速。幂等，重跑覆盖当日快照。纳入优雅关闭。
 	// ticker 兜底（无需外部 cron/Asynq scheduler 也能定期聚合）；Asynq TaskAggregate
 	// 亦可由外部编排触发，二者调同一 Aggregate（幂等）互不冲突。
-	aggCtx, aggCancel := context.WithCancel(ctx)
-	go analyticsSnapshotter.Run(aggCtx, time.Hour) // 每小时聚合一次 daily 快照
-	wired.Closers = append(wired.Closers, aggCancel)
+	wired.goPeriodic(ctx, func(c context.Context) { analyticsSnapshotter.Run(c, time.Hour) }) // 每小时聚合一次 daily 快照
 	log.Info("metrics snapshot aggregator started", zap.Duration("interval", time.Hour))
 
 	// T6.2 Event/RawEvent 保留清理巡检：周期删除超保留期的旧 Event/RawEvent 释放存储。
@@ -663,9 +662,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	)
 	q.Register(domainevent.TaskCleanup, retentionSweeper.HandleTask)
 	if retentionSweeper.Enabled() {
-		retentionCtx, retentionCancel := context.WithCancel(ctx)
-		go retentionSweeper.Run(retentionCtx)
-		wired.Closers = append(wired.Closers, retentionCancel)
+		wired.goPeriodic(ctx, retentionSweeper.Run)
 		log.Info("event retention sweeper started",
 			zap.Int("event_days", cfg.Retention.EventDays),
 			zap.Int("raw_event_days", cfg.Retention.RawEventDays),
@@ -705,9 +702,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 			log.Warn("self-monitor enabled but no configured independent alert channel; alerts may not be delivered",
 				zap.Strings("alert_channels", smCfg.AlertChannels))
 		}
-		smCtx, smCancel := context.WithCancel(ctx)
-		go smEngine.Run(smCtx)
-		wired.Closers = append(wired.Closers, smCancel)
+		wired.goPeriodic(ctx, smEngine.Run)
 		log.Info("self-monitor engine wired",
 			zap.Duration("interval", smCfg.CheckInterval),
 			zap.Int("queue_depth_threshold", smCfg.QueueDepthThreshold),
@@ -727,9 +722,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 			syncSource = servicesync.FileSource{Path: cfg.ServiceSync.SourceURL}
 		}
 		syncer := servicesync.NewSyncer(st.DB, syncSource, cfg.ServiceSync.DefaultTeam)
-		syncCtx, syncCancel := context.WithCancel(ctx)
-		go syncer.Run(syncCtx, cfg.ServiceSync.EffectiveInterval())
-		wired.Closers = append(wired.Closers, syncCancel)
+		wired.goPeriodic(ctx, func(c context.Context) { syncer.Run(c, cfg.ServiceSync.EffectiveInterval()) })
 		log.Info("service sync started",
 			zap.String("source_type", cfg.ServiceSync.SourceType),
 			zap.String("source_url", cfg.ServiceSync.SourceURL),
@@ -742,9 +735,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// 防长尾泛滥。只 disable 不 delete，人工可重启用/转正。默认关；开关关不启动（无回归）。
 	if cfg.ServiceCleanup.Enabled {
 		pruner := servicesync.NewPruner(st.DB, cfg.ServiceCleanup.EffectiveStaleDays())
-		pruneCtx, pruneCancel := context.WithCancel(ctx)
-		go pruner.Run(pruneCtx, cfg.ServiceCleanup.EffectiveInterval())
-		wired.Closers = append(wired.Closers, pruneCancel)
+		wired.goPeriodic(ctx, func(c context.Context) { pruner.Run(c, cfg.ServiceCleanup.EffectiveInterval()) })
 		log.Info("service cleanup started",
 			zap.Int("stale_days", cfg.ServiceCleanup.EffectiveStaleDays()),
 			zap.Duration("interval", cfg.ServiceCleanup.EffectiveInterval()))

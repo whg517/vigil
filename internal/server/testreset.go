@@ -84,6 +84,8 @@ func (s *Server) registerTestReset() {
 		}
 
 		// 3. TRUNCATE 所有业务表（在 in-flight 落库之后，保证清空）。
+		// #nosec G202 -- 表名来自编译期固定的 allTestTables 白名单（非用户输入），
+		// 且本端点为 dev/test 专用（__test__ 前缀，仅非生产环境注册）；TRUNCATE 表名无法参数化。
 		stmt := "TRUNCATE " + strings.Join(allTestTables, ", ") + " RESTART IDENTITY CASCADE"
 		if _, err := s.store.SQL.ExecContext(ctx, stmt); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "reset failed: " + err.Error()})
