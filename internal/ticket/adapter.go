@@ -6,7 +6,7 @@
 //
 // 设计取舍（scope 已核实）：
 //   - 只做**通用 webhook 工单**（POST 可配 URL，payload 含 ActionItem）；
-//     Jira/禅道 等具体 SDK 明确不做（ADR-0037），需要时经 webhook 网关对接。
+//     Jira/禅道 等具体 SDK 明确不做，需要时经 webhook 网关对接。
 //   - 建单**best-effort**：工单系统不可达/失败不阻断复盘发布，仅记日志（复用出站 webhook 的
 //     降级契约）。回写 tracker_url 成功才算建单闭环，失败留待人工/重试。
 //   - 凭据经 ent Sensitive 存储、不明文回显（见 ent/schema/ticket_integration.go）。

@@ -10074,7 +10074,7 @@ export interface components {
         "im.imPlatformStatus": {
             /** @description 凭证已配置且客户端就绪 */
             available?: boolean;
-            /** @description 适配器类型：恒为 real（占位平台已随 ADR-0037 移除） */
+            /** @description 适配器类型：恒为 real（占位平台已移除） */
             impl?: string;
             /** @description feishu | dingtalk */
             platform?: string;

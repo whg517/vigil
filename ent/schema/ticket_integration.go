@@ -24,7 +24,7 @@ type TicketIntegration struct {
 func (TicketIntegration) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name").NotEmpty(),
-		// type 决定用哪个适配器建单。只有通用 webhook 工单——具体厂商 SDK 明确不做（ADR-0037），
+		// type 决定用哪个适配器建单。只有通用 webhook 工单——具体厂商 SDK 明确不做，
 		// 需要对接 Jira/禅道等系统时经用户侧 webhook 网关转换。
 		field.Enum("type").Values("webhook").Default("webhook"),
 		// endpoint 目标系统建单 URL。

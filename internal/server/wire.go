@@ -516,7 +516,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// （critical 强制，warning 可配，info 不起草）。复用 GenerateDraft，best-effort 不阻断事件派发。
 	bus.Subscribe(domainevent.IncidentResolved, postmortemEngine.OnIncidentResolved)
 	// T4.3 出向工单集成：复盘发布 → 为其下 ActionItem 建外部工单，回写 tracker_url（best-effort）。
-	// 工单集成只做通用 webhook（Jira/禅道 SDK 明确不做，ADR-0037；需要时经 webhook 网关对接）。
+	// 工单集成只做通用 webhook（Jira/禅道 SDK 明确不做；需要时经 webhook 网关对接）。
 	// SSRF 防护：生产禁私网/元数据，dev/test 放行（与 runbook 出站同款）。
 	allowPrivateTicket := !cfg.App.IsProduction()
 	ticketEngine := ticket.NewEngine(st.DB,
@@ -831,7 +831,7 @@ func buildNotifier(ctx context.Context, cfg *config.Config, log *zap.Logger, st 
 	// 默认降级链（B8/C12）：IM 优先（IM-first），失败降级邮件。
 	// 顺序即「主通道失败才启用下一通道」的降级层次，而非并联各发一份。
 	// IMChannel 在 Wire 后注册，notifier 实时查 registry，晚注册也能生效。
-	// 电话/SMS 通道已随 ADR-0037 移除：强提醒场景经 webhook 出口对接自建语音网关。
+	// 电话/SMS 通道已整体移除：强提醒场景经 webhook 出口对接自建语音网关。
 	// 存量配置里残留的 "phone"/"sms" 通道名 registry 查不到即跳过，链上其余通道照常。
 	defaultChans := []string{"im", "email"}
 	if len(notifWebhookURLs) > 0 {

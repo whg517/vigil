@@ -151,7 +151,7 @@ oncall 的灵魂——"没人理找下一个"。Incident 创建即 `asynq.Proces
 
 ### 5.6 IM 协同层(ChatOps)★ 差异化核心 → [ADR-0018](./adr/0018-im-same-rbac-as-web.md) · [ADR-0019](./adr/0019-imbot-pluggable-degradation.md)
 
-IM 双向通信 + 状态同步:IM 回调 → 映射 `im_accounts`→User → **走与 Web 完全相同的 RBAC 鉴权** → 调核心服务(复用 `internal/incident/service.go`)。交互卡片按权限渲染(无权按钮不显示),状态变化时原地更新卡片;平台能力参差走降级矩阵(飞书全 / 钉钉部分)。作战室能力已整体移除,协同由「工作群 + 交互卡片 + 实时刷新」承载([ADR-0036](./adr/0036-remove-war-room.md))。
+IM 双向通信 + 状态同步:IM 回调 → 映射 `im_accounts`→User → **走与 Web 完全相同的 RBAC 鉴权** → 调核心服务(复用 `internal/incident/service.go`)。交互卡片按权限渲染(无权按钮不显示),状态变化时原地更新卡片;平台能力参差走降级矩阵(飞书全 / 钉钉部分)。作战室能力已整体移除,协同由「工作群 + 交互卡片 + 实时刷新」承载。
 
 ### 5.7 端到端:一条告警的生命周期
 
@@ -243,12 +243,12 @@ deploy/helm/        # Helm Chart    docs/  # 本文档 + adr/
 
 | 主题 | ADR |
 |------|-----|
-| 定位 | [0002](./adr/0002-product-positioning.md) [0037](./adr/0037-trim-deferred-features.md) |
+| 定位 | [0002](./adr/0002-product-positioning.md) |
 | 技术栈 | [0003](./adr/0003-backend-language-go.md) [0004](./adr/0004-web-framework-echo.md) [0005](./adr/0005-data-access-ent-atlas.md) [0006](./adr/0006-primary-store-postgresql.md) [0007](./adr/0007-async-tasks-asynq.md) [0008](./adr/0008-frontend-vite-shadcn.md) [0009](./adr/0009-pluggable-integrations.md) |
 | 接入分诊 | [0010](./adr/0010-event-incident-separation.md) [0011](./adr/0011-ingestion-decoupled-idempotent.md) [0012](./adr/0012-triage-three-stage-pipeline.md) [0013](./adr/0013-deterministic-routing.md) [0014](./adr/0014-service-auto-provisioning.md) |
 | 排班升级 | [0015](./adr/0015-schedule-realtime-no-snapshot.md) [0016](./adr/0016-escalation-asynq-delayed.md) |
 | 通知 | [0017](./adr/0017-notification-fallback-chain.md) |
-| IM 协同 | [0018](./adr/0018-im-same-rbac-as-web.md) [0019](./adr/0019-imbot-pluggable-degradation.md) [0020](./adr/0020-responder-temp-grant.md) [0036](./adr/0036-remove-war-room.md) |
+| IM 协同 | [0018](./adr/0018-im-same-rbac-as-web.md) [0019](./adr/0019-imbot-pluggable-degradation.md) [0020](./adr/0020-responder-temp-grant.md) |
 | Runbook/AI/复盘 | [0021](./adr/0021-runbook-two-tier.md) [0022](./adr/0022-aiinsight-hitl-evidence.md) [0023](./adr/0023-llm-provider-cost-control.md) [0024](./adr/0024-similar-incident-pgvector.md) [0025](./adr/0025-no-auto-retrain.md) [0026](./adr/0026-postmortem-ai-draft.md) |
 | 治理/RBAC/集成 | [0027](./adr/0027-rbac-permissions-roles.md) [0028](./adr/0028-single-org-soft-isolation.md) [0029](./adr/0029-dual-audit-no-silent-truncation.md) [0030](./adr/0030-integrations-encrypted-openapi.md) |
 | 部署运维 | [0031](./adr/0031-single-binary-compose-helm.md) [0032](./adr/0032-migration-backup-restore.md) [0033](./adr/0033-selfmon-and-auth.md) |

@@ -41,7 +41,6 @@ vigil/
 ├── docs/                 # 设计文档
 │   ├── architecture.md   # ★ 系统架构全景（唯一主文档）
 │   ├── adr/              # ★ 架构决策记录（一决策一文件，README.md 为索引）
-│   ├── design/           # 功能设计（docs-driven 落笔处，一特性一文件）
 │   ├── backlog.md        # 待办单一信源（暂不做/待规划）
 │   └── operations.md     # 运维手册（部署/升级/备份/排查）
 └── AGENTS.md             # 本文件（协作指南 + 开发流程/命令）
@@ -160,7 +159,6 @@ go build ./... && pnpm --dir web build
 | 系统架构全景 | [`docs/architecture.md`](./docs/architecture.md) |
 | 某项设计"为什么这么定" | [`docs/adr/`](./docs/adr/)（[索引](./docs/adr/README.md)） |
 | 产品定位与非目标 | [ADR-0002](./docs/adr/0002-product-positioning.md) |
-| 新功能设计写在哪 | [`docs/design/`](./docs/design/)（含模板与流程） |
 | 还剩什么没做 / 什么暂不做 | [`docs/backlog.md`](./docs/backlog.md) |
 | 怎么部署/升级/备份/排障 | [`docs/operations.md`](./docs/operations.md) |
 | 实体/字段/关系 | `ent/schema/` + [ADR-0010](./docs/adr/0010-event-incident-separation.md) |
@@ -173,7 +171,7 @@ go build ./... && pnpm --dir web build
 
 ## 当前状态
 
-- ✅ 架构文档收敛为 architecture 主文档 + 36 份 ADR（活文档：backlog / design / operations）
+- ✅ 架构文档收敛为 architecture 主文档 + 35 份 ADR（活文档：backlog / operations）
 - ✅ 全栈实现深入中：`internal/` 35 个业务模块、ent 25 实体、前端 19 页面(全站 i18n)
 - ⏳ 服务自动供给/治理(方案C)、AI Copilot、复盘等持续演进
 

@@ -11,8 +11,8 @@
 ## 一、🚧 暂不做(明确推迟)
 
 > 当前无挂起项。历史裁决(明确"不做"而非推迟)沉淀在 ADR:
-> AI 无监督回训 [ADR-0025](./adr/0025-no-auto-retrain.md) · 作战室 [ADR-0036](./adr/0036-remove-war-room.md) ·
-> 电话/SMS 通道、企微 bot、Jira/禅道 SDK、Zabbix/云监控接入、IaC Provider、首次部署向导 [ADR-0037](./adr/0037-trim-deferred-features.md)。
+> AI 无监督回训见 [ADR-0025](./adr/0025-no-auto-retrain.md);作战室、电话/SMS 通道、企微 bot、
+> Jira/禅道 SDK、Zabbix/云监控接入、IaC Provider、首次部署向导等已于 2026-07-10 整体移除(git 历史可溯)。
 
 ## 二、📋 待规划(确认要做、未排期)
 

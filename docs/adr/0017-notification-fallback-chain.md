@@ -37,4 +37,4 @@
 - 降级链是串行尝试,极端情况下最后一通道才成功,送达延迟略增,换取不重复打扰。
 - 三态只追加,`Notification` 表随发送次数增长,需归档/清理策略。
 - quiet_hours 的 `bypass_for` 与聚合的 critical 例外是刻意的"降噪不误杀"设计,配置错误会直接影响紧急送达,须谨慎默认。
-- 2026-07-10:电话/SMS 通道随 [ADR-0037](./0037-trim-deferred-features.md) 移除,默认链收敛为 `[webhook?] + im + email`;电话强提醒场景经 webhook 出口外接。
+- 2026-07-10:电话/SMS 通道已整体移除,默认链收敛为 `[webhook?] + im + email`;电话强提醒场景经 webhook 出口外接。

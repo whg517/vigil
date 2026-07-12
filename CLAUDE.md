@@ -34,7 +34,7 @@
 
 - **不直接在生产写操作逻辑上冒险**：Runbook 处置类（写）必须 `require_approval`，详见 [ADR-0021](./docs/adr/0021-runbook-two-tier.md)。
 - **不绕过 RBAC**：IM 操作复用 Web 同一鉴权链路，绝不因"在 IM 里"放行，详见 [ADR-0018](./docs/adr/0018-im-same-rbac-as-web.md) 与 [ADR-0027](./docs/adr/0027-rbac-permissions-roles.md)。
-- **文档先行**：设计性改动先落文档再写代码（本项目 docs-driven）。落笔处分层：功能设计写 [`docs/design/`](./docs/design/)（模板见该目录 README），其中的关键取舍拆 [ADR](./docs/adr/)，稳定后增量更新 [`docs/architecture.md`](./docs/architecture.md)。
+- **文档先行**：设计性改动先落文档再写代码（本项目 docs-driven）。关键取舍写 [ADR](./docs/adr/)，稳定后增量更新 [`docs/architecture.md`](./docs/architecture.md)。
 
 ### 验证
 

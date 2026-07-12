@@ -6,7 +6,7 @@
 //   - Mapper：im_unionid → User 映射（§6，IM 操作走与 Web 相同的鉴权链路）
 //   - Handler：IM Webhook 回调 → 账号映射 → RBAC → incident.Service 动作 → 刷新卡片
 //
-// 平台支持矩阵（ADR-0019/ADR-0037）：feishu、dingtalk 均为真实适配器
+// 平台支持矩阵（ADR-0019）：feishu、dingtalk 均为真实适配器
 // （卡片下发/更新 + @人 + 回调），不再有占位平台。
 package im
 

@@ -131,7 +131,7 @@ func (h *Handler) RegisterStatus(g *echo.Group) {
 type imPlatformStatus struct {
 	Platform  string `json:"platform"`  // feishu | dingtalk
 	Available bool   `json:"available"` // 凭证已配置且客户端就绪
-	Impl      string `json:"impl"`      // 适配器类型：恒为 real（占位平台已随 ADR-0037 移除）
+	Impl      string `json:"impl"`      // 适配器类型：恒为 real（占位平台已移除）
 }
 
 // platforms 返回所有已注册 IM 平台的可用性。
