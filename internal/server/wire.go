@@ -176,6 +176,11 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// —— 通知（能力域 7）：通道注册表 + 分发器（含静默/聚合/模板）——
 	notifWebhookURLs := parseWebhookURLs(cfg.Webhook.OutURLs)
 	notifier, notifAggregator, notifTemplates := buildNotifier(ctx, cfg, log, st, notifWebhookURLs)
+	// 投递 Asynq 化（ADR-0017 修订）：Notification 行先落 pending（行 ID 即任务幂等键
+	// notif:{id}），投递由独立任务执行，瞬时失败指数退避重试，重试耗尽落 failed +
+	// 兜底告警并进 archived 死信。入队失败（Redis 不可用）时 notifier 内部回退同步直投。
+	notifier.SetAsyncDelivery(q.Client, notification.NewDeliveryStore(st.DB))
+	q.Register(notification.TaskDeliver, notification.NewDeliveryWorker(st.DB, notifier).Handle)
 
 	// —— 升级引擎（能力域 6）：Asynq 延迟任务驱动升级链 ——
 	schedEngine := schedule.NewEngine(st.DB, st.Redis) // escalation 依赖它

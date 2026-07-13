@@ -222,7 +222,13 @@ func (e *Engine) HandleTask(ctx context.Context, t *asynq.Task) error {
 	// B6：透传本层 notify_channels，让各层按配置走对应通道（level 1 只 im，末级加 phone/sms）。
 	if firstRun {
 		if e.notifier != nil {
-			_ = e.notifier.NotifyEscalation(ctx, inc, p.LevelIdx, targets, level.NotifyChannel)
+			// 通知投递已 Asynq 化（ADR-0017 修订）：这里的调用主体是「落 pending 行 + 入队
+			// 投递任务」，瞬时失败由通知任务自行退避重试，不阻塞升级链。返回的 error 是
+			// 「聚合且同步兜底均异常」级别的罕见故障，告警日志留痕（原实现静默丢弃）。
+			if nerr := e.notifier.NotifyEscalation(ctx, inc, p.LevelIdx, targets, level.NotifyChannel); nerr != nil {
+				e.log().Warn("escalation: notify dispatch failed",
+					zap.Int("incident_id", p.IncidentID), zap.Int("level", p.LevelIdx), zap.Error(nerr))
+			}
 		}
 		// 标记「先通知后落」而非先占后通知：宁可极小崩溃窗口（通知后、落标记前）重投
 		// 重复通知一次，不可先占标记再崩导致重投跳过通知——升级通知静默丢失违背升级链

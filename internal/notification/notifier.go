@@ -15,11 +15,15 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/internal/escalation"
 	"github.com/kevin/vigil/internal/metrics"
+
+	"github.com/hibiken/asynq"
 )
 
 // Notifier 通知分发器，实现 escalation.Notifier 接口。
@@ -44,6 +48,11 @@ type Notifier struct {
 	// allFailedHook 整条降级链对某 target 全失败时的兜底告警回调（B22），可选。
 	// 由装配方注入（如通知 org_admin）。参数为失败上下文，实现方决定如何兜底。
 	allFailedHook func(ctx context.Context, inc *ent.Incident, t Target, title, summary string)
+	// taskEnqueuer + deliveryStore 投递 Asynq 化（ADR-0017 修订）：两者都注入后，
+	// deliverChain 不再同步直投，而是先落 pending 行再入队独立投递任务（瞬时失败
+	// 指数退避重试）。任一为 nil（单测/无队列降级）时回退同步直投。
+	taskEnqueuer  TaskEnqueuer
+	deliveryStore DeliveryStore
 }
 
 // NewNotifier 创建通知分发器。
@@ -83,6 +92,14 @@ func (n *Notifier) SetQuietHoursResolver(resolver func(inc *ent.Incident) *Quiet
 // SetAggregator 注入通知聚合器。nil 表示不聚合（立即发送）。
 func (n *Notifier) SetAggregator(a *Aggregator) {
 	n.aggregator = a
+}
+
+// SetAsyncDelivery 注入异步投递依赖（ADR-0017 修订：通知重试 Asynq 化）。
+// enq 通常为 *asynq.Client；store 为可更新 pending 行的送达记录存取器。
+// 任一为 nil 时保持同步直投（向后兼容/降级路径）。
+func (n *Notifier) SetAsyncDelivery(enq TaskEnqueuer, store DeliveryStore) {
+	n.taskEnqueuer = enq
+	n.deliveryStore = store
 }
 
 // SetTemplateEngine 注入通知模板引擎（能力域 7 M7.5）。
@@ -218,37 +235,73 @@ func (n *Notifier) NotifyEscalation(ctx context.Context, inc *ent.Incident, leve
 	return firstErr
 }
 
-// deliverChain 对单个 target 执行逐通道兜底降级链（B7/C12）。
+// deliverChain 单 target 投递入口（B7/C12 + ADR-0017 修订）。
+//
+// 已装配异步投递（SetAsyncDelivery）时：先落 pending 行，再把投递封装为独立 Asynq
+// 任务（TaskID=notif:{行 ID} 幂等），降级链由 worker 执行，瞬时失败走 asynq 指数退避
+// 重试；未装配或入队失败（Redis 不可用）时回退同步直投——降级语义是「可能少重试，
+// 绝不丢通知」。
+func (n *Notifier) deliverChain(ctx context.Context, inc *ent.Incident, msg *Message, t Target, chans []string, level int, severity string) {
+	if n.enqueueDelivery(ctx, inc, msg, t, chans, level, severity) {
+		return
+	}
+	n.deliverChainSync(ctx, inc, msg, t, chans, level, severity)
+}
+
+// enqueueDelivery 把单 target 投递封装为 Asynq 任务。返回 true 表示已受理
+// （已入队，或入队失败但已同步兜底完成）；false 表示异步未装配，调用方走同步直投。
+func (n *Notifier) enqueueDelivery(ctx context.Context, inc *ent.Incident, msg *Message, t Target, chans []string, level int, severity string) bool {
+	if n.taskEnqueuer == nil || n.deliveryStore == nil {
+		return false
+	}
+	// ① Notification 行先落库（pending）：行 ID 即任务幂等键，重投/重复入队都被挡住。
+	id, err := n.deliveryStore.CreatePending(ctx, DeliveryRecord{
+		IncidentID: incID(inc), UserID: t.UserID, Channel: firstChan(chans),
+		Target: targetKey(t), Status: StatusPending,
+		Reason: "queued for delivery", Level: level, Severity: severity,
+	})
+	if err != nil {
+		return false // 落 pending 行失败（DB 抖动）：回退同步直投，保证不丢
+	}
+	payload, err := json.Marshal(deliveryTask{
+		NotificationID: id, IncidentID: incID(inc), Target: t,
+		Title: msg.Title, Summary: msg.Summary, ActionURL: msg.ActionURL,
+		Channels: chans, Level: level, Severity: severity,
+	})
+	if err != nil {
+		// 纯数据结构 marshal 实际不可失败；防御：同步兜底并回写本行，不留孤儿 pending。
+		n.deliverTracked(ctx, id, inc, msg, t, chans, level, severity, true)
+		return true
+	}
+	// ② 队列沿用 critical/default/low 约定：critical 告警的通知不排队等低优任务。
+	queueName := "default"
+	if severity == "critical" {
+		queueName = "critical"
+	}
+	_, err = n.taskEnqueuer.EnqueueContext(ctx, asynq.NewTask(TaskDeliver, payload),
+		asynq.Queue(queueName),
+		asynq.TaskID(deliveryTaskID(id)),
+		asynq.MaxRetry(deliverMaxRetry),
+	)
+	if err != nil {
+		// TaskID 冲突 = 同一行的任务已在队（幂等命中），目标已达成。
+		if errors.Is(err, asynq.ErrTaskIDConflict) {
+			return true
+		}
+		// ③ 入队失败（Redis 不可用等）：同步直投并把结果回写本行（final=true：
+		// 队列已不可用，无从重试，保持旧的一次性尽力语义）。
+		n.deliverTracked(ctx, id, inc, msg, t, chans, level, severity, true)
+		return true
+	}
+	return true
+}
+
+// deliverChainSync 对单个 target 同步执行逐通道兜底降级链（原 deliverChain 语义原样保留）。
 //
 // 按 chans 顺序逐通道尝试：首个成功即停止（送达），失败降级到下一通道。
 // 整条链全失败 → 记 failed + 触发兜底告警（allFailedHook）。
-//
-// IM 通道对无关联 Incident 的消息（msg.Incident==nil，如 unrouted 兜底）不可渲染卡片，
-// 跳过（不计入失败，链继续尝试其它通道）。
-func (n *Notifier) deliverChain(ctx context.Context, inc *ent.Incident, msg *Message, t Target, chans []string, level int, severity string) {
-	// 单 target 消息：降级链对「这一个人」逐通道尝试，故 msg 复制一份只含该 target。
-	single := *msg
-	single.Targets = []Target{t}
-
-	delivered := false
-	var lastErr string
-	for _, chanName := range chans {
-		ch, ok := n.registry.Get(chanName)
-		if !ok {
-			continue // 通道未注册（如 IM 未接入），跳过（不算失败，链继续）
-		}
-		// IM 无单不可渲染卡片：跳过而不计失败。
-		if chanName == "im" && single.Incident == nil {
-			continue
-		}
-		ok, errStr := n.sendOne(ctx, ch, &single, inc, t, level, severity)
-		if ok {
-			delivered = true
-			break // 降级链核心：首个成功即停止，不再往下打扰
-		}
-		lastErr = errStr
-		// 失败：继续降级到下一通道
-	}
+func (n *Notifier) deliverChainSync(ctx context.Context, inc *ent.Incident, msg *Message, t Target, chans []string, level int, severity string) {
+	delivered, _, _, lastErr := n.walkChain(ctx, inc, msg, t, chans, level, severity, true)
 
 	if !delivered {
 		// 整条链全失败（或无任何可用通道）：记 failed + 兜底告警（B22）。
@@ -270,11 +323,91 @@ func (n *Notifier) deliverChain(ctx context.Context, inc *ent.Incident, msg *Mes
 	}
 }
 
+// walkChain 逐通道兜底降级链核心（deliverChainSync 与异步 worker 共用）。
+//
+// record=true：每条通道结果照旧追加送达记录（同步路径，行为与历史一致）；
+// record=false：不追加每次尝试的记录（异步路径由 tracking pending 行统一承载结果，
+// 避免「重试次数 × 通道数」的记录膨胀轰炸送达账本）。metrics 与结构化日志两种模式都记。
+//
+// IM 通道对无关联 Incident 的消息（msg.Incident==nil，如 unrouted 兜底）不可渲染卡片，
+// 跳过（不计入失败，链继续尝试其它通道）。
+// 返回：是否送达、成功的那条结果、是否有任一通道真正尝试过（返回过结果）、最后错误。
+func (n *Notifier) walkChain(ctx context.Context, inc *ent.Incident, msg *Message, t Target, chans []string, level int, severity string, record bool) (bool, SendResult, bool, string) {
+	// 单 target 消息：降级链对「这一个人」逐通道尝试，故 msg 复制一份只含该 target。
+	single := *msg
+	single.Targets = []Target{t}
+
+	attempted := false
+	var lastErr string
+	for _, chanName := range chans {
+		ch, ok := n.registry.Get(chanName)
+		if !ok {
+			continue // 通道未注册（如 IM 未接入），跳过（不算失败，链继续）
+		}
+		// IM 无单不可渲染卡片：跳过而不计失败。
+		if chanName == "im" && single.Incident == nil {
+			continue
+		}
+		ok, via, tried, errStr := n.sendOne(ctx, ch, &single, inc, t, level, severity, record)
+		if tried {
+			attempted = true
+		}
+		if ok {
+			return true, via, true, "" // 降级链核心：首个成功即停止，不再往下打扰
+		}
+		lastErr = errStr
+		// 失败：继续降级到下一通道
+	}
+	return false, SendResult{}, attempted, lastErr
+}
+
+// deliverTracked 执行降级链并把结果回写 tracking 行 id（异步 worker / 入队失败兜底共用）。
+//
+// final 语义：是否「最后一次尝试」（重试耗尽，或队列不可用的同步兜底）。
+//   - 送达成功 → 行置 sent（记实际送达通道/目标）；
+//   - 失败且非 final → 行保持 pending、更新 reason（在途可观测），返回 retryable=true
+//     交给 asynq 指数退避重试；
+//   - 失败且 final → 行置 failed + 触发 allFailedHook（只在最后一次触发，
+//     避免每轮重试都轰炸 org_admin）；
+//   - 整链无一通道可用（未注册/未配置，attempted=false）→ 配置性失败，重试无益：
+//     立即按 final 处理（保持旧「无可用通道即失败」语义，不做无意义的 5 轮重试）。
+//
+// 返回：是否送达、是否值得重试、失败原因。
+func (n *Notifier) deliverTracked(ctx context.Context, id int, inc *ent.Incident, msg *Message, t Target, chans []string, level int, severity string, final bool) (bool, bool, string) {
+	delivered, via, attempted, lastErr := n.walkChain(ctx, inc, msg, t, chans, level, severity, false)
+	if delivered {
+		// 回写失败（DB 抖动）时任务仍按成功结束——宁可留一条 stale pending 行
+		//（可观测异常），不可为回写而重试任务导致重复送达。
+		_ = n.deliveryStore.UpdateStatus(ctx, id, StatusSent, via.Channel, pickTarget(via.Target, t), "")
+		return true, false, ""
+	}
+	reason := lastErr
+	if reason == "" {
+		reason = "no available channel in fallback chain"
+	}
+	if !final && attempted {
+		// 瞬时失败：行保持 pending、reason 记录最后错误，等 asynq 退避重试。
+		_ = n.deliveryStore.UpdateStatus(ctx, id, StatusPending, "", "", reason)
+		return false, true, reason
+	}
+	// 终局失败（重试耗尽 / 无可用通道 / 同步兜底失败）：落 failed + 兜底告警（B22）。
+	_ = n.deliveryStore.UpdateStatus(ctx, id, StatusFailed, "", "", reason)
+	// 兜底告警仅在有 incident 上下文时触发；hook 内部走 NotifyUnrouted（同步、不递归）。
+	if inc != nil && n.allFailedHook != nil {
+		n.allFailedHook(ctx, inc, t, msg.Title, msg.Summary)
+	}
+	return false, false, reason
+}
+
 // NotifyUnrouted 未路由兜底通知（C3）：把一条不关联 Incident 的告警送达给指定收件人。
 //
 // 与 NotifyEscalation 的区别：无 Incident 上下文（未路由 Event 尚未建单），故不走
 // IM 卡片通道；只走 email/phone/sms/webhook。不聚合、不静默（兜底通知「必达」语义）。
 // 但仍走降级链：逐通道尝试，首个成功即停。
+//
+// ★ 刻意走同步直投（不走 Asynq 化路径）：本方法承载自监控告警与「全通道失败」兜底告警
+// ——被监控/被兜底的可能正是队列本身（Redis 故障、worker 停摆），兜底通知若也依赖队列，
+// 等于「链路坏了 → 告警也走坏链路 → 告警也丢」。独立通道语义见 wire.go selfMonAlertNotifier。
 func (n *Notifier) NotifyUnrouted(ctx context.Context, targets []Target, title, summary string, channels []string) error {
 	chans := channels
 	if len(chans) == 0 {
@@ -285,7 +418,7 @@ func (n *Notifier) NotifyUnrouted(ctx context.Context, targets []Target, title, 
 		Title: title, Summary: summary, Channels: chans,
 	}
 	for _, t := range targets {
-		n.deliverChain(ctx, nil, msg, t, chans, 0, "")
+		n.deliverChainSync(ctx, nil, msg, t, chans, 0, "")
 	}
 	return nil
 }
@@ -388,20 +521,25 @@ func (n *Notifier) recordDelivery(ctx context.Context, rec DeliveryRecord) {
 	_ = n.delivery.Record(ctx, rec)
 }
 
-// sendOne 发送到单个通道，记录 metrics + 送达记录。返回是否有任一成功送达 + 最后错误串。
+// sendOne 发送到单个通道，记录 metrics +（record=true 时）送达记录。
+// 返回：是否有任一成功送达、成功的那条结果、该通道是否真正尝试过（返回过结果）、最后错误串。
 //
 // 一个通道 Send 可能返回多条结果（如 webhook 多 URL、email 多收件人）：
 // 只要有一条成功即视为该通道对该 target 送达成功（链停止）。
-func (n *Notifier) sendOne(ctx context.Context, ch Channel, msg *Message, inc *ent.Incident, t Target, level int, severity string) (bool, string) {
+func (n *Notifier) sendOne(ctx context.Context, ch Channel, msg *Message, inc *ent.Incident, t Target, level int, severity string, record bool) (bool, SendResult, bool, string) {
 	results, err := ch.Send(ctx, msg)
 	if err != nil {
 		results = append(results, SendResult{Channel: ch.Name(), Error: err.Error()})
 	}
 	anySuccess := false
+	var via SendResult
 	lastErr := ""
 	for _, r := range results {
 		resultLabel := "success"
 		if r.Success {
+			if !anySuccess {
+				via = r
+			}
 			anySuccess = true
 		} else {
 			resultLabel = "failed"
@@ -412,23 +550,26 @@ func (n *Notifier) sendOne(ctx context.Context, ch Channel, msg *Message, inc *e
 			n.recordResult(incID(inc), r)
 		}
 		// 送达记录（B22/M13）：每条结果落一条 Notification（sent/failed）。
-		status := StatusSent
-		reason := ""
-		if !r.Success {
-			status = StatusFailed
-			reason = r.Error
+		// 异步路径（record=false）不逐次追加——结果由 tracking pending 行统一承载。
+		if record {
+			status := StatusSent
+			reason := ""
+			if !r.Success {
+				status = StatusFailed
+				reason = r.Error
+			}
+			n.recordDelivery(ctx, DeliveryRecord{
+				IncidentID: incID(inc), UserID: t.UserID, Channel: r.Channel,
+				Target: pickTarget(r.Target, t), Status: status,
+				Reason: reason, Level: level, Severity: severity,
+			})
 		}
-		n.recordDelivery(ctx, DeliveryRecord{
-			IncidentID: incID(inc), UserID: t.UserID, Channel: r.Channel,
-			Target: pickTarget(r.Target, t), Status: status,
-			Reason: reason, Level: level, Severity: severity,
-		})
 	}
 	// 通道 Send 返回空结果（如未配置降级）：视为该通道不可用，链继续（不算成功不算硬失败）。
 	if len(results) == 0 {
-		return false, ""
+		return false, SendResult{}, false, ""
 	}
-	return anySuccess, lastErr
+	return anySuccess, via, true, lastErr
 }
 
 // pickTarget 优先用通道返回的具体目标（email/url/phone），否则用 target key。

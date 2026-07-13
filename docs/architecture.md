@@ -147,7 +147,7 @@ oncall 的灵魂——"没人理找下一个"。Incident 创建即 `asynq.Proces
 
 ### 5.5 通知引擎(Notification) → [ADR-0017](./adr/0017-notification-fallback-chain.md)
 
-`msg.Channels` 是**有序降级链**(非并联):对每 target 逐通道尝试,首个成功即停。送达三态落库(`pending|sent|failed|suppressed`);整条链全失败→兜底告警 org_admin(走非 IM 通道)。30s 窗口聚合防轰炸,critical 立即单发;quiet_hours 支持 critical 穿透。内置通道为 im / email / webhook 三种(电话/SMS 已移除,[ADR-0037](./adr/0037-trim-deferred-features.md);配置残留的未知通道名按跳过处理,降级链继续)。
+`msg.Channels` 是**有序降级链**(非并联):对每 target 逐通道尝试,首个成功即停。送达三态落库(`pending|sent|failed|suppressed`)。**投递 Asynq 化**:`Notification` 行先落 `pending`(行 ID 即任务幂等键 `notif:{id}`),降级链由独立任务执行,瞬时失败指数退避重试(`MaxRetry=5`,约 15-20 分钟窗口),重试耗尽落 `failed` + 兜底告警 org_admin(走非 IM 通道,只在最后一次失败触发)并进 archived 死信;入队失败(Redis 不可用)回退同步直投,绝不丢通知。自监控/兜底告警(`NotifyUnrouted`)刻意保持同步直投,不依赖队列。30s 窗口聚合防轰炸(flush 合并出的通知同样走任务投递),critical 立即单发;quiet_hours 支持 critical 穿透。内置通道为 im / email / webhook 三种(电话/SMS 已移除,[ADR-0037](./adr/0037-trim-deferred-features.md);配置残留的未知通道名按跳过处理,降级链继续)。
 
 ### 5.6 IM 协同层(ChatOps)★ 差异化核心 → [ADR-0018](./adr/0018-im-same-rbac-as-web.md) · [ADR-0019](./adr/0019-imbot-pluggable-degradation.md)
 
@@ -220,8 +220,8 @@ deploy/helm/        # Helm Chart    docs/  # 本文档 + adr/
 | 风险 | 对策 |
 |------|------|
 | Redis 宕机 | Asynq 状态存于 Redis,建议部署方开启 AOF/RDB 持久化(Redis HA 非 Vigil 内置,由部署方自备);接入层降级(先落 PostgreSQL 原始事件,恢复后回灌) |
-| 任务重复投递(at-least-once) | 所有 handler 幂等:升级 `esc:{inc}:{level}`、通知 `notification_id`、流水线 `source_event_id` |
-| 通知通道故障 | 逐通道兜底降级链;整链失败兜底告警 org_admin |
+| 任务重复投递(at-least-once) | 所有 handler 幂等:升级 `esc:{inc}:{level}`、通知 `notif:{notification_id}` + 行状态守卫、流水线 `source_event_id` |
+| 通知通道故障 | 逐通道兜底降级链;瞬时失败 Asynq 指数退避重试(`MaxRetry=5`),重试耗尽落 `failed` + 兜底告警 org_admin + 进 archived 死信可重放 |
 | worker 崩溃 | Asynq 任务持久化 + 至少一次投递,重启自动恢复 |
 | LLM 不可用 | AI 功能降级(非核心链路),不影响告警主流程 |
 | 数据无界增长 | Event/RawEvent 保留清理巡检(默认 90/30 天,分页删除、保护活跃 Incident 证据);其余表的保留策略与按月分区路线见 [ADR-0039](./adr/0039-data-lifecycle.md) |

@@ -11,6 +11,7 @@ package notification
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
@@ -48,6 +49,22 @@ type DeliveryRecorder interface {
 	Record(ctx context.Context, rec DeliveryRecord) error
 }
 
+// DeliveryStore 送达记录存取扩展（投递 Asynq 化，ADR-0017 修订）。
+//
+// 异步投递以 Notification 行为锚点：入队前先落一条 pending 行，行 ID 即任务幂等键
+// （TaskID=notif:{id}）；任务每次尝试后回写状态——成功置 sent、重试中更新 reason、
+// 重试耗尽置 failed。与 DeliveryRecorder 的"只追加"不同，pending 行是唯一会被更新的行
+// （终态一旦落定不再变，worker 以此做幂等守卫）。
+type DeliveryStore interface {
+	DeliveryRecorder
+	// CreatePending 先落一条 pending 行，返回行 ID（作 Asynq TaskID 幂等键）。
+	CreatePending(ctx context.Context, rec DeliveryRecord) (int, error)
+	// UpdateStatus 回写行状态/通道/目标/原因。channel/target 为空时保留原值。
+	UpdateStatus(ctx context.Context, id int, status DeliveryStatus, channel, target, reason string) error
+	// Status 读行当前状态（worker 幂等守卫：非 pending 即已处理过，跳过）。
+	Status(ctx context.Context, id int) (DeliveryStatus, error)
+}
+
 // entDeliveryRecorder 用 ent 落库的送达记录器。
 type entDeliveryRecorder struct {
 	db *ent.Client
@@ -55,6 +72,11 @@ type entDeliveryRecorder struct {
 
 // NewDeliveryRecorder 创建基于 ent 的送达记录器。
 func NewDeliveryRecorder(db *ent.Client) DeliveryRecorder {
+	return &entDeliveryRecorder{db: db}
+}
+
+// NewDeliveryStore 创建基于 ent 的送达记录存取器（异步投递用，含 pending 行更新能力）。
+func NewDeliveryStore(db *ent.Client) DeliveryStore {
 	return &entDeliveryRecorder{db: db}
 }
 
@@ -75,6 +97,59 @@ func (r *entDeliveryRecorder) Record(ctx context.Context, rec DeliveryRecord) er
 		b = b.SetIncidentID(rec.IncidentID)
 	}
 	return b.Exec(ctx)
+}
+
+// CreatePending 先落一条 pending 行，返回行 ID（异步投递的任务幂等键锚点）。
+func (r *entDeliveryRecorder) CreatePending(ctx context.Context, rec DeliveryRecord) (int, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("delivery store: no db")
+	}
+	b := r.db.Notification.Create().
+		SetChannel(rec.Channel).
+		SetTarget(rec.Target).
+		SetUserID(rec.UserID).
+		SetStatus(entnotification.StatusPending).
+		SetReason(rec.Reason).
+		SetLevel(rec.Level).
+		SetSeverity(rec.Severity)
+	if rec.IncidentID > 0 {
+		b = b.SetIncidentID(rec.IncidentID)
+	}
+	row, err := b.Save(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return row.ID, nil
+}
+
+// UpdateStatus 回写行状态（任务每次尝试后调用）。channel/target 为空时保留原值，
+// 避免降级链走到兜底通道时把「实际送达通道」误清空。
+func (r *entDeliveryRecorder) UpdateStatus(ctx context.Context, id int, status DeliveryStatus, channel, target, reason string) error {
+	if r.db == nil {
+		return nil
+	}
+	u := r.db.Notification.UpdateOneID(id).
+		SetStatus(entnotification.Status(status)).
+		SetReason(reason)
+	if channel != "" {
+		u = u.SetChannel(channel)
+	}
+	if target != "" {
+		u = u.SetTarget(target)
+	}
+	return u.Exec(ctx)
+}
+
+// Status 读行当前状态（worker 幂等守卫用）。
+func (r *entDeliveryRecorder) Status(ctx context.Context, id int) (DeliveryStatus, error) {
+	if r.db == nil {
+		return "", fmt.Errorf("delivery store: no db")
+	}
+	row, err := r.db.Notification.Get(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return DeliveryStatus(row.Status), nil
 }
 
 // QueryByIncident 查询某事件的送达记录（按时间升序，分页）。
