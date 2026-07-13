@@ -10,6 +10,12 @@ COMPOSE_PROJECT_NAME := vigil
 ENV_FILE := .env
 GO_LINT  := golangci-lint run ./...
 
+# docker compose 封装：docker-compose.yml 对 VIGIL_AUTH_JWT_SECRET 用 ${...:?} 强校验
+# （生产部署缺失时 up 直接报错，防 crash-loop）。compose 在解析阶段对整个文件插值——
+# 即使只起 postgres/redis 也会触发校验。dev 场景 vigil 容器不启动、用不到该值，
+# 故注入占位符让解析通过；shell 已导出真实值时优先用真实值。
+COMPOSE := VIGIL_AUTH_JWT_SECRET=$${VIGIL_AUTH_JWT_SECRET:-dev-only-placeholder} docker compose
+
 ##@ Setup
 
 .PHONY: install-hooks
@@ -24,15 +30,15 @@ $(ENV_FILE):
 
 .PHONY: dev-up dev-down
 dev-up: $(ENV_FILE) ## 启动依赖服务（postgres + redis）并等待就绪
-	COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME) docker compose up -d postgres redis
+	COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME) $(COMPOSE) up -d postgres redis
 	@echo "Waiting for postgres to be ready..."
-	@until docker compose exec -T postgres pg_isready -U vigil > /dev/null 2>&1; do sleep 1; done
+	@until $(COMPOSE) exec -T postgres pg_isready -U vigil > /dev/null 2>&1; do sleep 1; done
 	@echo "Waiting for redis to be ready..."
-	@until docker compose exec -T redis redis-cli ping > /dev/null 2>&1; do sleep 1; done
+	@until $(COMPOSE) exec -T redis redis-cli ping > /dev/null 2>&1; do sleep 1; done
 	@echo "✅ postgres + redis ready"
 
-dev-down: ## 停止依赖服务
-	COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME) docker compose down
+dev-down: $(ENV_FILE) ## 停止依赖服务
+	COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME) $(COMPOSE) down
 
 ##@ Database
 

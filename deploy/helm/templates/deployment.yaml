@@ -94,10 +94,6 @@ spec:
             - name: VIGIL_NOTIFICATION_SMTP_HOST
               value: {{ .Values.config.smtpHost | quote }}
             {{- end }}
-            {{- if .Values.config.phoneWebhookUrl }}
-            - name: VIGIL_NOTIFICATION_PHONE_WEBHOOK_URL
-              value: {{ .Values.config.phoneWebhookUrl | quote }}
-            {{- end }}
             # 通用扩展：注入 values.extraEnv 中未在上方显式列出的 VIGIL_* 配置。
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}

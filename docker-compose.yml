@@ -1,35 +1,52 @@
 # Vigil Docker Compose —— 完整 3 容器部署（vigil + postgres + redis）。
-# 对应 tech-stack.md §五：最小部署 3 容器。
+# 部署形态决策见 docs/adr/0031-single-binary-compose-helm.md，操作手册见 docs/operations.md。
 #
 # 用法：
-#   docker compose up -d              # 起全部服务
-#   docker compose exec vigil vigil migrate  # 首次启动后建表
+#   cp .env.example .env                      # 先配置（至少设置 VIGIL_AUTH_JWT_SECRET）
+#   docker compose run --rm vigil migrate     # 首次：建表 + 启用 pgvector（自动先起依赖）
+#   docker compose up -d                      # 起全部服务
 #
-# 开发模式（vigil 本地 go run 调试）：注释掉 vigil 服务，仅起 postgres + redis。
+# 凭证注入：compose 自动读取同目录 .env 做 ${} 插值；vigil 服务另通过 env_file
+# 加载 .env 的全部 VIGIL_* 配置（IM/LLM/SMTP 等）。镜像构建已排除 .env（.dockerignore），
+# 凭证只在运行时注入，不打进镜像。
+#
+# 开发模式（vigil 本地 go run 调试）：只起依赖 `make dev-up`
+# （即 docker compose up -d postgres redis）。
 
 services:
   postgres:
     # pgvector/pgvector 镜像自带 pgvector 扩展（相似事件检索 M11.4 依赖）。
     # 部署前置：必须用此镜像或自行在 postgres:16 基础上安装 pgvector。
     image: pgvector/pgvector:pg16
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: vigil
-      POSTGRES_PASSWORD: vigil
-      POSTGRES_DB: vigil
+      # 与 vigil 服务同一变量源（.env 的 VIGIL_DB_*），避免两处改密不同步。
+      POSTGRES_USER: ${VIGIL_DB_USER:-vigil}
+      POSTGRES_PASSWORD: ${VIGIL_DB_PASSWORD:-vigil}
+      POSTGRES_DB: ${VIGIL_DB_NAME:-vigil}
     ports:
-      - "5432:5432"
+      # 仅绑定本机回环：容器网络内 vigil 直连 postgres:5432，宿主机映射只为本机调试
+      # （psql / 本地 go run）。需远程访问时自行改绑并配防火墙，勿直接暴露公网。
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vigil"]
+      test: ["CMD-SHELL", "pg_isready -U ${VIGIL_DB_USER:-vigil}"]
       interval: 3s
       timeout: 3s
       retries: 10
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
+    # ★ AOF 持久化必开 + 数据卷必挂：升级计时任务（Asynq 延迟队列）存在 Redis，
+    # 容器重建丢数据 = 升级链路断裂（超时不升级、通知不发）。
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      # 仅绑定本机回环，理由同 postgres。
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -38,22 +55,31 @@ services:
 
   vigil:
     build: .
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # .env 的全部 VIGIL_* 配置注入容器（IM/LLM/SMTP 等按需项都从这里进）。
+    # 注意：.dockerignore 排除了 .env，镜像内没有它——必须经 env_file 运行时注入。
+    env_file: .env
     environment:
-      VIGIL_DB_HOST: postgres
-      VIGIL_DB_USER: vigil
-      VIGIL_DB_PASSWORD: vigil
-      VIGIL_DB_NAME: vigil
-      VIGIL_REDIS_ADDR: redis:6379
+      # 以下条目覆盖 env_file 同名项（environment 优先级高于 env_file）：
+      # 容器网络内固定寻址 + 生产模式强制，防 .env 里的本机开发值（127.0.0.1/development）
+      # 渗入容器部署。
       VIGIL_APP_ENV: production
+      VIGIL_DB_HOST: postgres
+      VIGIL_DB_PORT: "5432"
+      VIGIL_DB_USER: ${VIGIL_DB_USER:-vigil}
+      VIGIL_DB_PASSWORD: ${VIGIL_DB_PASSWORD:-vigil}
+      VIGIL_DB_NAME: ${VIGIL_DB_NAME:-vigil}
+      VIGIL_REDIS_ADDR: redis:6379
+      # 生产模式必须配置 JWT 签名密钥（config.Load 强校验）。
+      # 用 :? 插值让缺失在 `docker compose up` 阶段显式报错，而不是容器起后 crash-loop。
+      VIGIL_AUTH_JWT_SECRET: ${VIGIL_AUTH_JWT_SECRET:?请在 .env 设置强随机值（生成：openssl rand -hex 32）}
     ports:
       - "8080:8080"
-    # 首次启动需先 migrate（取消下行注释执行一次后重启）：
-    # command: ["migrate"]
 
   # Asynqmon —— Asynq 队列可视化面板（T6.2/M15 平台化长尾）。
   # 观测异步任务队列（升级计时器/归一化/聚合/清理等）：待处理/处理中/失败/重试计数、
@@ -70,3 +96,4 @@ services:
 
 volumes:
   pgdata:
+  redisdata:

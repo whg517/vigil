@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vigil 数据库 + Redis 备份脚本（docs/deployment.md D2）。
+# Vigil 数据库 + Redis 备份脚本（docs/operations.md §5）。
 #
 # 备份内容：
 #   - PostgreSQL：pg_dump 全量（自定义格式，支持并行恢复）
@@ -8,9 +8,10 @@
 # 用法：
 #   ./scripts/backup.sh                          # 用环境变量（VIGIL_DB_HOST 等）
 #   ./scripts/backup.sh /path/to/backup/dir      # 指定备份目录
-#   CRON: 0 2 * * * /path/to/vigil/scripts/backup.sh >> /var/log/vigil-backup.log 2>&1
+#   CRON（★ 必须先 source .env——cron 环境无 VIGIL_* 变量，缺 VIGIL_DB_PASSWORD 会直接退出）：
+#   0 2 * * * . /path/to/vigil/.env && /path/to/vigil/scripts/backup.sh /path/to/backups >> /var/log/vigil-backup.log 2>&1
 #
-# 依赖：pg_dump（PostgreSQL 客户端）、redis-cli、gzip
+# 依赖：pg_dump（与服务端版本匹配的 PostgreSQL 客户端，compose 默认 PG16）、redis-cli、gzip
 # 恢复：参见 scripts/restore.sh
 set -euo pipefail
 
