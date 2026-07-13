@@ -6,7 +6,6 @@
 // · 通知幂等（notification_id）、送达记录
 //
 // 已实现通道：Webhook / 邮件 / IM（钉钉/飞书）。
-// 电话/SMS 为抽象层 + webhook 占位转发（真实云厂商对接见 docs/backlog.md M7.2）。
 package notification
 
 import (

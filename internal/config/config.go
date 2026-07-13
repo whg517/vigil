@@ -59,7 +59,7 @@ type Config struct {
 	// Retention Event/RawEvent 保留清理配置（平台化长尾，T6.2/M15）
 	Retention Retention `envconfig:"retention"`
 
-	// SelfMonitor 自监控闭环配置（平台化 H2.4，backlog §2.6）
+	// SelfMonitor 自监控闭环配置（平台化 H2.4）
 	SelfMonitor SelfMonitor `envconfig:"self_monitor"`
 
 	// ServiceSync 服务主动同步配置（方案C P2，02-triage-routing §3.5）
@@ -69,7 +69,7 @@ type Config struct {
 	ServiceCleanup ServiceCleanup `envconfig:"service_cleanup"`
 }
 
-// SelfMonitor 自监控闭环配置（backlog §2.6，H2.4）。
+// SelfMonitor 自监控闭环配置（H2.4）。
 //
 // 背景：Vigil 是告警处置平台，但它自身也可能出故障（队列积压、通知发不出去）。
 // 若这类故障发生时无人告警，系统就是「哑巴」——事故堆着却没人知道。自监控闭环周期

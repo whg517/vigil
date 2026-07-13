@@ -148,8 +148,7 @@ const (
 	PermSuppressionDelete Permission = "suppression.delete"
 
 	// —— analytics 报表与度量（能力域 11 分析）——
-	// 报表为组织级视图（当前无团队 scope 隔离，见 docs/backlog.md），
-	// 故仅授予 org 级角色，避免团队管理员越权看到全组织指标。
+	// 数据按团队 scope 隔离（T0.7：team 级绑定只见本团队指标，org 级全可见）。
 	PermAnalyticsView Permission = "analytics.view"
 
 	// —— ai AI 洞察处置（能力域 11，human-in-the-loop）——
