@@ -1,0 +1,3 @@
+# 强制使用模板建 issue：空白 issue 缺少版本/部署形态等关键信息，几乎必然要来回补充。
+# 安全漏洞的申报入口在 SECURITY.md（Private Vulnerability Reporting），不走公开 issue。
+blank_issues_enabled: false

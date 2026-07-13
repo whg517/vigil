@@ -1,0 +1,70 @@
+name: "Bug 报告"
+description: "报告一个可复现的缺陷（安全漏洞请勿在此提交，见 SECURITY.md）"
+title: "[bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢报告！请尽量填写完整信息，便于快速定位。
+        ⚠️ **安全漏洞请勿在此公开提交**，请走仓库 Security 标签页的 Private Vulnerability Reporting（见仓库根目录 `SECURITY.md`）。
+  - type: input
+    id: version
+    attributes:
+      label: "版本号"
+      description: "运行的 Vigil 版本：git tag（如 v0.1.0）或 commit SHA；镜像部署可填镜像 tag。"
+      placeholder: "v0.1.0 / 0752a3c"
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: "部署形态"
+      options:
+        - "Docker Compose"
+        - "Helm (Kubernetes)"
+        - "裸二进制"
+        - "源码开发模式（make dev-*）"
+        - "其他（正文说明）"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: "复现步骤"
+      description: "从干净状态开始的最小复现路径。涉及告警接入时请附脱敏后的 payload 样例。"
+      placeholder: |
+        1. 创建接入 …
+        2. 发送告警 …
+        3. 观察到 …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: "期望行为"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: "实际行为（含日志/截图）"
+      description: "相关日志、报错、截图。请注意脱敏（token、凭据、内网地址、联系方式）。"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: "环境信息"
+      description: "操作系统 / 浏览器 / PostgreSQL 与 Redis 版本 / 是否多副本等。"
+      placeholder: "macOS 15 · Chrome 138 · postgres pgvector/pg16 · redis 7 · 单副本"
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "提交前自查"
+      options:
+        - label: "我已搜索过现有 issue，未发现重复报告"
+          required: true
+        - label: "这不是安全漏洞（安全漏洞走 SECURITY.md 私密申报渠道）"
+          required: true

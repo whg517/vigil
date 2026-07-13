@@ -160,6 +160,7 @@ go build ./... && pnpm --dir web build
 | 实体/字段/关系 | `ent/schema/` + [ADR-0010](./docs/adr/0010-event-incident-separation.md) |
 | UI/UX 设计 | [ADR-0034](./docs/adr/0034-uiux-oncall-principles.md) |
 | 怎么开发/提交 | 本文件「开发约定」+ [ADR-0035](./docs/adr/0035-dev-workflow-gates.md) |
+| 外部贡献怎么提（fork + PR） | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
 | e2e 测试怎么写/跑 | [ADR-0035](./docs/adr/0035-dev-workflow-gates.md) + `test/e2e/` |
 | 权限点清单 | `internal/auth/permission.go` |
 | 怎么扩展告警源/通知通道/IM 平台/执行器 | [`docs/extending.md`](./docs/extending.md) + [ADR-0009](./docs/adr/0009-pluggable-integrations.md) |
