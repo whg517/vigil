@@ -10,6 +10,7 @@ package triage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path"
@@ -598,10 +599,70 @@ func globMatch(pattern, value string) bool {
 }
 
 // aggregate 相关性聚合：同 service+severity 在时间窗口内的活跃 Incident 并入；否则创建新 Incident。
+//
+// 竞态防护（2026-07-14，ADR-0012 修订记录）：「查活跃单 → 建单」是 check-then-act 临界区，
+// 原实现无锁也无唯一约束护栏——Asynq 并发消费下，同 service+severity 的两条不同指纹告警
+// 毫秒级并发到达时会双双 miss 查询、各建一个 Incident 并各自启动升级链（双倍打扰）；
+// 去重 SETNX 只拦相同 dedup_key，拦不住这种场景，而告警风暴恰是并发最高、最需要聚合降噪
+// 的时刻。现把临界区放进事务，事务内先取 (service, severity) 粒度的 PostgreSQL advisory
+// xact lock 串行化（见 lock.go），锁内重查再建，锁随事务结束自动释放。
+//
+// incident.number 唯一冲突的换号重试保留原语义，但改为整个事务重来：PostgreSQL 中语句
+// 一旦报错，事务即进入 aborted 状态，无法在原事务内继续，必须回滚重开（换号也需重新分配）。
 func (e *Engine) aggregate(ctx context.Context, evt *ent.Event, svc *ent.Service) (*Result, error) {
-	// 找同 service+severity、在聚合窗口内、状态为 triggered/escalated/acked 的活跃 Incident
+	const maxRetries = 5
+	for attempt := 0; ; attempt++ {
+		res, err := e.aggregateOnce(ctx, evt, svc)
+		var retry *retryAggregateError
+		if errors.As(err, &retry) && attempt < maxRetries-1 {
+			continue // number 撞号 → 整个事务重来换号
+		}
+		return res, err
+	}
+}
+
+// retryAggregateError 标记「本轮聚合事务需整体重试」（incident.number 唯一冲突换号）。
+type retryAggregateError struct{ err error }
+
+func (r *retryAggregateError) Error() string { return r.err.Error() }
+func (r *retryAggregateError) Unwrap() error { return r.err }
+
+// aggregateOnce 在单个事务内执行一轮「加锁 → 重查 → 并入或建单」，提交成功后执行副作用。
+//
+// 副作用（埋点/时间线/领域事件/AI 触发）统一延迟到 commit 之后：
+//  1. 缩短持锁时间——临界区只含判定与写库，锁随 commit 立即释放，并发峰值下不被慢副作用拖长；
+//  2. 避免「事务回滚但事件已发出」的幻影副作用（订阅方拿到不存在的 Incident）。
+func (e *Engine) aggregateOnce(ctx context.Context, evt *ent.Event, svc *ent.Service) (*Result, error) {
+	tx, err := e.db.Tx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin aggregate tx: %w", err)
+	}
+	res, postCommit, err := e.aggregateInTx(ctx, tx, evt, svc)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit aggregate tx: %w", err)
+	}
+	if postCommit != nil {
+		postCommit()
+	}
+	return res, nil
+}
+
+// aggregateInTx 聚合临界区本体：加 advisory lock 后重查再决定并入/建单。
+// 返回的 postCommit 由调用方在事务提交成功后执行（nil 表示无副作用）。
+func (e *Engine) aggregateInTx(ctx context.Context, tx *ent.Tx, evt *ent.Event, svc *ent.Service) (*Result, func(), error) {
+	// 串行化护栏：同 (service, severity) 的临界区互斥。PG 上是 advisory xact lock；
+	// 非 PG 方言（单测 sqlite）退化为无锁走原逻辑，见 lock.go 方言守卫说明。
+	if err := acquireAggregateLock(ctx, tx, svc.ID, evt.Severity); err != nil {
+		return nil, nil, err
+	}
+	// 锁内重查：并发竞争时后到者在此看到先行者已提交的活跃单，从而并入而非重复建单。
+	// 此查询必须发生在拿到锁之后——这是「锁内重查再建」防竞态的关键一步。
 	since := time.Now().Add(-e.aggregateWindow)
-	existing, err := e.db.Incident.Query().
+	existing, err := tx.Incident.Query().
 		Where(
 			incident.HasServiceWith(service.IDEQ(svc.ID)),
 			incident.SeverityEQ(incident.Severity(evt.Severity)),
@@ -611,50 +672,64 @@ func (e *Engine) aggregate(ctx context.Context, evt *ent.Event, svc *ent.Service
 		Order(ent.Desc(incident.FieldCreatedAt)).
 		First(ctx)
 	if err != nil && !ent.IsNotFound(err) {
-		return nil, fmt.Errorf("query active incident: %w", err)
+		return nil, nil, fmt.Errorf("query active incident: %w", err)
 	}
 
 	res := &Result{ServiceID: svc.ID, ServiceName: svc.Name}
 
 	if existing != nil {
 		// 并入既有 Incident：把 Event 关联到该 Incident
-		if err := e.db.Event.UpdateOneID(evt.ID).SetIncidentID(existing.ID).Exec(ctx); err != nil {
-			return nil, fmt.Errorf("attach event to incident: %w", err)
-		}
-		// 写 event_attached 时间线（B5：聚合并入已有 Incident 的告警要留痕，原先零写入）。
-		// 让复盘能看到「这个单聚合了哪些后续告警」，而非只见首告警。系统触发，source=system。
-		if e.recorder != nil {
-			_ = e.recorder.Record(ctx, existing.ID, timelineitem.TypeEventAttached,
-				fmt.Sprintf("新告警并入本事件：%s", evt.Summary),
-				timeline.Actor{Kind: "system"}, timelineitem.SourceSystem,
-				map[string]any{"event_id": evt.ID, "dedup_key": evt.DedupKey, "severity": string(evt.Severity), "source_event_id": evt.SourceEventID})
+		if err := tx.Event.UpdateOneID(evt.ID).SetIncidentID(existing.ID).Exec(ctx); err != nil {
+			return nil, nil, fmt.Errorf("attach event to incident: %w", err)
 		}
 		res.Action = ActionAggregated
 		res.IncidentID = existing.ID
 		res.IncidentNum = existing.Number
-		return res, nil
+		// 写 event_attached 时间线（B5：聚合并入已有 Incident 的告警要留痕，原先零写入）。
+		// 让复盘能看到「这个单聚合了哪些后续告警」，而非只见首告警。系统触发，source=system。
+		post := func() {
+			if e.recorder != nil {
+				_ = e.recorder.Record(ctx, existing.ID, timelineitem.TypeEventAttached,
+					fmt.Sprintf("新告警并入本事件：%s", evt.Summary),
+					timeline.Actor{Kind: "system"}, timelineitem.SourceSystem,
+					map[string]any{"event_id": evt.ID, "dedup_key": evt.DedupKey, "severity": string(evt.Severity), "source_event_id": evt.SourceEventID})
+			}
+		}
+		return res, post, nil
 	}
 
 	// 创建新 Incident（仅当 Service.auto_create_incident=true 或 severity=critical）
 	if !svc.AutoCreateIncident && evt.Severity != event.SeverityCritical {
 		// 不自动创建，Event 暂不进 Incident（等待人工提升）
-		return &Result{Action: ActionUnrouted, ServiceID: svc.ID, ServiceName: svc.Name}, nil
+		return &Result{Action: ActionUnrouted, ServiceID: svc.ID, ServiceName: svc.Name}, nil, nil
 	}
 
-	inc, err := e.createIncident(ctx, evt, svc)
+	inc, err := e.createIncidentInTx(ctx, tx, evt, svc)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// 创建后：绑定 Service 的升级策略到 Incident，并发布 IncidentCreated 事件。
-	// 原由 OnIncidentCreated 回调（main 注入 escEngine）完成；现改为事件解耦——
-	// triage 只负责「绑定策略 + 发事件」，升级链启动由 escalation 订阅事件完成。
-	e.bindPolicyAndPublish(ctx, inc, svc)
-	// T3.2：新建 Incident 后异步触发分诊 AI（severity/dedup 建议），不阻塞分诊主流程。
-	e.triggerAIAnalysis(ctx, inc.ID)
 	res.Action = ActionIncidentCreated
 	res.IncidentID = inc.ID
 	res.IncidentNum = inc.Number
-	return res, nil
+	post := func() {
+		// 埋点：事件创建数（按 severity）
+		metrics.IncidentsCreated.WithLabelValues(string(inc.Severity)).Inc()
+		// 写 incident_created 时间线（B4：建单是「全程留痕」的起点，原先零写入）。
+		// 系统自动建单（triage），source=system。失败不阻塞建单主流程（best-effort）。
+		if e.recorder != nil {
+			_ = e.recorder.Record(ctx, inc.ID, timelineitem.TypeIncidentCreated,
+				fmt.Sprintf("系统创建事件 %s：%s", inc.Number, inc.Title),
+				timeline.Actor{Kind: "system"}, timelineitem.SourceSystem,
+				map[string]any{"number": inc.Number, "severity": string(inc.Severity), "service": svc.Name, "source_event_id": evt.SourceEventID})
+		}
+		// 创建后：绑定 Service 的升级策略到 Incident，并发布 IncidentCreated 事件。
+		// 原由 OnIncidentCreated 回调（main 注入 escEngine）完成；现改为事件解耦——
+		// triage 只负责「绑定策略 + 发事件」，升级链启动由 escalation 订阅事件完成。
+		e.bindPolicyAndPublish(ctx, inc, svc)
+		// T3.2：新建 Incident 后异步触发分诊 AI（severity/dedup 建议），不阻塞分诊主流程。
+		e.triggerAIAnalysis(ctx, inc.ID)
+	}
+	return res, post, nil
 }
 
 // bindPolicyAndPublish 把 Service 的 EscalationPolicy 绑定到 Incident，
@@ -705,60 +780,45 @@ func (e *Engine) triggerAIAnalysis(ctx context.Context, incID int) {
 // aiAnalysisTimeout 分诊 AI 异步分析的超时上限（防 LLM 卡死泄漏 goroutine）。
 const aiAnalysisTimeout = 90 * time.Second
 
-// createIncident 创建新 Incident，并把 Event 关联进去。
-// 编号生成并发安全：Redis INCR 原子分配；无 Redis 时 Count+1 并在 number 唯一冲突时重试。
-func (e *Engine) createIncident(ctx context.Context, evt *ent.Event, svc *ent.Service) (*ent.Incident, error) {
-	// 查 Service 归属的 Team（team 是 edge，非字段）
+// createIncidentInTx 在聚合事务内创建新 Incident，并把 Event 关联进去。
+// 编号生成并发安全：Redis INCR 原子分配几乎不冲突；无 Redis 时 Count+1 可能撞号，
+// 靠 incident.number Unique 约束兜底——撞号时返回 retryAggregateError 让 aggregate
+// 整个事务重来换号（PG 中报错后事务已 aborted，无法原地重试，与旧实现的循环换号不同）。
+func (e *Engine) createIncidentInTx(ctx context.Context, tx *ent.Tx, evt *ent.Event, svc *ent.Service) (*ent.Incident, error) {
+	// 查 Service 归属的 Team（team 是 edge，非字段）。svc 由事务外的 client 加载，
+	// 此读操作走非事务连接——只读且无竞态语义要求，不必占用临界区连接。
 	team, err := svc.QueryTeam().Only(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("query service team: %w", err)
 	}
 	priority := severityToPriority(evt.Severity)
 
-	// 编号分配 + 唯一冲突重试。
-	// Redis 在线时 INCR 强一致，几乎不冲突；无 Redis 时 Count+1 可能冲突，
-	// 靠 incident.number Unique 约束兜底，捕获 ConstraintError 换号重试。
-	const maxRetries = 5
-	var inc *ent.Incident
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		num, err := e.nextIncidentNumber(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("alloc incident number: %w", err)
-		}
-		inc, err = e.db.Incident.Create().
-			SetNumber(num).
-			SetTitle(evt.Summary).
-			SetSeverity(incident.Severity(evt.Severity)).
-			SetStatus(incident.StatusTriggered).
-			SetPriority(incident.Priority(priority)).
-			SetSummary(evt.Summary).
-			SetTriggerType(incident.TriggerTypeAuto).
-			SetTriggerSourceEventID(evt.SourceEventID).
-			SetService(svc).
-			SetTeamID(team.ID).
-			Save(ctx)
-		if err == nil {
-			break
-		}
-		// number 唯一冲突（并发分配到同号）→ 换号重试
-		if ent.IsConstraintError(err) && attempt < maxRetries-1 {
-			continue
+	num, err := e.nextIncidentNumber(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("alloc incident number: %w", err)
+	}
+	inc, err := tx.Incident.Create().
+		SetNumber(num).
+		SetTitle(evt.Summary).
+		SetSeverity(incident.Severity(evt.Severity)).
+		SetStatus(incident.StatusTriggered).
+		SetPriority(incident.Priority(priority)).
+		SetSummary(evt.Summary).
+		SetTriggerType(incident.TriggerTypeAuto).
+		SetTriggerSourceEventID(evt.SourceEventID).
+		SetService(svc).
+		SetTeamID(team.ID).
+		Save(ctx)
+	if err != nil {
+		// number 唯一冲突（并发分配到同号）→ 上抛重试标记，由 aggregate 回滚后换号重开事务。
+		if ent.IsConstraintError(err) {
+			return nil, &retryAggregateError{err: fmt.Errorf("create incident: %w", err)}
 		}
 		return nil, fmt.Errorf("create incident: %w", err)
 	}
-	// 埋点：事件创建数（按 severity）
-	metrics.IncidentsCreated.WithLabelValues(string(inc.Severity)).Inc()
-	// 关联 Event 到 Incident
-	if err := e.db.Event.UpdateOneID(evt.ID).SetIncidentID(inc.ID).Exec(ctx); err != nil {
+	// 关联 Event 到 Incident（与建单同事务：不留「单已建但首告警未挂」的中间态）
+	if err := tx.Event.UpdateOneID(evt.ID).SetIncidentID(inc.ID).Exec(ctx); err != nil {
 		return nil, fmt.Errorf("attach event: %w", err)
-	}
-	// 写 incident_created 时间线（B4：建单是「全程留痕」的起点，原先零写入）。
-	// 系统自动建单（triage），source=system。失败不阻塞建单主流程（best-effort）。
-	if e.recorder != nil {
-		_ = e.recorder.Record(ctx, inc.ID, timelineitem.TypeIncidentCreated,
-			fmt.Sprintf("系统创建事件 %s：%s", inc.Number, inc.Title),
-			timeline.Actor{Kind: "system"}, timelineitem.SourceSystem,
-			map[string]any{"number": inc.Number, "severity": string(inc.Severity), "service": svc.Name, "source_event_id": evt.SourceEventID})
 	}
 	return inc, nil
 }
