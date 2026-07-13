@@ -129,7 +129,61 @@ docker compose up -d redis vigil                    # 4. 恢复正常拓扑
 - [ ] 演练环境使用**独立 Redis**(§1 红线:切勿连生产 Redis,会互抢队列任务);
 - [ ] 记录恢复耗时(= 真实事故时的 RTO 参考)。
 
-## 6. Kubernetes(Helm)
+## 6. 密钥与凭证轮换
+
+Vigil 涉及四类密钥/凭证,轮换能力差异很大,动手前先分清(能力现状以代码为准,勿凭直觉操作):
+
+| 密钥/凭证 | 载体 | 影响面 | 轮换支持 |
+|------|------|------|------|
+| 凭据加密密钥 | `VIGIL_CREDENTIAL_ENCRYPTION_KEY` | Runbook 执行器凭据、工单集成凭据/回调密钥、Webhook 订阅签名密钥(**同一把钥**) | ⚠️ 无 keyring,换钥后旧密文全部不可解,须逐条重录(§6.1) |
+| JWT 签名密钥 | `VIGIL_AUTH_JWT_SECRET` | 全部登录态(Web/IM 同一鉴权链路) | 支持但一刀切:换钥 = 全员立即下线(§6.2) |
+| API Key | 库内 SHA256 哈希 | 程序化接入方(开放 API/CI) | 新建 + 切换 + 删旧,可平滑过渡(§6.3) |
+| 告警源 webhook token | `Integration.token` | 单个告警接入点 | ✅ 内置一键轮换(§6.3) |
+
+### 6.1 凭据加密密钥(VIGIL_CREDENTIAL_ENCRYPTION_KEY)
+
+**先读限制**:当前实现为单密钥 AES-256-GCM,密文不带密钥版本号,**无 keyring/新旧双钥并存机制**——进程只认当前一把钥。换钥后所有旧密文一律解密失败;且 Vigil 从不回显任何明文/密文(安全红线,接口与页面均只出元数据),**无法从 Vigil 导出旧值再自动重加密**。因此轮换 = 换钥 + 逐条人工重录,重录所需明文必须来自外部系统侧的源头(Jenkins/Ansible token、工单系统凭据、与 webhook 接收方约定的签名密钥)。
+
+同一把钥加密了三类数据,一换全换,解密失败的表现**不一样**:
+
+| 数据 | 换钥后的表现 | 重录入口 |
+|------|------|------|
+| Runbook 执行器凭据(Credential) | 显式失败:引用该凭据的 Runbook step 执行报解密错误(错误已脱敏) | Web「凭据」页,或 `PATCH /api/v1/credentials/{id}` 传 `secret` |
+| 工单集成凭据/回调密钥(TicketIntegration) | ★ **静默失败**:解密失败时按"历史明文"透传,即拿密文串去调外部工单系统 → 对端认证失败 | Web「工单集成」页,或 `PATCH /api/v1/ticket-integrations/{id}` 传 `credential`/`callback_secret` |
+| Webhook 订阅签名密钥(WebhookSubscription) | ★ **静默失败**:用密文串计算出站签名,接收端验签不过 | Web「Webhook 订阅」页,或 `PATCH /api/v1/webhook-subscriptions/{id}` 传 `signing_secret` |
+
+> ⚠️ 后两类的静默透传是为兼容加密功能启用前落库的明文数据,换钥后**不会报任何错**,只会"签名/认证悄悄不对"。轮换必须以"逐条重录 + 端到端验证"为完成标准,不能以"没报错"为准。
+
+**例行轮换操作序列**:
+
+1. **盘点**:导出三类清单(均只含元数据):`GET /api/v1/credentials`、`GET /api/v1/ticket-integrations`、`GET /api/v1/webhook-subscriptions`,或在对应 Web 页面逐条记录。
+2. **备好明文源值**:从外部系统侧取得每条的当前值;拿不到源值的(如当初随手生成没留档),趁此机会在外部系统重签一个新值。
+3. **换钥**:`openssl rand -base64 32` 生成新钥 → 更新 `.env`(compose)或 vigil-secrets(Helm)中的 `VIGIL_CREDENTIAL_ENCRYPTION_KEY` → 重启 vigil(配置仅启动时读取)。
+4. **逐条重录**:对盘点清单里的每一条,经 Web 页或 PATCH 接口重新提交明文(提交即用新钥重加密落库)。
+5. **验证**:执行一个引用凭据的 Runbook step 确认无解密错误;触发一次建单确认工单系统认证通过;触发一次订阅事件并在接收端确认验签通过。
+
+**疑似泄露 vs 例行轮换**:
+
+- **疑似泄露**(密钥可能与库同时外泄):库内所有密文应视为已泄露。**先在外部系统侧吊销/重签全部受托管凭据**,再走上述序列录入新值——顺序必须是"先废外部凭据,再换 Vigil 密钥",否则窗口期内旧凭据仍可被持有者滥用。
+- **例行轮换**:凭据本体不必换,仅换加密钥并重录同值;可分批推进,期间未重录条目按上表"表现"降级(注意静默失败的两类要优先)。
+
+### 6.2 JWT 签名密钥(VIGIL_AUTH_JWT_SECRET)
+
+- **影响**:HS256 单密钥签发/校验,换钥重启后所有已签发 token(access 默认 15m、refresh 默认 30d)立即失效——**全员强制下线**,重新登录即恢复,无数据影响。API Key 不受影响(独立哈希校验);告警接入 token 不受影响。
+- **建议时机**:例行轮换放低峰/维护窗口,提前在 IM 周知"需重新登录"。**疑似泄露立即换,不等窗口**——泄露的 secret 可伪造任意用户的 token,比全员下线严重得多。
+- **操作序列**:
+  1. `openssl rand -hex 32` 生成新值;
+  2. 更新 `.env`(compose)或 vigil-secrets(Helm)中的 `VIGIL_AUTH_JWT_SECRET`;
+  3. `docker compose up -d vigil`(或 `kubectl rollout restart deploy/vigil`);
+  4. 验证:持旧 token 调任意 API 返回 401,重新登录成功。
+- 补充:若只需强制**单个用户**下线(如单账号被盗),不必动全局密钥——该用户改密即令其全部旧 token 失效(token_version 吊销机制)。
+
+### 6.3 API Key 与告警源 webhook token
+
+- **API Key**:无原地轮换,按"新建(`POST /api/v1/api-keys`,明文仅此一次返回)→ 切换调用方 → 删旧(`DELETE /api/v1/api-keys/{id}`)"三步平滑过渡,新旧并存期间无中断。
+- **告警源 webhook token**:接入详情页一键轮换,或 `POST /api/v1/integrations/{id}/rotate-token`;**旧 token 立即失效**,轮换后须同步更新告警源侧的推送地址,否则接入 401(见「故障排查」表)。
+
+## 7. Kubernetes(Helm)
 
 ```bash
 kubectl create secret generic vigil-secrets ...   # DB 密码/JWT Secret/Redis 密码走 existingSecret
@@ -145,7 +199,7 @@ kubectl exec deploy/vigil -- vigil migrate        # pod 未 ready 也可 exec
   未经端到端验证,生产暂不建议。
 - Chart 位于 [`deploy/helm/`](../deploy/helm/)(Chart/values/Deployment/Service/Ingress 可选/PDB)。
 
-## 7. 故障排查
+## 8. 故障排查
 
 | 现象 | 排查 |
 |------|------|

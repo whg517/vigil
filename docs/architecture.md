@@ -224,6 +224,7 @@ deploy/helm/        # Helm Chart    docs/  # 本文档 + adr/
 | 通知通道故障 | 逐通道兜底降级链;整链失败兜底告警 org_admin |
 | worker 崩溃 | Asynq 任务持久化 + 至少一次投递,重启自动恢复 |
 | LLM 不可用 | AI 功能降级(非核心链路),不影响告警主流程 |
+| 数据无界增长 | Event/RawEvent 保留清理巡检(默认 90/30 天,分页删除、保护活跃 Incident 证据);其余表的保留策略与按月分区路线见 [ADR-0039](./adr/0039-data-lifecycle.md) |
 
 ---
 

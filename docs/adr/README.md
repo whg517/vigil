@@ -77,6 +77,7 @@
 | [0031](0031-single-binary-compose-helm.md) | 单二进制 embed + Compose/Helm | Accepted |
 | [0032](0032-migration-backup-restore.md) | 迁移与回滚:备份恢复(不做逆向迁移) | Accepted |
 | [0033](0033-selfmon-and-auth.md) | 自监控三红线 + 鉴权 Bearer JWT | Accepted |
+| [0039](0039-data-lifecycle.md) | 数据生命周期:保留清理、归档取舍与分区路线 | Proposed(Event/RawEvent 清理已实现,为补记) |
 
 ### 前端 UX / 工程流程
 | # | 标题 | 状态 |
