@@ -88,9 +88,13 @@ var configTemplates = map[string]configTemplate{
 	"email": {
 		Type:        "email",
 		DisplayName: "邮件接入",
-		Description: "通过邮件接收告警（设计目标：邮件解析适配器待实现）。",
-		Fields:      []configField{},
-		SetupHint:   "邮件接入适配器为设计目标，当前请优先使用 webhook/prometheus 等类型。",
+		Description: "遗留监控系统经 SMTP 发邮件接入告警：主题解析严重度，正文入 detail。",
+		Fields: []configField{
+			{Key: "severity_map", Label: "严重度映射覆盖", Required: false, Example: `{"disaster":"critical"}`, Help: "主题解析出的原始严重度 → critical/warning/info 覆盖表；未命中回落内置默认映射。"},
+		},
+		SetupHint: "服务端需开启 `VIGIL_SMTP_IN_ENABLED=true`（默认端口 2525，仅内网可达）。" +
+			"告警源把收件地址设为 `<本接入点 token>@<任意域>`；主题 `[CRITICAL] xxx` 解析严重度，" +
+			"`[RESOLVED]` 前缀标记恢复。",
 	},
 }
 

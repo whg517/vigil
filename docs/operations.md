@@ -39,6 +39,7 @@ curl http://localhost:8080/health   # 健康检查
 - [ ] **备份**:`scripts/backup.sh` 挂 cron(内含 pg_dump + Redis 快照,保留 7 天)。**升级前必备份——这是唯一的回滚手段**。
 - [ ] **自监控**(可选):先配好独立通道(webhook/email),再开 `VIGIL_SELF_MONITOR_ENABLED=true`(默认关;通道未配就开只会空转,启动日志会 warn)。
 - [ ] **暴露 `/metrics` + `/health`** 给外部监控(吃自己狗粮)。
+- [ ] **SMTP 入向**(若开启 `VIGIL_INGESTION_SMTP_IN_ENABLED`):端口(默认 2525)必须仅内网可达——无 STARTTLS/SMTP AUTH,公网暴露属错误部署([ADR-0038](./adr/0038-smtp-inbound.md))。
 
 ## 4. 升级
 

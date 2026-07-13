@@ -57,7 +57,7 @@ func (r *AdapterRegistry) RegisterBuiltins() {
 	r.Register(&PrometheusAdapter{})
 	r.Register(&GrafanaAdapter{})
 	r.Register(&GenericJSONAdapter{})
-	// 云监控/邮件接入见 docs/backlog.md（本期不实现，Integration.type 枚举已预留）
+	r.Register(&EmailAdapter{}) // SMTP 入向(ADR-0038):消费 smtp_server 落库的邮件信封
 }
 
 // Get 按 Integration.Type 取适配器。

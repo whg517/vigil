@@ -370,6 +370,11 @@ type Ingestion struct {
 	// BackpressureDepth 队列积压阈值，超过则接入层返回 503（payload 仍落库）。
 	// 0=不检查背压。
 	BackpressureDepth int `envconfig:"backpressure_depth" default:"10000"`
+
+	// —— SMTP 入向（ADR-0038）：遗留监控系统的邮件告警接入 ——
+	// 收件人 local part 即 type=email 接入点的 token；端口仅应内网可达。
+	SMTPInEnabled bool   `envconfig:"smtp_in_enabled" default:"false"` // 默认关
+	SMTPInAddr    string `envconfig:"smtp_in_addr" default:":2525"`    // 监听地址
 }
 
 // Triage 分诊配置（能力域 3-4，C9：去重/聚合窗口可配，替代硬编码 5min）。

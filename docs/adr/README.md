@@ -31,6 +31,7 @@
 | [0012](0012-triage-three-stage-pipeline.md) | 三层分诊管线:去重/抑制/聚合 | Accepted |
 | [0013](0013-deterministic-routing.md) | 确定性路由裁决 + 未路由池可申诉 | Accepted |
 | [0014](0014-service-auto-provisioning.md) | Service 自动供给(方案C) | Accepted |
+| [0038](0038-smtp-inbound.md) | SMTP 入向接入(邮件告警源) | Accepted |
 
 ### 排班与升级
 | # | 标题 | 状态 |

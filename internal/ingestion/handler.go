@@ -112,12 +112,17 @@ func (h *Handler) receiveWebhook(c *echo.Context) error {
 //
 // 返回 (ack, httpStatus)：调用方直接 c.JSON(status, ack)。限流/背压/落库失败均由 ack.Status 区分。
 func (h *Handler) ingest(c *echo.Context, integ *ent.Integration, body []byte) (httputil.AckResponse, int) {
-	ctx := c.Request().Context()
+	return h.IngestRaw(c.Request().Context(), integ, body, extractHeaders(c.Request()))
+}
 
+// IngestRaw 协议无关的接入核心：落 RawEvent → 限流 → 背压 → 入归一化队列。
+// HTTP(webhook/开放 API)与 SMTP 入向(ADR-0038)共用,保证所有入口拥有同一套
+// 「先落库不丢、限流、背压、回灌」可靠性契约。headers 为入口侧元信息(审计/排查用)。
+func (h *Handler) IngestRaw(ctx context.Context, integ *ent.Integration, body []byte, headers map[string]string) (httputil.AckResponse, int) {
 	// 落 RawEvent（先落库，保证不丢——即使限流/背压，payload 也必须落库，capabilities §3.3）
 	raw, err := h.db.RawEvent.Create().
 		SetPayload(body).
-		SetHeaders(extractHeaders(c.Request())).
+		SetHeaders(headers).
 		SetStatus(rawevent.StatusReceived).
 		SetIntegration(integ).
 		Save(ctx)

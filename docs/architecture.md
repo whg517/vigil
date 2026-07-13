@@ -245,7 +245,7 @@ deploy/helm/        # Helm Chart    docs/  # 本文档 + adr/
 |------|-----|
 | 定位 | [0002](./adr/0002-product-positioning.md) |
 | 技术栈 | [0003](./adr/0003-backend-language-go.md) [0004](./adr/0004-web-framework-echo.md) [0005](./adr/0005-data-access-ent-atlas.md) [0006](./adr/0006-primary-store-postgresql.md) [0007](./adr/0007-async-tasks-asynq.md) [0008](./adr/0008-frontend-vite-shadcn.md) [0009](./adr/0009-pluggable-integrations.md) |
-| 接入分诊 | [0010](./adr/0010-event-incident-separation.md) [0011](./adr/0011-ingestion-decoupled-idempotent.md) [0012](./adr/0012-triage-three-stage-pipeline.md) [0013](./adr/0013-deterministic-routing.md) [0014](./adr/0014-service-auto-provisioning.md) |
+| 接入分诊 | [0010](./adr/0010-event-incident-separation.md) [0011](./adr/0011-ingestion-decoupled-idempotent.md) [0012](./adr/0012-triage-three-stage-pipeline.md) [0013](./adr/0013-deterministic-routing.md) [0014](./adr/0014-service-auto-provisioning.md) [0038](./adr/0038-smtp-inbound.md) |
 | 排班升级 | [0015](./adr/0015-schedule-realtime-no-snapshot.md) [0016](./adr/0016-escalation-asynq-delayed.md) |
 | 通知 | [0017](./adr/0017-notification-fallback-chain.md) |
 | IM 协同 | [0018](./adr/0018-im-same-rbac-as-web.md) [0019](./adr/0019-imbot-pluggable-degradation.md) [0020](./adr/0020-responder-temp-grant.md) |

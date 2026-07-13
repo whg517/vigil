@@ -150,6 +150,19 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	ingestHandler.SetBackpressureChecker(middleware.NewBackpressureChecker(st.Redis, cfg.Ingestion.BackpressureDepth))
 	normalizeWorker := ingestion.NewNormalizeWorker(st.DB, adapterRegistry, q)
 	q.Register(ingestion.TaskNormalize, normalizeWorker.Handle)
+	// SMTP 入向（ADR-0038，默认关）：邮件告警 → IngestRaw 同链路。随 ctx 优雅关闭。
+	if cfg.Ingestion.SMTPInEnabled {
+		smtpSrv := ingestion.NewSMTPServer(st.DB, ingestHandler, cfg.Ingestion.SMTPInAddr)
+		smtpSrv.Start()
+		go func() {
+			<-ctx.Done()
+			// 父 ctx 已取消,关闭动作需要自己的超时上下文(不继承取消,否则立即失效)
+			shCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			_ = smtpSrv.Shutdown(shCtx)
+		}()
+		log.Info("smtp inbound enabled", zap.String("addr", cfg.Ingestion.SMTPInAddr))
+	}
 
 	// —— 通知（能力域 7）：通道注册表 + 分发器（含静默/聚合/模板）——
 	notifWebhookURLs := parseWebhookURLs(cfg.Webhook.OutURLs)

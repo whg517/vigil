@@ -267,3 +267,96 @@ func firstNonEmpty(ss ...string) string {
 	}
 	return ""
 }
+
+// EmailAdapter 邮件适配器(ADR-0038):消费 SMTP 入向落库的 emailEnvelope 信封。
+// severity 从主题解析(前缀/关键词,severity_map 可覆盖);[RESOLVED]/[OK] 前缀归一为 resolved。
+type EmailAdapter struct{}
+
+func (EmailAdapter) Type() string { return "email" }
+
+func (EmailAdapter) Normalize(_ context.Context, raw []byte, integ *ent.Integration, _ *ent.RawEvent) ([]*NormalizedEvent, error) {
+	var env emailEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return nil, fmt.Errorf("parse email envelope: %w", err)
+	}
+	if env.Subject == "" && env.Body == "" {
+		return nil, fmt.Errorf("email has no subject/body")
+	}
+
+	subject := strings.TrimSpace(env.Subject)
+	status := "firing"
+	// [RESOLVED]/[OK] 前缀 → resolved(去前缀后剩余主题参与 severity 判定与摘要)
+	upper := strings.ToUpper(subject)
+	for _, p := range []string{"[RESOLVED]", "[OK]", "[已恢复]"} {
+		if strings.HasPrefix(upper, p) || strings.HasPrefix(subject, p) {
+			status = "resolved"
+			subject = strings.TrimSpace(subject[len(p):])
+			break
+		}
+	}
+
+	severity := mapSeverity(integ, emailRawSeverity(subject), normalizeSeverity)
+
+	srcID := env.MessageID
+	if srcID == "" {
+		srcID = emailFingerprint(env.From, env.Subject, env.Date)
+	}
+	summary := subject
+	if summary == "" {
+		summary = firstLine(env.Body)
+	}
+
+	return []*NormalizedEvent{{
+		SourceEventID: srcID,
+		Source:        "email",
+		Severity:      severity,
+		Status:        status,
+		Summary:       summary,
+		Detail:        map[string]any{"from": env.From, "subject": env.Subject, "body": truncateBody(env.Body)},
+		Labels:        map[string]string{"transport": "email"},
+		DedupKey:      dedupKey("email", srcID),
+	}}, nil
+}
+
+// emailRawSeverity 从主题提取原始严重度词:优先 [XXX] 前缀,其次关键词扫描。
+// 返回原始词(交给 mapSeverity 归一,使 severity_map 覆盖表对邮件同样生效)。
+func emailRawSeverity(subject string) string {
+	s := strings.ToLower(subject)
+	if i := strings.IndexByte(s, '['); i >= 0 {
+		if j := strings.IndexByte(s[i:], ']'); j > 1 {
+			return s[i+1 : i+j]
+		}
+	}
+	// 中文关键词直接归一到规范词(默认 normalizeSeverity 只识别英文);
+	// 英文关键词返回原词,保持 severity_map 覆盖表可按原词命中。
+	for kw, canon := range map[string]string{"紧急": "critical", "严重": "critical", "警告": "warning"} {
+		if strings.Contains(s, kw) {
+			return canon
+		}
+	}
+	for _, kw := range []string{"critical", "fatal", "error", "warning", "warn"} {
+		if strings.Contains(s, kw) {
+			return kw
+		}
+	}
+	return ""
+}
+
+// firstLine 取正文首个非空行(主题缺失时兜底摘要)。
+func firstLine(body string) string {
+	for line := range strings.SplitSeq(body, "\n") {
+		if t := strings.TrimSpace(line); t != "" {
+			return t
+		}
+	}
+	return "告警(邮件接入)"
+}
+
+// truncateBody 截断正文进 Detail(全文在 RawEvent.payload 可查,Detail 只留排查摘要)。
+func truncateBody(s string) string {
+	const max = 4096
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…(truncated, 全文见 raw_event)"
+}
