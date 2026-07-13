@@ -67,6 +67,29 @@ type Config struct {
 
 	// ServiceCleanup 自动供给服务过期清理配置（方案C 治理，02-triage-routing §3.5）
 	ServiceCleanup ServiceCleanup `envconfig:"service_cleanup"`
+
+	// TestEndpoints 测试专用端点门控（SEC-02 修订，ADR-0033）
+	TestEndpoints TestEndpoints `envconfig:"test_endpoints"`
+}
+
+// TestEndpoints 测试专用端点门控（SEC-02 修订，见 ADR-0033 修订记录）。
+//
+// 背景：/api/v1/__test__/reset（无鉴权 TRUNCATE 全部业务表 + 清 Redis/队列）原先隐式跟随
+// APP_ENV=development 注册——而 APP_ENV 默认就是 development，二进制直跑的用户在完全不知情
+// 的情况下暴露了「一个 POST 清空全库」的端点。危险行为必须显式开启，不能搭默认环境的便车。
+type TestEndpoints struct {
+	// Enabled 是否注册测试专用端点（VIGIL_TEST_ENDPOINTS_ENABLED）。
+	// 默认 false；仅 e2e 测试编排（docker-compose.e2e.yml / CI）显式开启。
+	Enabled bool `envconfig:"enabled" default:"false"`
+}
+
+// EffectiveEnabled 返回测试端点是否生效。
+// 生产环境（App.Env=production）无条件强制 false（双保险）——即使误配 true 也不注册。
+func (t TestEndpoints) EffectiveEnabled(isProduction bool) bool {
+	if isProduction {
+		return false
+	}
+	return t.Enabled
 }
 
 // SelfMonitor 自监控闭环配置（H2.4）。
@@ -301,7 +324,8 @@ type Asynq struct {
 }
 
 // Auth 鉴权配置（能力域 13）。
-// Enabled 为 true 时所有业务 API 须提供有效身份（JWT 优先，回退 X-Vigil-User-ID）；
+// Enabled 为 true 时所有业务 API 须提供有效身份（JWT 优先，其次 API Key；
+// X-Vigil-User-ID 头回退需 HeaderFallback 显式开启，默认关）；
 // 为 false 时业务 API 不强制身份解析（匿名放行，仅限本地开发/测试）。
 // webhook 接入/IM 回调不受此开关影响（它们用各自的 token/签名鉴权）。
 //
@@ -309,6 +333,13 @@ type Asynq struct {
 // 下即使用户显式设置 false 也强制为 true——杜绝开箱即裸奔。
 type Auth struct {
 	Enabled bool `envconfig:"enabled" default:"true"` // 是否强制业务 API 鉴权（生产强制 true）
+
+	// HeaderFallback X-Vigil-User-ID 头回退开关（VIGIL_AUTH_HEADER_FALLBACK，SEC-02 修订）。
+	// 该头可被任意客户端伪造——开启即等于「带头就能冒充任意用户」。原先隐式跟随
+	// !IsProduction()，而 APP_ENV 默认 development，等于默认配置下伪造头直接生效；
+	// 现改为独立显式开关，默认 false，仅本地开发调试时显式开启。
+	// 生产环境无条件强制 false（见 EffectiveHeaderFallback）。
+	HeaderFallback bool `envconfig:"header_fallback" default:"false"`
 
 	// JWT 自管登录态配置（能力域 13 登录链路）。
 	// JWTSecret 为空时登录链路降级（拒绝签发，提示配置缺失）。
@@ -338,6 +369,19 @@ func (a Auth) EffectiveEnabled(isProduction bool) bool {
 		return true // 生产强制鉴权，忽略用户配置
 	}
 	return a.Enabled
+}
+
+// EffectiveHeaderFallback 返回 X-Vigil-User-ID 头回退是否生效（SEC-02 修订）。
+// 生产环境（App.Env=production）无条件强制 false（双保险）——该头可伪造，
+// 生产仅承认 JWT/API Key 两条强凭证链路，即使误配 true 也不生效。
+//
+// 用法：装配件应使用 cfg.Auth.EffectiveHeaderFallback(cfg.App.IsProduction())
+// 而非直接读 cfg.Auth.HeaderFallback。
+func (a Auth) EffectiveHeaderFallback(isProduction bool) bool {
+	if isProduction {
+		return false
+	}
+	return a.HeaderFallback
 }
 
 // EffectiveRefreshTokenTTL 返回 refresh token 有效期，零值时回退默认 720h（30d）。

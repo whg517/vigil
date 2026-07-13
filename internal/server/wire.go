@@ -137,10 +137,18 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		}
 	}
 	// 身份解析（三轨：JWT/APIKey/X-Vigil-User-ID），中间件用。
-	// SEC-02：生产环境禁用 X-Vigil-User-ID 头回退（可伪造），仅承认 JWT/API Key。
+	// SEC-02 修订：X-Vigil-User-ID 头回退由独立开关 VIGIL_AUTH_HEADER_FALLBACK 控制
+	// （默认 false；生产无条件强制 false），不再隐式跟随 APP_ENV——该头可被任意客户端
+	// 伪造，默认配置下绝不能生效。
 	apiKeyVerifier := auth.NewAPIKeyVerifier(st.DB)
+	headerFallback := cfg.Auth.EffectiveHeaderFallback(cfg.App.IsProduction())
+	if headerFallback {
+		log.Warn("SECURITY: X-Vigil-User-ID header fallback ENABLED (VIGIL_AUTH_HEADER_FALLBACK=true) — " +
+			"any client can impersonate ANY user by setting this header; " +
+			"use ONLY for local development/debugging on trusted networks, NEVER expose to untrusted networks")
+	}
 	// T0.4：传入 db，使 JWT 分支校验 token_version（改密后旧 token 立即失效）。
-	identityResolver := auth.NewIdentityResolver(jwtSigner, apiKeyVerifier, !cfg.App.IsProduction(), st.DB)
+	identityResolver := auth.NewIdentityResolver(jwtSigner, apiKeyVerifier, headerFallback, st.DB)
 
 	// —— 接入（能力域 1-2）：webhook 接收 + 归一化 worker ——
 	adapterRegistry := ingestion.NewAdapterRegistry()
@@ -400,11 +408,13 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	// SEC-04：登录限流/锁定（无 Redis 时降级跳过，依赖审计日志事后追溯）。
 	authHandler.SetLoginGuard(auth.NewLoginGuard(st.Redis))
 	authHandler.RegisterPublic(public)
-	// 测试专用 reset 端点：仅 development 环境挂载（生产禁用，零暴露）。
-	// 供前端 Playwright e2e 在每个 spec 前清空数据，保证用例隔离。
-	if !cfg.App.IsProduction() {
-		srv.registerTestReset()
-		log.Info("test reset endpoint enabled (development only) at /api/v1/__test__/reset")
+	// 测试专用 reset 端点：默认不注册，仅 VIGIL_TEST_ENDPOINTS_ENABLED=true 且非生产时挂载。
+	// SEC-02 修订：原隐式跟随 APP_ENV=development（默认值），二进制直跑的用户在不知情下
+	// 暴露无鉴权 TRUNCATE 全库端点；现改独立显式开关。供前端 Playwright e2e 用例隔离。
+	if srv.registerTestResetIfEnabled() {
+		log.Warn("SECURITY: test reset endpoint ENABLED (VIGIL_TEST_ENDPOINTS_ENABLED=true) at /api/v1/__test__/reset — " +
+			"it TRUNCATEs ALL business tables WITHOUT auth; " +
+			"use ONLY for e2e testing on trusted networks, NEVER in real deployments")
 	}
 
 	// 业务路由（受 RequireUser + RouteGuard 保护）

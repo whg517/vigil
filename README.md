@@ -48,11 +48,12 @@ open http://localhost:8080/docs # Swagger API 文档
 > 2. 保持 `VIGIL_AUTH_ENABLED=true`（**默认已开启**，强制业务 API 身份解析，勿在生产关闭）；
 > 3. 首次启动自动创建默认管理员 **admin / changeme**，**请立即改密**。
 >
-> 鉴权双轨：
-> - **JWT（推荐）**：前端登录后带 `Authorization: Bearer <token>`，`AUTH_ENABLED=true` 时优先校验；
-> - **`X-Vigil-User-ID` 头（降级兼容）**：仅 `AUTH_ENABLED=false` 时生效的遗留链路，**可被伪造**，仅限内网/试用显式开启。
+> 鉴权链路与危险开关（均独立于 `AUTH_ENABLED`）：
+> - **JWT（推荐）**：前端登录后带 `Authorization: Bearer <token>`，优先校验；
+> - **`X-Vigil-User-ID` 头（降级兼容）**：由 `VIGIL_AUTH_HEADER_FALLBACK` 独立控制（**默认关闭**）。开启后任何客户端带此头即可**冒充任意用户**，仅限本地开发调试；`VIGIL_APP_ENV=production` 下强制关闭（置 true 也无效）；
+> - **测试 reset 端点**（`/api/v1/__test__/reset`，无鉴权清空全库）：由 `VIGIL_TEST_ENDPOINTS_ENABLED` 独立控制（**默认关闭**），仅供 e2e 测试编排；production 下同样强制关闭。
 >
-> **若显式设置 `AUTH_ENABLED=false`，切勿将 API 暴露到公网或不受信网络**。仍应通过反向代理 + 网络策略（防火墙/VPN/内网）限制访问。
+> **若显式设置 `AUTH_ENABLED=false` 或开启上述任一开关，切勿将 API 暴露到公网或不受信网络**。仍应通过反向代理 + 网络策略（防火墙/VPN/内网）限制访问。开启时启动日志会打印醒目 WARN。
 >
 > **API Key（程序化接入）已就绪**：设置页创建后，请求带 `X-Vigil-Key: <token>` 头即可鉴权，明文仅创建时展示一次。审计日志同样已就绪（设置页可查看敏感操作留痕）。
 

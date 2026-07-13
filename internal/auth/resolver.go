@@ -6,14 +6,15 @@
 // 解析顺序（优先级）：
 //  1. Authorization: Bearer <jwt>   —— JWT 登录态（人，Web/IM）
 //  2. X-Vigil-Key: <apikey>         —— API Key（程序化接入）
-//  3. X-Vigil-User-ID: <uid>        —— 降级兼容（仅本地开发/测试，生产禁用）
+//  3. X-Vigil-User-ID: <uid>        —— 降级兼容（默认关闭，须 VIGIL_AUTH_HEADER_FALLBACK 显式开启）
 //
 // 安全约束（关键）：
 //   - 任一凭证"存在但无效"时，不回退到更低优先级的凭证。
 //     例：带了无效 Bearer，即使同时带有效 X-Vigil-User-ID 也拒绝。
 //     避免攻击者用伪造的高优凭证降级到可伪造的低优凭证。
-//   - X-Vigil-User-ID 头可被任意客户端伪造，生产环境必须禁用回退
-//     （headerFallback=false，见 SEC-02）。
+//   - X-Vigil-User-ID 头可被任意客户端伪造，回退默认关闭（headerFallback=false），
+//     仅本地开发显式开启；生产环境无条件强制关闭（SEC-02 修订，
+//     见 config.Auth.EffectiveHeaderFallback）。
 package auth
 
 import (
@@ -28,10 +29,10 @@ import (
 
 // IdentityResolver 身份解析聚合器。任一凭证源为 nil 则跳过对应轨。
 //
-// headerFallback 控制 X-Vigil-User-ID 头回退是否启用（SEC-02）：
-//   - 本地开发/测试：true，便于 curl 调试与 e2e 注入身份
-//   - 生产环境：false，彻底禁用——该头可被任意客户端伪造，
-//     生产仅承认 JWT/API Key 两条强凭证链路
+// headerFallback 控制 X-Vigil-User-ID 头回退是否启用（SEC-02 修订）：
+//   - 默认 false（含本地开发）——该头可被任意客户端伪造，危险行为须显式开启；
+//   - 本地开发调试可经 VIGIL_AUTH_HEADER_FALLBACK=true 显式开启（便于 curl 注入身份）；
+//   - 生产环境无条件 false（配置层强制），生产仅承认 JWT/API Key 两条强凭证链路
 type IdentityResolver struct {
 	jwtSigner      *JWTSigner
 	apiKey         *APIKeyVerifier
@@ -42,7 +43,8 @@ type IdentityResolver struct {
 }
 
 // NewIdentityResolver 构造聚合解析器。jwt/apiKey 任一为 nil 则跳过对应轨。
-// headerFallback 为 false 时禁用 X-Vigil-User-ID 头回退（生产环境必须传 false）。
+// headerFallback 为 false 时禁用 X-Vigil-User-ID 头回退（默认应为 false，
+// 装配层经 config.Auth.EffectiveHeaderFallback 决定，生产强制 false）。
 // db 用于 JWT 令牌吊销校验（改密后旧 token 失效，T0.4）；为 nil 时跳过该校验。
 //
 // 性能权衡（T0.4）：启用 db 后每次 JWT 鉴权多一次按主键查 User 的查询。
@@ -88,7 +90,7 @@ func (r *IdentityResolver) Resolve(ctx context.Context, header http.Header) (int
 		}
 	}
 
-	// 3. 回退 X-Vigil-User-ID（仅开发/测试，生产由 headerFallback=false 拒绝）
+	// 3. 回退 X-Vigil-User-ID（默认 headerFallback=false 拒绝，须显式开启且仅限非生产）
 	if !r.headerFallback {
 		return 0, false
 	}

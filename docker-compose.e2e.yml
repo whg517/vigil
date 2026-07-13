@@ -3,7 +3,8 @@
 # 与生产 docker-compose.yml 的区别：
 #   - 数据卷去掉（e2e 用完即弃，不持久化）
 #   - vigil 命令改为先 migrate 再 run（首启自动建表，无需手动步骤）
-#   - APP_ENV=development：启用 /__test__/reset 测试端点（生产禁用）
+#   - TEST_ENDPOINTS_ENABLED=true：显式启用 /__test__/reset 测试端点
+#     （SEC-02 修订：默认关闭，不再隐式跟随 APP_ENV=development；生产强制禁用）
 #   - 端口固定映射到宿主机（Playwright 在宿主机/CI runner 上跑）
 #
 # 由 web/e2e/global-setup.ts 启动、global-teardown.ts 关停。
@@ -45,10 +46,12 @@ services:
       VIGIL_DB_PASSWORD: vigil
       VIGIL_DB_NAME: vigil
       VIGIL_REDIS_ADDR: redis:6379
-      # development 启用测试 reset 端点；同时 relax 鉴权配置便于 e2e。
       VIGIL_APP_ENV: development
       VIGIL_AUTH_ENABLED: "true"
       VIGIL_AUTH_JWT_SECRET: e2e-test-jwt-secret
+      # SEC-02 修订：reset 端点默认关闭，e2e 编排显式开启（spec 间用例隔离依赖它）。
+      # X-Vigil-User-ID 头回退保持默认 false——e2e 走 JWT 登录，不需要头回退。
+      VIGIL_TEST_ENDPOINTS_ENABLED: "true"
       VIGIL_HTTP_ADDR: ":8080"
     ports:
       - "28080:8080"

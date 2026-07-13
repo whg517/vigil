@@ -82,6 +82,11 @@ var _ = ginkgo.BeforeSuite(func() {
 	os.Setenv("VIGIL_AUTH_ENABLED", "true")
 	os.Setenv("VIGIL_AUTH_JWT_SECRET", "e2e-test-jwt-secret")
 	os.Setenv("VIGIL_APP_ENV", "development")
+	// SEC-02 修订：两个危险开关显式置 false，固化「默认关」语义并防外部环境污染。
+	// 后端 e2e 不依赖它们——重置走 helpers_test.go resetDB 直连 DB TRUNCATE
+	// （非 /__test__/reset 端点），鉴权走 JWT/API Key（非 X-Vigil-User-ID 头回退）。
+	os.Setenv("VIGIL_AUTH_HEADER_FALLBACK", "false")
+	os.Setenv("VIGIL_TEST_ENDPOINTS_ENABLED", "false")
 	// 方案C：开启服务自动供给，供 service_autoprovision_test 验证端到端。
 	// 仅当告警未路由 + 带 service/team label + 团队已配默认策略时才触发；
 	// 其它 spec 不配团队默认策略，故不受影响（auto-provision 跳过 → 保持 unrouted）。

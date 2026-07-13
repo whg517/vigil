@@ -123,3 +123,72 @@ func TestLoad_ProductionRequiresJWTSecret(t *testing.T) {
 		t.Fatal("production Load without JWT_SECRET should fail")
 	}
 }
+
+// TestLoad_DangerousSwitchesDefaultOff 验证两个危险开关默认关闭（SEC-02 修订）。
+// X-Vigil-User-ID 头回退与测试 reset 端点均可致命（冒充任意用户 / 无鉴权 TRUNCATE 全库），
+// 默认配置（含 APP_ENV=development 默认值）下必须均为 false。
+func TestLoad_DangerousSwitchesDefaultOff(t *testing.T) {
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Auth.HeaderFallback {
+		t.Error("Auth.HeaderFallback must default to false")
+	}
+	if cfg.Auth.EffectiveHeaderFallback(cfg.App.IsProduction()) {
+		t.Error("EffectiveHeaderFallback must be false under default config")
+	}
+	if cfg.TestEndpoints.Enabled {
+		t.Error("TestEndpoints.Enabled must default to false")
+	}
+	if cfg.TestEndpoints.EffectiveEnabled(cfg.App.IsProduction()) {
+		t.Error("TestEndpoints.EffectiveEnabled must be false under default config")
+	}
+}
+
+// TestLoad_DangerousSwitchesEnvNames 验证新开关的环境变量名映射（envconfig 嵌套命名易错，
+// 这里固化 VIGIL_AUTH_HEADER_FALLBACK / VIGIL_TEST_ENDPOINTS_ENABLED 两个对外契约）。
+func TestLoad_DangerousSwitchesEnvNames(t *testing.T) {
+	t.Setenv("VIGIL_AUTH_HEADER_FALLBACK", "true")
+	t.Setenv("VIGIL_TEST_ENDPOINTS_ENABLED", "true")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.Auth.HeaderFallback {
+		t.Error("VIGIL_AUTH_HEADER_FALLBACK=true should set Auth.HeaderFallback")
+	}
+	if !cfg.TestEndpoints.Enabled {
+		t.Error("VIGIL_TEST_ENDPOINTS_ENABLED=true should set TestEndpoints.Enabled")
+	}
+}
+
+// TestEffectiveHeaderFallback_ProductionForced 验证生产强制关闭头回退（双保险）。
+func TestEffectiveHeaderFallback_ProductionForced(t *testing.T) {
+	a := Auth{HeaderFallback: true}
+	if a.EffectiveHeaderFallback(true) {
+		t.Error("production must force HeaderFallback=false even when user sets true")
+	}
+	if !a.EffectiveHeaderFallback(false) {
+		t.Error("development should respect explicit HeaderFallback=true")
+	}
+	a.HeaderFallback = false
+	if a.EffectiveHeaderFallback(false) {
+		t.Error("development default HeaderFallback should stay false")
+	}
+}
+
+// TestTestEndpointsEffectiveEnabled_ProductionForced 验证生产强制禁用测试端点（双保险）。
+func TestTestEndpointsEffectiveEnabled_ProductionForced(t *testing.T) {
+	te := TestEndpoints{Enabled: true}
+	if te.EffectiveEnabled(true) {
+		t.Error("production must force TestEndpoints off even when user sets true")
+	}
+	if !te.EffectiveEnabled(false) {
+		t.Error("development should respect explicit TestEndpoints.Enabled=true")
+	}
+	te.Enabled = false
+	if te.EffectiveEnabled(false) {
+		t.Error("development default TestEndpoints should stay off")
+	}
+}

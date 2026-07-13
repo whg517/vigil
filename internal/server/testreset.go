@@ -1,9 +1,10 @@
-// testreset.go 测试专用重置端点（仅 development 环境挂载，生产禁用）。
+// testreset.go 测试专用重置端点（默认不注册，须 VIGIL_TEST_ENDPOINTS_ENABLED=true 显式开启）。
 //
 // 用途：前端 Playwright e2e 每个 spec 前清空业务数据，保证用例间隔离。
 // 复用后端 e2e（test/e2e/helpers_test.go）的 allTables 列表，保持单一信源。
 //
-// 安全：registerTestReset 仅在 !IsProduction() 时调用，生产环境该端点不存在。
+// 安全（SEC-02 修订）：该端点无鉴权 TRUNCATE 全库，绝不能隐式跟随默认环境开启——
+// 注册由 TestEndpoints.EffectiveEnabled 门控（默认 false；生产无条件强制 false）。
 // 端点路径 /api/v1/__test__/reset，挂在 public group（不走 RBAC，仅限受信网络）。
 package server
 
@@ -55,7 +56,18 @@ var allTestTables = []string{
 	"users",
 }
 
-// registerTestReset 注册测试重置端点。仅 development 环境调用（生产不挂载）。
+// registerTestResetIfEnabled 按门控注册测试重置端点，返回是否已注册（供装配层打 WARN）。
+// 门控语义（SEC-02 修订）：VIGIL_TEST_ENDPOINTS_ENABLED 默认 false；
+// 生产环境（APP_ENV=production）即使误配 true 也强制不注册（双保险）。
+func (s *Server) registerTestResetIfEnabled() bool {
+	if !s.cfg.TestEndpoints.EffectiveEnabled(s.cfg.App.IsProduction()) {
+		return false
+	}
+	s.registerTestReset()
+	return true
+}
+
+// registerTestReset 注册测试重置端点。仅经 registerTestResetIfEnabled 门控后调用。
 // 挂在 public group：reset 是 e2e 专用、受信网络调用，不走 RBAC。
 func (s *Server) registerTestReset() {
 	// 路径用 __test__ 前缀，明确标识为测试专用，避免与业务路由混淆。
@@ -85,7 +97,8 @@ func (s *Server) registerTestReset() {
 
 		// 3. TRUNCATE 所有业务表（在 in-flight 落库之后，保证清空）。
 		// #nosec G202 -- 表名来自编译期固定的 allTestTables 白名单（非用户输入），
-		// 且本端点为 dev/test 专用（__test__ 前缀，仅非生产环境注册）；TRUNCATE 表名无法参数化。
+		// 且本端点为 e2e 专用（__test__ 前缀，须 VIGIL_TEST_ENDPOINTS_ENABLED 显式开启，
+		// 生产强制不注册）；TRUNCATE 表名无法参数化。
 		stmt := "TRUNCATE " + strings.Join(allTestTables, ", ") + " RESTART IDENTITY CASCADE"
 		if _, err := s.store.SQL.ExecContext(ctx, stmt); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "reset failed: " + err.Error()})

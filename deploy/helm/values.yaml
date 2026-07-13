@@ -36,8 +36,10 @@ redis:
 # Vigil 应用配置（对应 config.Config，非敏感项）
 config:
   # 运行环境（development | production）。★ 生产必须 production：
-  # development 会挂载无鉴权的 /api/v1/__test__/reset（TRUNCATE 全库 + 清队列），
-  # 且启用 X-Vigil-User-ID 头回退（任意客户端带该头即可冒充任意用户），见 SEC-02。
+  # production 强制开鉴权，并无条件禁用两个危险开关（SEC-02 修订，双保险）——
+  # X-Vigil-User-ID 头回退（VIGIL_AUTH_HEADER_FALLBACK）与无鉴权测试端点
+  # /api/v1/__test__/reset（VIGIL_TEST_ENDPOINTS_ENABLED）。二者本身默认已关闭，
+  # 仅本地开发/e2e 编排显式开启（如需可经 extraEnv 注入，生产下置 true 也无效）。
   # 默认 production 以防按 chart 部署即裸奔；本地开发可显式覆盖为 development。
   appEnv: "production"
   authEnabled: "true"            # 生产必须开鉴权

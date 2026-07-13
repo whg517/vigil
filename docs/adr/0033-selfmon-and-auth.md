@@ -25,7 +25,7 @@ Vigil 自身就是告警处置平台,若它自己出问题(队列积压、通知
 ### 鉴权
 
 - 业务 API 唯一声明的鉴权方案为 **HTTP Bearer JWT**,经 `POST /auth/login` 换取,令牌可撤销。
-- `X-Vigil-User-ID` 头作本地开发 / 回退身份使用,**不在 OpenAPI securitySchemes 中声明**,且**生产环境禁用**——头部身份可伪造,仅在受信网络内作便利手段。
+- `X-Vigil-User-ID` 头作本地开发 / 回退身份使用,**不在 OpenAPI securitySchemes 中声明**,且**默认禁用**——头部身份可伪造,须经 `VIGIL_AUTH_HEADER_FALLBACK=true` 显式开启,仅在受信网络内作便利手段;生产环境无条件强制禁用(见下方修订记录)。
 - **webhook token** 与 **IM 签名**各自有独立校验机制,**不走 RBAC**。
 
 ## 理由
@@ -46,3 +46,18 @@ Vigil 自身就是告警处置平台,若它自己出问题(队列积压、通知
 - 正面:自监控不会因通知链故障而失效;失败率指标不被自身污染;鉴权方案清晰可撤销。
 - 负面/限制:自监控依赖运维**额外配置一条独立通道**,否则只 warn 不告警;自告警刻意排除 IM,意味着自监控通知不出现在主交互面,运维需关注独立通道。
 - 默认关闭意味着新部署需显式开启并配置独立通道后,自监控才真正生效。
+
+## 修订记录
+
+### 2026-07-14: 头回退与测试端点改独立显式开关(默认关闭)
+
+**问题**:本 ADR 原文称 `X-Vigil-User-ID` 头"生产环境禁用",但实现将其门控在 `!IsProduction()` 上——而 `VIGIL_APP_ENV` 默认值是 `development`,即**默认配置下伪造头直接生效**(任何客户端带头即可冒充任意用户)。同理,无鉴权的 `/api/v1/__test__/reset`(TRUNCATE 全部业务表)也隐式跟随 development 注册,二进制直跑的用户在完全不知情下暴露了"一个 POST 清空全库"的端点。README 曾误称头回退"仅 `AUTH_ENABLED=false` 时生效",与实现(由 APP_ENV 门控,与 AUTH_ENABLED 无关)不符。
+
+**修订**:两个危险行为从"隐式跟随 APP_ENV"改为**独立显式开关,默认关闭**:
+
+- `VIGIL_AUTH_HEADER_FALLBACK`(默认 `false`):控制 X-Vigil-User-ID 头回退。`VIGIL_APP_ENV=production` 时无条件强制 `false`(双保险,`config.Auth.EffectiveHeaderFallback`)。
+- `VIGIL_TEST_ENDPOINTS_ENABLED`(默认 `false`):控制 `__test__` 路由注册。production 同样强制 `false`(`config.TestEndpoints.EffectiveEnabled`)。
+- 任一开关开启时,启动日志打印醒目 SECURITY WARN(说明风险与适用场景)。
+- `APP_ENV` 默认值保持 `development` 不变(不破坏本地开发链路,如 JWT secret 自动填充)。
+
+**原则**:危险行为必须显式开启,不能搭默认环境的便车;"生产禁用"只是兜底,不是安全默认。e2e 依赖方(docker-compose.e2e.yml 的 Playwright reset)已显式声明开关。
