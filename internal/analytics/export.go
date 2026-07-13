@@ -1,6 +1,6 @@
 // export.go 报表 CSV 导出（T6.1，能力域 15 §B4 M15.6）。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §B4 导出：「CSV 导出」。
+// 报表 CSV 导出（ADR-0029：导出不静默截断）。
 // 各维度报表（alerts/incidents/team-load/postmortems）提供 CSV 下载端点，
 // 供二次分析 / 归档 / 对接 BI。权限与团队 scope 完全复用现有 analytics 端点
 // （analytics.view + resolveScope 团队软隔离），导出只是「同数据换个呈现格式」。

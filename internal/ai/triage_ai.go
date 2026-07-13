@@ -1,6 +1,6 @@
 // triage_ai.go 分诊阶段 AI：在告警分诊阶段产出「带 evidence 的建议」，落 AIInsight。
 //
-// 对应 docs/capabilities/07-timeline-ai.md §B2（分诊阶段的 AI 介入）与 roadmap T3.2 / 审计 C15：
+// 分诊阶段的 AI 介入（ADR-0022；T3.2 / 审计 C15）：
 //   - severity_adjustment：基于 Incident + 关联 Event 让 LLM 判断当前严重度是否偏高/偏低，
 //     产出建议调整值（带 evidence + 置信度）。accept 走 T3.1 的 applied 路径真正改严重度。
 //   - dedup_suggestion：借助相似检索找出可能同根因的多个 Incident，让 LLM 判断是否建议合并，

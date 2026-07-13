@@ -1,4 +1,4 @@
-# Vigil CI —— 对应 development.md §3.4 lint→test→build 门禁。
+# Vigil CI —— 对应 AGENTS.md「开发约定」lint→test→build 门禁（ADR-0035）。
 # 每个 PR/push 自动执行三道门禁，红则阻断合并。
 name: CI
 
@@ -11,7 +11,7 @@ on:
 jobs:
   # ===== 提交信息规范（Conventional Commits，拒绝 chore）=====
   # 与本地 .githooks/commit-msg 同款规则的服务端强制版：本地钩子可被 --no-verify 绕过，
-  # 故 CI 独立复校（docs/development.md §4 / §七 FAQ「CI/钩子可配置为拒绝含 chore」）。
+  # 故 CI 独立复校（AGENTS.md「提交信息规范」/ ADR-0035「CI/钩子可配置为拒绝含 chore」）。
   # 仅在 PR 触发：校验 PR 内每条 commit + PR 标题（squash 合并信息常取自标题）。
   commit-lint:
     name: Commit Lint (Conventional Commits, no chore)
@@ -49,7 +49,7 @@ jobs:
           done < <(git rev-list "${BASE_SHA}..${HEAD_SHA}")
           check "$PR_TITLE" "PR 标题"
           if [ "$fail" -ne 0 ]; then
-            echo "提交信息不符合规范，见上方 error。规则见 docs/development.md §4。"
+            echo "提交信息不符合规范，见上方 error。规则见 AGENTS.md「提交信息规范」与 docs/adr/0035-dev-workflow-gates.md。"
             exit 1
           fi
           echo "✓ 提交信息与 PR 标题均符合 Conventional Commits"
@@ -183,7 +183,7 @@ jobs:
 
   # ===== E2E：真实 PG(pgvector) + Redis + Asynq 端到端闭环 =====
   # 与 backend/frontend job 并行；用 build tag 隔离，不拖慢默认单测。
-  # 对应 docs/development.md §八 e2e 测试。
+  # 对应 ADR-0035 e2e 测试门禁（test/e2e/）。
   e2e:
     name: E2E (postgres pgvector + redis)
     runs-on: ubuntu-latest
@@ -224,7 +224,7 @@ jobs:
   # ===== 前端 E2E：Playwright 全栈黑盒测试（真实 Docker 全栈，禁 mock）=====
   # 与 backend/frontend/e2e job 并行。globalSetup 自动起 docker-compose.e2e.yml
   # 全栈（postgres + redis + vigil，vigil 含前端 embed），spec 跑完 globalTeardown 关停。
-  # 对应 docs/development.md §前端 e2e。
+  # 对应 ADR-0035 前端 e2e 门禁。
   frontend-e2e:
     name: Frontend E2E (Playwright 全栈)
     runs-on: ubuntu-latest

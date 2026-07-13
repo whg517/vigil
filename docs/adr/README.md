@@ -11,6 +11,7 @@
 |---|------|------|
 | [0001](0001-record-architecture-decisions.md) | 采用 ADR 记录架构决策 | Accepted |
 | [0002](0002-product-positioning.md) | 产品定位与非目标 | Accepted |
+| [0037](0037-trim-deferred-features.md) | 收敛延期功能:移除电话/SMS、企微、Jira/禅道与 Zabbix/云监控占位 | Accepted(墓碑恢复版) |
 
 ### 技术选型
 | # | 标题 | 状态 |
@@ -50,6 +51,7 @@
 | [0018](0018-im-same-rbac-as-web.md) | IM 走与 Web 相同 RBAC 链路 | Accepted |
 | [0019](0019-imbot-pluggable-degradation.md) | IMBot 可插拔 + 平台能力降级矩阵 | Accepted |
 | [0020](0020-responder-temp-grant.md) | 拉人即事件级临时授权 | Accepted |
+| [0036](0036-remove-war-room.md) | 移除作战室能力 | Accepted(墓碑恢复版) |
 
 ### Runbook / AI / 复盘
 | # | 标题 | 状态 |

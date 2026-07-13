@@ -10,7 +10,7 @@ import (
 )
 
 // Postmortem 复盘 —— 闭环学习。
-// 对应 data-model.md §3.3 Postmortem。
+// 设计见 ADR-0026（AI 起草 + 逐字段人工校对）。
 // 状态机：draft → in_review → published → archived。
 type Postmortem struct {
 	ent.Schema
@@ -51,7 +51,7 @@ func (Postmortem) Edges() []ent.Edge {
 }
 
 // ActionItem 改进项 —— 复盘的落地行动。
-// 对应 data-model.md §3.3 Postmortem.sections.action_items（提升为独立实体便于跟踪）。
+// Postmortem 的 action_items 提升为独立实体便于跟踪（ADR-0026）。
 type ActionItem struct {
 	ent.Schema
 }

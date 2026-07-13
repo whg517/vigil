@@ -1,6 +1,6 @@
 // Package ai 实现能力域 11：AI 智能（横向 Copilot）。
 //
-// 对应 docs/capabilities/07-timeline-ai.md §B：
+// 设计见 ADR-0022（HITL + evidence）与 ADR-0023（LLM Provider 抽象 + 成本三闸）：
 // · LLM Provider 抽象（可插拔），满足 postmortem.LLMProvider 接口
 // · 智谱 GLM 实现（中文优先、合规友好）
 // · Key 为空时自动降级（设计基线第 7 条：AI 可降级，不阻塞主流程）

@@ -11,7 +11,7 @@ import (
 
 // MetricsSnapshot 报表指标快照 —— 定时聚合的预计算结果（T6.1，能力域 15 §B3）。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §B3 数据来源：
+// 报表(analytics)聚合任务的数据来源（全景见 docs/architecture.md）：
 // 「聚合任务：定时 Asynq 任务（每小时/每日）」。大数据量下实时聚合（全表扫 Event/Incident）
 // 慢且抖动，故周期性把各维度指标预计算存库，报表端点可选读快照（source=snapshot）快速返回；
 // 默认仍读实时（source=realtime）保准确，快照是「可选的加速旁路」而非唯一真相。

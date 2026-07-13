@@ -3,7 +3,7 @@
 // 用途：托管外接系统的敏感凭据（Runbook 执行器的 Ansible/Jenkins token、
 // 工单集成的 API token 等），使其在数据库中以密文存储、不落明文。
 //
-// 设计取舍（对应 docs/capabilities/06-runbook.md §7 Q1「加密存储于 Vigil」）：
+// 设计取舍（对应 ADR-0030「凭据加密存储于 Vigil」）：
 //   - 算法：AES-256-GCM（AEAD，同时保证机密性与完整性，抗篡改）。
 //     与 IM 回调用的 AES-256-CBC 不同——CBC 无完整性校验且需外部管填充，
 //     托管凭据用 GCM 更稳妥（业界推荐的对称 AEAD）。

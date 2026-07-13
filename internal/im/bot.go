@@ -1,9 +1,9 @@
 // Package im 实现能力域 8：IM 协同（ChatOps）的适配器抽象与操作链路。
 //
-// 对应 docs/capabilities/05-im-chatops.md：
-//   - IMBot 接口（§9 可插拔）：卡片下发/更新、建群、回调解析——业务层不感知平台差异
-//   - Card 数据结构 + 按权限渲染按钮（§3.1，无权按钮不显示，IM 不成权限后门）
-//   - Mapper：im_unionid → User 映射（§6，IM 操作走与 Web 相同的鉴权链路）
+// 设计见 ADR-0018（IM 与 Web 同 RBAC）与 ADR-0019（IMBot 可插拔 + 降级矩阵）：
+//   - IMBot 接口（可插拔）：卡片下发/更新、回调解析——业务层不感知平台差异（建群原语已随作战室移除，ADR-0036）
+//   - Card 数据结构 + 按权限渲染按钮（无权按钮不显示，IM 不成权限后门）
+//   - Mapper：im_unionid → User 映射（IM 操作走与 Web 相同的鉴权链路）
 //   - Handler：IM Webhook 回调 → 账号映射 → RBAC → incident.Service 动作 → 刷新卡片
 //
 // 平台支持矩阵（ADR-0019）：feishu、dingtalk 均为真实适配器
@@ -67,7 +67,7 @@ type IMEvent struct {
 }
 
 // ErrNotBound IM 账号未绑定到任何 Vigil User。
-// 对应 capabilities §6：未绑定 IM 账号的用户操作被拒，提示去 Web 绑定。
+// 未绑定 IM 账号的用户操作被拒，提示去 Web 绑定（ADR-0018）。
 var ErrNotBound = errors.New("im account not bound to any user")
 
 // ErrUnsupported 不支持的平台操作（如某平台无卡片更新能力且未实现降级）。

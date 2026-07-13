@@ -10,7 +10,7 @@ import (
 
 // WebhookDelivery 出站 webhook 投递记录 —— 死信/可观测底座（T5.2，S13/C24）。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §A4 出向 webhook：
+// 对应出向 webhook（ADR-0030 四方向集成）：
 // Vigil 把 incident 生命周期事件 POST 给订阅 URL。原实现「全部重试失败仅记 metric 后静默丢弃」，
 // 无从得知哪条事件没送达、更无法补投——这在告警平台是不可接受的可靠性盲区。
 //

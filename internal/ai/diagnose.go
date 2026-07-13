@@ -1,6 +1,6 @@
 // diagnose.go AI 诊断引擎：生成根因线索 + 相似事件建议，落 AIInsight。
 //
-// 对应 docs/capabilities/07-timeline-ai.md §B2-B4：
+// 设计见 ADR-0022（AI 产出带 evidence + human-in-the-loop）：
 // · root_cause_hint：基于事件 + 时间线，让 LLM 给根因线索（带不确定性措辞）
 // · similar_incident：检索历史相似事件
 // · 所有产出落 AIInsight，status=suggested，需人 accept/reject（human-in-the-loop）

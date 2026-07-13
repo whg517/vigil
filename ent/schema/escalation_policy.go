@@ -9,7 +9,7 @@ import (
 )
 
 // EscalationPolicy 升级策略 —— "没人理找下一个"。
-// 对应 data-model.md §3.2 EscalationPolicy。
+// 设计见 ADR-0016（升级引擎 Asynq 延迟任务 + 状态守卫）。
 // 有序升级层级，每层有延迟、目标、通道。
 type EscalationPolicy struct {
 	ent.Schema
@@ -55,7 +55,7 @@ func (EscalationPolicy) Edges() []ent.Edge {
 }
 
 // NotificationRule 通知规则 —— 通知层的配置。
-// 对应 data-model.md §3.2 NotificationRule。
+// 设计见 ADR-0017（通知降级链 + 静默时段）。
 // 与 EscalationPolicy 区别：升级策略管"找不到人怎么办"，
 // 通知规则管"用哪种通道、什么模板、何时静默"。
 type NotificationRule struct {

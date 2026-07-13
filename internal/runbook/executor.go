@@ -1,6 +1,6 @@
 // Package runbook 实现能力域 9：Runbook 处置。
 //
-// 对应 docs/capabilities/06-runbook.md：
+// 设计见 ADR-0021（两档执行）；新增执行器的触点见 docs/extending.md：
 // · 两档执行：诊断类（readonly）内置安全执行；处置类（写）require_approval 人确认或外接
 // · Executor 接口可插拔（http/ansible/jenkins/内部诊断）
 // · 失败按 on_failure 处理（continue/abort/escalate）

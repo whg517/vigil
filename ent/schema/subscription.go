@@ -12,8 +12,8 @@ import (
 // Subscription 定向订阅 —— 让干系人（尤其 subscriber / 团队 Leader）订阅关注对象，
 // 在其 Incident 生命周期变更时收到定向通知（T4.4，旅程 E.2）。
 //
-// 对应 docs/capabilities/04-notification.md §4「邮件……用于 subscriber 干系人订阅」
-// 与 personas P4「订阅」诉求。原先 subscriber 只能「进值班群围观」（E.2 纠偏：当前没有真正订阅），
+// 设计脉络：通知体系（ADR-0017）之上的定向订阅补充。
+// 原先 subscriber 只能「进值班群围观」（当前没有真正订阅），
 // 本实体补齐「按团队/服务订阅 → 状态变更定向告知」的机制。
 //
 // 粒度取舍：按 team 或 service 订阅其 Incident 生命周期（二选一，均 nullable）。

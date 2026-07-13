@@ -1,4 +1,4 @@
-// temp_grant.go 跨团队 @人 → 事件级临时授权（M8.3 / PRD / data-model §5.6）。
+// temp_grant.go 跨团队 @人 → 事件级临时授权（M8.3，ADR-0020）。
 //
 // 背景（软隔离铁律）：团队是数据归属边界，权限不跨团队继承。跨团队 @人拉入 incident
 // 协同时，被 @的人若不在该 incident 所属 team、又无 org 级授权，就没有 ack/处置权限

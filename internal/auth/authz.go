@@ -1,6 +1,6 @@
 // authz.go 实现 RBAC 鉴权器（能力域 13 核心）。
 //
-// 对应 docs/data-model.md §5.5 鉴权流程：
+// 鉴权流程（ADR-0027 / ADR-0028）：
 //
 //	操作请求 (user, action, resource)
 //	  → 解析 action 得 permission_code

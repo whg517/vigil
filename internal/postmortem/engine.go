@@ -1,6 +1,6 @@
 // Package postmortem 实现能力域 12：复盘。
 //
-// 对应 docs/capabilities/08-postmortem.md：
+// 设计见 ADR-0026（复盘 AI 起草 + 逐字段人工校对）：
 // · 自动生成草稿（基于时间线 + AI 起草，AI 可降级）
 // · 结构化模板（summary/impact/timeline/root_cause/action_items）
 // · 改进项跟踪（action_items 有 owner/due/status，可对接工单）
@@ -97,7 +97,7 @@ type Engine struct {
 	ticket   TicketCreator  // 可为 nil（无联动时 published 不自动建工单）
 	// autoDraftWarning 控制 warning 级事件 resolved 是否自动起草复盘（T4.1）。
 	//
-	// 触发档位（docs/capabilities/08-postmortem.md §3）：
+	// 触发档位（ADR-0026）：
 	//   - critical：强制自动起草（无条件建 draft）——不受此开关影响。
 	//   - warning ：可配——默认 false（建议但不强制），置 true 则自动起草。
 	//   - info    ：不强制，不自动起草。
@@ -218,7 +218,7 @@ func (e *Engine) GenerateDraft(ctx context.Context, incID int) (*ent.Postmortem,
 
 // OnIncidentResolved 订阅 IncidentResolved 领域事件，按 severity 决定是否自动起草复盘（T4.1）。
 //
-// 触发档位（docs/capabilities/08-postmortem.md §3）：
+// 触发档位（ADR-0026）：
 //   - critical：强制自动起草（建 draft 复盘）。
 //   - warning ：可配（autoDraftWarning，默认不强制）。
 //   - info    ：不强制，不起草。

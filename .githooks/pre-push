@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vigil pre-push：推送前跑完整三道门禁（docs/development.md §3.4），按改动范围裁剪。
+# Vigil pre-push：推送前跑完整三道门禁（AGENTS.md「开发约定」/ ADR-0035），按改动范围裁剪。
 #
 # 为什么重活在这里：门禁（golangci-lint + 全量 go test + build + 前端 lint/build）是分钟级，
 # 放 pre-commit 会拖慢每次提交进而被绕过；放 pre-push 只在「代码离开本机」时跑一次，

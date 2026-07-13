@@ -9,7 +9,7 @@ import (
 )
 
 // Runbook 处置手册 —— "该干什么"。
-// 对应 data-model.md §3.2 Runbook。
+// 设计见 ADR-0021（诊断只读 / 处置写两档）。
 // 分两档：document（纯 Markdown）/ executable（可执行步骤链）。
 type Runbook struct {
 	ent.Schema
@@ -36,7 +36,7 @@ func (Runbook) Fields() []ent.Field {
 }
 
 // RunbookStep 可执行步骤（Runbook.steps 元素）。
-// 对应 data-model.md §3.2 Runbook 步骤 + 能力域 9。
+// Runbook 步骤结构，两档执行语义见 ADR-0021。
 // 诊断类 readonly=true 由 Vigil 内置执行；
 // 处置类 require_approval=true 强制人确认或对接外部平台。
 type RunbookStep struct {

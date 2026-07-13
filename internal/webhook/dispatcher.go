@@ -1,6 +1,6 @@
 // Package webhook 实现能力域 14 的 Webhook 出口。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §A4：
+// 对应出向 webhook（ADR-0030 四方向集成）：
 // 用户订阅 incident 生命周期事件（created/acked/resolved/escalated/reopened/closed/responder_added），
 // Vigil 在事件发生时推送到订阅 URL。
 //

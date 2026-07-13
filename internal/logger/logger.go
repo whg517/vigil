@@ -1,6 +1,6 @@
 // Package logger 提供全局结构化日志（基于 zap）。
 //
-// 对应 tech-stack.md §可观测性：结构化日志，可对接日志系统。
+// 对应 docs/architecture.md §7.3 可观测性：结构化日志，可对接日志系统。
 // 业务代码用 logger.From(ctx) 获取带请求上下文的 logger。
 package logger
 

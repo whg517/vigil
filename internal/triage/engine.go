@@ -1,6 +1,6 @@
 // Package triage 实现能力域 3-4：分诊降噪与路由。
 //
-// 对应 docs/capabilities/02-triage-routing.md：
+// 设计见 ADR-0012（三层分诊管线）与 ADR-0013（确定性路由）：
 // · 去重 —— Redis dedup 窗口内重复 Event 丢弃
 // · 路由 —— Event labels 匹配 Service，未命中入 unrouted 池
 // · 相关性聚合 —— 同 service+severity 在时间窗口内聚合成一个 Incident

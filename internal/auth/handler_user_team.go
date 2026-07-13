@@ -724,7 +724,7 @@ func (h *TeamHandler) SetAuditRecorder(r *AuditRecorder) { h.audit = r }
 // 路由级 RouteGuard 只校验「持有 team.member.manage（org 或任意 team scope）」，
 // 但目标团队来自 :id path param（非 team_id，parseTeamScope 读不到），无法做资源级隔离。
 // 注入后，成员增删按目标团队 id 作为 scope 再校验一次——team 级管理员只能管自己团队的成员，
-// 不能跨团队增删（团队软隔离，data-model §5 / 09-admin-rbac §3）。未注入则退化为仅路由级门禁。
+// 不能跨团队增删（团队软隔离，ADR-0028）。未注入则退化为仅路由级门禁。
 func (h *TeamHandler) SetAuthorizer(a *Authorizer) { h.authz = a }
 
 // Register 挂载团队管理路由。

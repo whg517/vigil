@@ -927,7 +927,7 @@ func buildNotifier(ctx context.Context, cfg *config.Config, log *zap.Logger, st 
 	return notifier, notifAggregator, notifTemplates
 }
 
-// buildIMRegistry 构造 IM 平台适配器注册表（飞书/钉钉 P0，企微 Noop 待 PoC）。
+// buildIMRegistry 构造 IM 平台适配器注册表（飞书/钉钉；企微支持已整体移除，见 ADR-0037）。
 // 返回 registry + 各 adapter（供日志判断 Available）。
 func buildIMRegistry(cfg *config.Config) (*im.Registry, *feishu.Adapter, *dingtalk.Adapter) {
 	reg := im.NewRegistry()

@@ -10,7 +10,7 @@ import (
 )
 
 // AIInsight AI 洞察 —— AI 横向 Copilot 的产物承载。
-// 对应 data-model.md §3.3 AIInsight + 能力域 11。
+// 设计见 ADR-0022（AIInsight 横向 + HITL + 强制 evidence）。
 // 所有 AI 产出带 evidence + 状态（human-in-the-loop）。
 type AIInsight struct {
 	ent.Schema

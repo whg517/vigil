@@ -1,6 +1,6 @@
 // Package queue 封装 Asynq 异步任务客户端与服务端。
 //
-// 对应 tech-stack.md §3.4：选用 Asynq（Go + Redis），承载 Vigil 的五类异步任务：
+// 对应 ADR-0007：选用 Asynq（Go + Redis），承载 Vigil 的五类异步任务：
 // · 事件流水线任务（接入归一化）
 // · 延迟任务（升级计时 ★）
 // · 定时任务（排班换班/报表聚合）

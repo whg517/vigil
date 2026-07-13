@@ -1,5 +1,5 @@
 # golangci-lint v2 配置。
-# 对应 development.md §3.4：提交前必须 lint 通过，尽可能不忽略问题。
+# 对应 AGENTS.md「开发约定」门禁（ADR-0035）：提交前必须 lint 通过，尽可能不忽略问题。
 version: "2"
 
 linters:

@@ -1,6 +1,6 @@
 // Package service 实现服务目录 API（能力域 4/13 服务管理）。
 //
-// 对应 data-model.md §3.2 Service。Service 是路由的锚点、软隔离的核心载体。
+// Service 是路由的锚点、软隔离的核心载体（ADR-0013 / ADR-0028）。
 // 此前 Service 仅有 ent schema 无 HTTP handler，本包补 list/get/create/update/delete。
 //
 // 权限点 service.* 由调用方在装配时按角色授权（与 auth.Handler 一致）。

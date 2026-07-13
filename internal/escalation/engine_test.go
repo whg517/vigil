@@ -283,7 +283,7 @@ func TestHandleTask_LevelIdxOutOfBounds(t *testing.T) {
 // TestRepeatTimesSemantics 锁定 C6：repeat_times 是策略级——每层通知 repeat_times+1 次，
 // 重复间隔 = 该层 delay_minutes；重复用尽后才推进下一层。
 //
-// 语义（docs/capabilities/03-scheduling-escalation.md §3.5 + audit C6）：
+// 语义（ADR-0016 + audit C6）：
 //   - repeat_times=2 表示某层未 ack 时，除首次外再重复 2 次 = 共 3 次通知；
 //   - 每次重复由上一次 HandleTask 结束时 scheduleLevel(同层, repeatSeq+1) 延迟 delay 入队；
 //   - repeatSeq 达到 repeat_times 后不再重复，改 scheduleLevel(下一层, 0) 推进。

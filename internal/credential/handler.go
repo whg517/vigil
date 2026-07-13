@@ -1,6 +1,6 @@
 // Package credential 实现 Runbook 执行器凭据的加密托管管理面（T6.3 / 审计 S16）。
 //
-// 对应 docs/capabilities/06-runbook.md §7 Q1「执行器的凭证管理 → 加密存储于 Vigil，admin 管理」。
+// 对应「执行器的凭证管理 → 加密存储于 Vigil，admin 管理」（ADR-0030 凭据加密）。
 //
 // 管理面：CRUD 凭据（create/update 收明文 secret → AES-256-GCM 加密落库；
 // list/get 只返元数据，密文经 Sensitive 恒不回显，明文永不回显——类似 API Key 语义）。

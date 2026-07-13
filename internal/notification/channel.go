@@ -1,7 +1,7 @@
 // Package notification 实现能力域 7：通知。
 //
-// 对应 docs/capabilities/04-notification.md：
-// · Channel 接口（可插拔）—— IM/电话/SMS/邮件/Webhook 各自实现
+// 设计见 ADR-0017（逐通道兜底降级链 + 送达三态 + 聚合）：
+// · Channel 接口（可插拔）—— IM/邮件/Webhook 各自实现（电话/SMS 已移除，ADR-0037）
 // · Notifier 适配 escalation.Notifier，桥接升级触发与通道送达
 // · 通知幂等（notification_id）、送达记录
 //
@@ -41,9 +41,10 @@ type SendResult struct {
 }
 
 // Channel 通知通道接口。各通道（Webhook/邮件/IM）实现此接口。
-// 对应 capabilities §4：通道可插拔，统一接口。
+// 通道可插拔，统一接口（ADR-0017；新增通道的全部触点见 docs/extending.md）。
 type Channel interface {
-	// Name 通道标识：webhook | email | im | phone | sms
+	// Name 通道标识：webhook | email | im。phone/sms 为预留名、未实现（占位已随 ADR-0037
+	// 移除）：配置中残留的未知通道名 registry 查不到即跳过，降级链继续走下一通道。
 	Name() string
 	// Send 发送通知。返回送达结果。
 	Send(ctx context.Context, msg *Message) ([]SendResult, error)

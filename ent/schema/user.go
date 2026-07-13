@@ -10,7 +10,7 @@ import (
 )
 
 // User 用户 —— oncall 响应者/管理者。
-// 对应 data-model.md §3.1 User。
+// 设计见 ADR-0027（RBAC 主体）与 ADR-0028（软隔离）。
 type User struct {
 	ent.Schema
 }

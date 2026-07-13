@@ -1,6 +1,6 @@
 // callback_handler.go 工单侧状态回调端点（N1.3 工单双向回写）。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §A2「工单系统」双向打通：
+// 对应出向集成「工单系统」双向打通（ADR-0030 四方向集成）：
 // T4.3 只做了 Vigil→工单单向（建单 + ActionItem done 单向推送），工单侧关闭/推进不回写
 // Vigil。本端点补上反向：外部工单系统在工单状态变更（关闭/进行中/重开）时回调 Vigil，
 // 据 external_id / tracker_url 匹配对应 ActionItem 并更新其 status（open→in_progress→done）。

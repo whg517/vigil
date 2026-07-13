@@ -1,6 +1,6 @@
 // Package ingestion 实现能力域 1-2：告警接入与归一化。
 //
-// 对应 docs/capabilities/01-ingestion-normalization.md：
+// 设计见 ADR-0011（接入解耦 + 先落 raw + 幂等）：
 // · 接收与处理解耦 —— Receiver 秒级落 RawEvent 并入队，归一化在 Asynq worker 异步执行
 // · 不丢告警 —— 限流/背压时 payload 仍落库
 // · 幂等 —— source_event_id 作幂等键

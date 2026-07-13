@@ -10,7 +10,7 @@ import (
 )
 
 // TimelineItem 时间线条目 —— 全程留痕。
-// 对应 data-model.md §3.3 TimelineItem。
+// 设计见 ADR-0022（任何状态变更必须产生 TimelineItem）。
 // 自动捕获事件全程动作，为协同和复盘打基础。只追加，不修改。
 type TimelineItem struct {
 	ent.Schema
@@ -56,7 +56,7 @@ func (TimelineItem) Indexes() []ent.Index {
 }
 
 // IncidentAction 处置动作 —— 操作审计。
-// 对应 data-model.md §3.3 IncidentAction。
+// 设计见 ADR-0029（双轨审计：IncidentAction 为操作审计轨）。
 // 所有对 Incident 的操作都落成 Action（审计 + 撤销/重放基础）。
 type IncidentAction struct {
 	ent.Schema

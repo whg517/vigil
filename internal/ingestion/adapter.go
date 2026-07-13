@@ -1,6 +1,6 @@
 // adapter.go 定义告警源适配器接口与注册表。
 //
-// 对应 docs/capabilities/01-ingestion-normalization.md §4 归一化职责：
+// 归一化职责（ADR-0011；新增告警源的全部触点见 docs/extending.md）：
 // 每个 Adapter 把特定源 payload 归一化为统一 NormalizedEvent。
 package ingestion
 

@@ -9,7 +9,7 @@ import (
 )
 
 // Schedule 排班 —— "此刻谁在班"的算法蓝图。
-// 对应 data-model.md §3.2 Schedule。
+// 设计见 ADR-0015（纯蓝图 + 实时计算，不存快照）。
 // 注意：Schedule 是纯蓝图，不存当前值班人，由引擎实时计算。
 type Schedule struct {
 	ent.Schema
@@ -65,7 +65,7 @@ func (Schedule) Edges() []ent.Edge {
 }
 
 // Override 临时换班 —— 在某时段内以顶替人覆盖 Rotation 计算结果（能力域 5 M5.3）。
-// 对应 docs/capabilities/03-scheduling-escalation.md §2.4 Override。
+// 设计见 ADR-0015（Override 为最高优先级层）。
 // Override 是最高优先级层：时段命中时完全覆盖该 Schedule 的 Rotation 在班人。
 // 支持自我换班（oncall 换己班，schedule.override 权限）与 admin 指派换班（换他人）。
 type Override struct {
@@ -94,7 +94,7 @@ func (Override) Edges() []ent.Edge {
 }
 
 // Rotation 轮班规则 —— Schedule 的子结构。
-// 对应 data-model.md §3.2 Rotation。
+// 设计见 ADR-0015。
 // 班次序号 = floor((T - start_date) / shift_length)，当前值班 = participants[序号 mod 人数]。
 type Rotation struct {
 	ent.Schema

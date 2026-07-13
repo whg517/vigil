@@ -11,8 +11,8 @@ import (
 
 // Credential 加密托管的凭据 —— Runbook 执行器/外接系统访问外部平台用的密钥（T6.3）。
 //
-// 对应 docs/capabilities/06-runbook.md §7 Q1「执行器的凭证管理（Ansible/Jenkins token）→
-// 加密存储于 Vigil，admin 管理」。审计 S16：此前 Runbook step 只能把 token 明文写进
+// 执行器的凭证管理（Ansible/Jenkins token）→ 加密存储于 Vigil，admin 管理
+// （ADR-0030 凭据加密）。审计 S16：此前 Runbook step 只能把 token 明文写进
 // endpoint/params，泄露风险高；现改为独立托管凭据，step 引用凭据 id（credential_ref），
 // 执行时解密注入 Authorization 头，明文绝不落 step/日志/时间线。
 //

@@ -1,7 +1,6 @@
 // Package ticket 实现能力域 14 出向工单集成（T4.3）。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §A2「工单系统」与
-// docs/capabilities/08-postmortem.md §5「改进项跟踪」：
+// 对应出向集成「工单系统」（ADR-0030）与复盘「改进项跟踪」（ADR-0026）：
 // 复盘发布时把 ActionItem 推到外部工单系统建改进任务，回写 tracker_url。
 //
 // 设计取舍（scope 已核实）：

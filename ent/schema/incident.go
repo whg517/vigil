@@ -10,7 +10,7 @@ import (
 )
 
 // Incident 处理单元 —— 人介入的对象，Vigil 的核心实体。
-// 对应 data-model.md §3.3 Incident。
+// 设计见 ADR-0010（Event/Incident 分离：Incident 是有状态的处理单元）。
 // 由 Event 聚合而来，有状态机：
 // triggered → escalated → acked → resolved → closed
 type Incident struct {

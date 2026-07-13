@@ -1,7 +1,7 @@
 // Package servicesync 实现能力域 4 方案C P2：主动从外部源同步 Service。
 //
 // 周期性拉取「期望的服务清单」，upsert source=auto 的服务（挂解析出的团队、继承团队默认
-// 升级策略），绝不触碰 source=manual。对应 docs/capabilities/02-triage-routing.md §3.5。
+// 升级策略），绝不触碰 source=manual。对应 ADR-0014（Service 自动供给，方案C）。
 // 与懒供给（P1，triage 侧未路由即时建服务）互补：这里是「服务上线即存在」的主动路径。
 package servicesync
 

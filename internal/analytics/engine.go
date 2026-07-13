@@ -1,6 +1,6 @@
 // Package analytics 实现能力域 15：数据报表。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §B：
+// 报表维度（全景见 docs/architecture.md）：
 // · 告警度量（接入量/降噪率/unrouted）
 // · 事件度量（数量/severity 分布/MTTA/MTTR）
 // · 团队负载（值班次数/夜间打扰/人均事件）

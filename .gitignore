@@ -43,7 +43,7 @@ internal/web/dist/*
 # pnpm
 .pnpm-store/
 
-# Git worktree（开发用，特性分支隔离的工作目录，详见 docs/development.md）
+# Git worktree（开发用，特性分支隔离的工作目录，详见 AGENTS.md「开发约定」）
 .worktree/
 
 # 日志

@@ -1,6 +1,6 @@
 // subscription_handler.go 出站 webhook 动态订阅管理面 CRUD（N2.2）。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §A4 出向 webhook：
+// 对应出向 webhook（ADR-0030 四方向集成）：
 // 替代/补充环境变量 VIGIL_WEBHOOK_OUT_URLS（全局静态、需重启改），提供运行时按需增删的
 // 动态订阅——按团队隔离、按事件类型过滤、每订阅独立签名密钥。dispatcher 出站时把 env 静态订阅
 // 与 DB 动态订阅合并投递（EntSubscriptionResolver，向后兼容 env）。

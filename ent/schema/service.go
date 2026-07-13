@@ -10,7 +10,7 @@ import (
 )
 
 // Service 服务 —— 路由的锚点，软隔离的核心载体。
-// 对应 data-model.md §3.2 Service。
+// 设计见 ADR-0013（确定性路由）与 ADR-0014（自动供给）。
 // 告警的 label 匹配 Service 的 label → 命中路由。
 type Service struct {
 	ent.Schema
@@ -72,7 +72,7 @@ func (Service) Indexes() []ent.Index {
 }
 
 // Integration 接入点 —— 告警的入口。
-// 对应 data-model.md §3.2 Integration。
+// 设计见 ADR-0011（接入解耦）；新增类型的全部触点见 docs/extending.md。
 type Integration struct {
 	ent.Schema
 }

@@ -116,7 +116,7 @@ test-e2e-web: ## 运行前端 Playwright e2e（Docker 全栈，禁 mock；自动
 ##@ Verification
 
 .PHONY: check verify
-check: lint test build build-frontend ## 提交前三道门禁（lint→test→build，对应 docs/development.md §3.4）
+check: lint test build build-frontend ## 提交前三道门禁（lint→test→build，对应 AGENTS.md「开发约定」/ ADR-0035）
 	@echo "✅ Pre-commit checks passed (lint → test → build)"
 
 verify: lint test build build-frontend ## main 复验（合入 main 后的最终校验，对应 AGENTS.md 闭环第 6 步）

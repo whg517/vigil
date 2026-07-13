@@ -1,6 +1,6 @@
 // seed.go 内置角色种子数据（能力域 13 §5.4）。
 //
-// 对应 docs/data-model.md §5.4：系统出厂自带几个常用角色，
+// 对应 ADR-0027 内置角色设计：系统出厂自带几个常用角色，
 // builtin=true 可复制不可删。首次启动时通过 SeedBuiltinRoles 写入，
 // 保证鉴权生效后有可用角色（否则所有人被拒）。
 package auth
@@ -13,12 +13,12 @@ import (
 )
 
 // ResponderRoleName 内置一线值班角色名（team scope，最小处置权限集）。
-// 跨团队 @人 → 事件级临时授权即发放此角色的 team scope 绑定（M8.3/data-model §5.6）。
+// 跨团队 @人 → 事件级临时授权即发放此角色的 team scope 绑定（M8.3，ADR-0020）。
 // 与下方 builtinRoles 中 responder 条目的 Name 保持一致。
 const ResponderRoleName = "responder"
 
 // builtinRoles 内置角色定义（name -> 权限点列表 + scope_level）。
-// 对应 data-model.md §5.4 表格。
+// 对应 ADR-0027 内置角色表。
 var builtinRoles = []struct {
 	Name        string
 	Description string

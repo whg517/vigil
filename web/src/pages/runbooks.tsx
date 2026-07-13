@@ -247,7 +247,7 @@ function RunbookDetail({ id, onBack }: { id: number; onBack: () => void }) {
 /**
  * ExecutionResult 执行结果面板：逐步渲染每步成败/输出/耗时，并高亮
  * “写步骤未获批准被阻断（pending_approval）”与“中止（aborted）”，
- * 呼应写审批闸门修复——让审批/阻断结果在 UI 可见（audit B20 / user-journeys C.5.2）。
+ * 呼应写审批闸门修复——让审批/阻断结果在 UI 可见（ADR-0021 写审批闸门 / audit B20）。
  */
 function ExecutionResult({ result }: { result: RunbookExecuteResult }) {
   const { t } = useTranslation();

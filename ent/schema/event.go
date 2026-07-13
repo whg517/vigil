@@ -10,7 +10,7 @@ import (
 )
 
 // RawEvent 原始告警暂存 —— "先落库再处理"的可靠性保证。
-// 对应能力域 01 §7.1（data-model 未显式定义，本设计新增）。
+// 设计见 ADR-0011（先落 raw + 幂等）。
 // Receiver 先落 RawEvent，再入队归一化；保证任何情况下告警不丢。
 type RawEvent struct {
 	ent.Schema
@@ -44,7 +44,7 @@ func (RawEvent) Indexes() []ent.Index {
 }
 
 // Event 原始告警信号 —— 归一化后的内部事件模型。
-// 对应 data-model.md §3.3 Event。
+// 设计见 ADR-0010（Event/Incident 分离）。
 // 不可变的历史记录，只追加。
 type Event struct {
 	ent.Schema

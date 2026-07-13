@@ -214,7 +214,7 @@ func (s *Service) Resolve(ctx context.Context, incID int, actorID int, src Sourc
 
 // Close 关闭事件：resolved → closed（进入终态）。
 //
-// 状态机约束：closed 是终态，唯一入边是 resolved → closed（见 data-model.md 状态机）。
+// 状态机约束：closed 是终态，唯一入边是 resolved → closed（见 docs/architecture.md §四 状态机）。
 // 非 resolved 状态直接 close 属非法转换（如 triggered 未处置就归档），返回 ErrInvalidTransition。
 // 已 closed 幂等返回 ErrAlreadyClosed（供复盘发布联动等调用方识别「已收口」跳过，不当失败处理）。
 //
@@ -419,7 +419,7 @@ func (s *Service) Escalate(ctx context.Context, incID int, actorID int, src Sour
 
 // AddResponder 拉人协同：把 targetUserID 加入 responders（去重）+ 事件级临时授权（M8.3）。
 //
-// 拉人即授权（data-model §5.6）：若被拉人对该 incident 所属 team 无处置权限（跨团队 @人），
+// 拉人即授权（ADR-0020）：若被拉人对该 incident 所属 team 无处置权限（跨团队 @人），
 // 自动发放事件级临时 responder 授权（team scope + expires_at + source_incident_id），
 // incident 关闭时撤销、过期兜底——跨团队协同不被软隔离挡住，但也不放宽软隔离边界。
 // 授权逻辑委托给 granter（SetResponderGranter 注入）；未注入时降级为仅加入 responders 名单。

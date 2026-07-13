@@ -1,6 +1,6 @@
 // engine.go Runbook 执行引擎。
 //
-// 核心安全控制（对应 capabilities §5 + 设计基线第 8 条）：
+// 核心安全控制（ADR-0021 两档执行 + 设计基线第 8 条）：
 //   - readonly=true 的诊断动作直接执行（内置安全）。
 //   - readonly=false 的处置动作必须调用方提供 approved=true 才执行（human-in-the-loop
 //     闸门）；未获批时拒绝执行该步（Skipped=true），绝不触碰写操作。
@@ -92,7 +92,7 @@ func (e *Engine) SetEscalationTrigger(t EscalationTrigger) {
 
 // ExecuteResult 整个 Runbook 的执行结果。
 // json tag 用 snake_case：前端据此渲染每步成败/输出与"写步骤被阻断待审批"，
-// 不加 tag 会序列化成 PascalCase 让前端读不到字段（见 docs/user-journeys.md C.5.2 / audit B20）。
+// 不加 tag 会序列化成 PascalCase 让前端读不到字段（audit B20）。
 type ExecuteResult struct {
 	RunbookID       int          `json:"runbook_id"`
 	IncidentID      int          `json:"incident_id"`

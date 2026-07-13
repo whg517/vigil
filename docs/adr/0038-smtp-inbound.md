@@ -14,7 +14,7 @@
 
 内置一个轻量 SMTP 接收端(基于 `github.com/emersion/go-smtp`),默认关闭:
 
-- **启停与端口**:`VIGIL_SMTP_IN_ENABLED`(默认 false)+ `VIGIL_SMTP_IN_ADDR`(默认 `:2525`)。
+- **启停与端口**:`VIGIL_INGESTION_SMTP_IN_ENABLED`(默认 false)+ `VIGIL_INGESTION_SMTP_IN_ADDR`(默认 `:2525`)——配置项挂在 `Ingestion` 段下(`internal/config/config.go`),envconfig 前缀随段名嵌套。
 - **鉴权 = 收件人即令牌**:收件地址的 local part 必须等于某个 `type=email` 且 enabled 的 Integration 的 webhook token(如 `a1b2c3@vigil.local`)。复用既有 token 体系,不引入 SMTP AUTH——部署形态是内网接收,网络边界 + token 双层已够;token 查不到直接拒收(RCPT 阶段 550)。
 - **复用接入核心**:收信后走与 webhook 完全相同的 `IngestRaw` 链路(先落 RawEvent → 限流 → 背压 → 入归一化队列),邮件原文以 JSON 信封(from/to/subject/body/message_id)存 payload,不丢失保证与回灌能力与 HTTP 入口完全一致。
 - **EmailAdapter 归一化**:severity 从主题解析(`[CRITICAL]`/`[WARNING]`/`[RESOLVED]` 前缀及常见关键词,`severity_map` 可覆盖);summary=主题;`source_event_id`=Message-ID(缺失则 from+subject 哈希);主题带 `[RESOLVED]`/`[OK]` 归一为 resolved。

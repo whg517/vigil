@@ -9,7 +9,7 @@ import (
 )
 
 // Role 角色 —— 使用者自定义，自由组合权限点。
-// 对应 data-model.md §5.2 Role。
+// 设计见 ADR-0027（权限点枚举 + 自配置角色）。
 // 内置角色 builtin=true 可复制不可删；使用者可自由增删改。
 type Role struct {
 	ent.Schema
@@ -40,7 +40,7 @@ func (Role) Edges() []ent.Edge {
 }
 
 // RoleBinding 角色绑定 —— 把 Role 授予 User（带作用域）。
-// 对应 data-model.md §5.2 RoleBinding。
+// 设计见 ADR-0027 与 ADR-0028（scope 为 org/team，权限取并集）。
 // scope 决定生效范围：org（全组织）或 team（限某团队）。
 type RoleBinding struct {
 	ent.Schema
@@ -56,7 +56,7 @@ func (RoleBinding) Fields() []ent.Field {
 		field.String("granted_by").Optional(),
 		// expires_at 可选，临时授权（如值班期间临时给某人 team_admin）
 		field.Time("expires_at").Optional().Nillable().Comment("临时授权到期时间"),
-		// source_incident_id 事件级临时授权来源（跨团队 @人 → 自动发 responder 权限，M8.3/data-model §5.6）。
+		// source_incident_id 事件级临时授权来源（跨团队 @人 → 自动发 responder 权限，M8.3，ADR-0020）。
 		// >0 表示此绑定是「因被拉进某 incident 协同」而自动发放的临时授权，值为该 incident id。
 		// 用途：incident 关闭时按此字段精确撤销对应临时授权（expires_at 作兜底，即使漏删也会过期失效）。
 		// 0（默认）表示常规人工授权，不受事件关闭联动撤销影响。

@@ -1,6 +1,6 @@
 // Package timeline 实现能力域 10：事件时间线。
 //
-// 对应 docs/capabilities/07-timeline-ai.md §A：
+// 设计见 ADR-0022（任何状态变更必须产生 TimelineItem）：
 // · 自动捕获事件全程（系统/人工/AI 动作）
 // · 统一 Recorder 供各域写时间线，消除重复
 // · 查询 API（按 incident + 筛选 type/source + 分页）

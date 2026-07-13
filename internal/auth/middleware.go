@@ -1,6 +1,6 @@
 // middleware.go Echo 鉴权中间件（能力域 13 §6.1）。
 //
-// 对应 docs/capabilities/09-admin-rbac.md §4.4 + architecture §6.1：
+// 对应 ADR-0027 与 docs/architecture.md §7.1 鉴权：
 // 所有 API（Web/IM 调用的核心服务）过同一中间件。
 // 解析 (user, action, resource) → Authorizer.Check → 通过/拒绝。
 //

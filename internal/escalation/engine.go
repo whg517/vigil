@@ -1,6 +1,6 @@
 // Package escalation 实现能力域 6：升级策略。
 //
-// 对应 docs/capabilities/03-scheduling-escalation.md §3：
+// 设计见 ADR-0016（Asynq 延迟任务 + 状态守卫）：
 // · Asynq 延迟任务驱动升级链（asynq.ProcessIn(delay)）
 // · Incident 创建 → 入队 level[0] → 到期触发 → 入队 level[1] → ...
 // · ack 即取消（DeleteTask + 状态守卫）

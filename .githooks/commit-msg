@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Vigil commit-msg：强制 Conventional Commits（Vigil 调整版），显式拒绝 chore。
-# 依据 docs/development.md §4.1–4.3。
+# 依据 AGENTS.md「提交信息规范」与 ADR-0035。
 #
 # 跳过：VIGIL_SKIP_HOOKS=1 git commit …    或    git commit --no-verify
 set -uo pipefail
@@ -40,7 +40,7 @@ fi
 # 显式拦截 chore（docs §4.3 明确禁用，单独给出更清晰的引导）
 case "$subject" in
   chore:*|'chore('*|'chore!'*)
-    hook_err "禁止使用 chore（docs/development.md §4.3）。"
+    hook_err "禁止使用 chore（AGENTS.md「提交信息规范」/ ADR-0035）。"
     hook_err "按语义改用：依赖/配置→build，CI→ci，重构→refactor，文档→docs，格式→style。"
     exit 1 ;;
 esac

@@ -2,7 +2,7 @@
 //
 // 背景：ent/schema 有 IncidentAction 实体（操作审计：谁、何时、经哪个渠道、做了什么），
 // 但全仓零写入——所有处置动作只落时间线（TimelineItem），审计维度（via 渠道统计、
-// 撤销/重放基础）缺失。IncidentAction 与 TimelineItem 的分工（data-model.md §3.3）：
+// 撤销/重放基础）缺失。IncidentAction 与 TimelineItem 的分工（ADR-0029 双轨审计）：
 //   - TimelineItem：人类可读的「全程留痕」，供协同与复盘阅读（含系统/AI/IM 消息等）。
 //   - IncidentAction：结构化的「操作审计」，只记对 Incident 的显式处置动作，
 //     强调 via（IM-first 关键指标：多少动作在 IM 完成）+ 可撤销/重放。

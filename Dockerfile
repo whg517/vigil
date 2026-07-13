@@ -1,5 +1,5 @@
 # Vigil Dockerfile —— 多阶段构建（前端 + 后端 → 单运行镜像）。
-# 对应 tech-stack.md §部署：单二进制 + 前端静态资源。
+# 对应 ADR-0031（单二进制 embed + Compose/Helm）：单二进制 + 前端静态资源。
 
 # ===== Stage 1: 前端构建 =====
 FROM node:22-alpine AS web-builder

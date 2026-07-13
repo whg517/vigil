@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Vigil pre-commit：快检（Go 格式 + 编译），按暂存文件范围触发，目标秒级完成。
 #
-# 设计取舍（对应 docs/development.md §3.4 门禁）：
+# 设计取舍（对应 AGENTS.md「开发约定」门禁 / ADR-0035）：
 #   - 每次提交都跑，故只放**快**检：gofmt（对暂存内容）+ go build（编译）。
 #   - 重活（golangci-lint / 全量 go test / 前端 lint+build）放 pre-push——推送不频繁，
 #     不该让每次 `git commit` 都等分钟级。开发中频繁小步提交不被拖慢，才不会被绕过。

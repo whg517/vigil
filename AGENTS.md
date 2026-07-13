@@ -35,7 +35,7 @@ vigil/
 ├── internal/             # 业务模块（按领域分）
 │   └── auth/             # RBAC 权限点（permission.go）
 ├── ent/                  # ent ORM
-│   ├── schema/           # ★ 实体定义（25 个实体，改 schema 后须 generate）
+│   ├── schema/           # ★ 实体定义（当前 32 个，以 schema 为准；改后须 generate）
 │   └── *.go              # ent 自动生成代码（提交入库）
 ├── web/                  # 前端（React + Vite）
 ├── docs/                 # 设计文档
@@ -122,8 +122,6 @@ go build ./... && pnpm --dir web build
 
 ### 提交信息规范（Conventional Commits，调整版）
 
-### 提交信息规范（Conventional Commits，调整版）
-
 格式：`<type>(<scope>): <subject>`
 
 **允许的 type**：`feat` `fix` `docs` `refactor` `perf` `test` `style` `build` `ci` `revert`
@@ -164,13 +162,14 @@ go build ./... && pnpm --dir web build
 | 怎么开发/提交 | 本文件「开发约定」+ [ADR-0035](./docs/adr/0035-dev-workflow-gates.md) |
 | e2e 测试怎么写/跑 | [ADR-0035](./docs/adr/0035-dev-workflow-gates.md) + `test/e2e/` |
 | 权限点清单 | `internal/auth/permission.go` |
+| 怎么扩展告警源/通知通道/IM 平台/执行器 | [`docs/extending.md`](./docs/extending.md) + [ADR-0009](./docs/adr/0009-pluggable-integrations.md) |
 
 ---
 
 ## 当前状态
 
-- ✅ 架构文档收敛为 architecture 主文档 + 36 份 ADR（活文档：operations）
-- ✅ 全栈实现深入中：`internal/` 35 个业务模块、ent 25 实体、前端 19 页面(全站 i18n)
+- ✅ 架构文档收敛为 architecture 主文档 + 38 份 ADR（活文档：operations）
+- ✅ 全栈实现深入中：`internal/` 35 个业务模块、ent 32 实体(以 ent/schema 为准)、前端 19 页面(全站 i18n)
 - ⏳ 后续演进(AI Copilot 深化、复盘增强等)以 GitHub Issues 跟踪
 
 设计取舍见 [`docs/adr/`](./docs/adr/);组件全景见 [`docs/architecture.md`](./docs/architecture.md)。

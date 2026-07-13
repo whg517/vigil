@@ -1,7 +1,7 @@
 // Package config 定义 Vigil 的运行时配置。
 //
 // 配置来源优先级：环境变量 > 默认值。环境变量统一加 VIGIL_ 前缀。
-// 对应 tech-stack.md §配置：环境变量 + YAML（12-Factor 风格）。
+// 环境变量驱动配置（12-Factor 风格），部署形态见 ADR-0031。
 package config
 
 import (
@@ -503,7 +503,7 @@ func (e Escalation) EffectiveSweepInterval() time.Duration {
 
 // Postmortem 复盘配置（能力域 12，M12.7 触发档位，T4.1）。
 //
-// 触发档位（docs/capabilities/08-postmortem.md §3）：
+// 触发档位（ADR-0026）：
 //   - critical：强制自动起草（无条件），不受配置影响。
 //   - warning ：AutoDraftWarning 控制，默认 false（建议但不强制）。
 //   - info    ：不强制，不起草。

@@ -2,7 +2,7 @@
 //
 // 权限点是系统内置的细粒度动作枚举（系统能力边界，固定），
 // 命名规范 <resource>.<action>。角色（Role）由使用者自由组合这些权限点配置。
-// 详见 data-model.md §5。
+// 详见 ADR-0027。
 package auth
 
 // Permission 权限点类型。

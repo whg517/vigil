@@ -11,7 +11,7 @@ import (
 
 // TicketIntegration 出向工单集成配置 —— 复盘 ActionItem 自动建单的目标系统。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §A2 出向集成「工单系统」：
+// 对应出向集成「工单系统」（ADR-0030 四方向集成）：
 // 复盘发布时把 ActionItem 推到外部工单系统（Jira/禅道/通用 webhook）建改进任务，回写 tracker_url。
 //
 // 与入向 Integration（告警源接入）分开建实体：语义正交（一个进告警、一个出工单），

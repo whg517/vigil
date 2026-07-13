@@ -11,7 +11,7 @@ import (
 
 // WebhookSubscription 出站 webhook 动态订阅（N2.2）——替代/补充环境变量 VIGIL_WEBHOOK_OUT_URLS。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §A4 出向 webhook：
+// 对应出向 webhook（ADR-0030 四方向集成）：
 // 用户订阅 incident 生命周期事件（created/acked/resolved/escalated/reopened/closed/responder_added/merged），
 // Vigil 在事件发生时按订阅的事件类型过滤后推送到订阅 URL。
 //

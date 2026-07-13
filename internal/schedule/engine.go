@@ -1,6 +1,6 @@
 // Package schedule 实现能力域 5：排班。
 //
-// 对应 docs/capabilities/03-scheduling-escalation.md §2：
+// 设计见 ADR-0015（排班蓝图 + 实时计算，不存快照）：
 // · Schedule 是纯蓝图，不存"当前值班人"，由引擎实时计算
 // · 班次序号 = floor((T - start_date) / shift_length)
 // · 当前值班 = participants[序号 mod 人数]

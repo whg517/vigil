@@ -2,7 +2,7 @@
 # Vigil git 钩子共享库：被 pre-commit / commit-msg / pre-push 以 `. _lib.sh` 引入。
 #
 # 为什么单独抽库：三个钩子共用「跳过判定 + 彩色日志 + 工具探测 + 暂存文件枚举」，
-# 抽出来避免复制粘贴导致行为漂移（docs/development.md §六：各 worktree 共享 hooks）。
+# 抽出来避免复制粘贴导致行为漂移（AGENTS.md「开发约定」：各 worktree 共享 hooks）。
 # 本文件不是钩子（git 只按事件名 pre-commit/commit-msg/… 调用文件），故不会被直接执行。
 #
 # 兼容性：面向 macOS 自带 bash 3.2 —— 不用关联数组 / ${var,,} / mapfile。

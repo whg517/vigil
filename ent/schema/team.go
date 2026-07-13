@@ -10,7 +10,7 @@ import (
 )
 
 // Team 团队 —— 数据归属边界（软隔离）。
-// 对应 data-model.md §3.1 Team。
+// 设计见 ADR-0028（单组织多团队软隔离，权限不沿树继承）。
 // 团队可嵌套（parent_team_id），但权限不沿树继承。
 type Team struct {
 	ent.Schema

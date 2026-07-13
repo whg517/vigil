@@ -1,6 +1,6 @@
 // copilot.go 处置阶段 AI（Copilot）：在处置阶段产出「带 evidence 的建议」，落 AIInsight。
 //
-// 对应 docs/capabilities/07-timeline-ai.md §B2（处置阶段的 AI 介入）与 roadmap T3.3 / 审计 C15：
+// 处置阶段的 AI 介入（ADR-0022；T3.3 / 审计 C15）：
 //   - runbook_suggestion：AI 基于 Incident 内容 + 相似历史事件（其 runbook_executed 记录）
 //     推荐「这类故障通常用 Runbook X」，产出带 evidence 的推荐（引用相似事件 + 其历史执行的
 //     Runbook）。★ 安全红线：accept 只高亮/呈现该 Runbook，绝不触发执行——执行仍走 Runbook

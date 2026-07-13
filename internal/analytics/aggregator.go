@@ -1,6 +1,6 @@
 // aggregator.go 定时聚合任务（T6.1，能力域 15 §B3）。
 //
-// 对应 docs/capabilities/10-integrations-analytics.md §B3：「聚合任务：定时 Asynq 任务（每小时/每日）」。
+// 「聚合任务：定时 Asynq 任务（每小时/每日）」（全景见 docs/architecture.md）。
 //
 // 场景：大数据量下实时聚合（每次报表请求全表扫 Event/Incident）慢且抖动。本聚合器周期性
 // 把各团队（及 org 全局）的指标预计算成 MetricsSnapshot 存库，报表端点可选读快照
