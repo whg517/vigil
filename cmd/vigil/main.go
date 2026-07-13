@@ -16,7 +16,7 @@
 // @title          Vigil API
 // @version        0.1.0
 // @description    Vigil 告警处置平台 REST API。
-// @description    认证：业务 API 要求 Bearer JWT（/auth/login 换取）。鉴权中间件另接受 X-Vigil-User-ID 头作为本地/回退身份（可伪造，仅限受信网络，生产禁用），该回退方案不在 securitySchemes 中声明。
+// @description    认证：业务 API 要求 Bearer JWT（/auth/login 换取）。X-Vigil-User-ID 头回退默认关闭，须 VIGIL_AUTH_HEADER_FALLBACK=true 显式开启（该头可伪造，仅限本地开发调试；生产环境无条件强制关闭），该回退方案不在 securitySchemes 中声明。
 // @license.name   MIT
 // @servers.url    /api/v1
 //
@@ -53,6 +53,14 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		if err := runMigrateCmd(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "migrate failed:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	// seed-demo 灌演示数据（幂等），见 seed_demo.go。
+	if len(os.Args) > 1 && os.Args[1] == "seed-demo" {
+		if err := runSeedDemoCmd(); err != nil {
+			fmt.Fprintln(os.Stderr, "seed-demo failed:", err)
 			os.Exit(1)
 		}
 		return

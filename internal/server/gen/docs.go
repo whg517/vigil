@@ -15103,7 +15103,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "0.1.0",
 	Title:            "Vigil API",
-	Description:      "Vigil 告警处置平台 REST API。\n认证：业务 API 要求 Bearer JWT（/auth/login 换取）。鉴权中间件另接受 X-Vigil-User-ID 头作为本地/回退身份（可伪造，仅限受信网络，生产禁用），该回退方案不在 securitySchemes 中声明。",
+	Description:      "Vigil 告警处置平台 REST API。\n认证：业务 API 要求 Bearer JWT（/auth/login 换取）。X-Vigil-User-ID 头回退默认关闭，须 VIGIL_AUTH_HEADER_FALLBACK=true 显式开启（该头可伪造，仅限本地开发调试；生产环境无条件强制关闭），该回退方案不在 securitySchemes 中声明。",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

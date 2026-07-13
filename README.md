@@ -36,6 +36,7 @@ cp .env.example .env            # 按需改凭证、配 IM/LLM
 echo "VIGIL_AUTH_JWT_SECRET=$(openssl rand -hex 32)" >> .env   # 必填：JWT 签名密钥
 docker compose run --rm vigil migrate   # 首次：建表 + 启用 pgvector（自动先起依赖）
 docker compose up -d            # postgres(pgvector) + redis + vigil
+docker compose run --rm vigil seed-demo   # 可选：灌演示数据（团队/服务/排班等，幂等）并打印模拟告警 curl
 open http://localhost:8080      # Web UI
 open http://localhost:8080/docs # Swagger API 文档
 ```

@@ -47,6 +47,20 @@ vigil/
 
 ---
 
+## 环境前置
+
+本地开发所需工具链版本（与 `.github/workflows/ci.yml` 对齐，CI 是权威版本源）：
+
+| 工具 | 版本 | 说明 |
+|------|------|------|
+| Go | 1.25 | `go.mod` 声明 `go 1.25.0`，CI 用 `1.25` |
+| Node.js | 22 | CI `setup-node` 锁 22 |
+| pnpm | 9 | CI `pnpm/action-setup` 锁 9；`web/package.json` 的 `packageManager` 字段已固定（corepack 环境自动匹配） |
+| golangci-lint | **v2**（CI 锁 v2.0.2） | ⚠️ `.golangci.yml` 是 v2 格式（`version: "2"`），v1 解析直接失败 |
+| docker compose | v2 | Makefile 用 `docker compose`（空格）子命令语法，不兼容 v1 的 `docker-compose` |
+
+依赖容器（postgres 需 pgvector 扩展，推荐 `pgvector/pgvector:pg16`）由 `make dev-up` 自动拉起，无需手装。
+
 ## 常用命令
 
 ### 本地一键起步（make）

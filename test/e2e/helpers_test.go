@@ -13,6 +13,7 @@ import (
 
 	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/ent/incident"
+	entmigrate "github.com/kevin/vigil/ent/migrate"
 	entnotification "github.com/kevin/vigil/ent/notification"
 	"github.com/kevin/vigil/ent/role"
 	"github.com/kevin/vigil/ent/rolebinding"
@@ -24,42 +25,26 @@ import (
 	"github.com/onsi/gomega"
 )
 
-// allTables 是全部业务表名，供 ResetDB 做 TRUNCATE。
-// 列表与 ent/migrate/schema.go 的 schema.Table.Name 一一对应（含关联表）。
-// 必须包含所有表，否则 ResetDB 会因外键残留失败。
-var allTables = []string{
-	"action_items",
-	"ai_insights",
-	"api_keys",
-	"audit_logs",
-	"escalation_policies",
-	"escalation_policy_schedules",
-	"events",
-	"im_account_bindings",
-	"incident_actions",
-	"incident_responders",
-	"incidents",
-	"integrations",
-	"notification_rules",
-	"notification_templates",
-	"postmortems",
-	"raw_events",
-	"role_bindings",
-	"roles",
-	"rotation_participants",
-	"rotations",
-	"runbooks",
-	"schedules",
-	"service_runbooks",
-	"service_schedules",
-	"services",
-	"suppression_rules",
-	"team_role_bindings",
-	"team_users",
-	"teams",
-	"timeline_items",
-	"users",
-}
+// allTables 是全部业务表名，供 ResetDB 做 TRUNCATE，程序化派生自 ent/migrate.Tables。
+//
+// 为什么派生而非手工清单：手工列表会随 schema 演进静默漂移——历史上曾漏掉 9 张表
+// （credentials/metrics_snapshots/notifications/overrides/subscriptions 等），漏掉的表
+// 在 spec 之间残留数据，是跨 spec flaky 的隐性来源。ent/migrate.Tables 由
+// `go generate ./ent/...` 从 schema 生成（含多对多关联表），新增实体后自动纳入，
+// 无需人工同步；TRUNCATE 带 CASCADE，外键依赖顺序也无需关心。
+//
+// schema_migrations（迁移版本记录表）不属于 ent schema，天然不在 Tables 中；
+// 这里仍显式排除，自文档化「迁移记录不清、测试不重跑迁移」的意图。
+var allTables = func() []string {
+	names := make([]string, 0, len(entmigrate.Tables))
+	for _, t := range entmigrate.Tables {
+		if t.Name == "schema_migrations" {
+			continue
+		}
+		names = append(names, t.Name)
+	}
+	return names
+}()
 
 // BeforeEach：每个 Spec 运行前清空数据 + 重建 admin，保证用例间数据独立。
 // 共用的 app 实例只起一次（BeforeSuite），这里只清状态，不重启。

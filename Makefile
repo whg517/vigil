@@ -46,6 +46,10 @@ dev-down: $(ENV_FILE) ## 停止依赖服务
 migrate: dev-up ## 执行数据库迁移
 	go run ./cmd/vigil/ migrate
 
+.PHONY: seed-demo
+seed-demo: ## 灌演示数据（团队/用户/服务/接入点/升级策略/排班，幂等）并打印模拟告警 curl
+	go run ./cmd/vigil/ seed-demo
+
 ##@ Code Generation
 
 .PHONY: gen gen-ent gen-openapi gen-types
@@ -63,7 +67,10 @@ gen-types: ## 根据最新 OpenAPI spec 生成前端 types.gen.ts
 ##@ Development
 
 .PHONY: dev-setup dev-backend dev-frontend
-dev-setup: migrate ## 一键启动：依赖服务 + 迁移
+dev-setup: migrate ## 一键启动：依赖服务 + 迁移 + 前端依赖
+	@# 前端依赖一并装好：否则 dev-frontend 首次执行会因缺 node_modules 直接失败，
+	@# 「一键起步」名不副实。pnpm install 幂等且有缓存，重复执行开销很小。
+	pnpm --dir web install
 	@echo ""
 	@echo "✅ All services ready!"
 	@echo ""
