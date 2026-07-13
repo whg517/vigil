@@ -1,7 +1,8 @@
 // selfmon_test.go 自监控引擎逻辑测试（不依赖真实基础设施，用 fake 注入）。
 //
 // 覆盖：队列深度阈值判定、失败率计算（样本不足不触发 / 超阈触发）、冷却生效（Cooldown
-// 内不重发）、诚实边界（notifier/admin 缺失不 panic 且不假发）。
+// 内不重发）、诚实边界（notifier/admin 缺失不 panic 且不假发）、队列探测连续失败红线
+// （连续 N 次触发 / 成功重置 / 阈值关闭保持只 warn）。
 package selfmon
 
 import (
@@ -72,13 +73,14 @@ func oneAdmin() fakeAdmins {
 
 func baseCfg() Config {
 	return Config{
-		CheckInterval:        time.Minute,
-		QueueDepthThreshold:  10000,
-		FailureRateThreshold: 0.5,
-		FailureRateWindow:    15 * time.Minute,
-		FailureRateMinSample: 20,
-		Cooldown:             30 * time.Minute,
-		AlertChannels:        []string{"webhook", "email"},
+		CheckInterval:              time.Minute,
+		QueueDepthThreshold:        10000,
+		FailureRateThreshold:       0.5,
+		FailureRateWindow:          15 * time.Minute,
+		FailureRateMinSample:       20,
+		Cooldown:                   30 * time.Minute,
+		AlertChannels:              []string{"webhook", "email"},
+		QueueProbeFailureThreshold: 3, // 与生产默认一致（EffectiveQueueProbeFailureThreshold）
 	}
 }
 
@@ -203,6 +205,123 @@ func TestNoAdminNoAlert(t *testing.T) {
 	e.Check(t.Context())
 	if notif.count() != 0 {
 		t.Fatalf("no admin should mean no alert, got %d", notif.count())
+	}
+}
+
+// flakyQueue 可在测试中途切换成功/失败的队列来源（模拟 Redis 故障与恢复）。
+type flakyQueue struct {
+	mu    sync.Mutex
+	depth int
+	err   error
+}
+
+func (f *flakyQueue) set(depth int, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.depth, f.err = depth, err
+}
+
+func (f *flakyQueue) Depth(context.Context) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.depth, f.err
+}
+
+// TestQueueProbeConsecutiveFailuresFireRedLine 连续失败达到阈值（3）才触发红线告警；
+// 之后持续失败由冷却抑制（不刷屏）。前 2 次失败只 warn 不告警（防抖动保留）。
+func TestQueueProbeConsecutiveFailuresFireRedLine(t *testing.T) {
+	notif := &fakeNotifier{}
+	q := &flakyQueue{}
+	q.set(0, errors.New("redis down"))
+	e := NewEngine(baseCfg(), q, fakeRate{}, notif, oneAdmin(), nil)
+
+	e.Check(t.Context()) // 第 1 次失败：只 warn
+	e.Check(t.Context()) // 第 2 次失败：只 warn
+	if notif.count() != 0 {
+		t.Fatalf("below consecutive threshold must not alert, got %d", notif.count())
+	}
+	e.Check(t.Context()) // 第 3 次连续失败：红线触发
+	if notif.count() != 1 {
+		t.Fatalf("3rd consecutive probe failure must fire red-line alert, got %d", notif.count())
+	}
+	if notif.kinds[0] != "[自监控] 队列探测连续失败" {
+		t.Fatalf("unexpected alert title: %q", notif.kinds[0])
+	}
+	e.Check(t.Context()) // 第 4 次：仍失败，但冷却内不重发
+	if notif.count() != 1 {
+		t.Fatalf("continued failures within cooldown must not re-alert, got %d", notif.count())
+	}
+}
+
+// TestQueueProbeFailureResetOnSuccess 探测成功重置连续计数：失败必须「连续」达到阈值，
+// 中间任何一次成功都从零重计（恢复解除语义 = 计数清零 + 告警自然停止）。
+func TestQueueProbeFailureResetOnSuccess(t *testing.T) {
+	notif := &fakeNotifier{}
+	q := &flakyQueue{}
+	e := NewEngine(baseCfg(), q, fakeRate{}, notif, oneAdmin(), nil)
+
+	q.set(0, errors.New("redis down"))
+	e.Check(t.Context()) // 失败 ×2
+	e.Check(t.Context())
+	q.set(100, nil)
+	e.Check(t.Context()) // 成功：计数清零（深度 100 远低于积压阈值，不触发积压告警）
+	q.set(0, errors.New("redis down"))
+	e.Check(t.Context()) // 再失败 ×2：非连续 3 次
+	e.Check(t.Context())
+	if notif.count() != 0 {
+		t.Fatalf("non-consecutive failures must not alert, got %d", notif.count())
+	}
+	e.Check(t.Context()) // 第 3 次连续失败：触发
+	if notif.count() != 1 {
+		t.Fatalf("3 consecutive failures after reset must alert, got %d", notif.count())
+	}
+}
+
+// TestQueueProbeRedLineDisabled 阈值 <=0 时红线关闭：持续失败也维持原「只 warn」行为。
+func TestQueueProbeRedLineDisabled(t *testing.T) {
+	notif := &fakeNotifier{}
+	cfg := baseCfg()
+	cfg.QueueProbeFailureThreshold = 0
+	e := NewEngine(cfg, fakeQueue{err: errors.New("redis down")}, fakeRate{}, notif, oneAdmin(), nil)
+	for i := 0; i < 5; i++ {
+		e.Check(t.Context())
+	}
+	if notif.count() != 0 {
+		t.Fatalf("disabled red line must never alert, got %d", notif.count())
+	}
+}
+
+// TestQueueProbeReAlertAfterRecoveryAndCooldown 恢复后再次连续失败：冷却已过则再次告警
+// （红线可重复进入，与现有 kind 的冷却语义一致）。
+func TestQueueProbeReAlertAfterRecoveryAndCooldown(t *testing.T) {
+	notif := &fakeNotifier{}
+	q := &flakyQueue{}
+	cfg := baseCfg()
+	cfg.QueueProbeFailureThreshold = 2
+	e := NewEngine(cfg, q, fakeRate{}, notif, oneAdmin(), nil)
+
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cur := base
+	e.now = func() time.Time { return cur }
+
+	q.set(0, errors.New("redis down"))
+	e.Check(t.Context()) // 失败 1
+	e.Check(t.Context()) // 失败 2：告警 #1
+	if notif.count() != 1 {
+		t.Fatalf("first streak should alert once, got %d", notif.count())
+	}
+
+	cur = base.Add(40 * time.Minute) // 冷却（30m）已过
+	q.set(100, nil)
+	e.Check(t.Context()) // 恢复：计数清零
+	q.set(0, errors.New("redis down again"))
+	e.Check(t.Context()) // 失败 1：不足阈值，不告警
+	if notif.count() != 1 {
+		t.Fatalf("single failure after recovery must not alert, got %d", notif.count())
+	}
+	e.Check(t.Context()) // 失败 2：新一轮连续达到阈值且冷却已过 → 告警 #2
+	if notif.count() != 2 {
+		t.Fatalf("new streak after cooldown should re-alert, got %d", notif.count())
 	}
 }
 

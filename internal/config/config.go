@@ -126,6 +126,11 @@ type SelfMonitor struct {
 	// Cooldown 同类告警冷却：同一 kind（queue/notif_failure）在此时长内不重复发，防每个 interval 刷屏。
 	// <=0 用默认 30m。
 	Cooldown time.Duration `envconfig:"cooldown" default:"30m"`
+	// QueueProbeFailureThreshold 队列探测「连续失败」红线阈值：Depth 探测连续 N 次报错
+	// → 触发独立告警（kind=queue_probe_failure）。单次失败仍只 warn（防 Inspector 抖动/
+	// Redis 瞬断误报）；连续失败说明 Redis/Asynq 可能整体不可用——恰是升级计时、通知重试
+	// 等异步链路全停、自监控最不能静默的时刻。<=0 用默认 3。
+	QueueProbeFailureThreshold int `envconfig:"queue_probe_failure_threshold" default:"3"`
 	// AlertChannels 自告警走的独立通道（★ 刻意排除 im）。
 	// 默认 ["webhook","email"]——IM 挂了正是常见触发因素，自告警不能走可能同样失败的 IM。
 	// 逗号分隔（env：VIGIL_SELF_MONITOR_ALERT_CHANNELS=webhook,email）。
@@ -178,6 +183,14 @@ func (s SelfMonitor) EffectiveCooldown() time.Duration {
 		return 30 * time.Minute
 	}
 	return s.Cooldown
+}
+
+// EffectiveQueueProbeFailureThreshold 返回队列探测连续失败红线阈值，零值回退 3。
+func (s SelfMonitor) EffectiveQueueProbeFailureThreshold() int {
+	if s.QueueProbeFailureThreshold <= 0 {
+		return 3
+	}
+	return s.QueueProbeFailureThreshold
 }
 
 // EffectiveAlertChannels 返回自告警独立通道，空值回退 [webhook,email]（★ 不含 im）。

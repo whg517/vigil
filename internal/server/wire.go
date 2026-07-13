@@ -47,6 +47,7 @@ import (
 	"github.com/kevin/vigil/internal/incident"
 	"github.com/kevin/vigil/internal/ingestion"
 	"github.com/kevin/vigil/internal/integration"
+	"github.com/kevin/vigil/internal/metrics"
 	"github.com/kevin/vigil/internal/middleware"
 	"github.com/kevin/vigil/internal/notification"
 	"github.com/kevin/vigil/internal/postmortem"
@@ -701,6 +702,16 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 		log.Info("event retention sweeper disabled (no retention period configured)")
 	}
 
+	// H2 可观测性：队列指标周期采集（vigil_queue_tasks{queue,state} gauge）。
+	// architecture.md §7.3 承诺 /metrics 暴露队列深度，此前只有 counters + HTTP 直方图——
+	// 外部 Prometheus 抓不到积压与死信（archived），升级/通知最终失败在默认部署形态下
+	// 完全不可见。采集器与 selfmon 相互独立（不受 SELF_MONITOR_ENABLED 开关影响）：
+	// 暴露指标是无副作用的基础能力，自告警才需要显式开启。选型（Inspector 自采 vs
+	// x/metrics）理由见 metrics.QueueStatsCollector 包注释。
+	qmCollector := metrics.NewQueueStatsCollector(asynq.NewInspector(*escRedisOpt), 0, log)
+	wired.goPeriodic(ctx, qmCollector.Run)
+	log.Info("queue stats collector started", zap.Duration("interval", qmCollector.Interval()))
+
 	// H2.4 自监控闭环：周期巡检队列积压 / 通知失败率，超阈经独立通道自告警 org_admin。
 	// ★ 默认关（VIGIL_SELF_MONITOR_ENABLED=true 显式开启）——避免未配独立通道时空转/误告。
 	// ★ 自告警绕开 escalation 流水线（NotifyUnrouted 独立通道，刻意排除 im），防「链路坏了
@@ -715,6 +726,9 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 			FailureRateMinSample: cfg.SelfMonitor.EffectiveFailureRateMinSample(),
 			Cooldown:             cfg.SelfMonitor.EffectiveCooldown(),
 			AlertChannels:        cfg.SelfMonitor.EffectiveAlertChannels(),
+			// 队列探测连续失败红线：单次失败只 warn（防抖动），连续 N 次视为 Redis/Asynq
+			// 整体故障，走独立 kind 告警（与「积压」区分，见 selfmon.KindQueueProbeFailure）。
+			QueueProbeFailureThreshold: cfg.SelfMonitor.EffectiveQueueProbeFailureThreshold(),
 		}
 		smResolver := &unroutedFallbackNotifier{db: st.DB, notifier: notifier, log: log}
 		smEngine := selfmon.NewEngine(

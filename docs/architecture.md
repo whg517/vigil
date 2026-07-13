@@ -213,7 +213,7 @@ deploy/helm/        # Helm Chart    docs/  # 本文档 + adr/
 
 ### 7.3 可观测性(吃自己狗粮) → [ADR-0033](./adr/0033-selfmon-and-auth.md)
 
-`/metrics`(接入量/队列深度/引擎延迟/通知成功率/LLM 成本)、`/health`、结构化日志(贯穿 `incident_id`/`event_id`)、Asynqmon 任务面板。自监控(selfmon)在队列积压/通知失败率超阈时自触发告警,走**排除 IM 的独立通道**(被监控的正是通知链路)。
+`/metrics`(HTTP 请求量与延迟直方图、告警接入量、事件/升级/通知计数、队列分状态 gauge `vigil_queue_tasks{queue,state}`——含死信 archived、LLM 调用与 token 成本、自监控告警计数)、`/health`、结构化日志(贯穿 `incident_id`/`event_id`)、Asynqmon 任务面板。自监控(selfmon)在队列积压/通知失败率超阈、或队列探测**连续失败**(Redis 整体故障信号)时自触发告警,走**排除 IM 的独立通道**(被监控的正是通知链路)。selfmon 与进程共生死——外部监控接入(必抓指标/告警规则/部署建议)见 [operations.md「外部监控接入」](./operations.md#8-外部监控接入谁来监控守夜人)。
 
 ### 7.4 可靠性
 

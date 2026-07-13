@@ -208,6 +208,86 @@ kubectl exec deploy/vigil -- vigil migrate        # pod 未 ready 也可 exec
 | AI 不工作 | `VIGIL_LLM_API_KEY` 未配 → 自动降级(复盘规则草稿、诊断跳过),不影响告警主链路 |
 | 相似检索退化为文本匹配 | embed 维度与 `vector(1536)` 不符(如 Ollama nomic-embed-text 是 768 维),见 [ADR-0023](./adr/0023-llm-provider-cost-control.md) |
 | 升级不触发/通知丢失(多环境共用 Redis) | §1 红线:另一环境的 worker 在消费本环境队列。隔离 Redis 实例/DB 编号后重启 |
-| 升级任务丢失(Redis 数据丢过) | 预防:开 AOF/RDB(compose 默认已开)。已丢失:计时任务不会自动重建(暂无对账机制),人工兜底——筛出仍未 ack/resolve 的 Incident,在 Web/IM 上手动升级或再通知/重新指派 |
+| 升级任务丢失(Redis 数据丢过) | 预防:开 AOF/RDB(compose 默认已开)。已丢失:升级对账 sweeper 会周期核对并重排缺失的升级任务(默认 2 分钟,`VIGIL_ESCALATION_SWEEP_INTERVAL`,见 ADR-0016);等不及时人工兜底——在 Web/IM 上手动升级或再通知 |
 | 告警接入 401 | webhook token 不匹配 Integration.token(接入详情页可查看/轮换) |
 | 队列积压 | Asynqmon 看队列深度/死信;接入层积压超阈会返回 429/503(payload 仍落库,恢复后可重放) |
+
+## 9. 外部监控接入(谁来监控守夜人)
+
+Vigil 的自监控(selfmon)运行在 Vigil 进程内:进程崩了、Redis 挂了、宿主机断电时,
+selfmon 与故障**同生共死**,不可能发出告警。所以生产部署必须有一个**独立于 Vigil
+故障域**的外部监控兜底——这是自监控闭环的最后一环,不是可选项。
+
+### 8.1 部署建议
+
+- **外部 Prometheus(或兼容抓取端)必须部署在独立故障域**:不同宿主机/集群/可用区,
+  绝不与 Vigil 跑在同一台 compose 主机上(主机挂 = 监控与被监控者一起消失)。
+  已有公司级监控平台的,把 Vigil 作为普通抓取目标纳入即可。
+- 抓取 `/metrics`(Prometheus 文本格式)+ 探测 `/health`(blackbox exporter 或等价探针)。
+- selfmon(进程内,秒级发现队列积压/通知失败)与外部监控(进程外,兜底进程/Redis 整体
+  故障)互补,**两者都要**:只开 selfmon 有共死盲区,只有外部监控则丢失内部信号语义。
+
+### 8.2 必抓指标清单
+
+| 指标 | 含义 | 建议告警条件 |
+|------|------|------|
+| `up{job="vigil"}` | 抓取目标存活(Prometheus 内置) | `== 0` 持续 1m —— 进程/网络故障,selfmon 已共死,只有这里能发现 |
+| `/health` 探测 | 健康检查(含 DB/Redis 依赖) | 非 200 持续 1m |
+| `vigil_queue_tasks{state="archived"}` | **死信**:重试耗尽的最终失败任务(升级/通知彻底丢失) | `> 0` —— 出现即须人工介入(Asynqmon 里检查后重放或删除) |
+| `vigil_queue_tasks{state="pending"}` | 队列积压(待消费) | 按容量定阈,如 `> 5000` 持续 5m |
+| `vigil_queue_stats_collect_errors_total` | 队列指标采集失败(此时 queue gauge 是陈旧值) | `increase(...[5m]) > 0` —— 同时也是 Redis 故障信号 |
+| `vigil_self_monitor_alerts_total` | selfmon 触发过自告警(按 kind: queue_depth/notif_failure/queue_probe_failure) | `increase(...[10m]) > 0` —— 交叉验证:selfmon 独立通道若没送达,外部监控还能看见触发本身 |
+| `vigil_notifications_sent_total{result="failed"}` | 通知失败量(按 channel) | 失败占比 > 30% 持续 10m |
+
+### 8.3 Prometheus 告警规则示例(可直接粘贴)
+
+```yaml
+groups:
+  - name: vigil-watchdog
+    rules:
+      - alert: VigilDown
+        expr: up{job="vigil"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "Vigil 进程失联(自监控已随之失效,须立即处理)"
+      - alert: VigilDeadLetterTasks
+        expr: sum by (queue) (vigil_queue_tasks{state="archived"}) > 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "队列 {{ $labels.queue }} 出现死信任务(升级/通知已最终失败),到 Asynqmon 检查并重放"
+      - alert: VigilQueueBacklog
+        expr: sum by (queue) (vigil_queue_tasks{state="pending"}) > 5000
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "队列 {{ $labels.queue }} 积压 {{ $value }},消费可能跟不上生产"
+      - alert: VigilQueueStatsStale
+        expr: increase(vigil_queue_stats_collect_errors_total[5m]) > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "队列指标采集持续失败(gauge 已陈旧),大概率 Redis 故障"
+      - alert: VigilSelfMonitorFired
+        expr: increase(vigil_self_monitor_alerts_total[10m]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Vigil 自监控触发过 {{ $labels.kind }} 自告警——确认独立通道(webhook/email)是否送达"
+      - alert: VigilNotificationFailureRatio
+        expr: |
+          sum(rate(vigil_notifications_sent_total{result="failed"}[10m]))
+            / clamp_min(sum(rate(vigil_notifications_sent_total[10m])), 1e-9) > 0.3
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "通知失败率超 30%,检查通知通道配置与外部依赖"
+```
+
+说明:
+
+- 队列指标由进程内采集器每 15s 用 asynq Inspector 刷新一次(非抓取时实时查 Redis),
+  Redis 故障期间 gauge 保留最后一次成功值——判断其新鲜度靠 `vigil_queue_stats_collect_errors_total`。
+- selfmon 侧的对应能力:队列探测**连续 N 次失败**(默认 3,`VIGIL_SELF_MONITOR_QUEUE_PROBE_FAILURE_THRESHOLD`)
+  会触发 `queue_probe_failure` 自告警(区别于「积压」——那是链路慢了,这是链路探不到了);
+  单次失败只记 warn 防抖动。该告警仍依赖 Vigil 进程与独立通道存活,故外部 `up`/`/health` 兜底不可省。

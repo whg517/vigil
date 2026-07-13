@@ -19,7 +19,8 @@
 //  3. 诚实边界。若 Enabled 但独立通道未真正配置（Notifier 无可用通道），启动时 log warn
 //     明说「自监控开启但独立通道未配，告警可能无法送达」——不假装闭环一定成功。
 //
-// 冷却：同一 kind（queue_depth / notif_failure）在 Cooldown 内不重复发，防每个 interval 刷屏。
+// 冷却：同一 kind（queue_depth / notif_failure / queue_probe_failure）在 Cooldown 内
+// 不重复发，防每个 interval 刷屏。
 package selfmon
 
 import (
@@ -42,6 +43,10 @@ const (
 	KindQueueDepth AlertKind = "queue_depth"
 	// KindNotifFailure 通知失败率告警：统计窗口内业务通知失败率超阈值。
 	KindNotifFailure AlertKind = "notif_failure"
+	// KindQueueProbeFailure 队列探测连续失败告警：Depth 探测连续 N 次报错。
+	// 与 KindQueueDepth（积压=链路慢了）不同，这是「链路探不到了」——Redis 整体故障时
+	// 探测持续报错，若只 warn 不告警，恰在异步链路全停的时刻自监控静默。
+	KindQueueProbeFailure AlertKind = "queue_probe_failure"
 )
 
 // QueueDepthSource 队列积压深度来源（生产用 asynq Inspector，测试用 fake）。
@@ -79,6 +84,9 @@ type Config struct {
 	FailureRateMinSample int
 	Cooldown             time.Duration
 	AlertChannels        []string
+	// QueueProbeFailureThreshold 队列探测「连续失败」红线阈值：连续 N 次 Depth 报错才告警。
+	// 单次失败仍只 warn（防 Inspector 抖动/Redis 瞬断误报）。<=0 时红线关闭（保持只 warn）。
+	QueueProbeFailureThreshold int
 }
 
 // Engine 自监控引擎：ticker 周期检查 + 超阈自告警（独立通道 + 冷却 + 防递归）。
@@ -95,6 +103,9 @@ type Engine struct {
 
 	mu       sync.Mutex
 	lastSent map[AlertKind]time.Time // 各 kind 上次告警时刻（内存冷却，进程级足够）
+	// queueProbeFails 队列探测连续失败计数（探测成功即清零）。与冷却同为进程内存状态：
+	// 多副本各自计数/各自告警的现状与冷却一致，本批次不解决（见冷却 map 注释）。
+	queueProbeFails int
 }
 
 // NewEngine 构造自监控引擎。queue / failRate / notifier / admins 任一为 nil 时对应检查降级
@@ -161,10 +172,13 @@ func (e *Engine) checkQueueDepth(ctx context.Context) {
 	}
 	depth, err := e.queue.Depth(ctx)
 	if err != nil {
-		// 探测失败不告警：Inspector 抖动/Redis 瞬断不应误报「积压」。
+		// 单次探测失败不告「积压」：Inspector 抖动/Redis 瞬断不应误报（防抖动保留）。
+		// 但连续失败是另一回事——由 noteQueueProbeFailure 累计，达阈值走独立红线告警。
 		e.log.Warn("self-monitor: queue depth probe failed", zap.Error(err))
+		e.noteQueueProbeFailure(ctx, err)
 		return
 	}
+	e.resetQueueProbeFailures()
 	if depth <= e.cfg.QueueDepthThreshold {
 		return
 	}
@@ -174,6 +188,47 @@ func (e *Engine) checkQueueDepth(ctx context.Context) {
 			"升级计时、通知重试、归一化等异步任务将延迟。请核查 Asynq worker 与 Redis。",
 		depth, e.cfg.QueueDepthThreshold)
 	e.fire(ctx, KindQueueDepth, title, summary)
+}
+
+// noteQueueProbeFailure 累计一次队列探测失败，连续达到阈值 → 独立红线告警。
+//
+// 为什么是独立 kind 而非并入「积压」：积压是「链路慢了」（有数据、超阈值），探测连续失败
+// 是「链路探不到了」（无数据）——Redis 整体故障时正属后者，此刻升级计时/通知重试等异步
+// 链路可能已全停，恰是自监控最不能静默的时刻。两者症状/处置不同，混为一谈会误导值班人。
+//
+// 恢复语义与现有红线一致：探测成功即重置计数（resetQueueProbeFailures），告警自然停止，
+// 无显式 resolve 通知；持续失败期间的重复告警由 fire 的冷却统一抑制。
+func (e *Engine) noteQueueProbeFailure(ctx context.Context, cause error) {
+	threshold := e.cfg.QueueProbeFailureThreshold
+	if threshold <= 0 {
+		return // 红线关闭：维持原「只 warn」行为
+	}
+	e.mu.Lock()
+	e.queueProbeFails++
+	fails := e.queueProbeFails
+	e.mu.Unlock()
+	if fails < threshold {
+		return
+	}
+	title := "[自监控] 队列探测连续失败"
+	summary := fmt.Sprintf(
+		"队列积压探测已连续 %d 次失败（红线阈值 %d），最近错误：%v。Redis / Asynq 可能整体不可用——"+
+			"升级计时、通知重试、归一化等异步链路可能已全停，且积压检查在此期间处于失明状态。"+
+			"请立即核查 Redis 连通性与 Asynq worker 状态。",
+		fails, threshold, cause)
+	e.fire(ctx, KindQueueProbeFailure, title, summary)
+}
+
+// resetQueueProbeFailures 队列探测成功后重置连续失败计数。
+// 曾达红线的恢复记 info（与「告警自然停止」的解除语义配套，日志侧留下恢复时间点）。
+func (e *Engine) resetQueueProbeFailures() {
+	e.mu.Lock()
+	fails := e.queueProbeFails
+	e.queueProbeFails = 0
+	e.mu.Unlock()
+	if e.cfg.QueueProbeFailureThreshold > 0 && fails >= e.cfg.QueueProbeFailureThreshold {
+		e.log.Info("self-monitor: queue probe recovered", zap.Int("consecutive_failures", fails))
+	}
 }
 
 // checkFailureRate 通知失败率检查：窗口内业务通知 failed/total 超阈值且样本足够 → 触发告警。
