@@ -45,8 +45,8 @@ func (PrometheusAdapter) Normalize(ctx context.Context, raw []byte, integ *ent.I
 
 	events := make([]*NormalizedEvent, 0, len(am.Alerts))
 	for _, a := range am.Alerts {
-		// 严重度归一：Alertmanager 无 severity 字段，靠 label.severity 映射
-		severity := mapPromSeverity(a.Labels["severity"])
+		// 严重度归一：Alertmanager 无 severity 字段，靠 label.severity 映射（severity_map 可覆盖）
+		severity := mapSeverity(integ, a.Labels["severity"], mapPromSeverity)
 		summary := a.Annotations["summary"]
 		if summary == "" {
 			summary = fmt.Sprintf("[%s] %s", a.Labels["alertname"], a.Labels["instance"])
@@ -108,11 +108,18 @@ func (GrafanaAdapter) Normalize(ctx context.Context, raw []byte, integ *ent.Inte
 
 	events := make([]*NormalizedEvent, 0, len(ga.Alerts))
 	for _, a := range ga.Alerts {
-		// 严重度归一：优先用 Grafana 原生 severity，回退 label.severity
-		severity := normalizeSeverity(a.Severity)
-		if severity == "info" {
-			severity = mapPromSeverity(a.Labels["severity"])
+		// 严重度归一：优先用 Grafana 原生 severity，回退 label.severity（severity_map 可覆盖）
+		rawSev := a.Severity
+		if rawSev == "" {
+			rawSev = a.Labels["severity"]
 		}
+		severity := mapSeverity(integ, rawSev, func(string) string {
+			s := normalizeSeverity(a.Severity)
+			if s == "info" {
+				s = mapPromSeverity(a.Labels["severity"])
+			}
+			return s
+		})
 		summary := a.Annotations["summary"]
 		if summary == "" {
 			alertname := a.Labels["alertname"]
@@ -139,8 +146,37 @@ func (GrafanaAdapter) Normalize(ctx context.Context, raw []byte, integ *ent.Inte
 	return events, nil
 }
 
-// mapPromSeverity 把 Prometheus label.severity 归一到 critical/warning/info。
-// 默认映射（可在 Integration.config 覆盖，后续实现）。
+// severityFromConfig 查 Integration.config 的 severity_map 覆盖表（原始值 → critical/warning/info，
+// 键不区分大小写）。命中且目标值合法返回映射结果；未配置/未命中/目标值非法返回 ""，
+// 调用方回落默认映射——错误配置绝不导致告警被吞或映射到未知级别。
+func severityFromConfig(integ *ent.Integration, raw string) string {
+	if integ == nil || integ.Config == nil {
+		return ""
+	}
+	sm, ok := integ.Config["severity_map"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	v, ok := sm[strings.ToLower(raw)]
+	if !ok {
+		return ""
+	}
+	switch s := strings.ToLower(fmt.Sprintf("%v", v)); s {
+	case "critical", "warning", "info":
+		return s
+	}
+	return ""
+}
+
+// mapSeverity 严重度归一统一入口：接入点 severity_map 配置覆盖优先，未命中回落 fallback 默认映射。
+func mapSeverity(integ *ent.Integration, raw string, fallback func(string) string) string {
+	if s := severityFromConfig(integ, raw); s != "" {
+		return s
+	}
+	return fallback(raw)
+}
+
+// mapPromSeverity 把 Prometheus label.severity 归一到 critical/warning/info（默认映射）。
 func mapPromSeverity(s string) string {
 	switch strings.ToLower(s) {
 	case "critical", "error", "page":
@@ -178,7 +214,7 @@ func (GenericJSONAdapter) Normalize(ctx context.Context, raw []byte, integ *ent.
 		// 无 id 时用整个 payload 摘要作 srcID（保证有去重键）
 		srcID = fmt.Sprintf("generic-%d", len(raw))
 	}
-	severity := normalizeSeverity(str("severity"))
+	severity := mapSeverity(integ, str("severity"), normalizeSeverity)
 	status := strings.ToLower(str("status"))
 	if status == "" {
 		status = "firing" // 缺省视为 firing

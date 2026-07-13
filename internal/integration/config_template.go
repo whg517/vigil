@@ -46,6 +46,7 @@ var configTemplates = map[string]configTemplate{
 		Description: "接收 Alertmanager 的 webhook 告警推送，按 labels 路由到服务。",
 		Fields: []configField{
 			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
+			{Key: "severity_map", Label: "严重度映射覆盖", Required: false, Example: `{"disaster":"critical","average":"warning"}`, Help: "原始严重度 → critical/warning/info 的覆盖表（JSON 对象，键不区分大小写）；未命中回落内置默认映射。"},
 		},
 		SetupHint: "在 Alertmanager 的 receivers 中配置 webhook_config：url 指向 " +
 			"`https://<vigil-host>/api/v1/webhook/<token>`（token 见创建接入点时返回）。" +
@@ -57,6 +58,7 @@ var configTemplates = map[string]configTemplate{
 		Description: "接收 Grafana 统一告警（Unified Alerting）的 contact point webhook。",
 		Fields: []configField{
 			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
+			{Key: "severity_map", Label: "严重度映射覆盖", Required: false, Example: `{"disaster":"critical","average":"warning"}`, Help: "原始严重度 → critical/warning/info 的覆盖表（JSON 对象，键不区分大小写）；未命中回落内置默认映射。"},
 		},
 		SetupHint: "在 Grafana → Alerting → Contact points 新建 Webhook 类型，URL 指向 " +
 			"`https://<vigil-host>/api/v1/webhook/<token>`，方法 POST。",
@@ -67,6 +69,7 @@ var configTemplates = map[string]configTemplate{
 		Description: "任意系统按通用 JSON 格式 POST 告警，适配器做通用归一化。",
 		Fields: []configField{
 			{Key: "rate_limit", Label: "每分钟限流", Required: false, Example: "600", Help: "单接入点每分钟最大请求数，0=不限流。"},
+			{Key: "severity_map", Label: "严重度映射覆盖", Required: false, Example: `{"disaster":"critical","average":"warning"}`, Help: "原始严重度 → critical/warning/info 的覆盖表（JSON 对象，键不区分大小写）；未命中回落内置默认映射。"},
 		},
 		SetupHint: "POST JSON 到 `https://<vigil-host>/api/v1/webhook/<token>`；" +
 			"或用开放 API `POST /api/v1/events`（带 X-Vigil-Key + integration_id）。" +

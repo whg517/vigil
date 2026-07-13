@@ -3,6 +3,8 @@ package ingestion
 import (
 	"context"
 	"testing"
+
+	"github.com/kevin/vigil/ent"
 )
 
 // TestPrometheusAdapter 验证 Prometheus/Alertmanager 适配器归一化（单 alert）。
@@ -259,5 +261,66 @@ func TestNormalizeSeverity(t *testing.T) {
 		if got := normalizeSeverity(in); got != want {
 			t.Errorf("normalizeSeverity(%q): got %q, want %q", in, got, want)
 		}
+	}
+}
+
+// TestSeverityMapOverride 接入点 severity_map 覆盖默认映射;非法目标值/未命中回落默认。
+func TestSeverityMapOverride(t *testing.T) {
+	integ := &ent.Integration{Config: map[string]any{
+		"severity_map": map[string]any{
+			"disaster": "critical", // 自定义原始值 → critical
+			"warn":     "info",     // 覆盖默认(warn 默认是 warning)
+			"weird":    "fatal",    // 非法目标值,应回落默认
+		},
+	}}
+
+	// Prometheus:label.severity=disaster 默认会落 info,覆盖后应为 critical
+	prom := []byte(`{"alerts":[{"status":"firing","labels":{"alertname":"A","severity":"disaster"},"fingerprint":"f1"}]}`)
+	evts, err := PrometheusAdapter{}.Normalize(context.Background(), prom, integ, nil)
+	if err != nil {
+		t.Fatalf("prom normalize: %v", err)
+	}
+	if evts[0].Severity != "critical" {
+		t.Errorf("prom disaster: got %q, want critical(覆盖生效)", evts[0].Severity)
+	}
+
+	// 覆盖优先于默认:warn 默认 warning,被映射到 info
+	prom2 := []byte(`{"alerts":[{"status":"firing","labels":{"alertname":"A","severity":"warn"},"fingerprint":"f2"}]}`)
+	evts, _ = PrometheusAdapter{}.Normalize(context.Background(), prom2, integ, nil)
+	if evts[0].Severity != "info" {
+		t.Errorf("prom warn override: got %q, want info", evts[0].Severity)
+	}
+
+	// 非法目标值 fatal:回落默认映射(weird→info)
+	prom3 := []byte(`{"alerts":[{"status":"firing","labels":{"alertname":"A","severity":"weird"},"fingerprint":"f3"}]}`)
+	evts, _ = PrometheusAdapter{}.Normalize(context.Background(), prom3, integ, nil)
+	if evts[0].Severity != "info" {
+		t.Errorf("prom illegal target: got %q, want info(回落默认)", evts[0].Severity)
+	}
+
+	// Generic:同一覆盖表对通用适配器生效
+	gen := []byte(`{"source_event_id":"g1","severity":"DISASTER","summary":"x"}`)
+	evts, err = GenericJSONAdapter{}.Normalize(context.Background(), gen, integ, nil)
+	if err != nil {
+		t.Fatalf("generic normalize: %v", err)
+	}
+	if evts[0].Severity != "critical" {
+		t.Errorf("generic disaster(大小写不敏感): got %q, want critical", evts[0].Severity)
+	}
+
+	// Grafana:原生 severity 命中覆盖表
+	gra := []byte(`{"alerts":[{"status":"firing","severity":"disaster","labels":{"alertname":"G"},"fingerprint":"gf1"}]}`)
+	evts, err = GrafanaAdapter{}.Normalize(context.Background(), gra, integ, nil)
+	if err != nil {
+		t.Fatalf("grafana normalize: %v", err)
+	}
+	if evts[0].Severity != "critical" {
+		t.Errorf("grafana disaster: got %q, want critical", evts[0].Severity)
+	}
+
+	// 未配置 severity_map(integ=nil):默认映射不受影响
+	evts, _ = PrometheusAdapter{}.Normalize(context.Background(), prom, nil, nil)
+	if evts[0].Severity != "info" {
+		t.Errorf("nil integ: got %q, want info(默认)", evts[0].Severity)
 	}
 }
