@@ -449,6 +449,104 @@ func TestCancelLevelPending(t *testing.T) {
 	}
 }
 
+// TestScheduleLevel_TaskIDConflictIdempotent 同 (inc,level,repeat) 重复入队：
+// 第二次撞 TaskID（ErrTaskIDConflict）应按成功处理（幂等场景），且队列只有一个任务。
+// 修复点：原实现注释说"属幂等场景，忽略"、代码却原样返回错误。
+func TestScheduleLevel_TaskIDConflictIdempotent(t *testing.T) {
+	levels := []schema.EscalationLevel{
+		{Level: 1, DelayMinutes: 10, Targets: []schema.Target{{Type: "user", TargetID: "1"}}},
+	}
+	env := newEscEnv(t, levels, 0)
+	id := env.incID(t)
+	ctx := context.Background()
+
+	if err := env.engine.scheduleLevel(ctx, id, 0, levels, 0); err != nil {
+		t.Fatalf("first scheduleLevel: %v", err)
+	}
+	// 第二次同 TaskID：多副本 sweeper 并发重排 / 重投补排的等价场景，应吸收冲突返回 nil
+	if err := env.engine.scheduleLevel(ctx, id, 0, levels, 0); err != nil {
+		t.Fatalf("second scheduleLevel should absorb ErrTaskIDConflict, got: %v", err)
+	}
+
+	inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: env.mr.Addr()})
+	defer func() { _ = inspector.Close() }()
+	scheduled, _ := inspector.ListScheduledTasks("critical", asynq.PageSize(10))
+	if len(scheduled) != 1 {
+		t.Errorf("scheduled tasks: got %d, want 1 (conflict must not duplicate)", len(scheduled))
+	}
+}
+
+// TestHandleTask_RedeliveryNoDuplicateNotify at-least-once 重投防重复副作用：
+// 同一任务（同 payload → 同标记键）执行两次，第二次应跳过通知/计数/时间线，
+// 但仍推进状态 + 续排下一层（链的连续性不因重投判定中断）。
+func TestHandleTask_RedeliveryNoDuplicateNotify(t *testing.T) {
+	levels := []schema.EscalationLevel{
+		{Level: 1, DelayMinutes: 0, Targets: []schema.Target{{Type: "user", TargetID: "1"}}},
+		{Level: 2, DelayMinutes: 10, Targets: []schema.Target{{Type: "user", TargetID: "2"}}},
+	}
+	env := newEscEnv(t, levels, 0)
+	id := env.incID(t)
+
+	// 首投 + 模拟 worker 崩溃后 asynq 重投（同 payload，直接调 HandleTask 走标记键回退路径）
+	env.runEscTask(t, id, 0, 0)
+	env.runEscTask(t, id, 0, 0)
+
+	// 通知只发一次（重投不轰炸）
+	if len(env.notifier.calls) != 1 {
+		t.Errorf("notifier calls: got %d, want 1 (redelivery must not re-notify)", len(env.notifier.calls))
+	}
+	// escalated_count 只自增一次（重投不重复计数）
+	inc, _ := env.client.Incident.Get(context.Background(), id)
+	if inc.EscalatedCount != 1 {
+		t.Errorf("escalated_count: got %d, want 1", inc.EscalatedCount)
+	}
+	// 状态推进照常（重投也补齐状态，防"通知后落库前崩溃"导致状态脱节）
+	if inc.Status != incident.StatusEscalated || inc.CurrentLevel != 1 {
+		t.Errorf("status/current_level: got %s/%d, want escalated/1", inc.Status, inc.CurrentLevel)
+	}
+	// 时间线只记一条（重投不刷屏）
+	items, _ := env.client.Incident.Query().Where(incident.IDEQ(id)).QueryTimeline().All(context.Background())
+	if len(items) != 1 {
+		t.Errorf("timeline items: got %d, want 1", len(items))
+	}
+	// 下一层任务仍被续排（重投跳过副作用但不跳过链推进）
+	inspector := asynq.NewInspector(asynq.RedisClientOpt{Addr: env.mr.Addr()})
+	defer func() { _ = inspector.Close() }()
+	assertScheduledTaskID(t, inspector, escalationTaskID(id, 1, 0))
+}
+
+// TestHandleTask_TimelineMetaNotifiedUserIDs 升级时间线 meta 应记录解析出的 target
+// user id 列表（不只人数）——排班蓝图事后被改时仍可追溯"当时实际该叫谁"。
+func TestHandleTask_TimelineMetaNotifiedUserIDs(t *testing.T) {
+	env := newEscEnv(t, nil, 0)
+	ctx := context.Background()
+	id := env.incID(t)
+	u, _ := env.client.User.Create().SetUsername("oncall").SetEmail("oncall@x").SetName("值班").Save(ctx)
+	levels := []schema.EscalationLevel{
+		{Level: 1, DelayMinutes: 0, Targets: []schema.Target{{Type: "user", TargetID: itoa(u.ID)}}},
+	}
+	env.client.EscalationPolicy.Update().SetLevels(levels).ExecX(ctx)
+
+	env.runEscTask(t, id, 0, 0)
+
+	items, _ := env.client.Incident.Query().Where(incident.IDEQ(id)).QueryTimeline().All(ctx)
+	if len(items) != 1 {
+		t.Fatalf("timeline items: got %d, want 1", len(items))
+	}
+	rawIDs, ok := items[0].Detail["notified_user_ids"]
+	if !ok {
+		t.Fatalf("timeline detail missing notified_user_ids: %+v", items[0].Detail)
+	}
+	// JSON 回读数字为 float64
+	list, ok := rawIDs.([]any)
+	if !ok || len(list) != 1 {
+		t.Fatalf("notified_user_ids: got %#v, want 1-elem list", rawIDs)
+	}
+	if got, want := list[0], float64(u.ID); got != want {
+		t.Errorf("notified_user_ids[0]: got %v, want %v", got, want)
+	}
+}
+
 // TestResolveTargets_UserTarget user 类型 target 解析成 NotifyTarget（去重）。
 func TestResolveTargets_UserTarget(t *testing.T) {
 	env := newEscEnv(t, nil, 0)

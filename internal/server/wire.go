@@ -665,6 +665,13 @@ func Wire(ctx context.Context, cfg *config.Config, log *zap.Logger, st *store.St
 	wired.goPeriodic(ctx, sweeper.Run)
 	log.Info("raw_event requeue sweeper started", zap.Duration("interval", sweeper.Interval()))
 
+	// ADR-0016 对账恢复：升级对账巡检——Redis 丢数据后重建活跃 Incident 的升级计时器。
+	// 周期核对「仍应存在待触发升级任务」的活跃 Incident 与 critical 队列，缺失则按 policy 重排。
+	// 幂等 TaskID + ErrTaskIDConflict 按成功处理，多副本并发巡检安全。纳入优雅关闭。
+	escSweeper := escalation.NewSweeper(st.DB, escEngine, escRedisOpt, cfg.Escalation.EffectiveSweepInterval())
+	wired.goPeriodic(ctx, escSweeper.Run)
+	log.Info("escalation reconcile sweeper started", zap.Duration("interval", escSweeper.Interval()))
+
 	// T6.1 报表定时聚合：周期把各团队 + org 全局指标预计算成 MetricsSnapshot 存库，
 	// 报表端点可选读快照（source=snapshot）加速。幂等，重跑覆盖当日快照。纳入优雅关闭。
 	// ticker 兜底（无需外部 cron/Asynq scheduler 也能定期聚合）；Asynq TaskAggregate

@@ -47,6 +47,9 @@ type Config struct {
 	// Triage 分诊配置（能力域 3-4，去重/聚合窗口）
 	Triage Triage `envconfig:"triage"`
 
+	// Escalation 升级引擎配置（能力域 6，ADR-0016 对账恢复）
+	Escalation Escalation `envconfig:"escalation"`
+
 	// Notification 通知通道配置（能力域 7，邮件）
 	Notification Notification `envconfig:"notification"`
 
@@ -477,6 +480,25 @@ func (t Triage) EffectiveAggregateWindow() time.Duration {
 		return 5 * time.Minute
 	}
 	return t.AggregateWindow
+}
+
+// Escalation 升级引擎配置（能力域 6）。
+//
+// 背景（ADR-0016「Redis 数据丢失与对账恢复」）：升级链全靠 Asynq 延迟任务存 Redis，
+// Redis 丢数据后活跃 Incident 的升级计时器静默消失。对账巡检周期核对活跃 Incident 与
+// critical 队列中升级任务的一致性，缺失则按 policy 重排（幂等 TaskID，多副本安全）。
+type Escalation struct {
+	// SweepInterval 升级对账巡检间隔。间隔越短恢复越快（最大恢复延迟 ≈ 间隔 + 该层 delay），
+	// 但 Redis/DB 扫描压力越大；活跃 Incident 按设计是少量，默认 2m 已足够灵敏。<=0 用默认 2m。
+	SweepInterval time.Duration `envconfig:"sweep_interval" default:"2m"`
+}
+
+// EffectiveSweepInterval 返回对账巡检间隔，零值回退 2m。
+func (e Escalation) EffectiveSweepInterval() time.Duration {
+	if e.SweepInterval <= 0 {
+		return 2 * time.Minute
+	}
+	return e.SweepInterval
 }
 
 // Postmortem 复盘配置（能力域 12，M12.7 触发档位，T4.1）。
