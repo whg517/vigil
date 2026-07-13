@@ -9,6 +9,7 @@ import (
 	"github.com/kevin/vigil/ent/enttest"
 	"github.com/kevin/vigil/ent/event"
 	"github.com/kevin/vigil/ent/incident"
+	"github.com/kevin/vigil/ent/notificationrule"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -216,3 +217,41 @@ func TestSeedBuiltin_WithSameNameCustom(t *testing.T) {
 
 // 防止 event 包未使用告警（模板渲染间接用 incident，event 仅类型对齐预留）。
 var _ = event.StatusFiring
+
+// TestTemplateRename_CascadesRuleBinding 模板改名级联更新按名引用它的规则(复核项③:防静默失绑)。
+func TestTemplateRename_CascadesRuleBinding(t *testing.T) {
+	c := enttest.Open(t, "sqlite3", "file:tpl_rename?mode=memory&cache=shared&_fk=1")
+	defer func() { _ = c.Close() }()
+	ctx := context.Background()
+
+	tpl := c.NotificationTemplate.Create().SetName("old-name").SetChannel("im").
+		SetFormat("text").SetTitleTemplate("t").SetBodyTemplate("b").SaveX(ctx)
+	rule := c.NotificationRule.Create().SetName("r1").SetTemplateID("old-name").
+		SetCondition(map[string]any{}).SetChannels([]string{"im"}).SetEnabled(true).SaveX(ctx)
+	other := c.NotificationRule.Create().SetName("r2").SetTemplateID("unrelated").
+		SetCondition(map[string]any{}).SetChannels([]string{"im"}).SetEnabled(true).SaveX(ctx)
+
+	// 模拟 handler 的事务级联(直接调同一逻辑路径:改名 + 级联)
+	tx, err := c.Tx(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.NotificationTemplate.UpdateOneID(tpl.ID).SetName("new-name").Save(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.NotificationRule.Update().
+		Where(notificationrule.TemplateIDEQ("old-name")).
+		SetTemplateID("new-name").Save(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := c.NotificationRule.GetX(ctx, rule.ID).TemplateID; got != "new-name" {
+		t.Errorf("rule binding not cascaded: %s", got)
+	}
+	if got := c.NotificationRule.GetX(ctx, other.ID).TemplateID; got != "unrelated" {
+		t.Errorf("unrelated rule must not change: %s", got)
+	}
+}

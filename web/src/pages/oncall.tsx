@@ -242,7 +242,7 @@ export function Oncall() {
       )}
 
       {/* 换班 Override（能力域 5）：临时顶替某段值班，改变实时在班人 */}
-      {id > 0 && <OverrideSection scheduleId={id} />}
+      {id > 0 && <OverrideSection scheduleId={id} timezone={schedules?.find((s) => s.id === id)?.timezone} />}
 
       {creating && <ScheduleFormDialog onClose={() => setCreating(false)} />}
       {editing && (
@@ -663,7 +663,7 @@ function ScheduleFormInner({
  * OverrideSection 换班 Override 区（能力域 5）。
  * 列出某排班的换班记录 + 新建/删除。本人可换自己班，admin 可指派他人（权限由后端 403 兜底）。
  */
-function OverrideSection({ scheduleId }: { scheduleId: number }) {
+function OverrideSection({ scheduleId, timezone }: { scheduleId: number; timezone?: string }) {
   const { t } = useTranslation();
   const { data, isLoading } = useScheduleOverrides(scheduleId);
   const del = useDeleteScheduleOverride(scheduleId);
@@ -726,7 +726,7 @@ function OverrideSection({ scheduleId }: { scheduleId: number }) {
         )}
       </CardContent>
       {creating && (
-        <CreateOverrideDialog scheduleId={scheduleId} onClose={() => setCreating(false)} />
+        <CreateOverrideDialog scheduleId={scheduleId} timezone={timezone} onClose={() => setCreating(false)} />
       )}
     </Card>
   );
@@ -735,11 +735,14 @@ function OverrideSection({ scheduleId }: { scheduleId: number }) {
 /** CreateOverrideDialog 新建换班（替班人 + 起止时间 + 原因）。 */
 function CreateOverrideDialog({
   scheduleId,
+  timezone,
   onClose,
 }: {
   scheduleId: number;
+  timezone?: string;
   onClose: () => void;
 }) {
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const { t } = useTranslation();
   const create = useCreateScheduleOverride(scheduleId);
   const { data: users } = useUsers();
@@ -805,6 +808,11 @@ function CreateOverrideDialog({
             />
           </div>
         </div>
+        {!!timezone && timezone !== browserTz && (
+          <p className="text-xs text-muted-foreground">
+            {t("oncall.overrideTzHint", { scheduleTz: timezone, browserTz })}
+          </p>
+        )}
         {!!start && !!end && end <= start && (
           <p className="text-xs text-destructive">{t("oncall.endAfterStart")}</p>
         )}

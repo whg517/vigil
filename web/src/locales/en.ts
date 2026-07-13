@@ -356,6 +356,8 @@ const en: Resources = {
     startTimeLabel: "Start time",
     endTimeLabel: "End time",
     endAfterStart: "End time must be later than start time.",
+    overrideTzHint:
+      "Times are entered in your browser timezone ({{browserTz}}); this schedule uses {{scheduleTz}}. The absolute instant is what takes effect.",
     reasonLabel: "Reason (optional)",
     reasonPlaceholder: "Time off / covering business trip",
     creatingOverride: "Creating...",

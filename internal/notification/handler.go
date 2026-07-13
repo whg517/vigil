@@ -954,7 +954,15 @@ func (h *Handler) updateTemplate(c *echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "invalid body"})
 	}
-	upd := h.db.NotificationTemplate.UpdateOneID(id)
+	ctx := c.Request().Context()
+	// 改名须与"引用级联"在同一事务:规则按名引用模板(NotificationRule.template_id 存名),
+	// 只改模板不改引用会让规则静默失绑、渲染悄悄回落默认模板。
+	renamed := req.Name != nil && *req.Name != existing.Name
+	tx, err := h.db.Tx(ctx)
+	if err != nil {
+		return errs.Internal(c, nil, err)
+	}
+	upd := tx.NotificationTemplate.UpdateOneID(id)
 	if req.Name != nil {
 		upd.SetName(*req.Name)
 	}
@@ -973,8 +981,21 @@ func (h *Handler) updateTemplate(c *echo.Context) error {
 	if req.Actions != nil {
 		upd.SetActions(parseTemplateActions(*req.Actions))
 	}
-	t, err := upd.Save(c.Request().Context())
+	t, err := upd.Save(ctx)
 	if err != nil {
+		_ = tx.Rollback()
+		return errs.Internal(c, nil, err)
+	}
+	if renamed {
+		if _, err := tx.NotificationRule.Update().
+			Where(notificationrule.TemplateIDEQ(existing.Name)).
+			SetTemplateID(*req.Name).
+			Save(ctx); err != nil {
+			_ = tx.Rollback()
+			return errs.Internal(c, nil, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
 		return errs.Internal(c, nil, err)
 	}
 	if h.templates != nil {

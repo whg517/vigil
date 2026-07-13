@@ -307,7 +307,9 @@ interface QuietHoursForm {
 }
 
 function emptyQuietHours(): QuietHoursForm {
-  return { enabled: false, start: "22:00", end: "07:00", timezone: "Asia/Shanghai", bypassCritical: true };
+  // 预填时区跟随浏览器(而非写死 Asia/Shanghai):静默时段语义是"这个人的夜间"。
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
+  return { enabled: false, start: "22:00", end: "07:00", timezone: tz, bypassCritical: true };
 }
 
 // parseQuietHours 从后端 quiet_hours JSON 回填表单。

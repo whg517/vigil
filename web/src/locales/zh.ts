@@ -355,6 +355,8 @@ const zh = {
     startTimeLabel: "开始时间",
     endTimeLabel: "结束时间",
     endAfterStart: "结束时间必须晚于开始时间。",
+    overrideTzHint:
+      "时间按你的浏览器时区({{browserTz}})输入;该排班的时区为 {{scheduleTz}},生效时刻以绝对时间为准。",
     reasonLabel: "原因（可选）",
     reasonPlaceholder: "临时调休 / 出差顶班",
     creatingOverride: "创建中...",
