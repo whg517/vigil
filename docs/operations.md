@@ -299,3 +299,83 @@ groups:
 - selfmon 侧的对应能力:队列探测**连续 N 次失败**(默认 3,`VIGIL_SELF_MONITOR_QUEUE_PROBE_FAILURE_THRESHOLD`)
   会触发 `queue_probe_failure` 自告警(区别于「积压」——那是链路慢了,这是链路探不到了);
   单次失败只记 warn 防抖动。该告警仍依赖 Vigil 进程与独立通道存活,故外部 `up`/`/health` 兜底不可省。
+
+## 10. 容量规划(压测方法与基线实测)
+
+[ADR-0002](./adr/0002-product-positioning.md) 与 [architecture.md](./architecture.md) 把
+「接入吞吐 ≥ 1000 events/min、通知 P95 < 5s」列为非功能基线。本节给出**可复现的压测方法**
+与**首次实测基线**,让这些数字可衡量、可回归——升级依赖版本或改动 ingestion/triage
+流水线后,应重跑一轮对照本节基线,劣化即回归。
+
+### 10.1 压测方法(k6,可复现)
+
+脚本: [`test/load/webhook_ingest.js`](../test/load/webhook_ingest.js)(k6,开环
+constant-arrival-rate——按目标到达率发请求,不受响应快慢影响,能暴露"变慢导致排队")。
+打的是真实接入入口 `POST /api/v1/webhook/:token`,事件 id 全局唯一(避开 5min 去重窗口),
+severity 三档轮换(critical/warning 走完整建单+升级链,info 只落 Event)。
+
+```bash
+# 1) 起依赖 + 迁移 + 演示数据(接入点 token 从 seed-demo 输出复制)
+make dev-up && make migrate && make seed-demo
+
+# 2) 起被测后端。⚠️ 单接入点默认限流 600/min(保护单源打爆系统)低于 1000/min 目标,
+#    压测时临时提高默认值(生产等价做法:按 Integration.config.rate_limit 对单个接入点覆盖)
+VIGIL_INGESTION_RATE_LIMIT_PER_MIN=3000 go run ./cmd/vigil/
+
+# 3) 压测(目标速率 1000/min × 3 分钟;RATE_PER_MIN/DURATION 可调)
+TOKEN=<seed-demo 输出的 vig_int_ token> k6 run test/load/webhook_ingest.js
+```
+
+判定标准(脚本内置 thresholds):非 2xx < 1%、接入 ack P95 < 1s(端点契约「秒级返回
+202」)、`dropped_iterations≈0`(掉迭代 = 到达率没打满,结果无效)。**接入 ack ≠ 处理完成**
+(202 只代表 RawEvent 已落库入队),归一化消化能力用库内滞后佐证:
+
+```sql
+-- 归一化滞后:webhook 收到 → Event 落库(经 asynq 队列),按压测 RUN_ID 过滤
+WITH raw AS (
+  SELECT convert_from(payload,'UTF8')::jsonb->>'id' AS src_id, received_at
+  FROM raw_events WHERE convert_from(payload,'UTF8')::jsonb->>'id' LIKE 'loadtest-<RUN_ID>-%'
+)
+SELECT count(*),
+       percentile_cont(0.5)  WITHIN GROUP (ORDER BY sec) AS p50,
+       percentile_cont(0.95) WITHIN GROUP (ORDER BY sec) AS p95, max(sec)
+FROM (SELECT extract(epoch FROM (e.created_at - r.received_at)) AS sec
+      FROM events e JOIN raw r ON e.source_event_id = r.src_id) lag;
+```
+
+### 10.2 首次实测基线(2026-07-14)
+
+环境:Apple M1 Pro(10 核/16GB)本地开发机;vigil 单实例本地二进制(Go 1.25),
+postgres(pgvector pg16)与 redis 7 跑 docker compose;`VIGIL_ASYNQ_CONCURRENCY=10`(默认),
+限流临时提至 3000/min;k6 v2.1.0 与被测端同机(接入延迟含回环网络,无广域网抖动)。
+
+| 轮次 | 速率×时长 | 请求数 | 202 比例 | 接入 ack P50/P95/max | 归一化滞后 P50/P95/max |
+|------|-----------|--------|----------|----------------------|------------------------|
+| 目标验证 | 1000/min × 3m | 3001 | 100%(0 掉迭代) | 9.7ms / 151ms / 618ms | 0.53s / 1.31s / 1.72s |
+| 余量探测 | 2000/min × 1m | 2000 | 100%(0 掉迭代) | 24.9ms / 177ms / 341ms | 0.59s / 4.63s / 5.03s |
+
+结论与解读:
+
+- **接入吞吐 ≥ 1000 events/min:达标**。目标速率下全量 202、归一化滞后 P95 1.3s,
+  队列全程跟得上(测后即时查询 `raw_events` 已 100% normalized,无积压)。
+- **余量约 2 倍**:2000/min 时接入 ack 依旧健康(P95 177ms),但归一化滞后 P95 升至
+  4.6s——默认单实例 + 10 并发 worker 的消化极限在 2000/min 附近。再往上先调
+  `VIGIL_ASYNQ_CONCURRENCY`,不够再加实例(核心无状态,靠 Redis 队列协调,见
+  [ADR-0007](./adr/0007-async-tasks-asynq.md))。
+- **聚合降噪在压测中同样生效**:3001 事件仅聚合出 4 个 Incident(同 service+severity
+  5min 窗口并单),说明高频告警风暴不会等比放大处置负担。
+- **本轮未覆盖**(如实记录,防止把基线误读为全指标达标):
+  - **通知送达 P95 < 5s 未实测**:本地无真实 IM/SMTP 通道(通知降级为日志,记录为
+    failed),真实通道的投递延迟测不到。库内可见 Incident 创建 → 通知记录产生约 0.7s
+    (样本仅 4 条),通道侧延迟须在配好飞书/钉钉沙箱后补测。
+  - **降噪 ↓50% 不属压测范畴**:是运行期业务指标(Event→通知的降噪率),由 analytics
+    页面持续度量,不能靠一轮合成流量断言。
+
+### 10.3 容量相关旋钮速查
+
+| 旋钮 | 默认 | 作用 |
+|------|------|------|
+| `VIGIL_INGESTION_RATE_LIMIT_PER_MIN` | 600 | 单接入点每分钟上限(0=不限);单点可用 `Integration.config.rate_limit` 覆盖。超限返 429 但 payload 已落库,恢复后回灌 |
+| `VIGIL_INGESTION_BACKPRESSURE_DEPTH` | 10000 | 队列积压超阈值接入层返 503(payload 仍落库) |
+| `VIGIL_ASYNQ_CONCURRENCY` | 10 | 异步 worker 并发数,归一化/分诊消化能力的第一旋钮 |
+| 实例数 | 1 | 核心无状态,多实例共享同一 Redis 水平扩容(⚠️ 压测/QA 时反过来注意:两个实例共用 Redis 会互抢任务,单实例测才准) |
