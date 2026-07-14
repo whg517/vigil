@@ -39,7 +39,9 @@ vigil/
 │   └── *.go              # ent 自动生成代码（提交入库）
 ├── web/                  # 前端（React + Vite）
 ├── docs/                 # 设计文档
-│   ├── architecture.md   # ★ 系统架构全景（唯一主文档）
+│   ├── architecture.md   # ★ 系统架构全景（怎么实现，唯一架构主文档）
+│   ├── requirements.md   # ★ 需求文档（要什么/怎么算做到，FR/NFR 单一信源）
+│   ├── user-stories/     # 用户故事（四角色典型场景，README.md 为索引）
 │   ├── adr/              # ★ 架构决策记录（一决策一文件，README.md 为索引）
 │   └── operations.md     # 运维手册（部署/升级/备份/排查）
 └── AGENTS.md             # 本文件（协作指南 + 开发流程/命令）
@@ -168,8 +170,10 @@ go build ./... && pnpm --dir web build
 | 要找什么 | 去哪里 |
 |---------|--------|
 | 系统架构全景 | [`docs/architecture.md`](./docs/architecture.md) |
+| 功能/非功能需求与验收口径 | [`docs/requirements.md`](./docs/requirements.md) |
+| 角色视角的典型使用场景 | [`docs/user-stories/`](./docs/user-stories/)（[索引](./docs/user-stories/README.md)） |
 | 某项设计"为什么这么定" | [`docs/adr/`](./docs/adr/)（[索引](./docs/adr/README.md)） |
-| 产品定位与非目标 | [ADR-0002](./docs/adr/0002-product-positioning.md) |
+| 产品定位与非目标 | [`docs/requirements.md`](./docs/requirements.md) + [ADR-0002](./docs/adr/0002-product-positioning.md) |
 | 怎么部署/升级/备份/排障 | [`docs/operations.md`](./docs/operations.md) |
 | 实体/字段/关系 | `ent/schema/` + [ADR-0010](./docs/adr/0010-event-incident-separation.md) |
 | UI/UX 设计 | [ADR-0034](./docs/adr/0034-uiux-oncall-principles.md) |
@@ -183,7 +187,7 @@ go build ./... && pnpm --dir web build
 
 ## 当前状态
 
-- ✅ 架构文档收敛为 architecture 主文档 + 38 份 ADR（活文档：operations）
+- ✅ 文档体系收敛为 requirements 需求文档 + architecture 架构主文档 + user-stories 用户故事 + 39 份 ADR（活文档：operations）
 - ✅ 全栈实现深入中：`internal/` 35 个业务模块、ent 32 实体(以 ent/schema 为准)、前端 19 页面(全站 i18n)
 - ⏳ 后续演进(AI Copilot 深化、复盘增强等)以 GitHub Issues 跟踪
 

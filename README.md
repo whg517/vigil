@@ -61,12 +61,14 @@ open http://localhost:8080/docs # Swagger API 文档
 
 ## 文档导航
 
-文档主干为两部分:**架构全景** + **架构决策记录(ADR)**,辅以活文档。
+文档主干为三部分:**需求文档** + **架构全景** + **架构决策记录(ADR)**,辅以活文档。
 
 | 入口 | 说明 |
 |------|------|
-| [`docs/architecture.md`](docs/architecture.md) | **系统架构全景** —— 产品定位、组件结构、核心引擎、数据流、横切关注点 |
+| [`docs/requirements.md`](docs/requirements.md) | **需求文档** —— 产品定位 / 功能与非功能需求(FR/NFR) / 非目标与验收口径 |
+| [`docs/architecture.md`](docs/architecture.md) | **系统架构全景** —— 组件结构、核心引擎、数据流、横切关注点 |
 | [`docs/adr/`](docs/adr/) | **架构决策记录** —— 一决策一文件,回答"为什么这么定"([索引](docs/adr/README.md)) |
+| [`docs/user-stories/`](docs/user-stories/) | 用户故事 —— 运维主管/架构师/项目经理/开发者四角色典型场景([索引](docs/user-stories/README.md)) |
 | [`docs/operations.md`](docs/operations.md) | 运维手册 —— 部署 / 升级 / 备份回滚 / 故障排查 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 变更日志 —— 版本条目与升级注意（Keep a Changelog） |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 贡献指南 —— fork + PR 流程 / 提交规范 / 测试要求 |
