@@ -1,0 +1,96 @@
+{{- if .Values.migration.enabled }}
+# 数据库迁移 hook Job：pre-install/pre-upgrade 时先跑 `vigil migrate`，成功后才继续
+# install/upgrade（hook 失败 → helm 直接失败，新代码不会滚动上线，fail-fast）。
+# 兑现 ADR-0032 的正向迁移策略：迁移失败不回滚 schema，走备份恢复（scripts/restore.sh）。
+#
+# 镜像与主 Deployment 同源（同 repository:tag）——保证「跑迁移的代码」与「即将上线的代码」
+# 版本一致，杜绝 compose 场景下 exec 进旧容器跑旧迁移的等价错误（operations.md §3）。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-migrate
+  labels:
+    # ⚠️ name 标签刻意与主 Deployment（vigil）不同：Service/PDB 的 selector 按
+    # name+instance 匹配，若复用 vigil 会把迁移 pod 选进 Service endpoints（不监听端口）。
+    app.kubernetes.io/name: vigil-migrate
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    # 权重 0 占位：当前仅此一个 hook；未来若加 pre-upgrade 备份 hook（ADR-0032），
+    # 备份设负权重先于迁移执行。
+    "helm.sh/hook-weight": "0"
+    # before-hook-creation：下次 install/upgrade 前清掉上一轮残留（含失败的 Job，避免同名冲突）；
+    # hook-succeeded：成功即删，不留垃圾。失败的 Job/pod 刻意保留，供 kubectl logs 排查。
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vigil-migrate
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: migrate
+    spec:
+      # 迁移是一次性任务：失败由 Job 层 backoffLimit 重试（换新 pod），不原地重启。
+      restartPolicy: Never
+      # SEC-05：与主 Deployment 相同的最小权限安全上下文。
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # 镜像 ENTRYPOINT 为 /app/vigil，args 即子命令
+          args: ["migrate"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: VIGIL_APP_ENV
+              value: {{ .Values.config.appEnv | quote }}
+            # 数据库（migrate 只需 DB；Redis 不参与迁移，不注入）
+            - name: VIGIL_DB_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: VIGIL_DB_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: VIGIL_DB_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: VIGIL_DB_USER
+              value: {{ .Values.database.user | quote }}
+            - name: VIGIL_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: db-password
+            # JWT secret 与迁移无关，但 config.Load 在 production 下缺失即报错（SEC-02），
+            # 而 migrate 子命令同样走 Load——必须注入，否则 hook 永远失败。
+            - name: VIGIL_AUTH_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: jwt-secret
+            # 与主 Deployment 共用 extraEnv：经 extraEnv 覆盖的 DB 相关配置（如 sslmode）
+            # 必须对迁移同样生效，否则两边连的不是同一套参数。
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          # readOnlyRootFilesystem 下挂载可写 /tmp（Go runtime 用），与主 Deployment 一致。
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

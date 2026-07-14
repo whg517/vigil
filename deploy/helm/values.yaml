@@ -8,9 +8,9 @@
 #        --from-literal=jwt-secret=<...>
 #   2. helm install vigil ./deploy/helm -f values-prod.yaml
 
-# ★ 现状如实说明：当前 chart 为单 Deployment（API + worker 同进程）+ Service + Ingress（可选）+ PDB，
-# 仅验证单副本部署。无数据库/Redis subchart（PG/Redis 用外部实例）、无 Asynqmon 模板；
-# api/worker 分离扩缩为路线图。
+# ★ 现状如实说明：当前 chart 为单 Deployment（API + worker 同进程）+ Service + Ingress（可选）
+# + PDB + 迁移 hook Job，仅验证单副本部署。无数据库/Redis subchart（PG/Redis 用外部实例）、
+# 无 Asynqmon 模板；api/worker 分离扩缩为路线图。
 
 # 镜像配置
 image:
@@ -59,6 +59,22 @@ config:
 #       - name: VIGIL_APP_LOG_LEVEL
 #         value: "debug"
 extraEnv: []
+
+# 数据库迁移 hook（templates/migrate-job.yaml）：pre-install/pre-upgrade 自动执行
+# `vigil migrate`（镜像与主 Deployment 同源）。迁移失败 → hook Job 失败 → helm
+# install/upgrade 直接失败，新代码不会滚动上线（fail-fast；失败的 Job 保留供 kubectl logs
+# 排查，下次 helm 重试时自动清理）。关闭后回到手动迁移：kubectl exec deploy/<release> -- vigil migrate。
+migration:
+  enabled: true
+  backoffLimit: 2             # pod 失败重试次数，超过则 Job 失败（→ helm 失败）
+  activeDeadlineSeconds: 300  # Job 总超时兜底（migrate 本身内置 60s 超时，此处含调度/拉镜像余量）
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
 
 # 服务暴露
 service:
