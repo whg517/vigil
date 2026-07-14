@@ -18,7 +18,9 @@ import (
 //   - 被静默/全败的通知可查、可补发（B22：不再直接丢弃无痕）
 //   - GET /incidents/:id/notifications 查询端点
 //
-// 只追加、不修改（与审计一致）：一次发送 = 一条记录，状态在创建时定型。
+// 一次发送 = 一条记录。同步路径只追加、不修改（终态直接落库）；异步投递（ADR-0017 修订）
+// 以 pending 落库、由 Asynq 任务回写终态（sent/failed），终态一旦落定不再变更
+// （worker 以此做 at-least-once 重投的幂等守卫）。
 type Notification struct {
 	ent.Schema
 }
@@ -31,7 +33,7 @@ func (Notification) Fields() []ent.Field {
 		field.String("target").Optional().Comment("送达目标标识：user id/email/phone/url"),
 		// user_id 关联用户（如能解析），冗余存便于按人查询；0=未关联具体人（如兜底群/webhook）
 		field.Int("user_id").Default(0).Comment("关联用户 ID，0=无（群/webhook 等）"),
-		// status 送达状态机（无中间态，创建时定型）：
+		// status 送达状态机（pending 是唯一中间态，由投递任务回写终态后定格）：
 		//   pending    已入队/在途（重试中）
 		//   sent       已送达（通道返回成功）
 		//   failed     发送失败（含全通道失败兜底后仍失败）

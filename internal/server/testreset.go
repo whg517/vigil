@@ -1,7 +1,8 @@
 // testreset.go 测试专用重置端点（默认不注册，须 VIGIL_TEST_ENDPOINTS_ENABLED=true 显式开启）。
 //
 // 用途：前端 Playwright e2e 每个 spec 前清空业务数据，保证用例间隔离。
-// 复用后端 e2e（test/e2e/helpers_test.go）的 allTables 列表，保持单一信源。
+// 表清单程序化派生自 ent/migrate.Tables（与 test/e2e/helpers_test.go 的 allTables 同方案），
+// 新增实体经 go generate 自动纳入，无需人工同步。
 //
 // 安全（SEC-02 修订）：该端点无鉴权 TRUNCATE 全库，绝不能隐式跟随默认环境开启——
 // 注册由 TestEndpoints.EffectiveEnabled 门控（默认 false；生产无条件强制 false）。
@@ -14,47 +15,33 @@ import (
 	"strings"
 	"time"
 
+	entmigrate "github.com/kevin/vigil/ent/migrate"
 	"github.com/kevin/vigil/internal/auth"
 
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v5"
 )
 
-// allTestTables 需 TRUNCATE 的业务表（与 test/e2e/helpers_test.go 的 allTables 一致）。
-// schema_migrations 表保留（迁移版本记录不重置）。
-var allTestTables = []string{
-	"action_items",
-	"ai_insights",
-	"api_keys",
-	"audit_logs",
-	"escalation_policies",
-	"escalation_policy_schedules",
-	"events",
-	"im_account_bindings",
-	"incident_actions",
-	"incident_responders",
-	"incidents",
-	"integrations",
-	"notification_rules",
-	"notification_templates",
-	"postmortems",
-	"raw_events",
-	"role_bindings",
-	"roles",
-	"rotation_participants",
-	"rotations",
-	"runbooks",
-	"schedules",
-	"service_runbooks",
-	"service_schedules",
-	"services",
-	"suppression_rules",
-	"team_role_bindings",
-	"team_users",
-	"teams",
-	"timeline_items",
-	"users",
-}
+// allTestTables 需 TRUNCATE 的业务表，程序化派生自 ent/migrate.Tables。
+//
+// 为什么派生而非手工清单：手工列表会随 schema 演进静默漂移——历史上曾漏掉 9 张表
+// （credentials/metrics_snapshots/notifications/overrides/subscriptions 等），漏掉的表
+// 在 Playwright spec 之间残留数据，是跨用例 flaky 的隐性来源。ent/migrate.Tables
+// 由 `go generate ./ent/...` 从 schema 生成（含多对多关联表），新增实体后自动纳入；
+// TRUNCATE 带 CASCADE，外键依赖顺序也无需关心。
+//
+// schema_migrations（迁移版本记录表）不属于 ent schema，天然不在 Tables 中；
+// 这里仍显式排除，自文档化「迁移记录不清、reset 不重跑迁移」的意图。
+var allTestTables = func() []string {
+	names := make([]string, 0, len(entmigrate.Tables))
+	for _, t := range entmigrate.Tables {
+		if t.Name == "schema_migrations" {
+			continue
+		}
+		names = append(names, t.Name)
+	}
+	return names
+}()
 
 // registerTestResetIfEnabled 按门控注册测试重置端点，返回是否已注册（供装配层打 WARN）。
 // 门控语义（SEC-02 修订）：VIGIL_TEST_ENDPOINTS_ENABLED 默认 false；
@@ -96,7 +83,7 @@ func (s *Server) registerTestReset() {
 		}
 
 		// 3. TRUNCATE 所有业务表（在 in-flight 落库之后，保证清空）。
-		// #nosec G202 -- 表名来自编译期固定的 allTestTables 白名单（非用户输入），
+		// #nosec G202 -- 表名来自 ent 生成的 migrate.Tables（编译期固定、非用户输入），
 		// 且本端点为 e2e 专用（__test__ 前缀，须 VIGIL_TEST_ENDPOINTS_ENABLED 显式开启，
 		// 生产强制不注册）；TRUNCATE 表名无法参数化。
 		stmt := "TRUNCATE " + strings.Join(allTestTables, ", ") + " RESTART IDENTITY CASCADE"
