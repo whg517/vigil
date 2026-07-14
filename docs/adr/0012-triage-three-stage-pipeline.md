@@ -54,9 +54,11 @@
 - 方言守卫:advisory lock 是 PG 专属,单测 sqlite(enttest)按方言跳过加锁走原逻辑;
   真实并发互斥由 PG 集成测试覆盖(`internal/triage/race_integration_test.go`,
   `//go:build integration`)。
-- 因 ent 代码生成未启用 `sql/execquery`(client/tx 无原生 Exec 通道),锁函数以 HAVING 谓词
-  挂在事务内一条零行 COUNT 聚合查询上执行(无 GROUP BY 的聚合恒返回一行,volatile 函数
-  不被计划器折叠,保证恰好执行一次),实现细节与论证见 `internal/triage/lock.go`。
+- 锁经 ent `sql/execquery` 特性生成的 `Tx.ExecContext` 以原生 SQL 在本事务连接上执行
+  (`SELECT pg_advisory_xact_lock($1)`)。初版因未启用该特性(client/tx 无原生 Exec 通道),
+  曾以 HAVING 谓词把锁函数挂在事务内一条零行 COUNT 聚合查询上执行,同日启用特性后直白化。
+  方言守卫所需的驱动方言 ent 未导出,借一条零行查询嗅探一次并缓存,细节见
+  `internal/triage/lock.go`。
 - `incident.number` 撞号换号重试从"事务内循环"改为"整个事务重来"(PG 语句报错后事务已
   aborted,无法原地重试),重试语义不变。
 - 同时如实化本 ADR 措辞:聚合实现为普通条件查询而非"PostgreSQL 窗口函数",活跃状态集

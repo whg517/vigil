@@ -6,12 +6,16 @@ package triage
 // 相同 dedup_key，拦不住同 service+severity 的不同指纹告警。Asynq 并发消费下两条这样的
 // 告警毫秒级并发到达时，会双双 miss 查询、各建一个 Incident 并各自启动升级链（双倍打扰）。
 // 本文件提供事务级 PostgreSQL advisory lock，把同 (service, severity) 的临界区串行化。
+//
+// 锁经 ent sql/execquery 特性生成的 Tx.ExecContext 以原生 SQL 在事务连接上执行
+// （初版因未启用该特性，曾以 HAVING 谓词借道零行 COUNT 聚合查询执行，现已直白化）。
 
 import (
 	"context"
 	"fmt"
 	"hash/fnv"
 	"math"
+	"sync"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -21,6 +25,10 @@ import (
 	"github.com/kevin/vigil/ent/incident"
 	"github.com/kevin/vigil/ent/predicate"
 )
+
+// aggregateLockSQL 取事务级 advisory lock 的语句。已被占用时阻塞等待
+// （持有方临界区仅数条语句，极短），锁随事务 commit/rollback 自动释放。
+const aggregateLockSQL = "SELECT pg_advisory_xact_lock($1)"
 
 // aggregateLockKey 计算 (service, severity) 聚合临界区的 advisory lock 键（bigint）。
 //
@@ -36,51 +44,62 @@ func aggregateLockKey(serviceID int, severity event.Severity) int64 {
 	return int64(h.Sum64() & math.MaxInt64)
 }
 
-// aggregateLockPredicate 构造把 pg_advisory_xact_lock 挂进查询 HAVING 的谓词。
-// 独立成函数以便单测对 PG / sqlite 两种方言直接渲染 SQL 做断言（无需真实 PG）。
+// dialectSniffer 惰性嗅探并缓存 ent client 底层驱动的方言。
 //
-// 为什么借道 HAVING 而非直接 Exec 原生 SQL：本仓库 ent 代码生成未启用 sql/execquery
-// 特性，*ent.Client / *ent.Tx 均不暴露 ExecContext；装配层（wire.go，并行分支冻结中）
-// 也无法注入 *sql.DB。因此把锁函数作为 HAVING 谓词挂在一条零行 COUNT 聚合查询上：
-//   - 无 GROUP BY 的聚合查询恒产出一行（不受 WHERE 过滤为空影响），对该行求值 HAVING
-//     时锁函数必然恰好执行一次；
-//   - pg_advisory_xact_lock 是 volatile 函数，计划器不会常量折叠或剪枝；
-//   - 查询经 ent 事务驱动执行，锁落在本事务的连接上，满足 xact lock 语义。
-//
-// 方言守卫：advisory lock 是 PostgreSQL 专属。单测用 sqlite（enttest），从 Selector
-// 拿到方言后非 PG 直接不挂 HAVING——锁退化为一次零行 COUNT，聚合走原逻辑。单测串行
-// 执行无并发竞态；真实并发互斥由 PG 集成测试覆盖（race_integration_test.go）。
-func aggregateLockPredicate(serviceID int, severity event.Severity) predicate.Incident {
-	return func(s *entsql.Selector) {
-		// 零行守卫：这条查询的目的只是「在本事务连接上执行一次锁函数」，不需要真的数行。
-		// WHERE id = -1 让 COUNT 走主键零行扫描，锁查询本身开销可忽略。
-		s.Where(entsql.EQ(s.C(incident.FieldID), -1))
-		if s.Dialect() != dialect.Postgres {
-			return
-		}
-		s.Having(entsql.P(func(b *entsql.Builder) {
-			// CASE 两臂同为 TRUE：唯一目的是强制求值 WHEN 条件里的锁函数，同时让 HAVING
-			// 恒真、COUNT 行正常返回（Count 扫描不报 no rows）。锁函数返回 void，IS NULL
-			// 仅作合法的布尔包装，其真假无关紧要。
-			b.WriteString("CASE WHEN pg_advisory_xact_lock(")
-			b.Arg(aggregateLockKey(serviceID, severity))
-			b.WriteString(") IS NULL THEN TRUE ELSE TRUE END")
-		}))
+// 为什么要嗅探：advisory lock 是 PostgreSQL 专属，单测用 sqlite（enttest），必须按方言
+// 守卫；而 ent 生成的 Client/Tx 不导出 driver 方言（sql/execquery 只生成 Exec/Query 通道）。
+// 借一条零行 COUNT 查询（WHERE id = -1 走主键零行扫描）在 SQL 构建期从 Selector 读取方言，
+// 每个 Engine 生命周期只嗅探一次，此后锁路径零额外查询。
+type dialectSniffer struct {
+	mu  sync.Mutex
+	dia string
+}
+
+// sniff 返回缓存方言；未缓存时执行一次嗅探查询。
+// 不用 sync.Once：查询在 SQL 构建前就失败（连接不可用等）时方言未捕获，Once 会把
+// 「未知」永久缓存导致锁路径长期报错；这里失败不缓存，下次调用重试。
+func (d *dialectSniffer) sniff(ctx context.Context, c *ent.Client) (string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.dia != "" {
+		return d.dia, nil
 	}
+	var dia string
+	_, err := c.Incident.Query().
+		Where(predicate.Incident(func(s *entsql.Selector) {
+			dia = s.Dialect()
+			s.Where(entsql.EQ(s.C(incident.FieldID), -1))
+		})).
+		Count(ctx)
+	// 方言在构建期捕获：只要构建完成，即便执行失败（瞬时抖动）方言也已可信。
+	if dia == "" {
+		return "", fmt.Errorf("sniff dialect for advisory lock: %w", err)
+	}
+	d.dia = dia
+	return dia, nil
 }
 
 // acquireAggregateLock 在既有事务内取 (service, severity) 粒度的 advisory xact lock，
-// 把「查活跃单 → 建单」临界区串行化。已被占用时阻塞等待（持有方临界区仅数条语句，极短）。
+// 把「查活跃单 → 建单」临界区串行化。
 //
 // 为什么是 PG advisory lock 而非进程内 mutex：Vigil 支持多副本部署，且单副本内 Asynq
 // worker 并发消费——竞态天然跨 goroutine、跨进程。进程内 mutex 只能挡住本进程；
 // advisory lock 由 PostgreSQL 统一仲裁，天然跨进程/跨副本。选 xact 级（而非 session 级）
 // 是因为锁随事务 commit/rollback 自动释放：无需显式 unlock，异常路径（panic/连接断开）
 // 也随事务终止释放，无泄漏风险。
-func acquireAggregateLock(ctx context.Context, tx *ent.Tx, serviceID int, severity event.Severity) error {
-	if _, err := tx.Incident.Query().
-		Where(aggregateLockPredicate(serviceID, severity)).
-		Count(ctx); err != nil {
+//
+// 方言守卫：非 PG（单测 sqlite）没有 advisory lock，直接跳过——单测串行执行无并发竞态；
+// 真实并发互斥由 PG 集成测试覆盖（race_integration_test.go，//go:build integration）。
+func (e *Engine) acquireAggregateLock(ctx context.Context, tx *ent.Tx, serviceID int, severity event.Severity) error {
+	dia, err := e.lockDialect.sniff(ctx, e.db)
+	if err != nil {
+		return fmt.Errorf("acquire aggregate advisory lock: %w", err)
+	}
+	if dia != dialect.Postgres {
+		return nil
+	}
+	// Tx.ExecContext 在本事务的连接上执行，满足 xact lock 语义。
+	if _, err := tx.ExecContext(ctx, aggregateLockSQL, aggregateLockKey(serviceID, severity)); err != nil {
 		return fmt.Errorf("acquire aggregate advisory lock: %w", err)
 	}
 	return nil

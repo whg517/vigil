@@ -36,6 +36,10 @@ type Engine struct {
 	db    *ent.Client
 	redis *redis.Client
 
+	// lockDialect 缓存底层驱动方言（advisory lock 的 PG 方言守卫用，见 lock.go）。
+	// 零值即可用，无需构造注入。
+	lockDialect dialectSniffer
+
 	// dedupWindow 去重窗口（同 dedup_key 在窗口内重复直接丢弃）
 	dedupWindow time.Duration
 	// aggregateWindow 聚合窗口（同 service+severity 在窗口内并入同一 Incident）
@@ -656,7 +660,7 @@ func (e *Engine) aggregateOnce(ctx context.Context, evt *ent.Event, svc *ent.Ser
 func (e *Engine) aggregateInTx(ctx context.Context, tx *ent.Tx, evt *ent.Event, svc *ent.Service) (*Result, func(), error) {
 	// 串行化护栏：同 (service, severity) 的临界区互斥。PG 上是 advisory xact lock；
 	// 非 PG 方言（单测 sqlite）退化为无锁走原逻辑，见 lock.go 方言守卫说明。
-	if err := acquireAggregateLock(ctx, tx, svc.ID, evt.Severity); err != nil {
+	if err := e.acquireAggregateLock(ctx, tx, svc.ID, evt.Severity); err != nil {
 		return nil, nil, err
 	}
 	// 锁内重查：并发竞争时后到者在此看到先行者已提交的活跃单，从而并入而非重复建单。
