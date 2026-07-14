@@ -10,11 +10,15 @@ COMPOSE_PROJECT_NAME := vigil
 ENV_FILE := .env
 GO_LINT  := golangci-lint run ./...
 
-# docker compose 封装：docker-compose.yml 对 VIGIL_AUTH_JWT_SECRET 用 ${...:?} 强校验
-# （生产部署缺失时 up 直接报错，防 crash-loop）。compose 在解析阶段对整个文件插值——
-# 即使只起 postgres/redis 也会触发校验。dev 场景 vigil 容器不启动、用不到该值，
-# 故注入占位符让解析通过；shell 已导出真实值时优先用真实值。
-COMPOSE := VIGIL_AUTH_JWT_SECRET=$${VIGIL_AUTH_JWT_SECRET:-dev-only-placeholder} docker compose
+# docker compose 封装，统一注入两个环境变量：
+# - COMPOSE_PROJECT_NAME：固定项目名。不固定时 compose 回退用目录名，在 worktree
+#   （目录名 ≠ vigil）下 up 与 exec 会各自解析出不同项目，exec 定位不到刚起的
+#   postgres/redis，就绪等待循环永远挂死。内联进本变量保证所有用点一致。
+# - VIGIL_AUTH_JWT_SECRET：docker-compose.yml 对其用 ${...:?} 强校验
+#   （生产部署缺失时 up 直接报错，防 crash-loop）。compose 在解析阶段对整个文件插值——
+#   即使只起 postgres/redis 也会触发校验。dev 场景 vigil 容器不启动、用不到该值，
+#   故注入占位符让解析通过；shell 已导出真实值时优先用真实值。
+COMPOSE := COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME) VIGIL_AUTH_JWT_SECRET=$${VIGIL_AUTH_JWT_SECRET:-dev-only-placeholder} docker compose
 
 ##@ Setup
 
@@ -30,7 +34,7 @@ $(ENV_FILE):
 
 .PHONY: dev-up dev-down
 dev-up: $(ENV_FILE) ## 启动依赖服务（postgres + redis）并等待就绪
-	COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME) $(COMPOSE) up -d postgres redis
+	$(COMPOSE) up -d postgres redis
 	@echo "Waiting for postgres to be ready..."
 	@until $(COMPOSE) exec -T postgres pg_isready -U vigil > /dev/null 2>&1; do sleep 1; done
 	@echo "Waiting for redis to be ready..."
@@ -38,7 +42,7 @@ dev-up: $(ENV_FILE) ## 启动依赖服务（postgres + redis）并等待就绪
 	@echo "✅ postgres + redis ready"
 
 dev-down: $(ENV_FILE) ## 停止依赖服务
-	COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME) $(COMPOSE) down
+	$(COMPOSE) down
 
 ##@ Database
 
