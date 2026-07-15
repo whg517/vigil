@@ -43,7 +43,7 @@
 ### 通知
 | # | 标题 | 状态 |
 |---|------|------|
-| [0017](0017-notification-fallback-chain.md) | 通知逐通道兜底降级链 + 送达三态 + 聚合 | Accepted |
+| [0017](0017-notification-fallback-chain.md) | 通知逐通道兜底降级链 + 送达四态 + 聚合 | Accepted |
 
 ### IM 协同
 | # | 标题 | 状态 |

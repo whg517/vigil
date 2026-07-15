@@ -79,7 +79,7 @@
 4. Given 订阅未配置通道偏好，Then 走全局默认降级链 `[webhook]→im→email`（逐通道尝试，首个成功即停）。
 5. 订阅粒度为 team 或 service 二选一，李强可在 Web 设置页自助增删改自己的订阅。
 
-**关联**：FR-NTF · [ADR-0017 通知降级链与送达三态](../adr/0017-notification-fallback-chain.md) · 实体 `ent/schema/subscription.go` · 优先级 P0（定级理由见[故事总览](#故事总览)）
+**关联**：FR-NTF · [ADR-0017 通知降级链与送达四态](../adr/0017-notification-fallback-chain.md) · 实体 `ent/schema/subscription.go` · 优先级 P0（定级理由见[故事总览](#故事总览)）
 
 ---
 

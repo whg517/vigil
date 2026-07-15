@@ -30,7 +30,8 @@ import (
 
 // DefaultTempGrantTTL 事件级临时授权默认有效期（兜底）。
 // 语义：即使 incident 关闭联动撤销漏删，authz 实时按 expires_at 过滤，超期即失效。
-// 24h 足够覆盖单个 incident 的典型协同处置时长；长处置可续（重复 @人会刷新到期）。
+// 24h 足够覆盖单个 incident 的典型协同处置时长；未过期时重复 @人幂等跳过（不刷新到期），
+// 授权过期后再次拉入才会发放新的 24h 授权。
 const DefaultTempGrantTTL = 24 * time.Hour
 
 // ResponderGranter 事件级临时授权发放/撤销接口。

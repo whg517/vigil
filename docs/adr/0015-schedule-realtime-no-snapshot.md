@@ -17,7 +17,7 @@ Schedule 只存**纯蓝图**,不存"当前值班人",每次按 `timezone + layer
 - **缓存但不物化生效**:分钟级计算结果缓存 Redis(key = `schedule_id + 分钟级时间`),但生效判断永远实时算,预计算只用于日历展示。
 - **Rotation**:`班次序号 = floor((T - start_date) / 周期)`,`当前值班 = participants[序号 mod 人数]`;周期由 `rotation_type` 决定(daily=24h / weekly=168h / custom=shift_length);`handoff_time` 保证换班落在工作时间。
 - **follow_the_sun(P3.2 已实现)**:layer 扩展 `timezone / work_start / work_end`(支持跨午夜),按当前 UTC 落在哪个 layer 的本地工作时段来选人;命中的 layer **全部返回**(重叠段两层同时在班,交接更平滑);无任何 layer 处于工作时段时取"最快上班"层兜底;DST 由 `time.LoadLocation` + `time.In` 处理;preview 按每 4h 采样取并集。
-- **Override**:最高优先级层,时段内(`start <= T < end` 且顶替人在职)完全覆盖 Rotation,多条取最新。越权守卫:换自己的班仅需 `schedule.override`,换他人须叠加 `schedule.update`(team_admin / org_admin)。
+- **Override**:最高优先级层,时段内(`start <= T < end` 且顶替人在职)完全覆盖 Rotation,多条取最新。越权守卫按「**顶班人是否为操作者本人**」判定(与班次原属谁无关):把自己登记为顶班人仅需 `schedule.override`;把他人登记为顶班人须叠加 `schedule.update`(team_admin / org_admin),防止值班人越权指派他人替班。
 - **空班检测**:计算结果为空则告警 team_admin。
 
 ## 理由

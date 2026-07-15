@@ -1,4 +1,4 @@
-# ADR-0017: 通知逐通道兜底降级链 + 送达三态 + 聚合
+# ADR-0017: 通知逐通道兜底降级链 + 送达四态 + 聚合
 
 | 字段 | 内容 |
 |------|------|
@@ -16,8 +16,8 @@
 
 - **通道来源优先级**:① 本层 `EscalationLevel.notify_channels` > ② 命中的 `NotificationRule.channels` > ③ 全局默认链 `[webhook?] + im + email`。规则按"更具体者优先"评估(`RuleResolver` 按 severity / team / service 匹配,无命中回落默认链)。
 - **整链失败兜底**:某 target 整条链全部失败 → 记 `failed` + `allFailedHook` 兜底告警 org_admin(走非 IM 通道),使"通知发不出去"不再静默。异步投递下 hook 只在**最后一次重试失败**时触发(每轮重试都触发会轰炸 org_admin)。实现见 `rule.go` / `wire.go` 的 `buildAllFailedHook`。
-- **送达三态落库**:`Notification` ent 记录每次发送,`Status` ∈ `pending | sent | failed | suppressed`,含 Channel / Target / Level / Severity 快照;`suppressed` = 命中 quiet_hours 被静默(不再无痕丢弃,可查可补发)。同步路径只追加不修改;异步投递的 tracking 行以 `pending` 落库、由任务回写终态(`sent`/`failed`),终态一旦落定不再变更(worker 以此做幂等守卫)。查询 `GET /incidents/:id/notifications`(权限 `incident.view`)。实现见 `ent/schema/notification.go` / `recorder.go`。
-- **静默时段**:`NotificationRule.quiet_hours` 支持跨午夜窗,`bypass_for:[critical]` 让 critical 穿透,值班人始终通知,跨时区按 target 用户时区计算。实现见 `quiet_hours.go`。
+- **送达四态落库**:`Notification` ent 记录每次发送,`Status` ∈ `pending | sent | failed | suppressed`,含 Channel / Target / Level / Severity 快照;`suppressed` = 命中 quiet_hours 被静默(不再无痕丢弃,落库可查;补发端点属**规划中**,尚未实现)。同步路径只追加不修改;异步投递的 tracking 行以 `pending` 落库、由任务回写终态(`sent`/`failed`),终态一旦落定不再变更(worker 以此做幂等守卫)。查询 `GET /incidents/:id/notifications`(权限 `incident.view`)。实现见 `ent/schema/notification.go` / `recorder.go`。
+- **静默时段**:`NotificationRule.quiet_hours` 支持跨午夜窗,`bypass_for:[critical]` 让 critical 穿透,值班人始终通知;时区按**静默规则配置的 IANA 时区**(`quiet_hours.timezone`)计算,非法值按 UTC 兜底(保守不静默),不读接收人的用户时区。实现见 `quiet_hours.go`。
 - **聚合**:默认 30s 窗口内对同一 target 的多条合并成一条,critical 不聚合立即单发;Redis `pending_notify:{target_id}` 队列。聚合窗口到期 flush 合并出的通知同样走 Asynq 任务投递。实现见 `aggregator.go`。
 - **可插拔与重试(2026-07-14 落地)**:Notifier 可插拔(`Channel / Send`);单条通知(单 target)的投递封装为独立 Asynq 任务——`Notification` 行先落 `pending`(行 ID 即任务幂等键,`TaskID=notif:{notification_id}`),worker 执行降级链,瞬时失败 return error 交给 asynq 指数退避重试(显式 `MaxRetry=5`),重试耗尽落 `failed` + 兜底告警并进 archived 死信(可查可重放);入队失败(Redis 不可用)回退同步直投,绝不丢通知。队列沿用 critical/default 约定(critical 告警的通知走 critical 队列)。模板用 Go `text/template`,内置 3 个默认模板 seed 幂等 upsert,渲染失败降级 `FormatTitle / FormatSummary` 兜底不丢通知。实现见 `delivery_task.go` / `notifier.go`。
 

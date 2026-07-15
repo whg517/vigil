@@ -1,7 +1,7 @@
 // recorder.go 通知送达记录（M13 / B22）。
 //
 // 每次向某人某通道发送/静默/失败，落一条 Notification 记录，使：
-//   - 送达三态（sent/failed/suppressed）+ pending 可查、可补发、有 metrics 数据源；
+//   - 送达四态（pending/sent/failed/suppressed）可查、有 metrics 数据源（补发端点属规划中，尚未实现）；
 //   - 被静默时段拦截的通知不再直接丢弃无痕（B22）；
 //   - 全通道失败时可查出 failed 记录并触发兜底告警。
 //
