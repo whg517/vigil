@@ -1,11 +1,19 @@
 @import "tailwindcss";
 
 /*
+ * dark: 变体改为跟随 .dark class 而非系统 prefers-color-scheme：
+ * 暗色只在核心响应页由 ThemeProvider 挂类生效（ADR-0034 非全站暗色），
+ * 若跟随系统偏好，白天用暗色系统的用户会在非核心页也看到暗色，违背裁决边界。
+ */
+@custom-variant dark (&:is(.dark *));
+
+/*
  * shadcn/ui 设计 token（light/dark）。
  * 用 CSS 变量 + Tailwind v4 的 @theme inline 暴露为工具类（如 bg-background、text-foreground）。
  */
 @layer base {
   :root {
+    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -49,6 +57,8 @@
   }
 
   .dark {
+    /* 原生控件（checkbox/select/滚动条）跟随暗色，避免夜间残留亮色件 */
+    color-scheme: dark;
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;

@@ -43,6 +43,18 @@ const en: Resources = {
     logout: "Log out",
     language: "Language",
   },
+  theme: {
+    toggleToDark: "Dark mode",
+    toggleToLight: "Light mode",
+    scopeHint:
+      "Dark mode applies only to core response pages (incident list/detail); other pages stay light",
+    nightPromptTitle: "Night dark mode",
+    nightPromptDesc:
+      "It is night time (22:00–07:00). Core response pages support dark mode to reduce glare and eye strain during late-night incident response.",
+    nightPromptSwitch: "Switch to dark",
+    nightPromptKeepLight: "Keep light",
+    nightPromptDontAsk: "Remember my choice, don't ask again at night",
+  },
   enum: {
     severity: {
       critical: "Critical",

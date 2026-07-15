@@ -288,7 +288,8 @@ function MergeDialog({
       description={t("incidentDetail.mergeDesc")}
     >
       <div className="space-y-3">
-        <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+        {/* 暗色下 --destructive 亮度偏低（30.6%），近黑底上不可读，提亮为 red-400（对比度 ≥ AA） */}
+        <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive dark:text-red-400">
           {t("incidentDetail.mergeWarning")}
         </div>
         {isLoading ? (

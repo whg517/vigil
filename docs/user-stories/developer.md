@@ -80,7 +80,7 @@
 - When 打开详情页,Then 一屏可见状态/严重度/所属服务团队、只追加的时间线与操作审计记录,任何状态变更都对应一条时间线条目;通知送达记录可经详情关联接口查询(`GET /incidents/:id/notifications`),在详情页内直接呈现为**规划中**。
 - Given 他人经 Web 或 IM 对该 Incident 操作,When 陈晨停留在详情页,Then 页面经 WebSocket 实时更新,无需手动刷新。
 - Then 严重度以颜色 + 文字双编码呈现(见 [ADR-0034](../adr/0034-uiux-oncall-principles.md))。
-- **规划中**:核心响应页暗色模式(夜间 22:00–07:00 首访强引导)——[ADR-0034](../adr/0034-uiux-oncall-principles.md) 已裁决但尚未实现;当前仅 `/wall` 告警大屏为固定深色样式。
+- Given 浏览器本地时间处于夜间 22:00–07:00 且本次会话首次打开核心响应页(事件列表/详情),When 页面加载,Then 弹出暗色模式引导:可一键切换暗色、保持亮色,或勾选「不再提醒」跨会话永久静默;主题偏好持久化于浏览器本地,亮色默认,暗色仅作用于核心响应页(非全站暗色,见 [ADR-0034](../adr/0034-uiux-oncall-principles.md)),`/wall` 告警大屏保持固定深色样式。
 
 **关联**:FR-INC、FR-TRI · [ADR-0010](../adr/0010-event-incident-separation.md)、[ADR-0012](../adr/0012-triage-three-stage-pipeline.md)、[ADR-0022](../adr/0022-aiinsight-hitl-evidence.md)、[ADR-0034](../adr/0034-uiux-oncall-principles.md) · **P0**
 

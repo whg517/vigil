@@ -2,10 +2,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "sonner";
 import "./index.css";
 // i18n：副作用导入，在渲染前完成 i18next init（语言从 localStorage 读，默认 zh）。
 import "@/lib/i18n";
+import { ThemeProvider, ThemedToaster } from "@/components/theme/theme-provider";
 import App from "./App.tsx";
 
 // QueryClient：全局数据获取/缓存。
@@ -25,9 +25,13 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        {/* ThemeProvider 依赖 useLocation（暗色只在核心响应页生效，ADR-0034），须在 Router 内；
+            Toaster 一并收进来以跟随主题，避免暗色页上弹亮色 toast。 */}
+        <ThemeProvider>
+          <App />
+          <ThemedToaster />
+        </ThemeProvider>
       </BrowserRouter>
-      <Toaster richColors position="top-right" />
     </QueryClientProvider>
   </StrictMode>,
 );

@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { logout } from "@/lib/auth";
 import { SUPPORTED_LANGS, setLanguage, type Lang } from "@/lib/i18n";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { NightDarkModePrompt } from "@/components/theme/night-prompt";
 
 /**
  * AppShell —— 应用主布局：左侧导航 + 右侧内容区（Outlet）。
@@ -61,8 +63,9 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        {/* 语言切换 + 登出 */}
+        {/* 主题切换（仅核心响应页显示，ADR-0034）+ 语言切换 + 登出 */}
         <div className="space-y-1 border-t p-2">
+          <ThemeToggle />
           {/* 语言切换：中文 / English，changeLanguage + 写 localStorage 持久化 */}
           <div className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground">
             <Languages className="h-4 w-4 shrink-0" />
@@ -95,6 +98,9 @@ export function AppShell() {
       <main className="flex-1 overflow-auto">
         <Outlet />
       </main>
+
+      {/* 夜间(22:00–07:00)首访核心响应页的暗色强引导（ADR-0034），自带路由/时段/记忆判定 */}
+      <NightDarkModePrompt />
     </div>
   );
 }

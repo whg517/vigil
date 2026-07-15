@@ -42,6 +42,17 @@ const zh = {
     logout: "登出",
     language: "语言",
   },
+  theme: {
+    toggleToDark: "切换暗色",
+    toggleToLight: "切换亮色",
+    scopeHint: "暗色仅在核心响应页（事件列表/详情）生效，其余页面保持亮色",
+    nightPromptTitle: "夜间暗色模式",
+    nightPromptDesc:
+      "现在是夜间时段（22:00–07:00）。核心响应页支持暗色模式，可减轻深夜处置时的刺眼与视觉疲劳。",
+    nightPromptSwitch: "切换到暗色",
+    nightPromptKeepLight: "保持亮色",
+    nightPromptDontAsk: "记住选择，夜间不再提醒",
+  },
   enum: {
     severity: {
       critical: "严重",
