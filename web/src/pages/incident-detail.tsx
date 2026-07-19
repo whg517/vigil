@@ -18,6 +18,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { extractError } from "@/lib/http";
 import { SeverityBadge, StatusBadge } from "@/lib/badges";
 import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -42,7 +43,7 @@ export function IncidentDetail() {
 	// WebSocket 实时同步（能力域 8）：incident 变更自动刷新，无需手动刷新页面
 	useIncidentWS(incId);
 
-	const { data: inc, isLoading } = useIncident(incId);
+	const { data: inc, isPending, isError, error } = useIncident(incId);
   const { data: tl } = useTimeline(incId);
   const action = useIncidentAction(incId);
   const [merging, setMerging] = useState(false);
@@ -61,7 +62,22 @@ export function IncidentDetail() {
     });
   };
 
-  if (isLoading) return <DetailSkeleton />;
+  // isPending（而非 isLoading）：涵盖离线/重试暂停等尚无结论的状态——
+  // 没拿到结果前展示骨架屏，不能误报「事件不存在」。
+  if (isPending && !isError) return <DetailSkeleton />;
+  // 加载失败（网络/代理错配/后端异常）与「事件不存在」分开呈现：
+  // 前者给出可诊断的错误原因，避免误导用户去怀疑事件 ID。
+  if (isError) {
+    return (
+      <div className="p-6">
+        <BackButton onClick={() => navigate("/incidents")} />
+        <EmptyState
+          title={t("incidentDetail.loadErrorTitle")}
+          description={extractError(error)}
+        />
+      </div>
+    );
+  }
   if (!inc) {
     return (
       <div className="p-6">

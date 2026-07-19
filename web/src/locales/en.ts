@@ -72,6 +72,7 @@ const en: Resources = {
   errors: {
     requestFailed: "Request failed ({{status}})",
     networkNoResponse: "No response from network. Please check that the backend is running.",
+    invalidResponse: "Response is not valid JSON — check the /api proxy target; the backend port may be down or occupied by another service.",
     unknown: "Unknown error",
   },
   format: {
@@ -138,6 +139,7 @@ const en: Resources = {
   incidentDetail: {
     notFoundTitle: "Incident not found",
     notFoundDesc: "No incident found with ID {{id}}",
+    loadErrorTitle: "Failed to load incident",
     priority: "Priority {{value}}",
     currentLevel: "Current level L{{level}}",
     escalatedCount: "Escalated {{count}} times",

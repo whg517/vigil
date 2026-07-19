@@ -70,6 +70,7 @@ const zh = {
   errors: {
     requestFailed: "请求失败（{{status}}）",
     networkNoResponse: "网络无响应，请检查后端是否启动",
+    invalidResponse: "响应不是有效 JSON——请检查 /api 代理指向，后端端口可能未启动或被其他服务占用",
     unknown: "未知错误",
   },
   format: {
@@ -136,6 +137,7 @@ const zh = {
   incidentDetail: {
     notFoundTitle: "事件不存在",
     notFoundDesc: "未找到 ID 为 {{id}} 的事件",
+    loadErrorTitle: "事件加载失败",
     priority: "优先级 {{value}}",
     currentLevel: "当前升级层级 L{{level}}",
     escalatedCount: "累计升级 {{count}} 次",

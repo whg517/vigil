@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from "axios";
+import axios, { AxiosError, type AxiosInstance } from "axios";
 import { toast } from "sonner";
 import i18n from "@/lib/i18n";
 
@@ -35,10 +35,39 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
+/** 非 JSON 2xx 响应的专用错误码，extractError 据此给出可诊断的提示（区别于普通请求失败）。 */
+export const ERR_NON_JSON = "ERR_NON_JSON";
+
+// 响应拦截：JSON 守卫。须注册在下方错误提示拦截器之前，reject 才会流经它统一提示。
+// 后端 2xx 一律返回 JSON（或空 body）；拿到非空字符串，说明 /api 命中了错配的代理
+// 或被无关服务占用的端口（返回 HTML 之类）——不在此拦截的话，调用方会把字符串当
+// 业务对象往下用（如 inc.priority.toUpperCase()），页面直接白屏崩溃。
+http.interceptors.response.use((response) => {
+  const rt = response.config.responseType;
+  const expectsJSON = !rt || rt === "json"; // blob/text 等显式声明的响应不设防（如审计导出）
+  if (
+    expectsJSON &&
+    typeof response.data === "string" &&
+    response.data.trim() !== ""
+  ) {
+    return Promise.reject(
+      new AxiosError(
+        "expected JSON but got non-JSON body",
+        ERR_NON_JSON,
+        response.config,
+        response.request,
+        response,
+      ),
+    );
+  }
+  return response;
+});
+
 // extractError 从后端响应里提取可读错误信息。
 // 后端约定：{ "error": "..." }；无 body 时回退到 axios message。
 export function extractError(error: unknown): string {
   if (axios.isAxiosError(error)) {
+    if (error.code === ERR_NON_JSON) return i18n.t("errors.invalidResponse");
     const data = error.response?.data as { error?: string } | undefined;
     if (data?.error) return data.error;
     if (error.response) {
