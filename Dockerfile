@@ -3,7 +3,7 @@
 # 运行时 `vigil migrate` 子命令 shell out 调 atlas CLI（ADR-0005 版本化迁移）。
 
 # ===== Stage 1: 前端构建 =====
-FROM node:22-alpine AS web-builder
+FROM node:26-alpine AS web-builder
 WORKDIR /web
 RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml ./
