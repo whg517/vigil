@@ -1,4 +1,4 @@
-# 扩展指南:新增告警源 / 通知通道 / IM 平台 / Runbook 执行器
+# 扩展指南:新增告警源 / 通知通道 / IM 平台 / Runbook 执行器 / LLM Provider
 
 > 本文是 [ADR-0009](./adr/0009-pluggable-integrations.md)「接口 + 编译期注册」模型的**操作手册**:
 > 逐扩展点列出全部代码触点。Vigil 不是运行时插件系统——每类扩展都需要改代码、重新编译,
@@ -13,6 +13,7 @@
 | 告警源 Adapter | `internal/ingestion/adapter.go` | 同文件 `RegisterBuiltins()` | ent 枚举(`Integration.type`) | 最多(含 schema/前端) |
 | 通知通道 Channel | `internal/notification/channel.go` | `internal/server/wire.go` `buildNotifier()` | 自由字符串 | 中 |
 | IM 平台 Bot | `internal/im/bot.go` | `internal/server/wire.go` `buildIMRegistry()` | 自由字符串(回调路由 `:platform` 参数) | 中 |
+| LLM Provider | `internal/ai/provider.go` | `internal/server/wire.go` `buildLLMProvider()` | 配置项 `VIGIL_LLM_PROVIDER` 枚举(glm / ollama) | 少 |
 | Runbook 执行器 | `internal/runbook/executor.go` | 同文件 `NewRegistry()` | 自由字符串 kind | 最少(**推荐范式**) |
 
 「自由字符串 + 注册表」(Runbook Executor 的模式)是耦合面最小的范式:标识不进 ent 枚举,
@@ -23,12 +24,12 @@
 
 ## 一、新增告警源(Alert Source Adapter)
 
-以新增 `zabbix` 类型为例,触点如下(按依赖顺序):
+以新增 `datadog` 类型为例,触点如下(按依赖顺序):
 
 1. **实现适配器** —— `internal/ingestion/adapters_builtin.go`(或新建文件)实现 `Adapter` 接口
    (`Type() string` + `Normalize(ctx, raw, integ, rawEvent) ([]*NormalizedEvent, error)`)。
    参考 `PrometheusAdapter`;严重度归一可用 `severity_map` 覆盖机制(Integration.config)。
-2. **注册** —— `internal/ingestion/adapter.go` 的 `RegisterBuiltins()` 加一行 `r.Register(&ZabbixAdapter{})`。
+2. **注册** —— `internal/ingestion/adapter.go` 的 `RegisterBuiltins()` 加一行 `r.Register(&DatadogAdapter{})`。
 3. **schema 枚举** —— `ent/schema/service.go` 的 `Integration` `field.Enum("type").Values(...)`
    加入新值,然后 **`go generate ./ent/...`**(生成代码一起提交)。加值由 ent auto-migrate 处理;
    收窄/改名需手写迁移(见 [ADR-0032](./adr/0032-migration-backup-restore.md))。

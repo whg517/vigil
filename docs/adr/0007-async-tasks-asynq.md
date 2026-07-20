@@ -1,4 +1,4 @@
-# ADR-0007: 异步任务选 Asynq + 幂等约定
+# ADR-0007： 异步任务选 Asynq + 幂等约定
 
 | 字段 | 内容 |
 |------|------|
@@ -17,7 +17,7 @@ Vigil 是事件驱动系统,存在五类异步任务:事件流水线、延迟任
 - Asynq 开箱覆盖:延迟(`ProcessIn`)、定时(`PeriodicTask`)、重试、死信、优先级 + Asynqmon 面板 + Redis 持久化。
 - **at-least-once ⇒ handler 必须幂等**,统一约定幂等键:
   - 升级任务:`esc:{inc}:{level}:{repeatSeq}`(或 `incident_id + level`)。
-  - 通知任务:`notification_id`。
+  - 通知任务:`notif:{notification_id}`(详见 ADR-0017 修订记录)。
   - 事件流水线:以 `source_event_id` 去重。
 
 ## 理由

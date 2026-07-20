@@ -2,8 +2,8 @@
 //
 // CI 在 lint 后、测试前运行此用例，验证 ent schema 能无错生成到 sqlite 内存库。
 // 若 schema 定义有矛盾（非法类型/循环外键/缺字段），enttest.Open 会失败，
-// 从而在 CI 早期拦截（而非在生产 auto-migrate 时才报错）。
-package migrate
+// 从而在 CI 早期拦截（而非在生产 atlas apply 时才报错）。
+package schema
 
 import (
 	"testing"

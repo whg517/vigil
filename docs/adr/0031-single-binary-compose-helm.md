@@ -1,4 +1,4 @@
-# ADR-0031: 单二进制 embed + Compose 默认 / Helm 生产
+# ADR-0031： 单二进制 embed + Compose 默认 / Helm 生产
 
 | 字段 | 内容 |
 |------|------|

@@ -1,4 +1,4 @@
-# ADR-0030: 集成凭据加密存储 + 四方向集成 + code-first OpenAPI 契约
+# ADR-0030： 集成凭据加密存储 + 四方向集成 + code-first OpenAPI 契约
 
 | 字段 | 内容 |
 |------|------|

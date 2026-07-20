@@ -11,7 +11,7 @@
 | 组件 | 要求 | 说明 |
 |------|------|------|
 | PostgreSQL | 13+,**必须装 pgvector 扩展** | `Incident.embedding` 列类型 `vector(1536)`,migrate 时扩展缺失会报错。推荐 `pgvector/pgvector:pg16` 镜像(自带扩展) |
-| Redis | 6+ | 缓存/队列/锁。生产必须开持久化(AOF/RDB)——升级计时任务在 Redis,宕机即丢。**必须独占,见下方红线** |
+| Redis | 7+ | 缓存/队列/锁。生产必须开持久化(AOF/RDB)——升级计时任务在 Redis,宕机即丢。**必须独占,见下方红线** |
 | Docker / Compose | 单机部署 | — |
 | kubectl + Helm | K8s 部署(可选) | 生产级 |
 | pg_dump / redis-cli | 备份恢复(宿主机) | `scripts/backup.sh` 在宿主机执行,需安装与服务端匹配的客户端(compose 默认 PG16 → PostgreSQL 16 客户端;redis-cli 6+) |
@@ -201,7 +201,7 @@ helm install vigil ./deploy/helm
   - `--set migration.enabled=false` 关闭后回到手动模式:
     `kubectl exec deploy/vigil -- vigil migrate`(pod 未 ready 也可 exec)。
 - **当前 chart 为单 Deployment(API + worker 同进程)、仅验证单副本部署**。
-  vigil-api / vigil-worker 分离扩缩为路线图(二进制暂无角色 flag);
+  vigil-api / vigil-worker 拆分独立扩缩为路线图(二进制暂无角色 flag);
   Redis Sentinel/Cluster 亦为路线图(客户端仅支持单地址直连)。
 - `replicaCount > 1` 时 WebSocket 广播依赖 Redis pub/sub(代码已实现),但多副本形态
   未经端到端验证,生产暂不建议。
@@ -214,7 +214,7 @@ helm install vigil ./deploy/helm
 | `migrate` 报 `extension "vector" does not exist` | PG 未装 pgvector:换 `pgvector/pgvector:pg16` 镜像或手动装扩展 |
 | IM 通知不发送 | 查 `VIGIL_IM_*` 凭证 + `VIGIL_IM_ONCALL_CHANNEL`;`/health` 看 redis;IM 群未配时会记 metric + warn(不静默) |
 | AI 不工作 | `VIGIL_LLM_API_KEY` 未配 → 自动降级(复盘规则草稿、诊断跳过),不影响告警主链路 |
-| 相似检索退化为文本匹配 | embed 维度与 `vector(1536)` 不符(如 Ollama nomic-embed-text 是 768 维),见 [ADR-0023](./adr/0023-llm-provider-cost-control.md) |
+| 相似检索退化为文本匹配 | embed 维度与 `vector(1536)` 不符(如 Ollama nomic-embed-text 是 768 维),维度陷阱见 [ADR-0023](./adr/0023-llm-provider-cost-control.md),相似检索主决策见 [ADR-0024](./adr/0024-similar-incident-pgvector.md) |
 | 升级不触发/通知丢失(多环境共用 Redis) | §1 红线:另一环境的 worker 在消费本环境队列。隔离 Redis 实例/DB 编号后重启 |
 | 升级任务丢失(Redis 数据丢过) | 预防:开 AOF/RDB(compose 默认已开)。已丢失:升级对账 sweeper 会周期核对并重排缺失的升级任务(默认 2 分钟,`VIGIL_ESCALATION_SWEEP_INTERVAL`,见 ADR-0016);等不及时人工兜底——在 Web/IM 上手动升级或再通知 |
 | 告警接入 401 | webhook token 不匹配 Integration.token(接入详情页可查看/轮换) |

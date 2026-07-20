@@ -148,7 +148,7 @@
 |------|------|---------|------|---------|
 | FR-IM-1 | 系统必须真实接入飞书与钉钉双平台(仅此两平台) | IMBot 接口抽象,业务层不感知具体平台;企微已移除不支持 | 已实现 | [0019](./adr/0019-imbot-pluggable-degradation.md) · [0037](./adr/0037-trim-deferred-features.md) |
 | FR-IM-2 | 值班人必须能在 IM 卡片内直接处置事件 | 交互卡片承载 ack/resolve 等操作;摘要 + 操作按钮一屏决策 | 已实现 | [0018](./adr/0018-im-same-rbac-as-web.md) · [0034](./adr/0034-uiux-oncall-principles.md) |
-| FR-IM-3 | IM 操作必须走与 Web 完全相同的 RBAC 链路,**IM 非权限后门** | 回调经 im_accounts 映射 User → 权限点 → team scope RoleBinding 判定;未绑定 IM 账号的操作被拒;无权操作拒绝并记审计 | 已实现 | [0018](./adr/0018-im-same-rbac-as-web.md) |
+| FR-IM-3 | IM 操作必须走与 Web 完全相同的 RBAC 链路,**IM 非权限后门** | 回调经 IMAccountBinding(platform + account_id)映射 User → 权限点 → team scope RoleBinding 判定;未绑定 IM 账号的操作被拒;无权操作拒绝并记审计 | 已实现 | [0018](./adr/0018-im-same-rbac-as-web.md) |
 | FR-IM-4 | 卡片按钮必须按权限裁剪渲染,安全边界以回调鉴权为权威判定 | 群卡片全群共享一张,按**代表接收者**(首个可解析 user_id 的通知目标)权限裁剪按钮,不随群内各成员自身权限变化;「无权按钮不显示」仅在可解析单一接收者的场景(如按用户单发)成立;无权点击一律由回调硬鉴权拒绝并记审计(FR-IM-3 是权威判定) | 已实现 | [0018](./adr/0018-im-same-rbac-as-web.md) |
 | FR-IM-5 | 事件状态变化必须双向同步到 IM 与 Web | Web→IM 由领域事件驱动卡片刷新(飞书原地更新;钉钉平台限制降级为重发带状态徽章的新消息);IM→Web 走 WebSocket | 已实现 | [0019](./adr/0019-imbot-pluggable-degradation.md) |
 | FR-IM-6 | IM 平台能力缺失或不可用时不得静默丢告警 | 能力降级矩阵;失败降级走通知兜底链;值班群未配置记 metric + Warn | 已实现 | [0019](./adr/0019-imbot-pluggable-degradation.md) |
@@ -253,6 +253,8 @@
 | FR-ADM-6 | 运行时配置必须环境变量驱动(12-Factor) | 全部 `VIGIL_` 前缀;告警源/通道/IM/LLM 的启停与参数走配置 + 数据库 | 已实现 | [0031](./adr/0031-single-binary-compose-helm.md) · [0009](./adr/0009-pluggable-integrations.md) |
 
 > ⚠️ 保留期默认值是产品立场而非合规承诺,**不存在「默认即合规」**;合规环境应自行上调审计类保留期([ADR-0039](./adr/0039-data-lifecycle.md))。
+>
+> ⚠️ **保留期 ≠ RPO**:FR-ADM-3 的「保留期」是业务数据的留存窗口(过期的旧 Event 删掉);NFR-DR-1 的「RPO」是灾难恢复点目标(备份失败丢多少数据)。两者维度不同,不要混淆。
 
 ## 六、非功能需求(NFR)
 

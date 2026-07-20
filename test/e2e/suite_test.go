@@ -13,7 +13,6 @@ import (
 
 	"github.com/kevin/vigil/internal/config"
 	domainevent "github.com/kevin/vigil/internal/event"
-	"github.com/kevin/vigil/internal/migrate"
 	"github.com/kevin/vigil/internal/queue"
 	"github.com/kevin/vigil/internal/server"
 	"github.com/kevin/vigil/internal/store"
@@ -104,12 +103,14 @@ var _ = ginkgo.BeforeSuite(func() {
 	q := queue.New(cfg)
 	bus := domainevent.New()
 
-	// 4. 装配全部组件 + 路由（与生产同一套装配逻辑）
+	// 4. 建表（atlas apply：解压嵌入的迁移文件 + 调 atlas CLI 应用）
+	//    幂等：atlas 自动跳过已应用版本；baseline 首行含 CREATE EXTENSION vector。
+	//    必须先于 server.Wire —— Wire 内的 SeedDefaultAdmin 会 INSERT roles，表不存在则失败。
+	gomega.Expect(applyMigrations(ctx, cfg.DB.URL())).To(gomega.Succeed(), "atlas migrate schema")
+
+	// 5. 装配全部组件 + 路由（与生产同一套装配逻辑）
 	wired, err := server.Wire(ctx, cfg, log, st, q, bus)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "wire app")
-
-	// 5. 建表（幂等：已迁移会跳过；pre_0001_pgvector.sql 建 vector 扩展）
-	gomega.Expect(migrate.Run(ctx, st.SQL, st.DB)).To(gomega.Succeed(), "migrate schema")
 
 	// 6. 清空 Redis：保证 dedup key / 聚合器 / asynq 残留任务不污染 suite。
 	gomega.Expect(st.Redis.FlushDB(ctx).Err()).To(gomega.Succeed(), "flush redis")

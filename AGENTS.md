@@ -18,7 +18,7 @@
 
 | 层 | 选型 |
 |----|------|
-| 后端 | Go 1.25 · Echo · ent（+ Atlas 迁移） · Asynq（异步任务） |
+| 后端 | Go 1.25 · Echo · ent（ORM）+ Atlas（版本化迁移）· Asynq（异步任务） |
 | 存储 | PostgreSQL（主）· Redis（缓存/队列/锁） |
 | 前端 | React · TypeScript · Vite · Tailwind CSS v4 · shadcn/ui |
 | 部署 | Docker Compose · Helm |
@@ -35,7 +35,7 @@ vigil/
 ├── internal/             # 业务模块（按领域分）
 │   └── auth/             # RBAC 权限点（permission.go）
 ├── ent/                  # ent ORM
-│   ├── schema/           # ★ 实体定义（当前 32 个，以 schema 为准；改后须 generate）
+│   ├── schema/           # ★ 实体定义（以 schema 为准；改后须 generate）
 │   └── *.go              # ent 自动生成代码（提交入库）
 ├── web/                  # 前端（React + Vite）
 ├── docs/                 # 设计文档
@@ -83,8 +83,8 @@ go test ./...               # 测试（默认不含 e2e）
 go test -tags=integration ./test/e2e/...  # ★ e2e 集成测试（Ginkgo，需 docker 依赖，见 §测试）
 make test-e2e               # e2e 一键（自动 dev-up 起依赖）
 go run ./cmd/vigil/         # 运行
-go generate ./ent/...       # ★ 改了 ent/schema 后必须重新生成
-go generate ./cmd/vigil/... # ★ 改了 handler 注解后必须重新生成 OpenAPI spec
+go generate ./ent/...       # ★ 改了 ent/schema 后必须重新生成 ent 代码
+go generate ./cmd/vigil/... # ★ 改了 handler 注解后必须重新生成 OpenAPI swagger spec
 go mod tidy                 # 整理依赖
 ```
 
@@ -147,7 +147,12 @@ go build ./... && pnpm --dir web build
 
 ### ent schema 变更
 
-改了 `ent/schema/*.go` 后，**必须**执行 `go generate ./ent/...` 并把生成的代码一起提交。
+改了 `ent/schema/*.go` 后，**必须**两步：
+
+1. `go generate ./ent/...` 重新生成 ent 代码（一起提交）。
+2. `atlas migrate diff <name> --env local`（见 `atlas.hcl`）生成新版本迁移 SQL，把 `internal/schema/migrations/*.sql` + `atlas.sum` 一起提交。
+
+这样 schema 变更同时落进「ent 强类型 API」与「atlas 版本化迁移文件」两侧，运行时 `vigil migrate` apply 才能生效。
 
 ---
 
@@ -187,8 +192,8 @@ go build ./... && pnpm --dir web build
 
 ## 当前状态
 
-- ✅ 文档体系收敛为 requirements 需求文档 + architecture 架构主文档 + user-stories 用户故事 + 39 份 ADR（活文档：operations）
-- ✅ 全栈实现深入中：`internal/` 35 个业务模块、ent 32 实体(以 ent/schema 为准)、前端 19 页面(全站 i18n)
+- ✅ 文档体系收敛为 requirements 需求文档 + architecture 架构主文档 + user-stories 用户故事 + ADR（数量见 `docs/adr/`；活文档：operations）
+- ✅ 全栈实现深入中：业务模块见 `internal/`、实体定义见 `ent/schema/`、前端页面见 `web/src/pages/`（全站 i18n）
 - ⏳ 后续演进(AI Copilot 深化、复盘增强等)以 GitHub Issues 跟踪
 
 设计取舍见 [`docs/adr/`](./docs/adr/);组件全景见 [`docs/architecture.md`](./docs/architecture.md)。

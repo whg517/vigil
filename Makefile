@@ -119,6 +119,11 @@ test: ## 运行后端测试（默认不含 e2e，e2e 用 build tag 隔离）
 	go test ./...
 
 test-e2e: dev-up ## 运行端到端集成测试（需 docker 依赖，会自动 dev-up；基于 Ginkgo）
+	@# 重置 vigil 库：atlas 版本化迁移要求目标库干净（无遗留表）。
+	@# dev-up 起的 postgres 持久化卷会保留旧表，不重置会触发 atlas "脏库" 错误。
+	@docker exec vigil-postgres-1 psql -U vigil -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='vigil';" >/dev/null 2>&1 || true
+	@docker exec vigil-postgres-1 psql -U vigil -d postgres -c "DROP DATABASE IF EXISTS vigil" >/dev/null 2>&1
+	@docker exec vigil-postgres-1 psql -U vigil -d postgres -c "CREATE DATABASE vigil" >/dev/null 2>&1
 	go test -tags=integration -timeout 5m ./test/e2e/...
 
 test-e2e-web: ## 运行前端 Playwright e2e（Docker 全栈，禁 mock；自动起/停 compose）

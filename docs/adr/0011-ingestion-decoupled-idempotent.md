@@ -1,4 +1,4 @@
-# ADR-0011: 接入解耦 —— 先落 raw + source_event_id 幂等
+# ADR-0011： 接入解耦 —— 先落 RawEvent + source_event_id 幂等
 
 | 字段 | 内容 |
 |------|------|

@@ -1,4 +1,4 @@
-# ADR-0008: 前端栈选 React + Vite + shadcn/ui + Tailwind
+# ADR-0008： 前端栈选 React + Vite + shadcn/ui + Tailwind
 
 | 字段 | 内容 |
 |------|------|

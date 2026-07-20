@@ -319,11 +319,20 @@ type DB struct {
 	SSLMode  string `envconfig:"ssl_mode" default:"disable"` // disable | require | verify-full
 }
 
-// DSN 拼接 PostgreSQL 连接串。
+// DSN 拼接 PostgreSQL 连接串（lib/pq 风格 keyword=value）。
 func (d DB) DSN() string {
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		d.Host, d.Port, d.User, d.Password, d.Name, d.SSLMode,
+	)
+}
+
+// URL 拼接 PostgreSQL 标准 URL（postgres://），供 atlas CLI 等需要 URL 格式的工具使用。
+// 例：postgres://vigil:vigil@127.0.0.1:5432/vigil?sslmode=disable
+func (d DB) URL() string {
+	return fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		d.User, d.Password, d.Host, d.Port, d.Name, d.SSLMode,
 	)
 }
 

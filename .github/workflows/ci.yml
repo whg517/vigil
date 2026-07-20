@@ -90,10 +90,10 @@ jobs:
 
       # ②c schema 自洽性检测（ENG-01：验证 schema 可无错生成到 sqlite 内存库）
       #    若 schema 定义有矛盾（如循环外键/非法类型），enttest 会失败。
-      #    覆盖 auto-migrate 在生产建表前的可行性（生产用 PG，此处用 sqlite 做快速自洽校验）。
+      #    覆盖 atlas migrate apply 在生产建表前的可行性（生产用 PG，此处用 sqlite 做快速自洽校验）。
       - name: schema consistency check
         run: |
-          go test ./internal/migrate/... -run TestSchemaConsistency -v
+          go test ./internal/schema/... -run TestSchemaConsistency -v
 
       # ③ Test + 覆盖率门禁（QA 审计：原仅 -cover 打印百分比，无阈值不阻断）
       #    生成 coverprofile，总覆盖率低于阈值（45%）则 fail；产物归档供排查。
@@ -217,6 +217,13 @@ jobs:
         with:
           go-version: "1.25"
           cache: true
+
+      # 装 atlas CLI：BeforeSuite 调 `atlas migrate apply` 建表（与生产 vigil migrate 一致）
+      - name: install atlas CLI
+        run: |
+          curl -sSfL https://release.ariga.io/atlas -o /tmp/atlas-install.sh
+          sudo sh /tmp/atlas-install.sh v0.32.0
+          atlas version
 
       - name: e2e tests
         run: go test -tags=integration -v -timeout 10m ./test/e2e/...

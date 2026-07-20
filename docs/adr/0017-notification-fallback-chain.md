@@ -1,4 +1,4 @@
-# ADR-0017: 通知逐通道兜底降级链 + 送达四态 + 聚合
+# ADR-0017： 通知逐通道兜底降级链 + 送达四态 + 聚合
 
 | 字段 | 内容 |
 |------|------|
@@ -14,7 +14,7 @@
 
 `msg.Channels` 是**有序降级链(非并联)**:对每个 target 按链顺序逐通道尝试,首个成功即停,失败才降级到下一通道。实现见 `notifier.go` 的 `deliverChain / resolveChannels`。
 
-- **通道来源优先级**:① 本层 `EscalationLevel.notify_channels` > ② 命中的 `NotificationRule.channels` > ③ 全局默认链 `[webhook?] + im + email`。规则按"更具体者优先"评估(`RuleResolver` 按 severity / team / service 匹配,无命中回落默认链)。
+- **通道来源优先级**:① 本层 `EscalationLevel.notify_channels` > ② 命中的 `NotificationRule.channels` > ③ 全局默认链 `[webhook(若配置)] → im → email`。规则按"更具体者优先"评估(`RuleResolver` 按 severity / team / service 匹配,无命中回落默认链)。
 - **整链失败兜底**:某 target 整条链全部失败 → 记 `failed` + `allFailedHook` 兜底告警 org_admin(走非 IM 通道),使"通知发不出去"不再静默。异步投递下 hook 只在**最后一次重试失败**时触发(每轮重试都触发会轰炸 org_admin)。实现见 `rule.go` / `wire.go` 的 `buildAllFailedHook`。
 - **送达四态落库**:`Notification` ent 记录每次发送,`Status` ∈ `pending | sent | failed | suppressed`,含 Channel / Target / Level / Severity 快照;`suppressed` = 命中 quiet_hours 被静默(不再无痕丢弃,落库可查;补发端点属**规划中**,尚未实现)。同步路径只追加不修改;异步投递的 tracking 行以 `pending` 落库、由任务回写终态(`sent`/`failed`),终态一旦落定不再变更(worker 以此做幂等守卫)。查询 `GET /incidents/:id/notifications`(权限 `incident.view`)。实现见 `ent/schema/notification.go` / `recorder.go`。
 - **静默时段**:`NotificationRule.quiet_hours` 支持跨午夜窗,`bypass_for:[critical]` 让 critical 穿透,值班人始终通知;时区按**静默规则配置的 IANA 时区**(`quiet_hours.timezone`)计算,非法值按 UTC 兜底(保守不静默),不读接收人的用户时区。实现见 `quiet_hours.go`。
@@ -37,7 +37,7 @@
 - 降级链是串行尝试,极端情况下最后一通道才成功,送达延迟略增,换取不重复打扰。
 - 三态基本只追加,`Notification` 表随发送次数增长,需归档/清理策略(异步 tracking 行例外:pending 会被回写终态,不新增行数)。
 - quiet_hours 的 `bypass_for` 与聚合的 critical 例外是刻意的"降噪不误杀"设计,配置错误会直接影响紧急送达,须谨慎默认。
-- 2026-07-10:电话/SMS 通道已整体移除,默认链收敛为 `[webhook?] + im + email`;电话强提醒场景经 webhook 出口外接。
+- 2026-07-10:电话/SMS 通道已整体移除,默认链收敛为 `[webhook(若配置)] → im → email`;电话强提醒场景经 webhook 出口外接。
 
 ## 修订记录
 

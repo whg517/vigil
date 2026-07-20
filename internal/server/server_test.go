@@ -64,8 +64,8 @@ func TestHealth_RedisDown(t *testing.T) {
 }
 
 // TestHealth_SchemaNotMigrated schema 未迁移（核心表缺失）时返回 503。
-// 用未跑 migrate 的裸 sqlite（不经 enttest 建表），核心表 users 不存在，
-// 探针应把 schema check 置 down 并整体返回 503——未 migrate 实例不应被判就绪。
+// 用未 atlas migrate apply 的裸 sqlite（不经 enttest 建表），核心表 users 不存在，
+// 探针应把 schema check 置 down 并整体返回 503——未迁移实例不应被判就绪。
 func TestHealth_SchemaNotMigrated(t *testing.T) {
 	rawDB, err := sql.Open("sqlite3", "file:server_test_nomigrate?mode=memory&cache=shared&_fk=1")
 	if err != nil {

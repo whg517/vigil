@@ -1,4 +1,4 @@
-# ADR-0022: AIInsight 横向承载 + HITL + 强制 evidence
+# ADR-0022： AIInsight 横向承载 + HITL + 强制 evidence
 
 | 字段 | 内容 |
 |------|------|

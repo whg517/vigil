@@ -18,6 +18,8 @@
 | 项目经理（PM） | [`project-manager.md`](./project-manager.md) | 9 | 只读跟踪、跨团队协同、复盘改进项闭环与管理层报表——干系人视角的可见性 |
 | 开发人员（Developer） | [`developer.md`](./developer.md) | 9 | oncall 处置体验：IM 一键确认、一屏上下文、Runbook 诊断与告警自助接入 |
 
+> **关于「纯一线 oncall 工程师」画像**：开发人员（developer.md）已覆盖轮值 oncall 的处置体验故事（US-DEV-01 IM 一键确认、US-DEV-02 一屏上下文、US-DEV-03 Runbook 诊断等），不单独立档。若你只关心一线处置视角，直接读 developer.md 的 US-DEV-01～US-DEV-07 即可。
+
 ## 编号规范
 
 故事编号格式：`US-<角色前缀>-<两位序号>`，前缀与角色一一对应：

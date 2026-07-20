@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/kevin/vigil/ent/timelineitem"
 	"github.com/kevin/vigil/ent/user"
 	"github.com/kevin/vigil/internal/auth"
+	"github.com/kevin/vigil/internal/schema"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -33,18 +36,39 @@ import (
 // `go generate ./ent/...` 从 schema 生成（含多对多关联表），新增实体后自动纳入，
 // 无需人工同步；TRUNCATE 带 CASCADE，外键依赖顺序也无需关心。
 //
-// schema_migrations（迁移版本记录表）不属于 ent schema，天然不在 Tables 中；
+// atlas_schema_revisions（atlas 迁移版本记录表）不属于 ent schema，天然不在 Tables 中；
 // 这里仍显式排除，自文档化「迁移记录不清、测试不重跑迁移」的意图。
 var allTables = func() []string {
 	names := make([]string, 0, len(entmigrate.Tables))
 	for _, t := range entmigrate.Tables {
-		if t.Name == "schema_migrations" {
+		if t.Name == "schema_migrations" || t.Name == "atlas_schema_revisions" {
 			continue
 		}
 		names = append(names, t.Name)
 	}
 	return names
 }()
+
+// applyMigrations 把嵌入的 atlas 迁移文件解压后调 atlas CLI apply 到目标库。
+// 供 BeforeSuite 建表使用（与生产 `vigil migrate` 走同一套迁移文件）。
+func applyMigrations(_ context.Context, dbURL string) error {
+	dir, err := schema.Extract()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+
+	// #nosec G204 -- e2e 测试专用 helper，atlas 二进制名是常量，参数由测试受控组装。
+	cmd := exec.Command("atlas", "migrate", "apply",
+		"--dir", "file://"+dir,
+		"--url", dbURL,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("atlas migrate apply failed: %w\n%s", err, out)
+	}
+	return nil
+}
 
 // BeforeEach：每个 Spec 运行前清空数据 + 重建 admin，保证用例间数据独立。
 // 共用的 app 实例只起一次（BeforeSuite），这里只清状态，不重启。

@@ -12,7 +12,7 @@
 - [ ] **提交规范**：PR 标题与提交信息符合 Conventional Commits，未使用 `chore`
 - [ ] **生成物已同步**（如适用）：改 `ent/schema/` 已 `go generate ./ent/...`；改 handler 注解已重生成 OpenAPI spec 与前端 types
 - [ ] **e2e**（如适用）：改动涉及核心流水线（ingestion / triage / escalation / auth）已本地 `make test-e2e` 通过
-- [ ] **文档同步**（如适用）：设计性改动已先落 ADR / `docs/architecture.md`（文档先行）；用户可见变更已在 `CHANGELOG.md` 的 Unreleased 节补一行
+- [ ] **文档同步**（如适用）：设计性改动已先落 ADR / `docs/architecture.md`（文档先行）
 
 ## 测试方式
 

@@ -11,7 +11,7 @@
 |---|------|------|
 | [0001](0001-record-architecture-decisions.md) | 采用 ADR 记录架构决策 | Accepted |
 | [0002](0002-product-positioning.md) | 产品定位与非目标 | Accepted |
-| [0037](0037-trim-deferred-features.md) | 收敛延期功能:移除电话/SMS、企微、Jira/禅道与 Zabbix/云监控占位 | Accepted(墓碑恢复版) |
+| [0037](0037-trim-deferred-features.md) | 收敛延期功能:移除电话/SMS、企微、Jira/禅道与 Zabbix/云监控占位 | Accepted |
 
 ### 技术选型
 | # | 标题 | 状态 |
@@ -28,7 +28,7 @@
 | # | 标题 | 状态 |
 |---|------|------|
 | [0010](0010-event-incident-separation.md) | Event 与 Incident 分离 | Accepted |
-| [0011](0011-ingestion-decoupled-idempotent.md) | 接入解耦 + 先落 raw + 幂等 | Accepted |
+| [0011](0011-ingestion-decoupled-idempotent.md) | 接入解耦 + 先落 RawEvent + 幂等 | Accepted |
 | [0012](0012-triage-three-stage-pipeline.md) | 三层分诊管线:去重/抑制/聚合 | Accepted |
 | [0013](0013-deterministic-routing.md) | 确定性路由裁决 + 未路由池可申诉 | Accepted |
 | [0014](0014-service-auto-provisioning.md) | Service 自动供给(方案C) | Accepted |
@@ -51,14 +51,14 @@
 | [0018](0018-im-same-rbac-as-web.md) | IM 走与 Web 相同 RBAC 链路 | Accepted |
 | [0019](0019-imbot-pluggable-degradation.md) | IMBot 可插拔 + 平台能力降级矩阵 | Accepted |
 | [0020](0020-responder-temp-grant.md) | 拉人即事件级临时授权 | Accepted |
-| [0036](0036-remove-war-room.md) | 移除作战室能力 | Accepted(墓碑恢复版) |
+| [0036](0036-remove-war-room.md) | 移除作战室能力 | Accepted |
 
 ### Runbook / AI / 复盘
 | # | 标题 | 状态 |
 |---|------|------|
 | [0021](0021-runbook-two-tier.md) | Runbook 诊断只读 / 处置写两档 | Accepted |
 | [0022](0022-aiinsight-hitl-evidence.md) | AIInsight 横向 + HITL + 强制 evidence | Accepted |
-| [0023](0023-llm-provider-cost-control.md) | LLMProvider 抽象 + 成本三闸 + 可降级 | Accepted |
+| [0023](0023-llm-provider-cost-control.md) | LLMProvider 抽象 + 成本三闸 + 置信度阈值 + 可降级 | Accepted |
 | [0024](0024-similar-incident-pgvector.md) | 相似事件检索 pgvector 主路径 + LIKE 降级 | Accepted |
 | [0025](0025-no-auto-retrain.md) | 智能降噪不做自动回训(明确否决) | Accepted |
 | [0026](0026-postmortem-ai-draft.md) | 复盘 AI 起草 + 逐字段人工校对 | Accepted |
@@ -77,7 +77,7 @@
 | [0031](0031-single-binary-compose-helm.md) | 单二进制 embed + Compose/Helm | Accepted |
 | [0032](0032-migration-backup-restore.md) | 迁移与回滚:备份恢复(不做逆向迁移) | Accepted |
 | [0033](0033-selfmon-and-auth.md) | 自监控三红线 + 鉴权 Bearer JWT | Accepted |
-| [0039](0039-data-lifecycle.md) | 数据生命周期:保留清理、归档取舍与分区路线 | Proposed(Event/RawEvent 清理已实现,为补记) |
+| [0039](0039-data-lifecycle.md) | 数据生命周期:保留清理、归档取舍与分区路线 | Accepted(部分实现) |
 
 ### 前端 UX / 工程流程
 | # | 标题 | 状态 |

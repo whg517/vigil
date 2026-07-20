@@ -27,20 +27,19 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/kevin/vigil/ent"
 	"github.com/kevin/vigil/internal/config"
 	domainevent "github.com/kevin/vigil/internal/event"
 	"github.com/kevin/vigil/internal/logger"
-	"github.com/kevin/vigil/internal/migrate"
 	"github.com/kevin/vigil/internal/queue"
+	"github.com/kevin/vigil/internal/schema"
 	"github.com/kevin/vigil/internal/server"
 	"github.com/kevin/vigil/internal/store"
 
@@ -49,7 +48,8 @@ import (
 )
 
 func main() {
-	// 子命令分发：migrate 把 ent schema 应用到 PG（生产可换 atlas 版本化迁移）
+	// 子命令分发：migrate 把嵌入二进制的 atlas 版本化迁移文件 apply 到 PG
+	// （shell out 调 atlas CLI；运行环境须装 atlas，Docker 镜像已内置）
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		if err := runMigrateCmd(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "migrate failed:", err)
@@ -74,10 +74,11 @@ func main() {
 
 // runMigrateCmd 分发 migrate 子命令：
 //
-//	vigil migrate            应用未应用的版本化迁移 + ent auto-migrate（正向）
-//	vigil migrate status     展示迁移版本状态（已应用/当前/待应用），只读
+//	vigil migrate            apply 嵌入的 atlas 版本化迁移到 PG
+//	vigil migrate status     打印当前数据库迁移版本状态（atlas migrate status 透传）
 //
 // 本项目不提供 down 回滚子命令：升级迁移失败一律通过备份恢复（scripts/restore.sh）完成。
+// 实现方式：把 //go:embed 嵌入的迁移文件解压到临时目录，shell out 调 atlas CLI。
 func runMigrateCmd(args []string) error {
 	sub := ""
 	if len(args) > 0 {
@@ -97,60 +98,57 @@ func runMigrateCmd(args []string) error {
 	}
 }
 
-// runMigrate 执行版本化迁移到 PostgreSQL。
-// 先应用 migrations/*.sql（版本追踪），再 ent auto-migrate 补充同步。
+// runMigrate shell out 调 atlas CLI apply 嵌入的迁移文件。
+//
+// 步骤：
+//  1. 把 internal/schema 嵌入的 migrations 解压到临时目录（schema.Extract）
+//  2. atlas migrate apply --dir file://<tmp> --url <cfg.DB.URL()>
+//  3. atlas CLI 本身由运行环境提供（Docker 镜像内置 / 本地预装）
 func runMigrate() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	// 打开 sql.DB（原生 SQL，用于版本追踪表 + 迁移文件 apply）
-	sqlDB, err := sql.Open("postgres", cfg.DB.DSN())
+	dir, err := schema.Extract()
 	if err != nil {
-		return fmt.Errorf("open sql db: %w", err)
+		return err
 	}
-	defer func() { _ = sqlDB.Close() }()
-	// 打开 ent.Client（schema 同步）
-	entDB, err := ent.Open("postgres", cfg.DB.DSN())
-	if err != nil {
-		return fmt.Errorf("open ent db: %w", err)
-	}
-	defer func() { _ = entDB.Close() }()
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	if err := migrate.Run(ctx, sqlDB, entDB); err != nil {
-		return fmt.Errorf("migrate: %w", err)
+	defer func() { _ = os.RemoveAll(dir) }()
+
+	// #nosec G204 -- atlas 二进制名是常量，--dir 来自临时目录（schema.Extract 受控），
+	// --url 来自 cfg.DB（envconfig 加载，非用户输入）。整个 cmd 由 vigil 进程自己组装。
+	cmd := exec.Command("atlas", "migrate", "apply",
+		"--dir", "file://"+dir,
+		"--url", cfg.DB.URL(),
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("atlas migrate apply: %w", err)
 	}
 	return nil
 }
 
-// openSQLDB 打开原生 sql.DB（status 只需版本追踪表，无需 ent.Client）。
-func openSQLDB() (*sql.DB, error) {
+// runMigrateStatus 透传 atlas migrate status。
+func runMigrateStatus() error {
 	cfg, err := config.Load()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	sqlDB, err := sql.Open("postgres", cfg.DB.DSN())
+	dir, err := schema.Extract()
 	if err != nil {
-		return nil, fmt.Errorf("open sql db: %w", err)
+		return err
 	}
-	return sqlDB, nil
-}
+	defer func() { _ = os.RemoveAll(dir) }()
 
-// runMigrateStatus 打印迁移版本状态（只读）。
-func runMigrateStatus() error {
-	sqlDB, err := openSQLDB()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = sqlDB.Close() }()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	report, err := migrate.Status(ctx, sqlDB)
-	if err != nil {
-		return err
-	}
-	return report.Render(os.Stdout)
+	// #nosec G204 -- 同 runMigrate：atlas 二进制名常量，参数由 vigil 进程受控组装。
+	cmd := exec.Command("atlas", "migrate", "status",
+		"--dir", "file://"+dir,
+		"--url", cfg.DB.URL(),
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func run() error {

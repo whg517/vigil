@@ -1,8 +1,8 @@
-# ADR-0039: 数据生命周期:保留清理、归档取舍与分区路线
+# ADR-0039： 数据生命周期：保留清理、归档取舍与分区路线
 
 | 字段 | 内容 |
 |------|------|
-| **状态** | Proposed(§已实现 部分为补记既成事实;§待实现 为已决策未实现) |
+| **状态** | Accepted(部分实现) |
 | **日期** | 2026-07-14 |
 | **相关** | [`0010-event-incident-separation.md`](./0010-event-incident-separation.md)、[`0017-notification-fallback-chain.md`](./0017-notification-fallback-chain.md)、[`0029-dual-audit-no-silent-truncation.md`](./0029-dual-audit-no-silent-truncation.md)、`internal/event/retention.go`、`internal/config/config.go`(Retention) |
 
@@ -14,6 +14,15 @@ Vigil 的接入吞吐目标 ≥ 1000 events/min(见 architecture.md 性能目标
 
 1. **已实现但无决策记录**:`internal/event/retention.go` 已实现 Event/RawEvent 的保留清理巡检(实现质量良好,含证据保护与分页删除),但当初未落 ADR——属"先有代码后补决策"的债,本 ADR 补记。
 2. **承诺过但从未落地**:ADR-0017 自己写明"`Notification` 表随发送次数增长,需归档/清理策略",至今未实现。除 Notification 外,TimelineItem、AuditLog、IncidentAction、WebhookDelivery 均只追加、无任何清理,属无界增长表。
+
+## 实现状态
+
+本 ADR 的「决策」段分两块:
+
+- **§已实现**(`internal/event/retention.go` 的 Event/RawEvent 保留清理巡检)为**补记既成事实**,代码已在生产路径运行。
+- **§待实现**(各无界表的保留/归档取舍、Event 按月分区路线)为**已决策但尚未落地**,落地前相关表继续无界增长,属显式接受的债。
+
+这是状态字段标 `Accepted(部分实现)` 的依据。
 
 ## 决策
 

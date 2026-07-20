@@ -3,7 +3,7 @@
 #
 # 用法：
 #   cp .env.example .env                      # 先配置（至少设置 VIGIL_AUTH_JWT_SECRET）
-#   docker compose run --rm vigil migrate     # 首次：建表 + 启用 pgvector（自动先起依赖）
+#   docker compose run --rm vigil migrate     # 首次：atlas apply 版本化迁移建表（含 pgvector 扩展）
 #   docker compose up -d                      # 起全部服务
 #
 # 凭证注入：compose 自动读取同目录 .env 做 ${} 插值；vigil 服务另通过 env_file

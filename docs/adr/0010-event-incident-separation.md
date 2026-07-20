@@ -1,4 +1,4 @@
-# ADR-0010: Event 与 Incident 分离
+# ADR-0010： Event 与 Incident 分离
 
 | 字段 | 内容 |
 |------|------|

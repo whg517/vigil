@@ -38,14 +38,24 @@
 
 ### 验证
 
-提交前确认：
+与 [`AGENTS.md`](./AGENTS.md) 「开发约定」对齐：worktree 内提交前跑三道门禁，main 复验跑相同三道门禁。
 
 ```bash
-go build ./... && pnpm --dir web build
+# worktree 内提交前（三道门禁）
+golangci-lint run ./... && go test ./... && go build ./...
+pnpm --dir web lint && pnpm --dir web build
 ```
 
-涉及 schema 变更时额外确认：
+涉及 schema 变更时额外确认（两步）：
 
 ```bash
-go generate ./ent/...
+go generate ./ent/...                                    # 同步 ent 生成代码
+atlas migrate diff <name> --env local                    # 生成新版本迁移 SQL（见 atlas.hcl）
+```
+
+涉及 handler 注解变更时额外确认：
+
+```bash
+go generate ./cmd/vigil/...                              # 重生成 OpenAPI swagger spec
+pnpm --dir web gen:types                                 # 同步前端类型
 ```
