@@ -18,7 +18,7 @@ require (
 	github.com/onsi/gomega v1.42.0
 	github.com/pgvector/pgvector-go v0.4.0
 	github.com/prometheus/client_golang v1.23.2
-	github.com/redis/go-redis/v9 v9.20.1
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/swaggo/swag/v2 v2.0.0-rc5
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.53.0
