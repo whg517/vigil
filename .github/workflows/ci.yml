@@ -67,11 +67,12 @@ jobs:
           cache: true
 
       # ① Lint（golangci-lint）
-      #    action 必须 v7：v6 不再支持 golangci-lint v2（GitHub runner 强制升级）。
+      #    action v7+golangci-lint v2.12.2：v2.0.2 是 go 1.24 编译的，
+      #    不支持目标 go 1.25；v2.12.2 是 go 1.25 编译的，与项目 toolchain 匹配。
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.0.2
+          version: v2.12.2
           args: --timeout 5m
 
       # ② OpenAPI spec 漂移检测（与 ent go:generate 同款纪律）
