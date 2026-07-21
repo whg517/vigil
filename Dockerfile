@@ -29,7 +29,8 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 # 安装 atlas CLI：供 `vigil migrate` 子命令 shell out apply 版本化迁移。
 # 用官方 arigaio/atlas 镜像 COPY 二进制（版本锁定，避免运行时联网下载）。
-COPY --from=arigaio/atlas:v0.32.0 /atlas /usr/local/bin/atlas
+# tag 格式注意：docker hub 是 1.2.x（无 v 前缀），GitHub releases 才是 v0.x.x——别混淆。
+COPY --from=arigaio/atlas:1.2.3 /atlas /usr/local/bin/atlas
 # SEC-05：以非 root 用户运行容器（最小权限原则）。
 # 创建 vigil 用户/组（固定 UID/GID 65532，与 distroless 常见值对齐便于迁移）。
 RUN addgroup -g 65532 -S vigil && adduser -u 65532 -S vigil -G vigil
