@@ -16,7 +16,7 @@ import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { login } from "./api-client";
+import { ADMIN, changePassword, login } from "./api-client";
 
 // ESM 下 __dirname 不存在，用 import.meta.url 构造等价路径。
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,7 +44,14 @@ export default async function globalSetup() {
   await pollHealth();
 
   mkdirSync(AUTH_DIR, { recursive: true });
-  console.log("[e2e] 登录 admin 并持久化登录态...");
+  console.log("[e2e] 登录 admin（首次）→ 改密（清 MustChangePassword）→ 重新登录拿可用 token...");
+  // seed admin 默认 MustChangePassword=true，所有非 /auth/* 路径被中间件拦 403。
+  // 改密会自增 token 版本使旧 token 失效，所以必须改密后再登录一次拿新 token。
+  // 密码硬编码 e2e-test-password-12345：仅 e2e 全栈用，每次 compose up 是全新库。
+  const bootstrapToken = await login();
+  await changePassword(bootstrapToken, ADMIN.password, "e2e-test-password-12345");
+  // 同步更新 ADMIN 常量，让后续 spec 的 login() 用新密码（api-client 模块内 export const）。
+  (ADMIN as { password: string }).password = "e2e-test-password-12345";
   const token = await login();
   // localStorage 内容（前端 http.ts 读 vigil_token / vigil_user_id）。
   const storageState = {

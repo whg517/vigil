@@ -44,6 +44,16 @@ export async function resetDB(): Promise<void> {
   await req("/__test__/reset", { method: "POST" });
 }
 
+/** changePassword 改密（清 MustChangePassword 标志）。
+ *  改密后旧 token 立即失效（后端 AddTokenVersion(1)），调用方需重新 login。 */
+export async function changePassword(token: string, oldPassword: string, newPassword: string): Promise<void> {
+  await req("/auth/change-password", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+  });
+}
+
 /** seedTeam 创建团队。 */
 export async function seedTeam(token: string, name: string): Promise<any> {
   return req("/teams", {

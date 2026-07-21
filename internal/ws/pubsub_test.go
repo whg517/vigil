@@ -146,7 +146,8 @@ func TestPubSub_TimelineAddedCrossReplica(t *testing.T) {
 
 	hubA.BroadcastTimelineAdded(11, map[string]any{"id": 5, "type": "status_changed"})
 
-	m := recvWithin(t, cB, 2*time.Second, "timeline cross-replica")
+	// 超时 5s：CI runner 共享资源调度慢，2s 在 GitHub Actions 上偶发超时（flaky）。
+	m := recvWithin(t, cB, 5*time.Second, "timeline cross-replica")
 	if m.Type != MsgTimelineAdded || m.IncidentID != 11 {
 		t.Errorf("unexpected timeline message: %+v", m)
 	}

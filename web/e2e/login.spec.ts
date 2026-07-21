@@ -5,8 +5,10 @@
  * 锁住的回归：鉴权流 + token 持久化 + 路由守卫。
  *
  * 注意：本 spec 直接用 @playwright/test（不依赖 storageState），因为它测登录流本身。
+ * 密码用 ADMIN.password 而非裸 "changeme"：globalSetup 会先改密（清 MustChangePassword 标志）。
  */
 import { test, expect } from "@playwright/test";
+import { ADMIN } from "./api-client";
 
 test.describe("登录流程", () => {
   test("正确凭据登录 → 跳转 dashboard + token 持久化", async ({ page }) => {
@@ -18,7 +20,7 @@ test.describe("登录流程", () => {
 
     // 填表登录
     await page.getByPlaceholder("admin").fill("admin");
-    await page.getByPlaceholder("••••••").fill("changeme");
+    await page.getByPlaceholder("••••••").fill(ADMIN.password);
     await page.getByRole("button", { name: "登录" }).click();
 
     // 跳转到 dashboard（URL 变化 + dashboard 标题出现）
@@ -57,7 +59,7 @@ test.describe("登录流程", () => {
     // 先登录
     await page.goto("/login");
     await page.getByPlaceholder("admin").fill("admin");
-    await page.getByPlaceholder("••••••").fill("changeme");
+    await page.getByPlaceholder("••••••").fill(ADMIN.password);
     await page.getByRole("button", { name: "登录" }).click();
     await expect(page.getByRole("heading", { name: "仪表盘" })).toBeVisible();
 
