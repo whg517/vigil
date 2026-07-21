@@ -12,7 +12,12 @@ const API_BASE = `${BASE_URL}/api/v1`;
 /** 导出 BASE_URL 供 spec 内直接 fetch 复用（避免硬编码端口散落）。 */
 export { BASE_URL };
 
-export const ADMIN = { username: "admin", password: "changeme" } as const;
+// ADMIN 密码：e2e 全栈专用（每次 compose up 是全新库，密码可硬编码）。
+// globalSetup 用 changeme 首登 → 改密到此值（清 MustChangePassword 标志），
+// 之后所有 spec 调 login() 默认用此值。原 changeme 被 MustChangePassword 拦截器封锁。
+export const ADMIN = { username: "admin", password: "e2e-test-password-12345" } as const;
+// 首登原始密码（仅 globalSetup 改密时用一次）。
+export const ADMIN_BOOTSTRAP_PASSWORD = "changeme";
 
 /** 通用请求：带可选 token，返回 JSON。 */
 async function req(path: string, init: RequestInit & { token?: string } = {}): Promise<any> {
@@ -30,7 +35,7 @@ async function req(path: string, init: RequestInit & { token?: string } = {}): P
   return text ? JSON.parse(text) : null;
 }
 
-/** 登录拿 access token（admin/changeme）。 */
+/** 登录拿 access token（默认用 ADMIN：globalSetup 已改密清 MustChangePassword）。 */
 export async function login(creds = ADMIN): Promise<string> {
   const data = await req("/auth/login", {
     method: "POST",
