@@ -67,8 +67,9 @@ jobs:
           cache: true
 
       # ① Lint（golangci-lint）
+      #    action 必须 v7：v6 不再支持 golangci-lint v2（GitHub runner 强制升级）。
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v2.0.2
           args: --timeout 5m
