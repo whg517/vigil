@@ -34,16 +34,16 @@ test.describe("设置页", () => {
     await authedPage.goto("/settings");
     await authedPage.getByRole("button", { name: "API Key" }).click();
 
-    // API Key tab 的创建按钮（Tab 内第一个创建按钮）
-    await authedPage.getByRole("button", { name: "创建" }).first().click();
+    // API Key tab 的创建按钮（trigger，i18n common.create=新建）
+    await authedPage.getByRole("button", { name: "新建" }).first().click();
     await expect(authedPage.getByRole("heading", { name: "创建 API Key" })).toBeVisible({
       timeout: 5000,
     });
 
     // 填名称（用 placeholder 精确定位，避免匹配到有效期 number input）
     await authedPage.getByPlaceholder("ci-deploy-key").fill("e2e-key");
-    // Dialog 内的提交按钮（用 form 定位避免匹配 RBAC 的创建按钮）
-    await authedPage.locator("form").getByRole("button", { name: "创建", exact: true }).click();
+    // Dialog 内的提交按钮（i18n common.create=新建；用 form 定位避免匹配 RBAC 的创建按钮）
+    await authedPage.locator("form").getByRole("button", { name: "新建", exact: true }).click();
 
     // 应展示一次性 token（"API Key 已创建"二次态）
     await expect(authedPage.getByRole("heading", { name: "API Key 已创建" })).toBeVisible({

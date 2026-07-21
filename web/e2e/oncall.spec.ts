@@ -39,7 +39,9 @@ test.describe("值班排班", () => {
       name: "一线值班",
       type: "rotation",
       timezone: "Asia/Shanghai",
-      layers: [{ name: "一线", priority: 1, participants: [{ user_id: 1 }] }],
+      // 后端 contract：participants 是 user_id 整数数组（不是 [{user_id:1}]）。
+      // 历史上 spec 传错对象结构，但因 CI lint 关一直挂从未跑到此步暴露。
+      layers: [{ name: "一线", priority: 1, participants: [1] }],
       team_id: team.id,
     });
 

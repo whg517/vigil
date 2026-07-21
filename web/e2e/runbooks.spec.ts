@@ -31,8 +31,8 @@ test.describe("Runbook", () => {
     // 填表：名称（autofocus 的第一个 input）+ 内容
     await authedPage.getByText("名称").locator("..").locator("input").fill("e2e-runbook");
 
-    // 提交
-    await authedPage.getByRole("button", { name: "创建", exact: true }).click();
+    // 提交（i18n common.create=新建）
+    await authedPage.getByRole("button", { name: "新建", exact: true }).click();
 
     // 列表出现新卡片
     await expect(authedPage.getByText("e2e-runbook")).toBeVisible({ timeout: 10000 });
@@ -69,8 +69,11 @@ test.describe("Runbook", () => {
     // 填 incident ID
     await authedPage.getByPlaceholder("42").fill(String(incId));
 
-    // 点「确认执行」（human-in-the-loop）
-    await authedPage.getByRole("button", { name: "确认执行" }).click();
+    // 勾选「我确认执行写操作」（human-in-the-loop 闸门，不勾按钮文案是「执行（仅干跑）」）
+    await authedPage.getByLabel("我确认执行写操作").check();
+
+    // 点「确认并执行写操作」（human-in-the-loop）
+    await authedPage.getByRole("button", { name: "确认并执行写操作" }).click();
 
     // Dialog 关闭 + 出现执行结果（toast 或结果文本）
     await expect(authedPage.getByRole("heading", { name: "执行 Runbook" })).toBeHidden({

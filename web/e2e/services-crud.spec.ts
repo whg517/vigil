@@ -30,8 +30,8 @@ test.describe("服务 CRUD", () => {
     await authedPage.getByPlaceholder("payment-api", { exact: true }).fill("e2e-test-service");
     await authedPage.getByPlaceholder("payment", { exact: true }).fill(`e2e-slug-${Date.now()}`);
 
-    // 提交按钮文案「创建」
-    await authedPage.getByRole("button", { name: "创建", exact: true }).click();
+    // 提交按钮文案「新建」（i18n common.create=新建）
+    await authedPage.getByRole("button", { name: "新建", exact: true }).click();
 
     // 列表新增行（等待新服务名出现，Dialog 关闭）
     await expect(authedPage.getByText("e2e-test-service").first()).toBeVisible({

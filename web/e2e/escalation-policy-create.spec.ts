@@ -18,8 +18,8 @@ test("创建策略 → 列表出现", async ({ authedPage }) => {
     // 填名称
     await authedPage.getByPlaceholder("默认升级（5min→IM）").fill("e2e-策略");
 
-    // 提交（exact 避免匹配「创建策略」）
-    await authedPage.getByRole("button", { name: "创建", exact: true }).click();
+    // 提交（i18n common.create=新建；exact 避免匹配「创建策略」trigger）
+    await authedPage.getByRole("button", { name: "新建", exact: true }).click();
 
     // 列表出现新策略
     await expect(authedPage.getByText("e2e-策略")).toBeVisible({ timeout: 10000 });

@@ -30,7 +30,9 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
-    actionTimeout: 15_000,
+    // actionTimeout 30s：首次访问某页时前端 chunk 加载较慢（CI runner 共享资源），
+    // 15s 在 GitHub Actions 上偶发超时找不到按钮。30s 给足余量，真实回归仍能捕获。
+    actionTimeout: 30_000,
     navigationTimeout: 30_000,
   },
   projects: [

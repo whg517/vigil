@@ -18,15 +18,15 @@ test.describe("接入点 CRUD", () => {
     await authedPage.goto("/integrations");
     await expect(authedPage.getByRole("heading", { name: "接入管理" })).toBeVisible();
 
-    // 打开创建 Dialog（Dialog 无 role，用标题 h2 定位）
-    await authedPage.getByRole("button", { name: "创建接入点" }).click();
+    // 打开创建 Dialog（trigger 按钮文案是「快速创建」，dialog 标题才是「创建接入点」）
+    await authedPage.getByRole("button", { name: "快速创建" }).click();
     await expect(authedPage.getByRole("heading", { name: "创建接入点" })).toBeVisible();
 
     // 填名称（placeholder 定位）
     await authedPage.getByPlaceholder("prod-prometheus").fill("e2e-integ");
 
-    // 提交
-    await authedPage.getByRole("button", { name: "创建", exact: true }).click();
+    // 提交（i18n common.create=新建）
+    await authedPage.getByRole("button", { name: "新建", exact: true }).click();
 
     // 创建成功 → 二次态展示 webhook URL + token
     await expect(authedPage.getByRole("heading", { name: "接入点已创建" })).toBeVisible({
