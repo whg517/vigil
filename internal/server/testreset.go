@@ -30,12 +30,26 @@ import (
 // 由 `go generate ./ent/...` 从 schema 生成（含多对多关联表），新增实体后自动纳入；
 // TRUNCATE 带 CASCADE，外键依赖顺序也无需关心。
 //
-// schema_migrations（迁移版本记录表）不属于 ent schema，天然不在 Tables 中；
-// 这里仍显式排除，自文档化「迁移记录不清、reset 不重跑迁移」的意图。
+// schema_migrations（迁移版本记录表）+ atlas_schema_revisions 不属于 ent schema，
+// 天然不在 Tables 中；这里仍显式排除，自文档化「迁移记录不清、reset 不重跑迁移」的意图。
+//
+// users / roles / role_bindings / team_role_bindings 也排除：身份与权限数据由
+// SeedDefaultAdmin/SeedBuiltinRoles 在启动时建立，reset 重建会重置 token_version
+// （导致 e2e storageState 里的 token 失效，spec 内 page 调 API 全部 401）。
+// 这些表的"业务状态"由测试自身管理，reset 不该越权清除。
 var allTestTables = func() []string {
+	keepAuthTables := map[string]bool{
+		"users":              true,
+		"roles":              true,
+		"role_bindings":      true,
+		"team_role_bindings": true, // 多对多关联表，绑定 role_bindings
+	}
 	names := make([]string, 0, len(entmigrate.Tables))
 	for _, t := range entmigrate.Tables {
-		if t.Name == "schema_migrations" {
+		if t.Name == "schema_migrations" || t.Name == "atlas_schema_revisions" {
+			continue
+		}
+		if keepAuthTables[t.Name] {
 			continue
 		}
 		names = append(names, t.Name)
