@@ -25,7 +25,7 @@ COPY --from=web-builder /web/dist ./internal/web/dist
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /vigil ./cmd/vigil
 
 # ===== Stage 3: 运行 =====
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata
 # 安装 atlas CLI：供 `vigil migrate` 子命令 shell out apply 版本化迁移。
 # 用官方 arigaio/atlas 镜像 COPY 二进制（版本锁定，避免运行时联网下载）。
