@@ -31,8 +31,10 @@
    参考 `PrometheusAdapter`;严重度归一可用 `severity_map` 覆盖机制(Integration.config)。
 2. **注册** —— `internal/ingestion/adapter.go` 的 `RegisterBuiltins()` 加一行 `r.Register(&DatadogAdapter{})`。
 3. **schema 枚举** —— `ent/schema/service.go` 的 `Integration` `field.Enum("type").Values(...)`
-   加入新值,然后 **`go generate ./ent/...`**(生成代码一起提交)。加值由 ent auto-migrate 处理;
-   收窄/改名需手写迁移(见 [ADR-0032](./adr/0032-migration-backup-restore.md))。
+   加入新值,然后两步:**`go generate ./ent/...`**(生成代码一起提交)+
+   **`atlas migrate diff <name> --env local`**(生成 `internal/schema/migrations/*.sql` 与 `atlas.sum`,一起提交)。
+   运行时 `vigil migrate` 只 apply 版本化迁移文件——漏了第二步,生产库不会有该枚举变更;
+   收窄/改名等破坏性变更的注意事项见 [ADR-0005](./adr/0005-data-access-ent-atlas.md)。
 4. **OpenAPI + 前端类型** —— `go generate ./cmd/vigil/...` 重生成 spec,再
    `pnpm --dir web gen:types` 重生成 `types.gen.ts`(前端 `IntegrationType` 由此派生)。
 5. **配置模板(向导后端)** —— `internal/integration/config_template.go` 的 `configTemplates`

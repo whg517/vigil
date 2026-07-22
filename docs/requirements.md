@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |------|------|
 | **状态** | Living(现行需求口径,随实现演进) |
-| **更新** | 2026-07-15 |
+| **更新** | 2026-07-22 |
 | **决策溯源** | 全部设计取舍见 [`adr/`](./adr/)([索引](./adr/README.md)) |
 | **实现状态依据** | 以仓库代码盘点为准(`internal/` 模块、`ent/schema/`、`web/src/pages/`) |
 
@@ -93,7 +93,7 @@
 
 | 编号 | 需求 | 验收要点 | 状态 | 关联 ADR |
 |------|------|---------|------|---------|
-| FR-TRI-1 | 系统必须对重复告警去重 | Redis SETNX + 过期窗口,默认 5min,`VIGIL_TRIAGE_DEDUP_WINDOW` 可配;去重键 = sha1(source + fingerprint) | 已实现 | [0012](./adr/0012-triage-three-stage-pipeline.md) |
+| FR-TRI-1 | 系统必须对重复告警去重 | Redis SETNX + 过期窗口,默认 5min,`VIGIL_TRIAGE_DEDUP_WINDOW` 可配;去重键 = `source:source_event_id` 纯拼接(prometheus/grafana 以 fingerprint 充当 `source_event_id`) | 已实现 | [0012](./adr/0012-triage-three-stage-pipeline.md) |
 | FR-TRI-2 | 系统必须支持抑制规则(临时静默与维护窗口) | SuppressionRule 分 adhoc/maintenance 两类;**preserve_critical 默认守卫 critical 不被抑制**(降噪不误杀);前端维护窗口管理页 | 已实现 | [0012](./adr/0012-triage-three-stage-pipeline.md) |
 | FR-TRI-3 | 系统必须将相关 Event 聚合进同一 Incident,并发下不重复建单 | 聚合键默认 service+severity,5min 窗口并入活跃 Incident(含 escalated);「查活跃单→建单」临界区以 PostgreSQL advisory lock 串行化 | 已实现 | [0012](./adr/0012-triage-three-stage-pipeline.md) |
 | FR-TRI-4 | resolved 信号必须触发关联 Incident 自动解决而非被丢弃 | 同 DedupKey 的 resolved Event 关联 firing 触发解决;可配「仅提示等人确认」 | 已实现 | [0012](./adr/0012-triage-three-stage-pipeline.md) · [0013](./adr/0013-deterministic-routing.md) |
@@ -134,7 +134,7 @@
 
 | 编号 | 需求 | 验收要点 | 状态 | 关联 ADR |
 |------|------|---------|------|---------|
-| FR-NTF-1 | 通知通道必须是有序降级链(非并联),内置通道为 webhook/im/email | 逐通道尝试首成功即停;链来源优先级:升级层级配置 > 通知规则 > 全局默认 `[webhook?]→im→email`;未知通道名跳过、链继续 | 已实现 | [0017](./adr/0017-notification-fallback-chain.md) · [0037](./adr/0037-trim-deferred-features.md) |
+| FR-NTF-1 | 通知通道必须是有序降级链(非并联),内置通道为 webhook/im/email | 逐通道尝试首成功即停;链来源优先级:升级层级配置 > 通知规则 > 全局默认 `[webhook(若配置)]→im→email`(webhook 仅在配置了出向 URL 时进入链头);未知通道名跳过、链继续 | 已实现 | [0017](./adr/0017-notification-fallback-chain.md) · [0037](./adr/0037-trim-deferred-features.md) |
 | FR-NTF-2 | 每条通知的送达状态必须落库可查 | 四态 `pending/sent/failed/suppressed`;suppressed(免打扰静默)落库可查、不丢数据(补发端点尚未实现,属规划中);Incident 详情可查通知记录(`GET /incidents/:id/notifications`) | 已实现 | [0017](./adr/0017-notification-fallback-chain.md) |
 | FR-NTF-3 | 通知失败必须重试且整链失败不静默 | Asynq 重试(MaxRetry=5,指数退避),幂等键 = Notification 行 ID;耗尽落 failed + 兜底告警 org_admin(走非 IM 通道)+ 进死信;入队失败回退同步直投,绝不丢通知 | 已实现 | [0017](./adr/0017-notification-fallback-chain.md) |
 | FR-NTF-4 | 系统必须聚合通知防轰炸,且 critical 不受聚合延迟 | 默认 30s 窗口合并同 target 通知;critical 不聚合立即单发 | 已实现 | [0017](./adr/0017-notification-fallback-chain.md) |
@@ -320,7 +320,7 @@
 
 | 编号 | 需求 | 目标 | 达成现状 | 关联 |
 |------|------|------|---------|------|
-| NFR-COMP-1 | 升级可回滚 | 版本化迁移 + ent auto-migrate 幂等追踪;**不做逆向迁移**,回滚 = 备份恢复(升级前备份是回滚的唯一前提;回滚会丢备份点之后的数据) | 已实现 | [0032](./adr/0032-migration-backup-restore.md) |
+| NFR-COMP-1 | 升级可回滚 | Atlas 版本化迁移(`atlas_schema_revisions` 幂等追踪);**不做逆向迁移**,回滚 = 备份恢复(升级前备份是回滚的唯一前提;回滚会丢备份点之后的数据) | 已实现 | [0032](./adr/0032-migration-backup-restore.md) |
 | NFR-COMP-2 | API 契约不漂移 | REST 统一 `/api/v1/`;spec 单一权威源为 handler 注解,前端类型同源派生,CI 校验无漂移 | 已实现 | [0030](./adr/0030-integrations-encrypted-openapi.md) |
 | NFR-COMP-3 | 集群升级免手工迁移 | Helm 升级经 pre-install/pre-upgrade hook Job 自动执行迁移 | 已实现 | [0031](./adr/0031-single-binary-compose-helm.md) · [0032](./adr/0032-migration-backup-restore.md) |
 | NFR-COMP-4 | 扩展不动核心 | 五类扩展点(告警源/通知通道/执行器/LLM/IM)为「Go 接口 + 编译期注册」——新增实现需改代码重编译(非运行时插件),第三方以 fork/PR 落地;触点清单见 [`extending.md`](./extending.md) | 已实现 | [0009](./adr/0009-pluggable-integrations.md) |
@@ -353,7 +353,7 @@
 | 已移除 | 溯源 |
 |--------|------|
 | 作战室(War Room,自动建群/拉人/升级联动入群) | [ADR-0036](./adr/0036-remove-war-room.md);协同由「工作群 + 交互卡片 + 实时刷新」承载 |
-| 电话 / SMS 通知通道 | [ADR-0037](./adr/0037-trim-deferred-features.md);默认降级链收敛为 `[webhook]→im→email` |
+| 电话 / SMS 通知通道 | [ADR-0037](./adr/0037-trim-deferred-features.md);默认降级链收敛为 `[webhook(若配置)]→im→email` |
 | 企业微信(wecom) | [ADR-0037](./adr/0037-trim-deferred-features.md);IM 平台矩阵收敛为飞书 + 钉钉 |
 | Jira / 禅道工单 SDK 占位 | [ADR-0037](./adr/0037-trim-deferred-features.md);工单只保留通用 webhook 出口 |
 | Zabbix / 云监控接入类型占位 | [ADR-0037](./adr/0037-trim-deferred-features.md);存量迁移转 webhook |

@@ -182,7 +182,7 @@
 
 - Given 升级前已按 [`operations.md`](../operations.md) 完成数据库备份,When 升级失败执行"stop → restore → 部署旧版本 → start"序列,Then 系统恢复到备份点状态并正常提供服务。
 - Given `scripts/backup.sh` 已挂 cron,When 查看备份目录,Then 存在按计划生成的备份且保留最近 7 天。
-- Given 版本升级(Compose 路径),When 新版本启动前执行 `vigil migrate`,Then 迁移按 `schema_migrations` 幂等追踪,重复执行不产生副作用;Helm 路径下同一迁移由 hook Job 自动完成。
+- Given 版本升级(Compose 路径),When 新版本启动前执行 `vigil migrate`,Then 迁移按 `atlas_schema_revisions` 幂等追踪,重复执行不产生副作用;Helm 路径下同一迁移由 hook Job 自动完成。
 - Given 回滚已完成,When 核对数据,Then 数据状态等于备份点,备份点之后的写入丢失——该限制在变更方案中被如实告知而非隐藏。
 
 **关联**:NFR-COMP、NFR-RELY | [ADR-0032](../adr/0032-migration-backup-restore.md)、[ADR-0031](../adr/0031-single-binary-compose-helm.md) | **P0**

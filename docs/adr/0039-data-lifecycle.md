@@ -58,7 +58,7 @@ Event/RawEvent 保留清理巡检(`internal/event/retention.go`,配置 `internal
 
 - **动机**:DELETE 式清理在月增 4300 万行规模下,死元组回收依赖 autovacuum,清理批次将持续追着写入跑,索引膨胀与 vacuum 压力不可忽视。PostgreSQL 原生 RANGE 分区(按 `created_at` 按月)可用 `DROP PARTITION` 整月释放,秒级、无死元组、不占 vacuum。
 - **触发条件**(满足其一再动手,避免过早复杂化):Event 表行数持续 > 5000 万;或保留清理跟不上写入(连续多个巡检周期删除量顶满批上限、表仍在净增长)。
-- **ent 不原生支持声明式分区的应对**:分区表的建立与月度分区维护走**原生 SQL 迁移脚本**(独立于 ent auto-migrate 管理,与 ADR-0032 的迁移策略并存);ent 侧无感——分区对读写查询透明,ent 生成的 CRUD 不需要改。切换存量表需"建分区表 → 回填 → 换名"的维护窗口操作,届时在 operations.md 落操作手册。
+- **ent 不原生支持声明式分区的应对**:分区表的建立与月度分区维护走**原生 SQL 迁移脚本**(以手写 SQL 纳入 Atlas 版本化迁移管理,与 ADR-0032 的备份回滚策略并存);ent 侧无感——分区对读写查询透明,ent 生成的 CRUD 不需要改。切换存量表需"建分区表 → 回填 → 换名"的维护窗口操作,届时在 operations.md 落操作手册。
 - **证据保护在分区方案下的等价实现**:DROP 整月分区前先查该分区内是否仍有未 closed Incident 引用的 Event,有则**推迟该分区的 DROP**(而非行级摘除)——保护语义不变,粒度从行放宽到月,可接受(未 closed 的超期老 Incident 本身就该被升级/关单流程消化)。
 
 ## 理由
@@ -78,5 +78,5 @@ Event/RawEvent 保留清理巡检(`internal/event/retention.go`,配置 `internal
 
 - 本 ADR 的"待实现"部分落地前,Notification/AuditLog/IncidentAction/WebhookDelivery 继续无界增长——中小规模部署(远低于目标吞吐)短期无碍,但这是显式接受的债,不是遗漏。
 - 审计类清理引入"归档产物去哪儿"的运维责任(部署方转存/保管),operations.md 需随实现补操作步骤。
-- 分区切换是一次有停机窗口的存量迁移,且此后 schema 演进要兼顾分区表(原生 SQL 迁移与 ent auto-migrate 的边界需要在实现时明确)。
+- 分区切换是一次有停机窗口的存量迁移,且此后 schema 演进要兼顾分区表(手写分区 SQL 与 `atlas migrate diff` 自动生成迁移的边界需要在实现时明确)。
 - 保留默认值是产品立场(保守、可覆盖),不是合规承诺;文档须避免给使用者"默认即合规"的暗示。

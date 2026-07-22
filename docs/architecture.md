@@ -46,7 +46,7 @@
 | 降噪效果 | 无意义打扰 ↓ 50%+ | 运行期指标，由 analytics 持续度量，非压测可断言 |
 | 部署门槛 | Compose 一键起步（硬指标） | 已落地（operations §2） |
 
-技术栈：Go 1.25 + Echo + ent（含 auto-migrate）+ Atlas 版本化迁移 + Asynq，React + Vite + shadcn/ui，选型论证见 [ADR-0003](./adr/0003-backend-language-go.md) · [0004](./adr/0004-web-framework-echo.md) · [0005](./adr/0005-data-access-ent-atlas.md) · [0006](./adr/0006-primary-store-postgresql.md) · [0007](./adr/0007-async-tasks-asynq.md) · [0008](./adr/0008-frontend-vite-shadcn.md)。
+技术栈：Go 1.25 + Echo + ent（ORM）+ Atlas 版本化迁移 + Asynq，React + Vite + shadcn/ui，选型论证见 [ADR-0003](./adr/0003-backend-language-go.md) · [0004](./adr/0004-web-framework-echo.md) · [0005](./adr/0005-data-access-ent-atlas.md) · [0006](./adr/0006-primary-store-postgresql.md) · [0007](./adr/0007-async-tasks-asynq.md) · [0008](./adr/0008-frontend-vite-shadcn.md)。
 
 ---
 
@@ -154,7 +154,7 @@ Receiver 极简：只校验 token + 落原始 payload + 入队，秒级返回 20
 **关键设计**：
 
 - **绝不在接收阶段同步处理**——下游慢会致告警源超时丢告警；背压/熔断时 payload 仍先落库，恢复后回灌。
-- 幂等键 `source_event_id`；去重键 `DedupKey = sha1(source + fingerprint)` 在归一化阶段生成。
+- 幂等键 `source_event_id`；去重键 `DedupKey = source + ":" + source_event_id` 纯拼接，在归一化阶段生成（prometheus/grafana 以告警 fingerprint 充当 `source_event_id`；哈希化如 sha1 留作演进选项）。
 - 错误分级不丢数据：限流 429、队列积压 503（payload 仍落库）、鉴权失败 401 不落库但记审计（防探测）、格式错误落库标 `parse_failed`、归一化失败重试 → 死信可重放。严重度统一归 `critical / warning / info`。
 
 **决策**：[ADR-0011](./adr/0011-ingestion-decoupled-idempotent.md) · [ADR-0038](./adr/0038-smtp-inbound.md)
@@ -167,7 +167,7 @@ Receiver 极简：只校验 token + 落原始 payload + 入队，秒级返回 20
 
 | 阶段 | 实现 |
 |------|------|
-| 去重 | Redis `dedup:{dedup_key}` SETNX + 过期窗口（默认 5min，`VIGIL_TRIAGE_DEDUP_WINDOW`） |
+| 去重 | Redis `vigil:dedup:{dedup_key}` SETNX + 过期窗口（默认 5min，`VIGIL_TRIAGE_DEDUP_WINDOW`） |
 | 抑制 | SuppressionRule（adhoc / maintenance 共用同一匹配逻辑，kind 只是分类标签） |
 | 路由 | 以 Service 为锚点，四级确定性裁决：① slug 直达 → ② 多标签子集匹配（值支持 glob）→ ③ 多命中按匹配标签数降序、Service ID 升序 → ④ Integration 默认归属兜底 |
 | 聚合 | 键 `service + severity`，5min 窗口内并入活跃 Incident（triggered/escalated/acked）；普通条件查询实现，「查活跃单 → 建单」临界区以 PostgreSQL advisory lock 串行化 |
@@ -215,7 +215,7 @@ Receiver 极简：只校验 token + 落原始 payload + 入队，秒级返回 20
 
 **机制**：
 
-- **有序降级链（非并联）**：`msg.Channels` 逐通道尝试，首个成功即停。通道来源优先级：EscalationLevel.notify_channels > NotificationTemplate.channels > 全局默认链 `webhook(若配置) → im → email`。内置通道仅 im / email / webhook（电话/SMS 已移除，[ADR-0037](./adr/0037-trim-deferred-features.md)；未知通道名跳过、降级链继续）。
+- **有序降级链（非并联）**：`msg.Channels` 逐通道尝试，首个成功即停。通道来源优先级：EscalationLevel.notify_channels > NotificationRule.channels > 全局默认链 `webhook(若配置) → im → email`。内置通道仅 im / email / webhook（电话/SMS 已移除，[ADR-0037](./adr/0037-trim-deferred-features.md)；未知通道名跳过、降级链继续）。
 - **投递 Asynq 化**：Notification 行先落 `pending`（行 ID 即幂等键 `notif:{id}`，任务粒度 = 单 target 单条通知），瞬时失败指数退避重试（`MaxRetry=5`，约 15–20 分钟窗口）。
 - **送达四态落库**：`pending | sent | failed | suppressed`（suppressed = 免打扰静默，落库可查、不丢数据；补发端点为**规划中**，尚未实现）。
 
@@ -223,7 +223,7 @@ Receiver 极简：只校验 token + 落原始 payload + 入队，秒级返回 20
 
 - **整链失败不静默**：重试耗尽落 `failed` + 兜底告警 org_admin（走非 IM 通道，异步下只在最后一次重试失败触发）+ 进 archived 死信。
 - **入队失败回退同步直投**（Redis 不可用时）——"可能少重试，绝不丢通知"；selfmon 与兜底告警（`NotifyUnrouted`）刻意保持同步直投，兜底通知不能依赖被兜底的队列。
-- 30s 窗口聚合防轰炸（flush 合并的通知同走任务投递），**critical 不聚合立即单发**；quiet_hours 按规则配置的 IANA 时区计算（`NotificationTemplate.quiet_hours.timezone`，与接收人个人时区无关）、支持跨午夜、`bypass_for:[critical]` 穿透；**值班人（排班解算目标）不受 quiet_hours 静默**——保证升级链不因免打扰断链。
+- 30s 窗口聚合防轰炸（flush 合并的通知同走任务投递），**critical 不聚合立即单发**；quiet_hours 按规则配置的 IANA 时区计算（`NotificationRule.quiet_hours.timezone`，与接收人个人时区无关）、支持跨午夜、`bypass_for:[critical]` 穿透；**值班人（排班解算目标）不受 quiet_hours 静默**——保证升级链不因免打扰断链。
 - 模板可配置（Go template，NotificationTemplate 实体，支持预览）。
 
 **决策**：[ADR-0017](./adr/0017-notification-fallback-chain.md) · [ADR-0037](./adr/0037-trim-deferred-features.md)
@@ -353,7 +353,7 @@ Receiver 极简：只校验 token + 落原始 payload + 入队，秒级返回 20
 
 ### 7.5 数据生命周期
 
-[ADR-0039](./adr/0039-data-lifecycle.md)（Proposed，须区分已实现与规划）：
+[ADR-0039](./adr/0039-data-lifecycle.md)（Accepted·部分实现，须区分已实现与规划）：
 
 - **已实现**：Event / RawEvent 保留清理巡检（默认 90 / 30 天，`<=0` 关闭；批量分页删除默认 500/批，巡检 6h）。**活跃 Incident 证据保护**：未 closed Incident 引用的 Event 超期也保留；RawEvent 只清终态。
 - **规划中（未实现）**：Notification / WebhookDelivery / MetricsSnapshot hourly 定期清理、AuditLog / IncidentAction 先归档后删、Event 按月分区（有触发条件的预案，非现状）。落地前 Notification 与审计类数据无界增长是显式接受的债。
@@ -387,7 +387,7 @@ Receiver 极简：只校验 token + 落原始 payload + 入队，秒级返回 20
 
 ## 9. 代码地图
 
-模块 ↔ 架构位置映射（目录细节与开发命令见 [`AGENTS.md`](../AGENTS.md)；`cmd/vigil` 另含 genmigration / swagfix / verify-ai 子命令）：
+模块 ↔ 架构位置映射（目录细节与开发命令见 [`AGENTS.md`](../AGENTS.md)；`cmd/vigil` 含 `migrate`（Atlas apply）与 `seed-demo` 子命令，`cmd/` 下另有 swagfix / verify-ai 独立工具）：
 
 | 架构位置 | `internal/` 模块 |
 |----------|------------------|
@@ -403,7 +403,7 @@ Receiver 极简：只校验 token + 落原始 payload + 入队，秒级返回 20
 | 集成面（§6） | integration · webhook · ticket |
 | 认证与安全（§7.1/7.2） | auth（permission.go 权限点枚举） |
 | 可观测（§7.3） | metrics · selfmon · analytics |
-| 装配与基础设施 | server（wire.go 全模块装配）· queue · store · migrate · ws · config · logger · errs · httputil · middleware · web（前端 embed） |
+| 装配与基础设施 | server（wire.go 全模块装配）· queue · store · schema（Atlas 迁移文件 embed）· ws · config · logger · errs · httputil · middleware · web（前端 embed） |
 
 ---
 

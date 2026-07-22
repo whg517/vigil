@@ -76,7 +76,7 @@
 1. Given 李强对某 service（或 team）建立了订阅，When 该范围内的 Incident 发生生命周期变更（created / acked / escalated / resolved / closed / reopened / responder_added），Then 按其订阅通道偏好发送定向通知，且落 Notification 送达记录。
 2. Given 订阅的 `min_severity` 为 warning，When info 级 Incident 变更，Then 不发送定向通知。
 3. Given 订阅者非值班人且处于免打扰时段，When 非 critical 变更发生，Then 通知记为 `suppressed` 并落送达记录可查（补发能力**规划中**，现状靠事后查看送达记录，口径同 [`../requirements.md`](../requirements.md) FR-NTF-2）；critical 可按 `bypass_for` 配置穿透静默。
-4. Given 订阅未配置通道偏好，Then 走全局默认降级链 `[webhook]→im→email`（逐通道尝试，首个成功即停）。
+4. Given 订阅未配置通道偏好，Then 走全局默认降级链 `[webhook(若配置)]→im→email`（逐通道尝试，首个成功即停）。
 5. 订阅粒度为 team 或 service 二选一，李强可在 Web 设置页自助增删改自己的订阅。
 
 **关联**：FR-NTF · [ADR-0017 通知降级链与送达四态](../adr/0017-notification-fallback-chain.md) · 实体 `ent/schema/subscription.go` · 优先级 P0（定级理由见[故事总览](#故事总览)）

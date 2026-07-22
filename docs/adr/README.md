@@ -11,7 +11,7 @@
 |---|------|------|
 | [0001](0001-record-architecture-decisions.md) | 采用 ADR 记录架构决策 | Accepted |
 | [0002](0002-product-positioning.md) | 产品定位与非目标 | Accepted |
-| [0037](0037-trim-deferred-features.md) | 收敛延期功能:移除电话/SMS、企微、Jira/禅道与 Zabbix/云监控占位 | Accepted |
+| [0037](0037-trim-deferred-features.md) | 收敛延期功能:移除电话/SMS、企微、工单 SDK 与 Zabbix/云监控占位 | Accepted |
 
 ### 技术选型
 | # | 标题 | 状态 |
@@ -75,7 +75,7 @@
 | # | 标题 | 状态 |
 |---|------|------|
 | [0031](0031-single-binary-compose-helm.md) | 单二进制 embed + Compose/Helm | Accepted |
-| [0032](0032-migration-backup-restore.md) | 迁移与回滚:备份恢复(不做逆向迁移) | Accepted |
+| [0032](0032-migration-backup-restore.md) | 备份恢复(不做逆向迁移) | Accepted |
 | [0033](0033-selfmon-and-auth.md) | 自监控三红线 + 鉴权 Bearer JWT | Accepted |
 | [0039](0039-data-lifecycle.md) | 数据生命周期:保留清理、归档取舍与分区路线 | Accepted(部分实现) |
 

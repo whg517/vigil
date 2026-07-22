@@ -60,6 +60,7 @@ vigil/
 | pnpm | 9 | CI `pnpm/action-setup` 锁 9；`web/package.json` 的 `packageManager` 字段已固定（corepack 环境自动匹配） |
 | golangci-lint | **v2**（CI 锁 v2.12.2） | ⚠️ `.golangci.yml` 是 v2 格式（`version: "2"`），v1 解析直接失败；版本须与 Go toolchain 匹配（v2.0.2 是 go 1.24 编译，不支持目标 go 1.25） |
 | docker compose | v2 | Makefile 用 `docker compose`（空格）子命令语法，不兼容 v1 的 `docker-compose` |
+| atlas CLI | 运行时镜像内置 `arigaio/atlas:1.2.3`；CI 经 `ariga/setup-atlas` 安装 | 本地 `atlas migrate diff`（schema 变更）与 `make test-e2e` 需本机可执行 `atlas` |
 
 依赖容器（postgres 需 pgvector 扩展，推荐 `pgvector/pgvector:pg16`）由 `make dev-up` 自动拉起，无需手装。
 

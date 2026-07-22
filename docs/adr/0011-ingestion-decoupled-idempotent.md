@@ -16,7 +16,7 @@
 - **归一化异步化**:归一化是独立 Asynq worker 任务(选 Adapter → `Normalize` → 写 PG)。
 - **新增 `raw_event` 表**(data-model 未定义,本设计新增),状态机 `received | normalized | parse_failed | requeued`。
 - **幂等键 `source_event_id`**:重复推送不产生新 Event,仅更新状态。
-- **去重键 `DedupKey = sha1(source + fingerprint)`** 在归一化阶段生成。
+- **去重键 `DedupKey = source + ":" + source_event_id`**(纯拼接)在归一化阶段生成;prometheus/grafana 以告警 fingerprint 充当 `source_event_id`,哈希化(如 sha1)留作演进选项。
 - **背压兜底与错误分级**:
   - 单接入点限流超 `rate_limit` → **429**;
   - 全局队列积压 → **503**,但 payload 仍落库(限流/背压/熔断时先落库标 pending,恢复后回灌,绝不内存丢弃);

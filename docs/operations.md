@@ -106,9 +106,9 @@ PG 恢复由 `restore.sh` 全自动完成;Redis 恢复在 compose 场景 `restor
 
 ```bash
 docker compose stop vigil redis                     # 1. 停写入方 + redis
-# 2. 清掉旧 AOF、放入备份 RDB(redisdata 卷名可用 docker volume ls 确认)
+# 2. 清掉旧 AOF、解压备份 RDB 放入数据卷(backup.sh 产出为 redis.rdb.gz;redisdata 卷名可用 docker volume ls 确认)
 docker run --rm -v vigil_redisdata:/data -v $(pwd)/backups/<timestamp>:/backup alpine \
-  sh -c 'rm -rf /data/appendonlydir && cp /backup/redis.rdb /data/dump.rdb'
+  sh -c 'rm -rf /data/appendonlydir && gunzip -c /backup/redis.rdb.gz > /data/dump.rdb'
 # 3. 临时以 appendonly no 启动(否则 RDB 不会被加载),再开 AOF 令其从已载入数据集重写
 docker run --rm -d --name vigil-redis-restore -v vigil_redisdata:/data redis:7-alpine \
   redis-server --appendonly no
@@ -197,7 +197,7 @@ helm install vigil ./deploy/helm
     readiness 探测(依赖 schema)在迁移完成后即可通过。
   - **失败排查**:失败的 Job/pod 会保留,`kubectl logs job/<release>-migrate` 看迁移日志;
     修复后重新 `helm install/upgrade`(旧 Job 自动清理)。迁移失败不回滚 schema,
-    按 §3 走备份恢复([ADR-0032](./adr/0032-migration-backup-restore.md))。
+    按 §5 走备份恢复([ADR-0032](./adr/0032-migration-backup-restore.md))。
   - `--set migration.enabled=false` 关闭后回到手动模式:
     `kubectl exec deploy/vigil -- vigil migrate`(pod 未 ready 也可 exec)。
 - **当前 chart 为单 Deployment(API + worker 同进程)、仅验证单副本部署**。
